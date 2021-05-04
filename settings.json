@@ -1,6 +1,12 @@
 {
-     "loggingLevel":3,
-     "email":"youremail@domain.com",
-     "password":"yourPwdThatIsSecure",
-     "cvv":"your card cvv"
+     "debug":{
+          "loggingLevel":3,
+          "testMode":true
+     },
+     "app":{
+          "email":"youremail@domain.com",
+          "password":"yourPwdThatIsSecure",
+          "cvv":"your card cvv",
+          "item":"link to your item"
+     }    
 }

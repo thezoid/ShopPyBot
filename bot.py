@@ -36,11 +36,16 @@ with open("dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT 
      settings = json.load(settingsFile)
 
 try:
-     item = settings["item"]
-     logLevel = settings["loggingLevel"]
-     email = settings["email"]
-     pwd = settings["password"]
-     secCode = settings["cvv"]
+     loggingLevel = settings["debug"]["loggingLevel"]
+     if loggingLevel > 3:
+          loggingLevel = 3
+     if loggingLevel < 0:
+          loggingLevel = 0
+     testMode = settings["debug"]["testMode"]
+     item = settings["app"]["item"]
+     email = settings["app"]["email"]
+     pwd = settings["app"]["password"]
+     secCode = settings["app"]["cvv"]
 except:
      writeLog("Failed to load settings","ERROR")
      exit()
