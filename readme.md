@@ -16,6 +16,7 @@ A quick python project to try to grab targetted items in the competitive reselle
 - [Google Chrome](https://chrome.google.com)
 - [ChromeDriver](https://chromedriver.chromium.org/downloads)
      - Drop this in the same directory as `bot.py` and `bot-availCheck.py`
+- A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
 
 ## How to Use
 
