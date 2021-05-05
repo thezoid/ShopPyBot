@@ -34,6 +34,10 @@ To make the population of links for the availability check easier to process, mo
 
 ## Customizing `settings.json`
 
+Before putting the bot to work, you need to configure `settings.json` so that the scripts will function correctly. Be sure not to commit or otherwise save your sensitive information in a public place (email, password, cvv, etc.). Non-GPU items from BestBuy should work but it is not guranteed.
+
+OOtB the availability bot has a long list of RTX 30 series cards available on Best Buy; however, you will need to check the validity of this list to ensure your checks are up to date.
+
 ### Debug
 
 |Key|Description| Default |
@@ -52,13 +56,13 @@ To make the population of links for the availability check easier to process, mo
 |item | a link to the item of which you want to automate purchasing | *N/A* |
 |queueExists| represents whether the item being purchased is part of a queue system - !!!queue system requires manual input for checkout!!! | true |
 
-**If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII that may leak through your commits!*
+****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII that may leak through your commits!***
 ### Available
 
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
-|items|A list of items to check for availability. Must be presented as {"name":"item name","link":"link to the item"}| N/A |
+|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
 
 ## Support
 
