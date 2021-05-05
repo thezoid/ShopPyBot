@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -15,6 +16,7 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+    BASIC = '\033[1;37;40m'
 
 #------ start funcs
 def writeLog(message, type):
@@ -22,12 +24,8 @@ def writeLog(message, type):
           return
      if type.upper() == "ERROR" and loggingLevel >= 1:
           print(bcolors.FAIL,"ERROR:",message,bcolors.ENDC)
-          global errors
-          errors+=1
      elif type.upper() == "WARNING" and loggingLevel >= 2:
           print(bcolors.WARNING,"WARNING:",message,bcolors.ENDC)
-          global warnings
-          warnings+=1
      elif type.upper() == "INFO" and loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
 
@@ -46,17 +44,18 @@ try:
      email = settings["app"]["email"]
      pwd = settings["app"]["password"]
      secCode = settings["app"]["cvv"]
+     delay = settings["app"]["delay"]
 except:
      writeLog("Failed to load settings","ERROR")
      exit()
 
-driver = webdriver.Chrome("chromedriver.exe")
+driver = webdriver.Chrome("chromedriver.exe",service_log_path=os.devnull)
 driver.get(item)
 cardBought = False
 while not cardBought:
-     #find add to cart button
+     #find add to cart button (only available if not "sold out"?)
      try:
-          atcBtn = WebDriverWait(driver,10).until(
+          atcBtn = WebDriverWait(driver,delay).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
           )
      except:
@@ -65,3 +64,52 @@ while not cardBought:
           continue
 
      writeLog("Add To Cart button found!","INFO")
+
+     try:
+          #click add to cart button
+          atcBtn.click()
+          #go to cart and begin checkout as guest
+          driver.get("https://bestbuy.com/cart")
+          checkoutBtn = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div/span/div/div[2]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
+          )
+          checkoutBtn.click()
+          writeLog("Successfully added to cart - begin checkout","INFO")
+
+          #fill in account details
+          emailField = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.ID,"fld-e"))
+          )
+          emailField.send_keys(email)
+          pwFiled = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.ID,"fld-p1"))
+          )
+          pwField.send_keys(pwd)
+
+          #click sign in
+          signInBtn = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[1]/div/div/div/div/form/div[3]/button"))
+          )
+          signInBtn.click()
+          writeLog("Signing in","INFO")
+
+          #fill in card cvv (assumes account already has exactly 1 payment method setup)
+          cvvField = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.ID,"credit-card-cvv"))
+          )
+          cvvField.send_keys(secCode)
+          writeLog("Attempting to place order","INFOs")
+
+          #order
+          placeOrderBtn = WebDriverWait(driver,delay).until(
+               EC.presence_of_element_located((By.CSS_SELECTOR,".button__fast-track"))
+          )
+          if not testMode:
+               placeOrderBtn.click()
+
+          cardBought = True
+          writeLog("Item should have been purchased","INFO")
+     except:
+          #ensure the driver is looking at the right page
+          driver.get(item)
+          writeLog("Trying again...","ERROR")
