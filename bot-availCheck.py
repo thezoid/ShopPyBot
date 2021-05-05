@@ -21,14 +21,42 @@ class bcolors:
     BASIC = '\033[1;37;40m'
 
 #------ start funcs
-def writeLog(message, type=""):
-     if type.upper() == "AVAILABLE":
+def writeLog(message, type="",_loggingLevel=0):
+     #print(f"in writeLog - loglvl: {_loggingLevel} - type: {type}")
+     if type.upper() == "ALWAYS":
+          print("always")
+          print(bcolors.BASIC,message,bcolors.ENDC)
+     elif type.upper() == "AVAILABLE":
           print(bcolors.OKGREEN,"AVAILABLE:",message,bcolors.ENDC)
      elif type.upper() == "UNAVAILABLE":
           print(bcolors.FAIL,"UNAVAILABLE:",message,bcolors.ENDC)
-     else:
-          print(bcolors.BASIC,message,bcolors.ENDC)
-          
+     elif _loggingLevel == 0:
+          return
+     elif type.upper() == "ERROR" and _loggingLevel >= 1:
+          print(bcolors.FAIL,"ERROR:",message,bcolors.ENDC)
+     elif type.upper() == "WARNING" and _loggingLevel >= 2:
+          print(bcolors.WARNING,"WARNING:",message,bcolors.ENDC)
+     elif type.upper() == "INFO" and _loggingLevel >= 3:
+          print("\033[1;37;40mINFO:",message,bcolors.ENDC)
+
+def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_loggingLevel=0):
+     #find add to cart button (only available if not "sold out"?)
+     _driver.get(_itemLink)
+     try:
+          atcBtn = WebDriverWait(driver,timeout).until(
+               EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
+          )
+     except:
+          m= f"{itemName} is NOT available"
+          writeLog(m,"UNAVAILABLE",_loggingLevel)
+          return
+     m=f"{_itemName} is available at {_itemLink}"
+     writeLog(m,"AVAILABLE")
+     if(_alertSound and _alertSound != ""):
+          playsound(_alertSound,_loggingLevel)
+
+ #------ end funcs
+
 scriptdir = os.path.dirname(os.path.realpath(__file__))
 #read ./settings.json
 with open(scriptdir+"/dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!
@@ -43,30 +71,32 @@ try:
      testMode = settings["debug"]["testMode"]
      items = settings["available"]["items"]
      timeout = settings["available"]["timeout"]
-     alertSoundPath = scriptdir+"/sounds/Picked Coin Echo 2.wav"
+     if settings["debug"]["alertType"] == "wav":
+          alertSoundPath = scriptdir+"/sounds/alert.wav"
+     elif settings["debug"]["alertType"] == "mp3":
+          alertSoundPath = scriptdir+"/sounds/alert.mp3"
+     else:
+          writeLog("Alert file type is invalid","ERROR",loggingLevel)
+          exit()
 except:
      writeLog("Failed to load settings","ERROR")
      exit()
 
-driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",service_log_path=os.devnull)
+options = webdriver.ChromeOptions()
+#options.headless = True
+options.add_argument("--log-level=3")
+driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
+
 
 stopCheck = False
 while not stopCheck:
      for item in items:
           itemName = item["name"]
           itemLink = item["link"]
-          driver.get(itemLink)
-          #find add to cart button (only available if not "sold out"?)
-          try:
-               atcBtn = WebDriverWait(driver,timeout).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
-               )
-          except:
-               m= f"{itemName} is NOT available"
-               writeLog(m,"UNAVAILABLE")
-               #driver.refresh()
-               continue
-          m=f"{itemName} is available at {itemLink}"
-          writeLog(m,"AVAILABLE")
-          if(alertSoundPath and alertSoundPath != ""):
-               playsound(alertSoundPath)
+
+          domain = itemLink.split("/")
+          domain = domain[2][domain[2].index('.')+1:domain[2].rfind('.')]
+          writeLog(f"Item is from {domain}","INFO",loggingLevel)
+          
+          if domain.lower() == "bestbuy":
+               bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
