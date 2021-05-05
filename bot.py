@@ -4,6 +4,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import json
+import os
+from playsound import playsound
 
 #text colors
 class bcolors:
@@ -28,6 +30,8 @@ def writeLog(message, type):
           print(bcolors.WARNING,"WARNING:",message,bcolors.ENDC)
      elif type.upper() == "INFO" and loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
+     elif type.upper() == "ALWAYS":
+          print(bcolors.OKGREEN,message,bcolors.ENDC)
 
 #read ./settings.json
 with open("dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!
@@ -45,6 +49,8 @@ try:
      pwd = settings["app"]["password"]
      secCode = settings["app"]["cvv"]
      delay = settings["app"]["delay"]
+     queueExists = settings["app"]["queueExists"]
+     alertSoundPath = "sounds/Picked Coin Echo 2.wav"
 except:
      writeLog("Failed to load settings","ERROR")
      exit()
@@ -65,51 +71,56 @@ while not cardBought:
 
      writeLog("Add To Cart button found!","INFO")
 
-     try:
-          #click add to cart button
+     if not queueExists:
+          try:
+               #click add to cart button
+               atcBtn.click()
+               #go to cart and begin checkout as guest
+               driver.get("https://bestbuy.com/cart")
+               checkoutBtn = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div/span/div/div[2]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
+               )
+               checkoutBtn.click()
+               writeLog("Successfully added to cart - begin checkout","INFO")
+
+               #fill in account details
+               emailField = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.ID,"fld-e"))
+               )
+               emailField.send_keys(email)
+               pwField = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.ID,"fld-p1"))
+               )
+               pwField.send_keys(pwd)
+
+               #click sign in
+               signInBtn = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[1]/div/div/div/div/form/div[3]/button"))
+               )
+               signInBtn.click()
+               writeLog("Signing in","INFO")
+
+               #fill in card cvv (assumes account already has exactly 1 payment method setup)
+               cvvField = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.ID,"credit-card-cvv"))
+               )
+               cvvField.send_keys(secCode)
+               writeLog("Attempting to place order","INFOs")
+
+               #order
+               placeOrderBtn = WebDriverWait(driver,delay).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR,".button__fast-track"))
+               )
+               if not testMode:
+                    placeOrderBtn.click()
+
+               cardBought = True
+               writeLog("Item should have been purchased","INFO")
+          except:
+               #ensure the driver is looking at the right page
+               driver.get(item)
+               writeLog("Trying again...","ERROR")
+     else:
           atcBtn.click()
-          #go to cart and begin checkout as guest
-          driver.get("https://bestbuy.com/cart")
-          checkoutBtn = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div/span/div/div[2]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
-          )
-          checkoutBtn.click()
-          writeLog("Successfully added to cart - begin checkout","INFO")
-
-          #fill in account details
-          emailField = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.ID,"fld-e"))
-          )
-          emailField.send_keys(email)
-          pwFiled = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.ID,"fld-p1"))
-          )
-          pwField.send_keys(pwd)
-
-          #click sign in
-          signInBtn = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[1]/div/div/div/div/form/div[3]/button"))
-          )
-          signInBtn.click()
-          writeLog("Signing in","INFO")
-
-          #fill in card cvv (assumes account already has exactly 1 payment method setup)
-          cvvField = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.ID,"credit-card-cvv"))
-          )
-          cvvField.send_keys(secCode)
-          writeLog("Attempting to place order","INFOs")
-
-          #order
-          placeOrderBtn = WebDriverWait(driver,delay).until(
-               EC.presence_of_element_located((By.CSS_SELECTOR,".button__fast-track"))
-          )
-          if not testMode:
-               placeOrderBtn.click()
-
-          cardBought = True
-          writeLog("Item should have been purchased","INFO")
-     except:
-          #ensure the driver is looking at the right page
-          driver.get(item)
-          writeLog("Trying again...","ERROR")
+          playsound(alertSoundPath)
+          writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS")
