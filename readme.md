@@ -15,12 +15,15 @@ A quick python project to try to grab targetted items in the competitive reselle
      - `pip install playsound`
 - [Google Chrome](https://chrome.google.com)
 - [ChromeDriver](https://chromedriver.chromium.org/downloads)
-     - Drop this in the same directory as `bot.py`
+     - Drop this in the same directory as `bot.py` and `bot-availCheck.py`
 
 ## How to Use
 
-1. Make sure you have all the listed requirements above installed on your machine
-2. Customize `settings.json` to include all of your appropriate information. Use the tables below if you are unsure of what settings you should use.
+1. Make sure you have all the listed requirements above installed on your machine.
+2. Customize `settings.json` to include all of your appropriate information. Use the tables below if you are unsure of what values you should use.
+3. Run `bot.py` or `bot-availCheck.py` through your favorite method
+     - *NOTE:* It is recommended to run this through the command line to more easily observe any output that may come up
+
 ## Customizing `settings.json`
 
 ### Debug
@@ -46,6 +49,10 @@ A quick python project to try to grab targetted items in the competitive reselle
 | --- | --- | --- |
 |delay|The delay used in the Selenium driver for actions| 0.5 |
 |items|A list of items to check for availability. Must be presented as {"name":"item name","link":"link to the item"}| A hand gathered list of all the BestBuy RTX 3080/3070 offerings|
+
+## Support
+
+No support is currently provided.
 
 ## Credits
 
