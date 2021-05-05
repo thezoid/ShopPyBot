@@ -46,12 +46,13 @@ To make the population of links for the availability check easier to process, mo
 |Key|Description| Default |
 | --- | --- | --- |
 |delay|The delay used in the Selenium driver for actions| 0.5 |
-|email| your email for your Best Buy account | *N/A* |
-|password| your password for your Best Buy account | *N/A* |
-|cvv| your security code for your Best Buy saved payment method | *N/A* |
+|email*| your email for your Best Buy account | *N/A* |
+|password*| your password for your Best Buy account | *N/A* |
+|cvv*| your security code for your Best Buy saved payment method | *N/A* |
 |item | a link to the item of which you want to automate purchasing | *N/A* |
 |queueExists| represents whether the item being purchased is part of a queue system - !!!queue system requires manual input for checkout!!! | true |
 
+**If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII that may leak through your commits!*
 ### Available
 
 |Key|Description| Default |
