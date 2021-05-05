@@ -28,6 +28,10 @@ A quick python project to try to grab targetted items in the competitive reselle
 3. Run `bot.py` or `bot-availCheck.py` through your favorite method
      - *NOTE:* It is recommended to run this through the command line to more easily observe any output that may come up
 
+### Link Processor
+
+To make the population of links for the availability check easier to process, modify `data.csv` such that each line is a pair of `item name, link to BestBuy item`. Once you have all your new items accounted for, run `processor.ps1` to generate new content in `out.json`. Copy and paste the contents of the `data` array inside of `out.json` to the `items` array in the `available` `settings.json` section.
+
 ## Customizing `settings.json`
 
 ### Debug
