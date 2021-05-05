@@ -29,9 +29,9 @@ def writeLog(message, type=""):
      else:
           print(bcolors.BASIC,message,bcolors.ENDC)
           
-
+scriptdir = os.path.dirname(os.path.realpath(__file__))
 #read ./settings.json
-with open("dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!
+with open(scriptdir+"/dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!
      settings = json.load(settingsFile)
 
 try:
@@ -43,7 +43,7 @@ try:
      testMode = settings["debug"]["testMode"]
      items = settings["available"]["items"]
      delay = settings["available"]["delay"]
-     alertSoundPath = "sounds/Picked Coin Echo 2.wav"
+     alertSoundPath = scriptdir+"/sounds/Picked Coin Echo 2.wav"
 except:
      writeLog("Failed to load settings","ERROR")
      exit()
