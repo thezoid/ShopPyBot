@@ -57,7 +57,7 @@ except:
      writeLog("Failed to load settings","ERROR")
      exit()
 
-driver = webdriver.Chrome("chromedriver.exe",service_log_path=os.devnull)
+driver = webdriver.Chrome(scriptdir+"chromedriver.exe",service_log_path=os.devnull)
 driver.get(item)
 cardBought = False
 while not cardBought:
