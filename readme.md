@@ -45,7 +45,7 @@ To make the population of links for the availability check easier to process, mo
 
 |Key|Description| Default |
 | --- | --- | --- |
-|delay|The delay used in the Selenium driver for actions| 0.5 |
+|timeout|The timeout used in the Selenium driver for actions| 10 |
 |email*| your email for your Best Buy account | *N/A* |
 |password*| your password for your Best Buy account | *N/A* |
 |cvv*| your security code for your Best Buy saved payment method | *N/A* |
@@ -57,7 +57,7 @@ To make the population of links for the availability check easier to process, mo
 
 |Key|Description| Default |
 | --- | --- | --- |
-|delay|The delay used in the Selenium driver for actions| 0.5 |
+|timeout|The timeout used in the Selenium driver for actions| 10 |
 |items|A list of items to check for availability. Must be presented as {"name":"item name","link":"link to the item"}| A hand gathered list of all the BestBuy RTX 3080/3070 offerings|
 
 ## Support

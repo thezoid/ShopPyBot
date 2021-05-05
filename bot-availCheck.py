@@ -42,7 +42,7 @@ try:
           loggingLevel = 0
      testMode = settings["debug"]["testMode"]
      items = settings["available"]["items"]
-     delay = settings["available"]["delay"]
+     timeout = settings["available"]["timeout"]
      alertSoundPath = scriptdir+"/sounds/Picked Coin Echo 2.wav"
 except:
      writeLog("Failed to load settings","ERROR")
@@ -58,7 +58,7 @@ while not stopCheck:
           driver.get(itemLink)
           #find add to cart button (only available if not "sold out"?)
           try:
-               atcBtn = WebDriverWait(driver,delay).until(
+               atcBtn = WebDriverWait(driver,timeout).until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
                )
           except:

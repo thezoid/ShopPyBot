@@ -50,7 +50,7 @@ try:
      email = settings["app"]["email"]
      pwd = settings["app"]["password"]
      secCode = settings["app"]["cvv"]
-     delay = settings["app"]["delay"]
+     timeout = settings["app"]["timeout"]
      queueExists = settings["app"]["queueExists"]
      alertSoundPath = scriptdir+"/sounds/Picked Coin Echo 2.wav"
 except:
@@ -63,7 +63,7 @@ cardBought = False
 while not cardBought:
      #find add to cart button (only available if not "sold out"?)
      try:
-          atcBtn = WebDriverWait(driver,delay).until(
+          atcBtn = WebDriverWait(driver,timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
           )
      except:
@@ -79,38 +79,38 @@ while not cardBought:
                atcBtn.click()
                #go to cart and begin checkout as guest
                driver.get("https://bestbuy.com/cart")
-               checkoutBtn = WebDriverWait(driver,delay).until(
+               checkoutBtn = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div[1]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
                )
                checkoutBtn.click()
                writeLog("Successfully added to cart - begin checkout","INFO")
 
                #fill in account details
-               emailField = WebDriverWait(driver,delay).until(
+               emailField = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.ID,"fld-e"))
                )
                emailField.send_keys(email)
-               pwField = WebDriverWait(driver,delay).until(
+               pwField = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.ID,"fld-p1"))
                )
                pwField.send_keys(pwd)
 
                #click sign in
-               signInBtn = WebDriverWait(driver,delay).until(
+               signInBtn = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[2]/div[1]/div/div/div/div/form/div[3]/button"))
                )
                signInBtn.click()
                writeLog("Signing in","INFO")
 
                #fill in card cvv (assumes account already has exactly 1 payment method setup)
-               cvvField = WebDriverWait(driver,delay).until(
+               cvvField = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.ID,"credit-card-cvv"))
                )
                cvvField.send_keys(secCode)
                writeLog("Attempting to place order","INFOs")
 
                #order
-               placeOrderBtn = WebDriverWait(driver,delay).until(
+               placeOrderBtn = WebDriverWait(driver,timeout).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR,".button__fast-track"))
                )
                if not testMode:
