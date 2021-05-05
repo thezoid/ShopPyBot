@@ -42,8 +42,10 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 
 |Key|Description| Default |
 | --- | --- | --- |
-|loggingLevel|Set the level of logging in the bot script such that `0 = SILENT`, `1 = ERROR`, `2 = WARNING`, `3 = INFO`| 3 |
-|testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
+|loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
+|testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |<br>
+
+<br>
 
 ### App
 
@@ -54,15 +56,20 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |password*| your password for your Best Buy account | *N/A* |
 |cvv*| your security code for your Best Buy saved payment method | *N/A* |
 |item | a link to the item of which you want to automate purchasing | *N/A* |
-|queueExists| represents whether the item being purchased is part of a queue system - !!!queue system requires manual input for checkout!!! | true |
+|queueExists| represents whether the item being purchased is part of a queue system - **queue system requires manual input for final checkout** | true |
+
+<br>
 
 ****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII that may leak through your commits!***
+
 ### Available
 
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
+
+<br>
 
 ## Support
 
