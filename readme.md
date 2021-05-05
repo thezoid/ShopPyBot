@@ -21,6 +21,7 @@ A quick python project to try to grab targetted items in the competitive reselle
 ## How to Use
 
 1. Make sure you have all the listed requirements above installed on your machine.
+     - Windows users can execute the supplied `installDependencies.ps1` script to walk through the requirements setup process
 2. Customize `settings.json` to include all of your appropriate information. Use the tables below if you are unsure of what values you should use.
 3. Run `bot.py` or `bot-availCheck.py` through your favorite method
      - *NOTE:* It is recommended to run this through the command line to more easily observe any output that may come up
