@@ -1,7 +1,8 @@
 {
      "debug": {
           "loggingLevel": 3,
-          "testMode": true
+          "testMode": true,
+          "alertType": "wav"
      },
      "app": {
           "delay": 0.5,

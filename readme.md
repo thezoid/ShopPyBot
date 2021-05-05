@@ -32,7 +32,7 @@ A quick python project to try to grab targetted items in the competitive reselle
 
 To make the population of links for the availability check easier to process, modify `data.csv` such that each line is a pair of `item name, link to BestBuy item`. Once you have all your new items accounted for, run `processor.ps1` to generate new content in `out.json`. Copy and paste the contents of the `data` array inside of `out.json` to the `items` array in the `available` `settings.json` section.
 
-## Customizing `settings.json`
+## Customization
 
 Before putting the bot to work, you need to configure `settings.json` so that the scripts will function correctly. Be sure not to commit or otherwise save your sensitive information in a public place (email, password, cvv, etc.). Non-GPU items from BestBuy should work but it is not guranteed.
 
@@ -43,7 +43,8 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
-|testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |<br>
+|testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
+|alertType|The media type the alert file currently is. **Must be `mp3` or `wav`**|`wav`|
 
 <br>
 
@@ -70,6 +71,10 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
 
 <br>
+
+### Changing the Alert Sound
+
+The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the debug value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
 
 ## Support
 
