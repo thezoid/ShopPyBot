@@ -78,7 +78,7 @@ while not cardBought:
                #go to cart and begin checkout as guest
                driver.get("https://bestbuy.com/cart")
                checkoutBtn = WebDriverWait(driver,delay).until(
-                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div/span/div/div[2]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
+                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div[1]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
                )
                checkoutBtn.click()
                writeLog("Successfully added to cart - begin checkout","INFO")
@@ -95,7 +95,7 @@ while not cardBought:
 
                #click sign in
                signInBtn = WebDriverWait(driver,delay).until(
-                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[1]/div/div/div/div/form/div[3]/button"))
+                    EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[2]/div[1]/div/div/div/div/form/div[3]/button"))
                )
                signInBtn.click()
                writeLog("Signing in","INFO")
