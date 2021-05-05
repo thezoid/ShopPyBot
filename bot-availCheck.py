@@ -70,5 +70,3 @@ while not stopCheck:
           writeLog(m,"AVAILABLE")
           if(alertSoundPath and alertSoundPath != ""):
                playsound(alertSoundPath)
-     m=f"\n\n\n\n\n\nStarting over from the top"
-     writeLog(m)
