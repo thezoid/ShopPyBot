@@ -126,3 +126,4 @@ while not cardBought:
           atcBtn.click()
           playsound(alertSoundPath)
           writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS")
+          cardBought=True
