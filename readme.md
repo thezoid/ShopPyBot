@@ -1,6 +1,6 @@
 # ShopPyBot
 
-A quick python project to try to grab targetted items in the competitive resellers market.
+A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
 
 ## Supported sites
 
@@ -18,7 +18,7 @@ A quick python project to try to grab targetted items in the competitive reselle
 - [Google Chrome](https://chrome.google.com)
 - [ChromeDriver](https://chromedriver.chromium.org/downloads)
   - Drop this in the same directory as `bot.py` and `bot-availCheck.py`
-- A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
+- (for BestBuy) A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
 
 ## How to Use
 

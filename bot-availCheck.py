@@ -96,7 +96,7 @@ while not stopCheck:
 
           domain = itemLink.split("/")
           domain = domain[2][domain[2].index('.')+1:domain[2].rfind('.')]
-          writeLog(f"Item is from {domain}","INFO",loggingLevel)
+          #writeLog(f"Item is from {domain}","INFO",loggingLevel)
           
           if domain.lower() == "bestbuy":
                bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
