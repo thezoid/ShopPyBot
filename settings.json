@@ -2,10 +2,10 @@
      "debug": {
           "loggingLevel": 3,
           "testMode": true,
-          "alertType": "wav"
+          "alertType": "mp3"
      },
      "app": {
-          "delay": 10,
+          "timeout": 10,
           "bb_email": "your bestbuy account email",
           "bb_password": "your bestbuy account password",
           "bb_cvv": "your bestbuy account card cvv",
@@ -15,7 +15,7 @@
           "queueExists": true
      },
      "available": {
-          "delay": 10,
+          "timeout": 10,
           "items": [
                {
                     "name":"ASUS ROG STRIX NVIDIA GeForce RTX 3080 OC",

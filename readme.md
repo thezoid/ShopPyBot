@@ -5,7 +5,7 @@ A Python based system to 1) attempt to purchase an item from a link; and 2) chec
 ## Supported sites
 
 - [x] Best Buy
-- [ ] Amazon
+- [x]] Amazon
 - [ ] Newegg
 
 ## Requirements
@@ -25,7 +25,7 @@ A Python based system to 1) attempt to purchase an item from a link; and 2) chec
 
 ### Amazon
 
-- A valid Amazon account
+- A valid Amazon account (presave your [address](https://smile.amazon.com/a/addresses) and [payment method](https://smile.amazon.com/cpe/yourpayments/wallet)!)
 - Your OTP device on hand (manual login required)
 
 ## How to Use
@@ -61,9 +61,11 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
-|email*| your email for your Best Buy account | *N/A* |
-|password*| your password for your Best Buy account | *N/A* |
-|cvv*| your security code for your Best Buy saved payment method | *N/A* |
+|amz_email*| your email for your Amazon account | *N/A* |
+|amz_pwd*| your password for your Amazon account | *N/A* |
+|bb_email*| your email for your Best Buy account | *N/A* |
+|bb_password*| your password for your Best Buy account | *N/A* |
+|bb_cvv*| your security code for your Best Buy saved payment method | *N/A* |
 |item | a link to the item of which you want to automate purchasing | *N/A* |
 |queueExists| represents whether the item being purchased is part of a queue system - **queue system requires manual input for final checkout** | true |
 
@@ -90,4 +92,4 @@ No support is currently provided.
 
 ## Credits
 
-[Alert sound](https://opengameart.org/content/picked-coin-echo-2) - NenandSimic
+[wav Alert sound](https://opengameart.org/content/picked-coin-echo-2) - NenandSimic
