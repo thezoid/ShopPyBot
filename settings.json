@@ -6,9 +6,11 @@
      },
      "app": {
           "delay": 10,
-          "email": "youremail@domain.com",
-          "password": "yourPwdThatIsSecure",
-          "cvv": "your card cvv",
+          "bb_email": "your bestbuy account email",
+          "bb_password": "your bestbuy account password",
+          "bb_cvv": "your bestbuy account card cvv",
+          "amz_email":"your amazon account email",
+          "amz_pwd":"your amazon account pwd",
           "item": "link to your item",
           "queueExists": true
      },

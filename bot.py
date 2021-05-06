@@ -33,68 +33,70 @@ def writeLog(message, type,_loggingLevel):
      elif type.upper() == "ALWAYS":
           print(bcolors.OKGREEN,message,bcolors.ENDC)
 
-def bbBuy(_link,_alertSound,_loggingLevel=0):
+def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_testMode,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      try:
-          atcBtn = WebDriverWait(driver,timeout).until(
+          atcBtn = WebDriverWait(_driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
           )
      except:
           writeLog("Could not find clickable ATC button","WARNING",_loggingLevel)
-          driver.refresh()
+          _driver.refresh()
           return False
 
      writeLog("Add To Cart button found!","INFO",_loggingLevel)
 
-     if not queueExists:
+     if not _queueExists:
           try:
                #click add to cart button
                atcBtn.click()
                #go to cart and begin checkout as guest
-               driver.get("https://bestbuy.com/cart")
-               checkoutBtn = WebDriverWait(driver,timeout).until(
+               _driver.get("https://bestbuy.com/cart")
+               checkoutBtn = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/main/div/div[2]/div[1]/div/div[1]/div[1]/section[2]/div/div/div[3]/div/div[1]/button"))
                )
                checkoutBtn.click()
                writeLog("Successfully added to cart - begin checkout","INFO",_loggingLevel)
 
                #fill in account details
-               emailField = WebDriverWait(driver,timeout).until(
+               emailField = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.ID,"fld-e"))
                )
-               emailField.send_keys(email)
-               pwField = WebDriverWait(driver,timeout).until(
+               emailField.send_keys(_email)
+               pwField = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.ID,"fld-p1"))
                )
-               pwField.send_keys(pwd)
+               pwField.send_keys(_pwd)
 
                #click sign in
-               signInBtn = WebDriverWait(driver,timeout).until(
+               signInBtn = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.XPATH,"/html/body/div[1]/div/section/main/div[2]/div[1]/div/div/div/div/form/div[3]/button"))
                )
                signInBtn.click()
                writeLog("Signing in","INFO",_loggingLevel)
 
                #fill in card cvv (assumes account already has exactly 1 payment method setup)
-               cvvField = WebDriverWait(driver,timeout).until(
+               cvvField = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.ID,"credit-card-cvv"))
                )
-               cvvField.send_keys(secCode)
+               cvvField.send_keys(_sec)
                writeLog("Attempting to place order","INFO",_loggingLevel)
 
                #order
-               placeOrderBtn = WebDriverWait(driver,timeout).until(
+               placeOrderBtn = WebDriverWait(_driver,_timeout).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR,".button__fast-track"))
                )
-               if not testMode:
+               if not _testMode:
                     placeOrderBtn.click()
-
+               
+               if(_alertSound and _alertSound != ""):
+                    playsound(_alertSound)
                writeLog("Item should have been purchased","INFO",_loggingLevel)
                return True
                
           except:
                #ensure the driver is looking at the right page
-               driver.get(_link)
+               _driver.get(_link)
                writeLog("Trying again...","ERROR",_loggingLevel)
      else:
           atcBtn.click()
@@ -102,6 +104,54 @@ def bbBuy(_link,_alertSound,_loggingLevel=0):
                playsound(_alertSound)
           writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS",_loggingLevel)
           return True
+     
+def AMZBuy(_driver,_link,_alertSound,_timeout,_email,_pwd,_testMode,_loggingLevel=0):
+     _driver.get(_link)
+     #try to see if there is a buy now button
+     try:
+          buyNowBTN = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"buy-now-button"))
+          )
+     except:
+          writeLog("Could not find Buy Now button","WARNING",_loggingLevel)
+          _driver.refresh()
+          return False
+
+     writeLog("'Buy Now button found!","INFO",_loggingLevel)
+     try:
+          buyNowBTN.click()
+          #login
+          emailField = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"ap_email"))
+          )
+          emailField.send_keys(_email)
+
+          contBtn = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"continue"))
+          )
+          contBtn.click()
+          pwdField = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"ap_password"))
+          )
+          pwdField.send_keys(_pwd)
+          signInBTN = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"signInSubmit"))
+          )
+          signInBTN.click()
+          input("Press enter once you sign in with your OTP code...")
+          placeOrderBtn = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.NAME,"placeYourOrder1"))
+          )
+          if not testMode:
+               placeOrderBtn.click()
+
+          if(_alertSound and _alertSound != ""):
+               playsound(_alertSound)
+          writeLog("Item should have been purchased","INFO",_loggingLevel)
+          return True
+     except:
+          writeLog(f"Failed to buy {_link}","ERROR")
+          return False
      
 
 #------ end funcs
@@ -122,9 +172,11 @@ try:
           loggingLevel = 0
      testMode = settings["debug"]["testMode"]
      item = settings["app"]["item"]
-     email = settings["app"]["email"]
-     pwd = settings["app"]["password"]
-     secCode = settings["app"]["cvv"]
+     bb_email = settings["app"]["bb_email"]
+     bb_pwd = settings["app"]["bb_password"]
+     bb_secCode = settings["app"]["bb_cvv"]
+     amz_email = settings["app"]["amz_email"]
+     amz_pwd = settings["app"]["amz_pwd"]
      timeout = settings["app"]["timeout"]
      queueExists = settings["app"]["queueExists"]
      if settings["debug"]["alertType"] == "wav":
@@ -139,9 +191,10 @@ except:
      exit()
 
 options = webdriver.ChromeOptions()
-#options.headless = True
 options.add_argument("--log-level=3")
+options.add_experimental_option('excludeSwitches', ['enable-logging'])
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
+writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)
 
 cardBought = False
 while not cardBought:
@@ -153,6 +206,7 @@ while not cardBought:
      writeLog(f"Item is from {domain}","INFO",loggingLevel)
 
      if(domain == "bestbuy"):
-          cardBought = bbBuy(item,alertSoundPath)
+          cardBought = bbBuy(driver,item,alertSoundPath,timeout,queueExists,bb_email,bb_pwd,bb_secCode,testMode,loggingLevel)
 
-     
+     if(domain == "amazon"):
+          cardBought = AMZBuy(driver,item, alertSoundPath,timeout,amz_email,amz_pwd,testMode,loggingLevel)
