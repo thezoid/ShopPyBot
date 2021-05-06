@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import json
 import os
+import datetime
 from playsound import playsound
 
 #text colors
@@ -21,8 +22,10 @@ class bcolors:
     BASIC = '\033[1;37;40m'
 
 #------ start funcs
-def writeLog(message, type,_loggingLevel):
-     if _loggingLevel == 0:
+def writeLog(message, type,_loggingLevel=0):
+     if type.upper() == "ALWAYS":
+          print(bcolors.OKGREEN,message,bcolors.ENDC)
+     elif _loggingLevel == 0:
           return
      if type.upper() == "ERROR" and _loggingLevel >= 1:
           print(bcolors.FAIL,"ERROR:",message,bcolors.ENDC)
@@ -30,10 +33,9 @@ def writeLog(message, type,_loggingLevel):
           print(bcolors.WARNING,"WARNING:",message,bcolors.ENDC)
      elif type.upper() == "INFO" and _loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
-     elif type.upper() == "ALWAYS":
-          print(bcolors.OKGREEN,message,bcolors.ENDC)
-
 def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_testMode,_loggingLevel=0):
+     _driver.get(_link)
+     
      #find add to cart button (only available if not "sold out"?)
      try:
           atcBtn = WebDriverWait(_driver,_timeout).until(
@@ -105,22 +107,9 @@ def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_test
           writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS",_loggingLevel)
           return True
      
-def AMZBuy(_driver,_link,_alertSound,_timeout,_email,_pwd,_testMode,_loggingLevel=0):
-     _driver.get(_link)
-     #try to see if there is a buy now button
+def amzSignIn(_driver,_timeout,_email,_pwd,_loggingLevel=0):
      try:
-          buyNowBTN = WebDriverWait(_driver,_timeout).until(
-               EC.presence_of_element_located((By.ID,"buy-now-button"))
-          )
-     except:
-          writeLog("Could not find Buy Now button","WARNING",_loggingLevel)
-          _driver.refresh()
-          return False
-
-     writeLog("'Buy Now button found!","INFO",_loggingLevel)
-     try:
-          buyNowBTN.click()
-          #login
+          _driver.get("https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.com%2F%3Fref_%3Dnav_ya_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&")
           emailField = WebDriverWait(_driver,_timeout).until(
                EC.presence_of_element_located((By.ID,"ap_email"))
           )
@@ -139,10 +128,30 @@ def AMZBuy(_driver,_link,_alertSound,_timeout,_email,_pwd,_testMode,_loggingLeve
           )
           signInBTN.click()
           input("Press enter once you sign in with your OTP code...")
+          return True
+     except:
+          writeLog("Failed to login to Amazon!!!","ERROR",_loggingLevel)
+          return False
+
+def AMZBuy(_driver,_link,_alertSound,_timeout,_testMode,_loggingLevel=0):
+     _driver.get(_link)
+     #try to see if there is a buy now button
+     try:
+          buyNowBTN = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"buy-now-button"))
+          )
+     except:
+          writeLog("Could not find Buy Now button","WARNING",_loggingLevel)
+          _driver.refresh()
+          return False
+
+     writeLog("'Buy Now button found!","INFO",_loggingLevel)
+     try:
+          buyNowBTN.click()          
           placeOrderBtn = WebDriverWait(_driver,_timeout).until(
                EC.presence_of_element_located((By.NAME,"placeYourOrder1"))
           )
-          if not testMode:
+          if not _testMode:
                placeOrderBtn.click()
 
           if(_alertSound and _alertSound != ""):
@@ -150,11 +159,12 @@ def AMZBuy(_driver,_link,_alertSound,_timeout,_email,_pwd,_testMode,_loggingLeve
           writeLog("Item should have been purchased","INFO",_loggingLevel)
           return True
      except:
-          writeLog(f"Failed to buy {_link}","ERROR")
+          writeLog(f"Failed to buy {_link}","ERROR",_loggingLevel)
           return False
      
 
 #------ end funcs
+startTime = datetime.datetime.now()
 
 os.system('color')
 
@@ -196,17 +206,24 @@ options.add_experimental_option('excludeSwitches', ['enable-logging'])
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
 writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)
 
-cardBought = False
-while not cardBought:
-
-     driver.get(item)
+itemBought = False
+signedIn = False
+attempts = 0
+while not itemBought:
+     attempts+=1
      #get domain from item link
      domain = item.split("/")
      domain = domain[2][domain[2].index('.')+1:domain[2].rfind('.')]
-     writeLog(f"Item is from {domain}","INFO",loggingLevel)
-
+     writeLog(f"[ {attempts} ]Attempting to buy item from {domain}","INFO",loggingLevel)
      if(domain == "bestbuy"):
-          cardBought = bbBuy(driver,item,alertSoundPath,timeout,queueExists,bb_email,bb_pwd,bb_secCode,testMode,loggingLevel)
+          itemBought = bbBuy(driver,item,alertSoundPath,timeout,queueExists,bb_email,bb_pwd,bb_secCode,testMode,loggingLevel)
 
      if(domain == "amazon"):
-          cardBought = AMZBuy(driver,item, alertSoundPath,timeout,amz_email,amz_pwd,testMode,loggingLevel)
+          if signedIn:
+               itemBought = AMZBuy(driver,item, alertSoundPath,timeout,testMode,loggingLevel)
+          else:
+               writeLog("Amazon sign in required!!","WARNING",loggingLevel)
+               signedIn = amzSignIn(driver,timeout,amz_email,amz_pwd,loggingLevel)
+
+     if itemBought:
+          writeLog(f"Item purchased after {attempts} attempts --- Total duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}","ALWAYS")
