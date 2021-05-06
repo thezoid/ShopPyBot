@@ -26,7 +26,6 @@ class bcolors:
 def writeLog(message, type="",_loggingLevel=0):
      #print(f"in writeLog - loglvl: {_loggingLevel} - type: {type}")
      if type.upper() == "ALWAYS":
-          print("always")
           print(bcolors.BASIC,message,bcolors.ENDC)
      elif type.upper() == "AVAILABLE":
           print(bcolors.OKGREEN,"AVAILABLE:",message,bcolors.ENDC)
@@ -106,4 +105,4 @@ while not stopCheck:
           if domain.lower() == "bestbuy":
                bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
                
-     writeLog(f"Starting next round\nDuration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}","ALWAYS")
+     writeLog(f"Starting next round\nDuration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")
