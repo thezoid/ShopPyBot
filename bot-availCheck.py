@@ -39,21 +39,38 @@ def writeLog(message, type="",_loggingLevel=0):
      elif type.upper() == "INFO" and _loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
 
-def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_loggingLevel=0):
+def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
      try:
-          atcBtn = WebDriverWait(driver,timeout).until(
+          atcBtn = WebDriverWait(driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
           )
      except:
-          m= f"{itemName} is NOT available"
+          m= f"[BestBuy] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
      m=f"{_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,_loggingLevel)
+
+def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
+     _driver.get(_itemLink)
+     #try to see if there is a buy now button
+     try:
+          buyNowBTN = WebDriverWait(_driver,_timeout).until(
+               EC.element_to_be_clickable((By.ID,"buy-now-button"))
+          )
+     except:
+          m= f"[Amazon] {itemName} is NOT available"
+          writeLog(m,"UNAVAILABLE",_loggingLevel)
+          return
+     m=f"{_itemName} is available at {_itemLink}"
+     writeLog(m,"AVAILABLE")
+     if(_alertSound and _alertSound != ""):
+          playsound(_alertSound,_loggingLevel)
+
 
  #------ end funcs
 
@@ -104,6 +121,9 @@ while not stopCheck:
           #writeLog(f"Item is from {domain}","INFO",loggingLevel)
           
           if domain.lower() == "bestbuy":
-               bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
-               
+               bbIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,loggingLevel)
+          
+          if domain.lower() == "amazon":
+               amzIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,loggingLevel)
+     
      writeLog(f"Starting next round --- Total Duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")

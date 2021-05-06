@@ -43,7 +43,6 @@ def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_test
           )
      except:
           writeLog("Could not find clickable ATC button","WARNING",_loggingLevel)
-          _driver.refresh()
           return False
 
      writeLog("Add To Cart button found!","INFO",_loggingLevel)
@@ -138,11 +137,10 @@ def AMZBuy(_driver,_link,_alertSound,_timeout,_testMode,_loggingLevel=0):
      #try to see if there is a buy now button
      try:
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
-               EC.presence_of_element_located((By.ID,"buy-now-button"))
+               EC.element_to_be_clickable((By.ID,"buy-now-button"))
           )
      except:
           writeLog("Could not find Buy Now button","WARNING",_loggingLevel)
-          _driver.refresh()
           return False
 
      writeLog("'Buy Now button found!","INFO",_loggingLevel)
@@ -214,7 +212,7 @@ while not itemBought:
      #get domain from item link
      domain = item.split("/")
      domain = domain[2][domain[2].index('.')+1:domain[2].rfind('.')]
-     writeLog(f"[ {attempts} ]Attempting to buy item from {domain}","INFO",loggingLevel)
+     writeLog(f"[{attempts}]Attempting to buy item from {domain}","INFO",loggingLevel)
      if(domain == "bestbuy"):
           itemBought = bbBuy(driver,item,alertSoundPath,timeout,queueExists,bb_email,bb_pwd,bb_secCode,testMode,loggingLevel)
 
@@ -227,3 +225,10 @@ while not itemBought:
 
      if itemBought:
           writeLog(f"Item purchased after {attempts} attempts --- Total duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}","ALWAYS")
+          driver.save_screenshot(scriptdir+f"/purchases/{datetime.date.today()}.png")
+
+
+
+#cleanup
+driver.close()
+driver.quit()

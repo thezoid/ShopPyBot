@@ -18,7 +18,15 @@ A Python based system to 1) attempt to purchase an item from a link; and 2) chec
 - [Google Chrome](https://chrome.google.com)
 - [ChromeDriver](https://chromedriver.chromium.org/downloads)
   - Drop this in the same directory as `bot.py` and `bot-availCheck.py`
-- (for BestBuy) A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
+
+### Best Buy
+
+- A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
+
+### Amazon
+
+- A valid Amazon account
+- Your OTP device on hand (manual login required)
 
 ## How to Use
 
