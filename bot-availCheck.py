@@ -5,6 +5,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import json
 import os
+import datetime
+import time
 from playsound import playsound
 
 #text colors
@@ -57,6 +59,8 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_loggingLevel=0):
 
  #------ end funcs
 
+startTime = datetime.datetime.now()
+
 scriptdir = os.path.dirname(os.path.realpath(__file__))
 #read ./settings.json
 with open(scriptdir+"/dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!
@@ -86,7 +90,8 @@ options = webdriver.ChromeOptions()
 #options.headless = True
 options.add_argument("--log-level=3")
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
-
+driver.minimize_window()
+writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)
 
 stopCheck = False
 while not stopCheck:
@@ -100,3 +105,5 @@ while not stopCheck:
           
           if domain.lower() == "bestbuy":
                bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
+               
+     writeLog(f"Starting next round\nDuration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}","ALWAYS")
