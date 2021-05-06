@@ -6,7 +6,6 @@ from selenium.webdriver.support import expected_conditions as EC
 import json
 import os
 import datetime
-import time
 from playsound import playsound
 
 #text colors
@@ -60,6 +59,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_loggingLevel=0):
 
 startTime = datetime.datetime.now()
 
+os.system('color')
 scriptdir = os.path.dirname(os.path.realpath(__file__))
 #read ./settings.json
 with open(scriptdir+"/dev.settings.json") as settingsFile: #!!!CHANGE THIS BACK TO DEFAULT TO settings.json!!!

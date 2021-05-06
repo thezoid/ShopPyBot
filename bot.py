@@ -106,6 +106,7 @@ def bbBuy(_link,_alertSound,_loggingLevel=0):
 
 #------ end funcs
 
+os.system('color')
 
 scriptdir = os.path.dirname(os.path.realpath(__file__))
 
