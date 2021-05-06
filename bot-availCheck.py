@@ -88,6 +88,7 @@ except:
 options = webdriver.ChromeOptions()
 #options.headless = True
 options.add_argument("--log-level=3")
+options.add_experimental_option('excludeSwitches', ['enable-logging'])
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
 driver.minimize_window()
 writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)
@@ -105,4 +106,4 @@ while not stopCheck:
           if domain.lower() == "bestbuy":
                bbIsAvail(driver,itemName,itemLink,alertSoundPath,loggingLevel)
                
-     writeLog(f"Starting next round\nDuration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")
+     writeLog(f"Starting next round --- Total Duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")
