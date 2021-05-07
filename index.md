@@ -5,7 +5,7 @@ A Python based system to 1) attempt to purchase an item from a link; and 2) chec
 ## Supported sites
 
 - [x] Best Buy
-- [x]] Amazon
+- [x] Amazon
 - [ ] Newegg
 
 ## Requirements
