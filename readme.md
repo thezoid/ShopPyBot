@@ -5,7 +5,7 @@ A Python based system to 1) attempt to purchase an item from a link; and 2) chec
 ## Supported sites
 
 - [x] Best Buy
-- [x]] Amazon
+- [x] Amazon
 - [ ] Newegg
 
 ## Requirements
@@ -88,7 +88,7 @@ The included alert sound can be changed to any other `.wav` file. Simply put the
 
 ## Support
 
-No support is currently provided.
+Join my [Discord](https://clan.bravebearstudios.com) and join the Programmers Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
 
 ## Credits
 
