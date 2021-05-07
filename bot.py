@@ -91,7 +91,7 @@ def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_test
                     placeOrderBtn.click()
                
                if(_alertSound and _alertSound != ""):
-                    playsound(_alertSound)
+                    playsound(_alertSound,False)
                writeLog("Item should have been purchased","INFO",_loggingLevel)
                return True
                
@@ -102,7 +102,7 @@ def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_test
      else:
           atcBtn.click()
           if(_alertSound and _alertSound != ""):
-               playsound(_alertSound)
+               playsound(_alertSound,False)
           writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS",_loggingLevel)
           return True
      
@@ -153,7 +153,7 @@ def AMZBuy(_driver,_link,_alertSound,_timeout,_testMode,_loggingLevel=0):
                placeOrderBtn.click()
 
           if(_alertSound and _alertSound != ""):
-               playsound(_alertSound)
+               playsound(_alertSound,False)
           writeLog("Item should have been purchased","INFO",_loggingLevel)
           return True
      except:

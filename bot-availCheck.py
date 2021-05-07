@@ -53,7 +53,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0)
      m=f"{_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
-          playsound(_alertSound,_loggingLevel)
+          playsound(_alertSound,False)
 
 def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
      _driver.get(_itemLink)
@@ -69,7 +69,7 @@ def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0
      m=f"{_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
-          playsound(_alertSound,_loggingLevel)
+          playsound(_alertSound,False)
 
 
  #------ end funcs
