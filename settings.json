@@ -1,6 +1,254 @@
 {
-     "loggingLevel":3,
-     "email":"youremail@domain.com",
-     "password":"yourPwdThatIsSecure",
-     "cvv":"your card cvv"
+     "debug": {
+          "loggingLevel": 3,
+          "testMode": true,
+          "alertType": "mp3"
+     },
+     "app": {
+          "timeout": 10,
+          "bb_email": "your bestbuy account email",
+          "bb_password": "your bestbuy account password",
+          "bb_cvv": "your bestbuy account card cvv",
+          "amz_email":"your amazon account email",
+          "amz_pwd":"your amazon account pwd",
+          "item": "link to your item",
+          "queueExists": true
+     },
+     "available": {
+          "timeout": 10,
+          "items": [
+               {
+                    "name":"ASUS ROG STRIX NVIDIA GeForce RTX 3080 OC",
+                    "link":"https://smile.amazon.com/ASUS-Graphics-DisplayPort-Axial-Tech-2-9-Slot/dp/B08J6F174Z/ref=pd_rhf_ee_p_img_6?_encoding=UTF8&psc=1&refRID=CPNY33SJ63CYVC7VGD8T"
+               },
+               {
+                    "name": "NVIDIA GeForce RTX 3090 24GB FE",
+                    "link": "https://www.bestbuy.com/site/nvidia-geforce-rtx-3090-24gb-gddr6x-pci-express-4-0-graphics-card-titanium-and-black/6429434.p?skuId=6429434"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3090 XC3 ULTRA GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3090-xc3-ultra-gaming-24gb-gddr6-pci-express-4-0-graphics-card/6434198.p?skuId=6434198"
+               },
+               {
+                    "name": "ASUS GeForce RTX 3090",
+                    "link": "https://www.bestbuy.com/site/asus-geforce-rtx-3090-24gb-gddr6x-pci-express-4-0-strix-graphics-card-black/6432447.p?skuId=6432447"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3090 FTW3 GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3090-ftw3-gaming-24gb-gddr6-pci-express-4-0-graphics-card/6436193.p?skuId=6436193"
+               },
+               {
+                    "name": "ASUS TUF RTX 3090",
+                    "link": "https://www.bestbuy.com/site/asus-tuf-rtx-3090-24gb-gddr6x-pci-express-4-0-graphics-card-black/6432446.p?skuId=6432446"
+               },
+               {
+                    "name": "MSI NVIDIA Geforce RTX 3090 VENTUS 3X 24G OC BV",
+                    "link": "https://www.bestbuy.com/site/msi-nvidia-geforce-rtx-3090-ventus-3x-24g-oc-bv-24gb-gddr6x-pci-express-4-0-graphics-card-black-silver/6430215.p?skuId=6430215"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3090 FTW3 ULTRA GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3090-ftw3-ultra-gaming-24gb-gddr6-pci-express-4-0-graphics-card/6436192.p?skuId=6436192"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3090 AORUS MASTER",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3090-aorus-master-24gb-gddr6x-pci-express-4-0-graphics-card/6437910.p?skuId=6437910"
+               },
+               {
+                    "name": "GIGABYTE GeForce RTX 3090 EAGLE OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-geforce-rtx-3090-eagle-oc-24g-gddr6x-pci-express-4-0-graphics-card-black/6430624.p?skuId=6430624"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3090 VISION",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3090-vision-24g-gddr6-pci-express-4-0-graphics-card/6445108.p?skuId=6445108"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3090 GAMING OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3090-gaming-oc-24gb-gddr6x-pci-express-4-0-graphics-card/6430623.p?skuId=6430623"
+               },
+               {
+                    "name": "PNY GeForce RTX 3090 24GB XLR8 Gaming EPIC-X RGB Triple Fan",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3090-24gb-xlr8-gaming-epic-x-rgb-triple-fan-graphics-card/6432657.p?skuId=6432657"
+               },
+               {
+                    "name": "PNY GeForce RTX 3090 24GB XLR8 Gaming EPIC-X RGB Triple Fan",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3090-24gb-xlr8-gaming-epic-x-rgb-triple-fan-graphics-card/6432656.p?skuId=6432656"
+               },
+               {
+                    "name": "NVIDIA GeForce RTX 3080 FE",
+                    "link": "https://www.bestbuy.com/site/nvidia-geforce-rtx-3080-10gb-gddr6x-pci-express-4-0-graphics-card-titanium-and-black/6429440.p?skuId=6429440"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3080 XC3 ULTRA GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3080-xc3-ultra-gaming-10gb-gddr6-pci-express-4-0-graphics-card/6432400.p?skuId=6432400"
+               },
+               {
+                    "name": "ASUS STRIX GeForce RTX 3080",
+                    "link": "https://www.bestbuy.com/site/asus-geforce-rtx-3080-10gb-gddr6x-pci-express-4-0-strix-graphics-card-black/6432445.p?skuId=6432445"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3080 FTW3 GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3080-ftw3-gaming-10gb-gddr6x-pci-express-4-0-graphics-card/6436191.p?skuId=6436191"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3080 VISION OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3080-vision-oc-10gb-gddr6x-pci-express-4-0-graphics-card/6436219.p?skuId=6436219"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3080 GAMING OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3080-gaming-oc-10gb-gddr6x-pci-express-4-0-graphics-card/6430620.p?skuId=6430620"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3080 FTW3 ULTRA GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3080-ftw3-ultra-gaming-10gb-gddr6-pci-express-4-0-graphics-card/6436196.p?skuId=6436196"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3080 XC3 BLACK GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3080-xc3-black-gaming-10gb-gddr6-pci-express-4-0-graphics-card/6432399.p?skuId=6432399"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3080 AORUS MASTER",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3080-aorus-master-10gb-gddr6x-pci-express-4-0-graphics-card/6436223.p?skuId=6436223"
+               },
+               {
+                    "name": "MSI NVIDIA Geforce RTX 3080 VENTUS 3X 10G OC BV",
+                    "link": "https://www.bestbuy.com/site/msi-nvidia-geforce-rtx-3080-ventus-3x-10g-oc-bv-gddr6x-pci-express-4-0-graphic-card-black-silver/6430175.p?skuId=6430175"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3080 XC3 GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3080-xc3-gaming-10gb-gddr6-pci-express-4-0-graphics-card/6436194.p?skuId=6436194"
+               },
+               {
+                    "name": "PNY GeForce RTX 3080 10GB XLR8 Gaming EPIC-X",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3080-10gb-xlr8-gaming-epic-x-rgb-triple-fan-graphics-card/6432658.p?skuId=6432658"
+               },
+               {
+                    "name": "PNY GeForce RTX 3080 10GB XLR8 Gaming EPIC-X RGB ",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3080-10gb-xlr8-gaming-epic-x-rgb-triple-fan-graphics-card/6432655.p?skuId=6432655"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3080 EAGLE OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3080-eagle-oc-10gb-gddr6x-pci-express-4-0-graphics-card/6430621.p?skuId=6430621"
+               },
+               {
+                    "name": "NVIDIA GeForce RTX 3070 FE",
+                    "link": "https://www.bestbuy.com/site/nvidia-geforce-rtx-3070-8gb-gddr6-pci-express-4-0-graphics-card-dark-platinum-and-black/6429442.p?skuId=6429442"
+               },
+               {
+                    "name": "MSI NVIDIA GeForce RTX 3070 VENTUS 3X OC BV",
+                    "link": "https://www.bestbuy.com/site/msi-nvidia-geforce-rtx-3070-ventus-3x-oc-bv-8gb-gddr6-pci-express-4-0-graphics-card/6438278.p?skuId=6438278"
+               },
+               {
+                    "name": "ASUS NVIDIA GeForce TUF-RTX3070",
+                    "link": "https://www.bestbuy.com/site/asus-nvidia-geforce-tuf-rtx3070-8gb-gddr6-pci-express-4-0-graphics-card-black/6439128.p?skuId=6439128"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3070 XC3 ULTRA GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3070-xc3-ultra-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6439299.p?skuId=6439299"
+               },
+               {
+                    "name": "ASUS NVIDIA GeForce ROG-STRIX-RTX3070",
+                    "link": "https://www.bestbuy.com/site/asus-nvidia-geforce-rog-strix-rtx3070-8gb-gddr6-pci-express-4-0-graphics-card-black/6439127.p?skuId=6439127"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3070 AORUS MASTER",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3070-aorus-master-8gb-gddr6-pci-express-4-0-graphics-card/6439384.p?skuId=6439384"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3070 VISION OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3070-vision-oc-8gb-gddr6-pci-express-4-0-graphics-card/6439385.p?skuId=6439385"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3070 GAMING OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3070-gaming-oc-8gb-gddr6-pci-express-4-0-graphics-card/6437909.p?skuId=6437909"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3070 XC3 BLACK GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3070-xc3-black-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6439300.p?skuId=6439300"
+               },
+               {
+                    "name": "EVGA GeForce RTX 3070 FTW3 ULTRA GAMING ",
+                    "link": "https://www.bestbuy.com/site/evga-geforce-rtx-3070-ftw3-ultra-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6439301.p?skuId=6439301"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3070 EAGLE",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3070-eagle-8gb-gddr6-pci-express-4-0-graphics-card/6437912.p?skuId=6437912"
+               },
+               {
+                    "name": "PNY GeForce RTX 3070 8GB XLR8 Gaming EPIC-X RGB",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3070-8gb-xlr8-gaming-epic-x-rgb-triple-fan-graphics-card/6432653.p?skuId=6432653"
+               },
+               {
+                    "name": "PNY GeForce RTX 3070",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3070-8gb-dual-fan-graphics-card/6432654.p?skuId=6432654"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3060 GAMING OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3060-gaming-oc-12gb-gddr6-pci-express-4-0-graphics-card/6454688.p?skuId=6454688"
+               },
+               {
+                    "name": "EVGA NVIDIA GeForce RTX 3060 XC GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-xc-gaming-12gb-gddr6-pci-express-4-0-graphics-card/6454329.p?skuId=6454329"
+               },
+               {
+                    "name": "NVIDIA GeForce RTX 3060 Ti FE",
+                    "link": "https://www.bestbuy.com/site/nvidia-geforce-rtx-3060-ti-8gb-gddr6-pci-express-4-0-graphics-card-steel-and-black/6439402.p?skuId=6439402"
+               },
+               {
+                    "name": "EVGA NVIDIA GeForce RTX 3060 Ti FTW3 GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-ti-ftw3-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6444444.p?skuId=6444444"
+               },
+               {
+                    "name": "ASUS TUF-RTX3060TI",
+                    "link": "https://www.bestbuy.com/site/asus-tuf-rtx3060ti-8gb-gddr6-pci-express-4-0-graphics-card/6452573.p?skuId=6452573"
+               },
+               {
+                    "name": "EVGA NVIDIA GeForce RTX 3060 XC GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-xc-gaming-12gb-gddr6-pci-express-4-0-graphics-card/6454328.p?skuId=6454328"
+               },
+               {
+                    "name": "MSI NVIDIA Geforce RTX 3060 Ventus 3X",
+                    "link": "https://www.bestbuy.com/site/msi-nvidia-geforce-rtx-3060-ventus-3x-12g-oc-12gb-gddr6-pci-express-4-0-graphics-card-black/6452940.p?skuId=6452940"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3060 Ti GAMING OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3060-ti-gaming-oc-8g-gddr6-pci-express-4-0-graphics-card-black/6442484.p?skuId=6442484"
+               },
+               {
+                    "name": "EVGA NVIDIA GeForce RTX 3060 Ti XC GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-ti-xc-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6444445.p?skuId=6444445"
+               },
+               {
+                    "name": "ASUS NVIDIA GeForce RTX 3060",
+                    "link": "https://www.bestbuy.com/site/asus-nvidia-geforce-rtx-3060-12gb-gddr6-pci-express-4-0-graphics-card-black/6460665.p?skuId=6460665"
+               },
+               {
+                    "name": "PNY NVIDIA GeForce RTX 3060 12GB XLR8 Gaming REVEL EPIC-X RGB",
+                    "link": "https://www.bestbuy.com/site/pny-nvidia-geforce-rtx-3060-12gb-xlr8-gaming-revel-epic-x-rgb-single-fan-graphics-card/6454318.p?skuId=6454318"
+               },
+               {
+                    "name": "PNY GeForce RTX 3060 Ti 8GB UPRISING Dual Fan",
+                    "link": "https://www.bestbuy.com/site/pny-geforce-rtx-3060ti8gb-uprising-dual-fan-graphics-card/6446660.p?skuId=6446660"
+               },
+               {
+                    "name": "GIGABYTE NVIDIA GeForce RTX 3060 Ti EAGLE OC",
+                    "link": "https://www.bestbuy.com/site/gigabyte-nvidia-geforce-rtx-3060-ti-eagle-oc-8g-gddr6-pci-express-4-0-graphics-card-black/6442485.p?skuId=6442485"
+               },
+               {
+                    "name": "MSI NVIDIA Geforce RTX 3060 Ti VENTUS 2X OC BV",
+                    "link": "https://www.bestbuy.com/site/msi-nvidia-geforce-rtx-3060-ti-ventus-2x-oc-bv-8gb-gddr6-pci-express-4-0-graphics-card-black/6441172.p?skuId=6441172"
+               },
+               {
+                    "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3060",
+                    "link": "https://www.bestbuy.com/site/asus-tuf-gaming-nvidia-geforce-rtx-3060-12gb-gddr6-pci-express-4-0-graphics-card-black/6460666.p?skuId=6460666"
+               },
+               {
+                    "name": "PNY NVIDIA GeForce RTX 3060 12GB XLR8 Gaming REVEL EPIC-X RGB Dual Fan",
+                    "link": "https://www.bestbuy.com/site/pny-nvidia-geforce-rtx-3060-12gb-xlr8-gaming-revel-epic-x-rgb-dual-fan-graphics-card/6454319.p?skuId=6454319"
+               },
+               {
+                    "name": "EVGA NVIDIA GeForce RTX 3060 Ti FTW3 GAMING",
+                    "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-ti-ftw3-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6444449.p?skuId=6444449"
+               }
+          ]
+     }
 }
