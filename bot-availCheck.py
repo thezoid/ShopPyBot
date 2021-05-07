@@ -6,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import json
 import os
 import datetime
+import time
 from playsound import playsound
 
 #text colors
@@ -42,6 +43,7 @@ def writeLog(message, type="",_loggingLevel=0):
 def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
+     time.sleep(0.5)
      try:
           atcBtn = WebDriverWait(driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
@@ -57,6 +59,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0)
 
 def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
      _driver.get(_itemLink)
+     time.sleep(0.5)
      #try to see if there is a buy now button
      try:
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
