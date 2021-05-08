@@ -6,6 +6,12 @@
 
 A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
 
+### Disclaimer
+
+WARNING: The use of this software can result in a Amazon restricting access to your account and make it difficultfor you to purchase products, with or without the bot. By using this software, you acknowledge these risks. These restrictions cannot and will not be resolved by the developer(s). If this is a major issue you should consider avoiding use of this software.
+
+Account restrictions may be triggered by any of the following: 1) running multiple instances on one device, 2) running multiple instances on different devices, using the same account, regardless of their IP, proxy, or location, 3) configuring an instance to check stock too frequently/aggressively (default settings not guaranteed to be safe).
+
 ## Supported sites
 
 - [x] Best Buy
