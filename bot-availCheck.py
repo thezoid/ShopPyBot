@@ -48,11 +48,19 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
           atcBtn = WebDriverWait(driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
           )
+          try:
+               priceText = WebDriverWait(_driver,_timeout).until(
+                    EC.presence_of_element_located((By.XPATH,"/html/body/div[3]/main/div[2]/div[3]/div[2]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div/div/span[1]"))
+               )
+               price = priceText.text
+          except:
+               writeLog("Failed to get price text","ERROR",_loggingLevel)
+               price="N/A"
      except:
           m= f"[BestBuy] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"{_itemName} is available at {_itemLink}"
+     m=f"[{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -67,16 +75,19 @@ def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fa
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
                EC.element_to_be_clickable((By.ID,"buy-now-button"))
           )
-          
-          priceText = WebDriverWait(_driver,_timeout).until(
-               EC.presence_of_element_located((By.ID,"priceblock_ourprice"))
-          )
+          try:
+               priceText = WebDriverWait(_driver,_timeout).until(
+                    EC.presence_of_element_located((By.ID,"priceblock_ourprice"))
+               )
+               price = priceText.text
+          except:
+               writeLog("Failed to get price text","ERROR",_loggingLevel)
+               price="N/A"
      except:
           m= f"[Amazon] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-
-     m=f"[{priceText.text}] {_itemName} is available at {_itemLink}"
+     m=f"[{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
