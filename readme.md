@@ -79,6 +79,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
 |openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
+|shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
 
 <br>
@@ -89,7 +90,7 @@ The included alert sound can be changed to any other `.wav` file. Simply put the
 
 ## Support
 
-Join my [Discord](https://clan.bravebearstudios.com) and join the Programmers Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
+Join my [Discord](https://clan.bravebearstudios.com) and join the Programmer's Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
 
 ## Credits
 

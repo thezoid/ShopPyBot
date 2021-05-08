@@ -1,12 +1,14 @@
+#built in
+import json
+import os
+import datetime
+import time
+#third party
 from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import json
-import os
-import datetime
-import time
 from playsound import playsound
 
 #text colors
@@ -40,7 +42,12 @@ def writeLog(message, type="",_loggingLevel=0):
      elif type.upper() == "INFO" and _loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
 
-def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_loggingLevel=0):
+def make_tiny(url):
+    request_url = ('https://tinyurl.com/api-create.php?' + urlencode({'url':url}))    
+    with contextlib.closing(urlopen(request_url)) as response:                      
+        return response.read().decode('utf-8 ')
+
+def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
      time.sleep(0.5)
@@ -60,14 +67,17 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
           m= f"[BestBuy] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"[BestBuy][{price}] {_itemName} is available at {_itemLink}"
+     if shortURL:
+          m=f"[Amazon][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
+     else:
+          m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
      if _openBrowser:
           wb.open(_itemLink,new=1)
 
-def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_loggingLevel=0):
+def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      _driver.get(_itemLink)
      time.sleep(0.5)
      #try to see if there is a buy now button
@@ -87,7 +97,10 @@ def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fa
           m= f"[Amazon] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
+     if shortURL:
+          m=f"[Amazon][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
+     else:
+          m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -116,6 +129,18 @@ try:
      openBrowser = settings["available"]["openNewBrowser"]
      if(openBrowser):
           import webbrowser as wb
+     shortURL = settings["available"]["shortURL"]
+     if shortURL:                                                       
+          import contextlib
+          try:
+               from urllib.parse import urlencode          
+          except ImportError:
+               from urllib import urlencode
+          try:
+               from urllib.request import urlopen
+          except ImportError:
+               from urllib2 import urlopen
+
      if settings["debug"]["alertType"] == "wav":
           alertSoundPath = scriptdir+"/sounds/alert.wav"
      elif settings["debug"]["alertType"] == "mp3":

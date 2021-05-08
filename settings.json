@@ -17,7 +17,26 @@
      "available": {
           "timeout": 10,
           "openNewBrowser": false,
+          "shortURL":true,
           "items": [
+               {"name":"AMD Ryzen 7 3700X","link":"https://www.bestbuy.com/site/amd-ryzen-7-3700x-3rd-generation-8-core-16-thread-3-6-ghz-4-4-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356277.p?skuId=6356277"},
+		{"name":"AMD Ryzen 7 5800X","link":"https://www.bestbuy.com/site/amd-ryzen-7-5800x-4th-gen-8-core-16-threads-unlocked-desktop-processor-without-cooler/6439000.p?skuId=6439000"},
+		{"name":"AMD Ryzen 9 3900X","link":"https://www.bestbuy.com/site/amd-ryzen-9-3900x-3rd-generation-12-core-24-thread-3-8-ghz-4-6-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356274.p?skuId=6356274"},
+		{"name":"AMD Ryzen 5 5600X","link":"https://www.bestbuy.com/site/amd-ryzen-5-5600x-4th-gen-6-core-12-threads-unlocked-desktop-processor-with-wraith-stealth-cooler/6438943.p?skuId=6438943"},
+		{"name":"AMD Ryzen 9 5900X","link":"https://www.bestbuy.com/site/amd-ryzen-9-5900x-4th-gen-12-core-24-threads-unlocked-desktop-processor-without-cooler/6438942.p?skuId=6438942"},
+		{"name":"AMD Ryzen 7 3800X","link":"https://www.bestbuy.com/site/amd-ryzen-7-3800x-3rd-generation-8-core-16-thread-3-9-ghz-4-5-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356636.p?skuId=6356636"},
+		{"name":"AMD Ryzen 5 3600","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600-3rd-generation-6-core-12-thread-3-6-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356278.p?skuId=6356278"},
+		{"name":"AMD Ryzen 5 3600X","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600x-3rd-generation-6-core-12-thread-3-8-ghz-4-4-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356644.p?skuId=6356644"},
+		{"name":"AMD Ryzen 9 5950X","link":"https://www.bestbuy.com/site/amd-ryzen-9-5950x-4th-gen-16-core-32-threads-unlocked-desktop-processor-without-cooler/6438941.p?skuId=6438941"},
+		{"name":"AMD Ryzen 5 3400G","link":"https://www.bestbuy.com/site/amd-ryzen-5-3400g-2nd-generation-4-core-8-thread-3-7-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356646.p?skuId=6356646"},
+		{"name":"AMD Ryzen ThreadRipper 3990X","link":"https://www.bestbuy.com/site/amd-ryzen-threadripper-3990x-64-core-2-9-ghz-desktop-socket-strx4-processor/6404153.p?skuId=6404153"},
+		{"name":"AMD Ryzen 3 3100","link":"https://www.bestbuy.com/site/amd-ryzen-3-3100-3rd-gen-4-core-8-threads-unlocked-desktop-processor-with-wraith-stealth/6423072.p?skuId=6423072"},
+		{"name":"AMD Ryzen 9 3950X","link":"https://www.bestbuy.com/site/amd-ryzen-9-3950x-3rd-generation-16-core-32-thread-3-5-ghz-4-7-ghz-max-boost-socket-am4-unlocked-desktop-processor/6391901.p?skuId=6391901"},
+		{"name":"AMD Ryzen 3 3200G","link":"https://www.bestbuy.com/site/amd-ryzen-3-3200g-2nd-generation-4-core-4-thread-3-6-ghz-4-0-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356279.p?skuId=6356279"},
+		{"name":"AMD Ryzen 5 3600XT","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600xt-3rd-gen-6-core-12-threads-unlocked-desktop-processor-with-wraith-spire-cooler/6422513.p?skuId=6422513"},
+		{"name":"AMD Ryzen 3 3200G","link":"https://www.bestbuy.com/site/amd-ryzen-3-3200g-2nd-generation-4-core-4-thread-3-6-ghz-4-0-ghz-max-boost-socket-am4-unlocked-desktop-processor/6462017.p?skuId=6462017"},
+		{"name":"AMD Ryzen 7 3800XT","link":"https://www.bestbuy.com/site/amd-ryzen-7-3800xt-3rd-gen-8-core-16-threads-unlocked-desktop-processor-without-cooler/6422511.p?skuId=6422511"},
+		{"name":"AMD Ryzen 5 3400G","link":"https://www.bestbuy.com/site/amd-ryzen-5-3400g-2nd-generation-4-core-8-thread-3-7-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6462016.p?skuId=6462016"},
                {
                     "name": "AMD Ryzen 9 5950X",
                     "link": "https://www.amazon.com/AMD-Ryzen-5950X-32-Thread-Processor/dp/B0815Y8J9N"
@@ -655,23 +674,5 @@
                     "link": "https://www.bestbuy.com/site/evga-nvidia-geforce-rtx-3060-ti-ftw3-gaming-8gb-gddr6-pci-express-4-0-graphics-card/6444449.p?skuId=6444449"
                }
           ]
-          {"name":"AMD Ryzen 7 3700X","link":"https://www.bestbuy.com/site/amd-ryzen-7-3700x-3rd-generation-8-core-16-thread-3-6-ghz-4-4-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356277.p?skuId=6356277"},
-		{"name":"AMD Ryzen 7 5800X","link":"https://www.bestbuy.com/site/amd-ryzen-7-5800x-4th-gen-8-core-16-threads-unlocked-desktop-processor-without-cooler/6439000.p?skuId=6439000"},
-		{"name":"AMD Ryzen 9 3900X","link":"https://www.bestbuy.com/site/amd-ryzen-9-3900x-3rd-generation-12-core-24-thread-3-8-ghz-4-6-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356274.p?skuId=6356274"},
-		{"name":"AMD Ryzen 5 5600X","link":"https://www.bestbuy.com/site/amd-ryzen-5-5600x-4th-gen-6-core-12-threads-unlocked-desktop-processor-with-wraith-stealth-cooler/6438943.p?skuId=6438943"},
-		{"name":"AMD Ryzen 9 5900X","link":"https://www.bestbuy.com/site/amd-ryzen-9-5900x-4th-gen-12-core-24-threads-unlocked-desktop-processor-without-cooler/6438942.p?skuId=6438942"},
-		{"name":"AMD Ryzen 7 3800X","link":"https://www.bestbuy.com/site/amd-ryzen-7-3800x-3rd-generation-8-core-16-thread-3-9-ghz-4-5-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356636.p?skuId=6356636"},
-		{"name":"AMD Ryzen 5 3600","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600-3rd-generation-6-core-12-thread-3-6-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356278.p?skuId=6356278"},
-		{"name":"AMD Ryzen 5 3600X","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600x-3rd-generation-6-core-12-thread-3-8-ghz-4-4-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356644.p?skuId=6356644"},
-		{"name":"AMD Ryzen 9 5950X","link":"https://www.bestbuy.com/site/amd-ryzen-9-5950x-4th-gen-16-core-32-threads-unlocked-desktop-processor-without-cooler/6438941.p?skuId=6438941"},
-		{"name":"AMD Ryzen 5 3400G","link":"https://www.bestbuy.com/site/amd-ryzen-5-3400g-2nd-generation-4-core-8-thread-3-7-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356646.p?skuId=6356646"},
-		{"name":"AMD Ryzen ThreadRipper 3990X","link":"https://www.bestbuy.com/site/amd-ryzen-threadripper-3990x-64-core-2-9-ghz-desktop-socket-strx4-processor/6404153.p?skuId=6404153"},
-		{"name":"AMD Ryzen 3 3100","link":"https://www.bestbuy.com/site/amd-ryzen-3-3100-3rd-gen-4-core-8-threads-unlocked-desktop-processor-with-wraith-stealth/6423072.p?skuId=6423072"},
-		{"name":"AMD Ryzen 9 3950X","link":"https://www.bestbuy.com/site/amd-ryzen-9-3950x-3rd-generation-16-core-32-thread-3-5-ghz-4-7-ghz-max-boost-socket-am4-unlocked-desktop-processor/6391901.p?skuId=6391901"},
-		{"name":"AMD Ryzen 3 3200G","link":"https://www.bestbuy.com/site/amd-ryzen-3-3200g-2nd-generation-4-core-4-thread-3-6-ghz-4-0-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356279.p?skuId=6356279"},
-		{"name":"AMD Ryzen 5 3600XT","link":"https://www.bestbuy.com/site/amd-ryzen-5-3600xt-3rd-gen-6-core-12-threads-unlocked-desktop-processor-with-wraith-spire-cooler/6422513.p?skuId=6422513"},
-		{"name":"AMD Ryzen 3 3200G","link":"https://www.bestbuy.com/site/amd-ryzen-3-3200g-2nd-generation-4-core-4-thread-3-6-ghz-4-0-ghz-max-boost-socket-am4-unlocked-desktop-processor/6462017.p?skuId=6462017"},
-		{"name":"AMD Ryzen 7 3800XT","link":"https://www.bestbuy.com/site/amd-ryzen-7-3800xt-3rd-gen-8-core-16-threads-unlocked-desktop-processor-without-cooler/6422511.p?skuId=6422511"},
-		{"name":"AMD Ryzen 5 3400G","link":"https://www.bestbuy.com/site/amd-ryzen-5-3400g-2nd-generation-4-core-8-thread-3-7-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6462016.p?skuId=6462016"},
      }
 }
