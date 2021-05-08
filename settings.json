@@ -19,6 +19,14 @@
           "openNewBrowser": false,
           "shortURL":true,
           "items": [
+               {"name":"Xbox Series X","link":"https://www.bestbuy.com/site/microsoft-xbox-series-x-1tb-console-black/6428324.p?skuId=6428324"},
+               {"name":"Xbox Series S","link":"https://www.bestbuy.com/site/microsoft-xbox-series-s-512-gb-all-digital-console-disc-free-gaming-white/6430277.p?skuId=6430277"},
+               {"name":"Xbox Series X","link":"https://smile.amazon.com/Xbox-X/dp/B08H75RTZ8"},
+               {"name":"Xbox Series S","link":"https://smile.amazon.com/Xbox-S/dp/B08G9J44ZN"},
+               {"name":"Sony - PlayStation 5 Digital Edition Console","link":"https://www.bestbuy.com/site/sony-playstation-5-digital-edition-console/6430161.p?skuId=6430161"},
+               {"name":"Sony - PlayStation 5 Console","link":"https://www.bestbuy.com/site/sony-playstation-5-console/6426149.p?skuId=6426149"},
+               {"name":"PlayStation 5 Console","link":"https://smile.amazon.com/PlayStation-5-Console/dp/B08FC5L3RG"},
+               {"name":"PlayStation 5 Digital Edition","link":"https://smile.amazon.com/PlayStation-5-Digital/dp/B08FC6MR62"},
                {"name":"AMD Ryzen 7 3700X","link":"https://www.bestbuy.com/site/amd-ryzen-7-3700x-3rd-generation-8-core-16-thread-3-6-ghz-4-4-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356277.p?skuId=6356277"},
 		{"name":"AMD Ryzen 7 5800X","link":"https://www.bestbuy.com/site/amd-ryzen-7-5800x-4th-gen-8-core-16-threads-unlocked-desktop-processor-without-cooler/6439000.p?skuId=6439000"},
 		{"name":"AMD Ryzen 9 3900X","link":"https://www.bestbuy.com/site/amd-ryzen-9-3900x-3rd-generation-12-core-24-thread-3-8-ghz-4-6-ghz-max-boost-socket-am4-unlocked-desktop-processor/6356274.p?skuId=6356274"},
@@ -39,131 +47,131 @@
 		{"name":"AMD Ryzen 5 3400G","link":"https://www.bestbuy.com/site/amd-ryzen-5-3400g-2nd-generation-4-core-8-thread-3-7-ghz-4-2-ghz-max-boost-socket-am4-unlocked-desktop-processor/6462016.p?skuId=6462016"},
                {
                     "name": "AMD Ryzen 9 5950X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-5950X-32-Thread-Processor/dp/B0815Y8J9N"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-5950X-32-Thread-Processor/dp/B0815Y8J9N"
                },
                {
                     "name": "AMD Ryzen 9 5900X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-5900X-24-Thread-Processor/dp/B08164VTWH"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-5900X-24-Thread-Processor/dp/B08164VTWH"
                },
                {
                     "name": "AMD Ryzen 9 3950X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3950X-32-Thread-Processor/dp/B07ZTYKLZW"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3950X-32-Thread-Processor/dp/B07ZTYKLZW"
                },
                {
                     "name": "AMD Ryzen 9 3900XT",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3900XT-24-Threads-Processor/dp/B089WD454D"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3900XT-24-Threads-Processor/dp/B089WD454D"
                },
                {
                     "name": "AMD Ryzen 9 3900X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3-8GHz-Desktop-Processor/dp/B084KV3N3V"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3-8GHz-Desktop-Processor/dp/B084KV3N3V"
                },
                {
                     "name": "AMD Ryzen 9 5950X",
-                    "link": "https://www.amazon.com/AMD-100-100000059WOF-Processor-16-Core-3-4GHz/dp/B08SKRMFSD"
+                    "link": "https://smile.amazon.com/AMD-100-100000059WOF-Processor-16-Core-3-4GHz/dp/B08SKRMFSD"
                },
                {
                     "name": "AMD Ryzen 7 3700X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3700X-16-Thread-Processor/dp/B07SXMZLPK"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3700X-16-Thread-Processor/dp/B07SXMZLPK"
                },
                {
                     "name": "AMD Ryzen 7 3800X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3800X-16-Thread-Processor/dp/B07SXMZLPJ"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3800X-16-Thread-Processor/dp/B07SXMZLPJ"
                },
                {
                     "name": "AMD Ryzen 7 3800XT",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3800XT-16-Threads-Processor/dp/B089WCXZJC"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3800XT-16-Threads-Processor/dp/B089WCXZJC"
                },
                {
                     "name": "AMD Ryzen 7 5800X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-5800X-16-Thread-Processor/dp/B0815XFSGK"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-5800X-16-Thread-Processor/dp/B0815XFSGK"
                },
                {
                     "name": "AMD Ryzen 5 5600X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-5600X-12-Thread-Processor/dp/B08166SLDF"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-5600X-12-Thread-Processor/dp/B08166SLDF"
                },
                {
                     "name": "AMD Ryzen 5 3600XT",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3600XT-12-threads-processor/dp/B089WC4VWF"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3600XT-12-threads-processor/dp/B089WC4VWF"
                },
                {
                     "name": "AMD Ryzen 5 3600X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3600X-12-Thread-Processor/dp/B07SQBFN2D"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3600X-12-Thread-Processor/dp/B07SQBFN2D"
                },
                {
                     "name": "AMD Ryzen 5 3400G",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3400G-8-Thread-Processor/dp/B07SXNDKNM"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3400G-8-Thread-Processor/dp/B07SXNDKNM"
                },
                {
                     "name": "AMD Ryzen 5 3600",
-                    "link": "https://www.amazon.com/AMD-Ryzen-3600-12-Thread-Processor/dp/B07STGGQ18"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-3600-12-Thread-Processor/dp/B07STGGQ18"
                },
                {
                     "name": "AMD Ryzen Threadripper 3990X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-Threadripper-3990X-128-Thread/dp/B0815SBQ9W"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-Threadripper-3990X-128-Thread/dp/B0815SBQ9W"
                },
                {
                     "name": "AMD Ryzen Threadripper PRO 3975WX",
-                    "link": "https://www.amazon.com/AMD-Ryzen-Threadripper-PRO-3975WX/dp/B08V5H7GPM"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-Threadripper-PRO-3975WX/dp/B08V5H7GPM"
                },
                {
                     "name": "AMD Ryzen Threadripper PRO 3955WX",
-                    "link": "https://www.amazon.com/AMD-Ryzen-Threadripper-PRO-3955WX/dp/B08V5J11BD"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-Threadripper-PRO-3955WX/dp/B08V5J11BD"
                },
                {
                     "name": "AMD Ryzen Threadripper PRO 3995WX",
-                    "link": "https://www.amazon.com/AMD-Ryzen-Threadripper-PRO-3995WX/dp/B08V5HPXVY"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-Threadripper-PRO-3995WX/dp/B08V5HPXVY"
                },
                {
                     "name": "AMD Ryzen Threadripper 3970X",
-                    "link": "https://www.amazon.com/AMD-Ryzen-Threadripper-3970X-64-Thread/dp/B0815JJQQ8"
+                    "link": "https://smile.amazon.com/AMD-Ryzen-Threadripper-3970X-64-Thread/dp/B0815JJQQ8"
                },
                {
                     "name": "ASUS Dual NVIDIA GeForce RTX 3060 Ti OC",
-                    "link": "https://www.amazon.com/dp/B08P2HBBLX"
+                    "link": "https://smile.amazon.com/dp/B08P2HBBLX"
                },
                {
                     "name": "ASUS KO NVIDIA GeForce RTX 3060 Ti",
-                    "link": "https://www.amazon.com/dp/B08P2D1JZZ"
+                    "link": "https://smile.amazon.com/dp/B08P2D1JZZ"
                },
                {
                     "name": "ASUS ROG STRIX NVIDIA GeForce RTX 3060 Ti OC",
-                    "link": "https://www.amazon.com/dp/B083Z7TR8Z"
+                    "link": "https://smile.amazon.com/dp/B083Z7TR8Z"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3060 Ti OC",
-                    "link": "https://www.amazon.com/dp/B083Z5P6TX"
+                    "link": "https://smile.amazon.com/dp/B083Z5P6TX"
                },
                {
                     "name": "EVGA GeForce RTX 3060 Ti FTW Ultra Gaming",
-                    "link": "https://www.amazon.com/dp/B08P2H5LW2"
+                    "link": "https://smile.amazon.com/dp/B08P2H5LW2"
                },
                {
                     "name": "EVGA GeForce RTX 3060 Ti XC Gaming",
-                    "link": "https://www.amazon.com/dp/B08R876RTH"
+                    "link": "https://smile.amazon.com/dp/B08R876RTH"
                },
                {
                     "name": "GIGABYTE AORUS GeForce RTX 3060 Ti Master",
-                    "link": "https://www.amazon.com/dp/B08Q8QR7PK"
+                    "link": "https://smile.amazon.com/dp/B08Q8QR7PK"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Ti Eagle OC",
-                    "link": "https://www.amazon.com/dp/B08NYPKW1Z"
+                    "link": "https://smile.amazon.com/dp/B08NYPKW1Z"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Ti Eagle",
-                    "link": "https://www.amazon.com/dp/B08NYNJ6RC"
+                    "link": "https://smile.amazon.com/dp/B08NYNJ6RC"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Ti Gaming OC",
-                    "link": "https://www.amazon.com/dp/B08NYP7KG6"
+                    "link": "https://smile.amazon.com/dp/B08NYP7KG6"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Ti Gaming OC PRO",
-                    "link": "https://www.amazon.com/dp/B08NYPLXPJ"
+                    "link": "https://smile.amazon.com/dp/B08NYPLXPJ"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3060 Ti",
-                    "link": "https://www.amazon.com/dp/B08P2D3JSG"
+                    "link": "https://smile.amazon.com/dp/B08P2D3JSG"
                },
                {
                     "name": "NVIDIA GeForce RTX 3060 Ti 8GB GDDR6 PCI",
@@ -171,75 +179,75 @@
                },
                {
                     "name": "PNY GeForce RTX 3060 Ti 8GB XLR8 Gaming Revel Epic-X RGB Dual Fan",
-                    "link": "https://www.amazon.com/dp/B08NW693LG"
+                    "link": "https://smile.amazon.com/dp/B08NW693LG"
                },
                {
                     "name": "PNY GeForce RTX 3060 Ti 8GB Uprising Dual Fan Graphics Card",
-                    "link": "https://www.amazon.com/dp/B08NW5HNYW"
+                    "link": "https://smile.amazon.com/dp/B08NW5HNYW"
                },
                {
                     "name": "OTAC Gaming GeForce RTX 3060 Ti Twin Edge",
-                    "link": "https://www.amazon.com/dp/B08P3XJLJJ"
+                    "link": "https://smile.amazon.com/dp/B08P3XJLJJ"
                },
                {
                     "name": "ZOTAC Gaming GeForce RTX 3060 Ti Twin Edge OC",
-                    "link": "https://www.amazon.com/dp/B08P3V572B"
+                    "link": "https://smile.amazon.com/dp/B08P3V572B"
                },
                {
                     "name": "ASUS Dual NVIDIA GeForce RTX 3070",
-                    "link": "https://www.amazon.com/dp/B08L8HPKR6"
+                    "link": "https://smile.amazon.com/dp/B08L8HPKR6"
                },
                {
                     "name": "ASUS Dual NVIDIA GeForce RTX 3070 OC",
-                    "link": "https://www.amazon.com/dp/B08L8LG4M3"
+                    "link": "https://smile.amazon.com/dp/B08L8LG4M3"
                },
                {
                     "name": "ASUS KO NVIDIA GeForce RTX 3070 OC",
-                    "link": "https://www.amazon.com/dp/B08MT6B58K"
+                    "link": "https://smile.amazon.com/dp/B08MT6B58K"
                },
                {
                     "name": "ASUS ROG STRIX NVIDIA GeForce RTX 3070",
-                    "link": "https://www.amazon.com/dp/B08L8JNTXQ"
+                    "link": "https://smile.amazon.com/dp/B08L8JNTXQ"
                },
                {
                     "name": "ASUS ROG Strix NVIDIA GeForce RTX 3070 White OC",
-                    "link": "https://www.amazon.com/dp/B08R15HVJ3"
+                    "link": "https://smile.amazon.com/dp/B08R15HVJ3"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3070 OC",
-                    "link": "https://www.amazon.com/dp/B08L8KC1J7"
+                    "link": "https://smile.amazon.com/dp/B08L8KC1J7"
                },
                {
                     "name": "EVGA 08G-P5-3755-KR GeForce RTX 3070 XC3 Ultra Gaming",
-                    "link": "https://www.amazon.com/dp/B08L8L9TCZ"
+                    "link": "https://smile.amazon.com/dp/B08L8L9TCZ"
                },
                {
                     "name": "GIGABYTE AORUS GeForce RTX 3070 Master",
-                    "link": "https://www.amazon.com/dp/B08M14Y3C7"
+                    "link": "https://smile.amazon.com/dp/B08M14Y3C7"
                },
                {
                     "name": "Gigabyte GeForce RTX 3070 Eagle OC",
-                    "link": "https://www.amazon.com/dp/B08KY322TH"
+                    "link": "https://smile.amazon.com/dp/B08KY322TH"
                },
                {
                     "name": "Gigabyte GeForce RTX 3070 Eagle 8G Graphics Card",
-                    "link": "https://www.amazon.com/dp/B08KXZV626"
+                    "link": "https://smile.amazon.com/dp/B08KXZV626"
                },
                {
                     "name": "Gigabyte GeForce RTX 3070 Gaming OC",
-                    "link": "https://www.amazon.com/dp/B08KY266MG"
+                    "link": "https://smile.amazon.com/dp/B08KY266MG"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3070 Vision OC",
-                    "link": "https://www.amazon.com/dp/B08M13DXSZ"
+                    "link": "https://smile.amazon.com/dp/B08M13DXSZ"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3070 VENTUS 2X",
-                    "link": "https://www.amazon.com/dp/B08KWN2LZG"
+                    "link": "https://smile.amazon.com/dp/B08KWN2LZG"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3070 VENTUS 3X",
-                    "link": "https://www.amazon.com/dp/B08KWLMZV4"
+                    "link": "https://smile.amazon.com/dp/B08KWLMZV4"
                },
                {
                     "name": "NVIDIA GeForce RTX 3070 8GB GDDR6 PCI Express 4.0 Graphics Card",
@@ -247,71 +255,71 @@
                },
                {
                     "name": "PNY GeForce RTX 3070 8GB XLR8 Gaming Uprising Dual Fan",
-                    "link": "https://www.amazon.com/dp/B08HBF5L3K"
+                    "link": "https://smile.amazon.com/dp/B08HBF5L3K"
                },
                {
                     "name": "PNY GeForce RTX 3070 8GB XLR8 Gaming REVEL EPIC-X RGB Triple Fan",
-                    "link": "https://www.amazon.com/dp/B08HBJB7YD"
+                    "link": "https://smile.amazon.com/dp/B08HBJB7YD"
                },
                {
                     "name": "ASUS ROG STRIX NVIDIA GeForce RTX 3080 OC Edition",
-                    "link": "https://www.amazon.com/dp/B08J6F174Z"
+                    "link": "https://smile.amazon.com/dp/B08J6F174Z"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3080",
-                    "link": "https://www.amazon.com/dp/B08HHDP9DW"
+                    "link": "https://smile.amazon.com/dp/B08HHDP9DW"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3080 OC",
-                    "link": "https://www.amazon.com/dp/B08HH5WF97"
+                    "link": "https://smile.amazon.com/dp/B08HH5WF97"
                },
                {
                     "name": "EVGA 10G-P5-3895-KR GeForce RTX 3080 FTW3 GAMING",
-                    "link": "https://www.amazon.com/dp/B08HR3DPGW"
+                    "link": "https://smile.amazon.com/dp/B08HR3DPGW"
                },
                {
                     "name": "EVGA 10G-P5-3897-KR GeForce RTX 3080 FTW3 ULTRA GAMING",
-                    "link": "https://www.amazon.com/dp/B08HR3Y5GQ"
+                    "link": "https://smile.amazon.com/dp/B08HR3Y5GQ"
                },
                {
                     "name": "EVGA 10G-P5-3881-KR GeForce RTX 3080 XC3 BLACK GAMING",
-                    "link": "https://www.amazon.com/dp/B08HR6FMF3"
+                    "link": "https://smile.amazon.com/dp/B08HR6FMF3"
                },
                {
                     "name": "EVGA 10G-P5-3883-KR GeForce RTX 3080 XC3 GAMING",
-                    "link": "https://www.amazon.com/dp/B08HR4RJ3Q"
+                    "link": "https://smile.amazon.com/dp/B08HR4RJ3Q"
                },
                {
                     "name": "EVGA 10G-P5-3885-KR GeForce RTX 3080 XC3 ULTRA GAMING",
-                    "link": "https://www.amazon.com/dp/B08HR55YB5"
+                    "link": "https://smile.amazon.com/dp/B08HR55YB5"
                },
                {
                     "name": "GIGABYTE AORUS GeForce RTX 3080 Master",
-                    "link": "https://www.amazon.com/dp/B08KJ3VKLQ"
+                    "link": "https://smile.amazon.com/dp/B08KJ3VKLQ"
                },
                {
                     "name": "Gigabyte GeForce RTX 3080 EAGLE OC",
-                    "link": "https://www.amazon.com/dp/B08HJS2JLJ"
+                    "link": "https://smile.amazon.com/dp/B08HJS2JLJ"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3080 GAMING OC 10G Graphics Card",
-                    "link": "https://www.amazon.com/dp/B08HJTH61J"
+                    "link": "https://smile.amazon.com/dp/B08HJTH61J"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3080 Vision OC 10G Graphics",
-                    "link": "https://www.amazon.com/dp/B08KGZVKXM"
+                    "link": "https://smile.amazon.com/dp/B08KGZVKXM"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3080 Tri-Frozr 2",
-                    "link": "https://www.amazon.com/dp/B08HR7SV3M"
+                    "link": "https://smile.amazon.com/dp/B08HR7SV3M"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3080",
-                    "link": "https://www.amazon.com/dp/B08QW8BKDV#aod"
+                    "link": "https://smile.amazon.com/dp/B08QW8BKDV#aod"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3080 Torx Fan 3",
-                    "link": "https://www.amazon.com/dp/B08HR5SXPS"
+                    "link": "https://smile.amazon.com/dp/B08HR5SXPS"
                },
                {
                     "name": "NVIDIA GeForce RTX 3080 ",
@@ -319,71 +327,71 @@
                },
                {
                     "name": "PNY GeForce RTX 3080 REVEL",
-                    "link": "https://www.amazon.com/dp/B08HBR7QBM"
+                    "link": "https://smile.amazon.com/dp/B08HBR7QBM"
                },
                {
                     "name": "PNY GeForce RTX 3080 UPRISING",
-                    "link": "https://www.amazon.com/dp/B08HBTJMLJ"
+                    "link": "https://smile.amazon.com/dp/B08HBTJMLJ"
                },
                {
                     "name": "ZOTAC GAMING GeForce RTX 3080 Trinity OC",
-                    "link": "https://www.amazon.com/dp/B08HVV2P4Z"
+                    "link": "https://smile.amazon.com/dp/B08HVV2P4Z"
                },
                {
                     "name": "ASUS ROG STRIX NVIDIA GeForce RTX 3090",
-                    "link": "https://www.amazon.com/dp/B08J6GMWCQ"
+                    "link": "https://smile.amazon.com/dp/B08J6GMWCQ"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3090",
-                    "link": "https://www.amazon.com/dp/B08HJLLF7G"
+                    "link": "https://smile.amazon.com/dp/B08HJLLF7G"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3090 OC",
-                    "link": "https://www.amazon.com/dp/B08HJGNJ81"
+                    "link": "https://smile.amazon.com/dp/B08HJGNJ81"
                },
                {
                     "name": "EVGA 24G-P5-3985-KR GeForce RTX 3090 FTW3 Gaming",
-                    "link": "https://www.amazon.com/dp/B08J5NMDP7"
+                    "link": "https://smile.amazon.com/dp/B08J5NMDP7"
                },
                {
                     "name": "EVGA GeForce RTX 3090 FTW3 Ultra Gaming",
-                    "link": "https://www.amazon.com/dp/B08J5F3G18"
+                    "link": "https://smile.amazon.com/dp/B08J5F3G18"
                },
                {
                     "name": "EVGA 24G-P5-3971-KR GeForce RTX 3090 XC3 Black",
-                    "link": "https://www.amazon.com/dp/B08J5QX31D"
+                    "link": "https://smile.amazon.com/dp/B08J5QX31D"
                },
                {
                     "name": "EVGA 24G-P5-3973-KR GeForce RTX 3090 XC3 Gaming",
-                    "link": "https://www.amazon.com/dp/B08J5ZN8DB"
+                    "link": "https://smile.amazon.com/dp/B08J5ZN8DB"
                },
                {
                     "name": "EVGA 24G-P5-3975-KR GeForce RTX 3090 XC3 Ultra",
-                    "link": "https://www.amazon.com/dp/B08J61SS5R"
+                    "link": "https://smile.amazon.com/dp/B08J61SS5R"
                },
                {
                     "name": "GIGABYTE AORUS GeForce RTX 3090 Xtreme",
-                    "link": "https://www.amazon.com/dp/B08KTWVHQP"
+                    "link": "https://smile.amazon.com/dp/B08KTWVHQP"
                },
                {
                     "name": "Gigabyte GeForce RTX 3090 EAGLE OC",
-                    "link": "https://www.amazon.com/dp/B08HJPDJTY"
+                    "link": "https://smile.amazon.com/dp/B08HJPDJTY"
                },
                {
                     "name": "Gigabyte GeForce RTX 3090 GAMING OC",
-                    "link": "https://www.amazon.com/dp/B08HJRF2CN"
+                    "link": "https://smile.amazon.com/dp/B08HJRF2CN"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3090 Tri-Frozr 2",
-                    "link": "https://www.amazon.com/dp/B08HRBW6VB"
+                    "link": "https://smile.amazon.com/dp/B08HRBW6VB"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3090 Torx Fan 3",
-                    "link": "https://www.amazon.com/dp/B08NNKHVP3"
+                    "link": "https://smile.amazon.com/dp/B08NNKHVP3"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3090",
-                    "link": "https://www.amazon.com/dp/B08HR9D2JS"
+                    "link": "https://smile.amazon.com/dp/B08HR9D2JS"
                },
                {
                     "name": "NVIDIA GeForce RTX 3090",
@@ -391,23 +399,23 @@
                },
                {
                     "name": "PNY GeForce RTX 3090 24GB XLR8 Gaming Uprising",
-                    "link": "https://www.amazon.com/dp/B08HBQWBHH"
+                    "link": "https://smile.amazon.com/dp/B08HBQWBHH"
                },
                {
                     "name": "ZOTAC GAMING GeForce RTX 3090 Trinity",
-                    "link": "https://www.amazon.com/dp/B08HJQ182D"
+                    "link": "https://smile.amazon.com/dp/B08HJQ182D"
                },
                {
                     "name": "ASUS ROG Strix NVIDIA GeForce RTX 3060 OC",
-                    "link": "https://www.amazon.com/dp/B08WGTL4CW"
+                    "link": "https://smile.amazon.com/dp/B08WGTL4CW"
                },
                {
                     "name": "ASUS TUF Gaming NVIDIA GeForce RTX 3060 OC",
-                    "link": "https://www.amazon.com/dp/B08WHJPBFX"
+                    "link": "https://smile.amazon.com/dp/B08WHJPBFX"
                },
                {
                     "name": "EVGA GeForce RTX 3060 XC Gaming",
-                    "link": "https://www.amazon.com/dp/B08WM28PVH"
+                    "link": "https://smile.amazon.com/dp/B08WM28PVH"
                },
                {
                     "name": "EVGA - NVIDIA GeForce RTX 3060 XC GAMING",
@@ -415,31 +423,31 @@
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Gaming OC",
-                    "link": "https://www.amazon.com/dp/B08X4V8N5Q"
+                    "link": "https://smile.amazon.com/dp/B08X4V8N5Q"
                },
                {
                     "name": "GIGABYTE GeForce RTX 3060 Vision OC",
-                    "link": "https://www.amazon.com/dp/B08X4VJ6SB"
+                    "link": "https://smile.amazon.com/dp/B08X4VJ6SB"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3060",
-                    "link": "https://www.amazon.com/dp/B08WPJ5P4R"
+                    "link": "https://smile.amazon.com/dp/B08WPJ5P4R"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3060 Tri-Frozr Torx Fan",
-                    "link": "https://www.amazon.com/dp/B08WT47L8B"
+                    "link": "https://smile.amazon.com/dp/B08WT47L8B"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3060 Torx Twin Fan",
-                    "link": "https://www.amazon.com/dp/B08WPRMVWB"
+                    "link": "https://smile.amazon.com/dp/B08WPRMVWB"
                },
                {
                     "name": "MSI Gaming GeForce RTX 3060",
-                    "link": "https://www.amazon.com/dp/B08WTFG5BX"
+                    "link": "https://smile.amazon.com/dp/B08WTFG5BX"
                },
                {
                     "name": "ZOTAC Gaming GeForce RTX 3060 Twin Edge OC",
-                    "link": "https://www.amazon.com/dp/B08W8DGK3X"
+                    "link": "https://smile.amazon.com/dp/B08W8DGK3X"
                },
                {
                     "name": "ASUS ROG STRIX NVIDIA GeForce RTX 3080 OC",
