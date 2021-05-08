@@ -1,5 +1,9 @@
 # ShopPyBot
 
+![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg)
+![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg)
+![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg)
+
 A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
 
 ## Supported sites
@@ -78,6 +82,8 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
+|shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
 
 <br>
@@ -88,7 +94,7 @@ The included alert sound can be changed to any other `.wav` file. Simply put the
 
 ## Support
 
-Join my [Discord](https://clan.bravebearstudios.com) and join the Programmers Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
+Join my [Discord](https://clan.bravebearstudios.com) and join the Programmer's Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
 
 ## Credits
 
