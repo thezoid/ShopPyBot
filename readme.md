@@ -90,7 +90,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |timeout|The timeout used in the Selenium driver for actions| 10 |
 |openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
 |shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
-|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
+|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item","type":"category of product"}`| N/A |
 
 <br>
 
