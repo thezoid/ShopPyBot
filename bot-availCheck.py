@@ -40,7 +40,7 @@ def writeLog(message, type="",_loggingLevel=0):
      elif type.upper() == "INFO" and _loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
 
-def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
+def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
      time.sleep(0.5)
@@ -56,8 +56,10 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0)
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
+     if _openBrowser:
+          wb.open(_itemLink,new=1)
 
-def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0):
+def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_loggingLevel=0):
      _driver.get(_itemLink)
      time.sleep(0.5)
      #try to see if there is a buy now button
@@ -65,15 +67,21 @@ def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_loggingLevel=0
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
                EC.element_to_be_clickable((By.ID,"buy-now-button"))
           )
+          
+          priceText = WebDriverWait(_driver,_timeout).until(
+               EC.presence_of_element_located((By.ID,"priceblock_ourprice"))
+          )
      except:
           m= f"[Amazon] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"{_itemName} is available at {_itemLink}"
+
+     m=f"[{priceText.text}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
-
+     if _openBrowser:
+          wb.open(_itemLink,new=1)
 
  #------ end funcs
 
@@ -94,6 +102,9 @@ try:
      testMode = settings["debug"]["testMode"]
      items = settings["available"]["items"]
      timeout = settings["available"]["timeout"]
+     openBrowser = settings["available"]["openNewBrowser"]
+     if(openBrowser):
+          import webbrowser as wb
      if settings["debug"]["alertType"] == "wav":
           alertSoundPath = scriptdir+"/sounds/alert.wav"
      elif settings["debug"]["alertType"] == "mp3":
@@ -124,9 +135,9 @@ while not stopCheck:
           #writeLog(f"Item is from {domain}","INFO",loggingLevel)
           
           if domain.lower() == "bestbuy":
-               bbIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,loggingLevel)
+               bbIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,openBrowser,loggingLevel)
           
           if domain.lower() == "amazon":
-               amzIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,loggingLevel)
+               amzIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,openBrowser,loggingLevel)
      
      writeLog(f"Starting next round --- Total Duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")

@@ -16,6 +16,7 @@
      },
      "available": {
           "timeout": 10,
+          "openNewBrowser":false,
           "items": [
                {"name":"AMD Ryzen 9 5950X","link":"https://www.amazon.com/AMD-Ryzen-5950X-32-Thread-Processor/dp/B0815Y8J9N"},
 		{"name":"AMD Ryzen 9 5900X","link":"https://www.amazon.com/AMD-Ryzen-5900X-24-Thread-Processor/dp/B08164VTWH"},

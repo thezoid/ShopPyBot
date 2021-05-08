@@ -78,6 +78,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
 
 <br>
