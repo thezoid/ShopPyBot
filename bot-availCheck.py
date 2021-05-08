@@ -50,7 +50,7 @@ def make_tiny(url):
 def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
-     time.sleep(0.5)
+     #time.sleep(0.5)
      try:
           atcBtn = WebDriverWait(driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
@@ -68,9 +68,9 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
      if shortURL:
-          m=f"[Amazon][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
+          m=f"[BestBuy][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
      else:
-          m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
+          m=f"[BestBuy][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -79,7 +79,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
 
 def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      _driver.get(_itemLink)
-     time.sleep(0.5)
+     #time.sleep(0.5)
      #try to see if there is a buy now button
      try:
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
