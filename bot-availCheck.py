@@ -60,7 +60,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
           m= f"[BestBuy] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"[{price}] {_itemName} is available at {_itemLink}"
+     m=f"[BestBuy][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -87,7 +87,7 @@ def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fa
           m= f"[Amazon] {itemName} is NOT available"
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
-     m=f"[{price}] {_itemName} is available at {_itemLink}"
+     m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -152,3 +152,6 @@ while not stopCheck:
                amzIsAvail(driver,itemName,itemLink,alertSoundPath,timeout,openBrowser,loggingLevel)
      
      writeLog(f"Starting next round --- Total Duration:{datetime.timedelta(seconds=(datetime.datetime.now() - startTime).total_seconds())}",type="ALWAYS")
+
+driver.close()
+driver.quit()
