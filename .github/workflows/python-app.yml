@@ -1,4 +1,4 @@
-name: ShopPyBot
+name: ShopPyBot Auto Lint/Test
 
 on:
   push:
