@@ -124,7 +124,7 @@ try:
      if loggingLevel < 0:
           loggingLevel = 0
      testMode = settings["debug"]["testMode"]
-     items = sorted (settings["available"]["items"],key= lambda k: k["name"])
+     items = sorted (settings["available"]["items"],key= lambda k: (k["type"],k["name"]))
      timeout = settings["available"]["timeout"]
      openBrowser = settings["available"]["openNewBrowser"]
      if(openBrowser):
