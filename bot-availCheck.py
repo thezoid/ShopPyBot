@@ -156,6 +156,8 @@ options = webdriver.ChromeOptions()
 #options.headless = True
 options.add_argument("--log-level=3")
 options.add_experimental_option('excludeSwitches', ['enable-logging'])
+prefs = {"profile.default_content_setting_values.geolocation" :2}
+options.add_experimental_option("prefs",prefs)
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
 driver.minimize_window()
 writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)
