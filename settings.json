@@ -1,11 +1,11 @@
 {
      "debug": {
           "loggingLevel": 3,
-          "testMode": true,
-          "alertType": "mp3"
+          "testMode": true          
      },
      "app": {
           "timeout": 10,
+          "alertType": "mp3",
           "bb_email": "your bestbuy account email",
           "bb_password": "your bestbuy account password",
           "bb_cvv": "your bestbuy account card cvv",
@@ -18,6 +18,7 @@
           "timeout": 10,
           "openNewBrowser": false,
           "shortURL":true,
+          "alertType": "mp3",
           "items": [
                {
                     "name": "Xbox Series X",

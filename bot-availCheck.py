@@ -141,10 +141,10 @@ try:
           except ImportError:
                from urllib2 import urlopen
 
-     if settings["debug"]["alertType"] == "wav":
-          alertSoundPath = scriptdir+"/sounds/alert.wav"
-     elif settings["debug"]["alertType"] == "mp3":
-          alertSoundPath = scriptdir+"/sounds/alert.mp3"
+     if settings["available"]["alertType"] == "wav":
+          alertSoundPath = scriptdir+"/sounds/alert_available.wav"
+     elif settings["available"]["alertType"] == "mp3":
+          alertSoundPath = scriptdir+"/sounds/alert_available.mp3"
      else:
           writeLog("Alert file type is invalid","ERROR",loggingLevel)
           exit()

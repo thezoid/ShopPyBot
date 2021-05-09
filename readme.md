@@ -68,7 +68,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 | --- | --- | --- |
 |loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
 |testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
-|alertType|The media type the alert file currently is. **Must be `mp3` or `wav`**|`wav`|
+
 
 <br>
 
@@ -77,6 +77,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|alertType|The media type the alert file currently is (`alert_buy`). **Must be `mp3` or `wav`**|`wav`|
 |amz_email*| your email for your Amazon account | *N/A* |
 |amz_pwd*| your password for your Amazon account | *N/A* |
 |bb_email*| your email for your Best Buy account | *N/A* |
@@ -94,6 +95,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|alertType|The media type the alert file currently is (`alert_available`). **Must be `mp3` or `wav`**|`wav`|
 |openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
 |shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item","type":"category of product"}`| N/A |
@@ -102,7 +104,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 
 ### Changing the Alert Sound
 
-The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the debug value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
+The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the alertType value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
 
 ## Support
 
