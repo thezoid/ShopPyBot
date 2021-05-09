@@ -1,8 +1,14 @@
 # ShopPyBot [![discord](https://img.shields.io/discord/136001983852052480.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](discord.gg/cNj3BZm)  [![Tips](https://img.shields.io/badge/Donate-PayPal-green.svg)](paypal.me/BraveBearStudios)
 
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg)
+*master*
+![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=master)
+![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=master)
+![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=master)
+
+*dev*
+![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=dev)
+![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=dev)
+![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=dev)
 
 A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
 
