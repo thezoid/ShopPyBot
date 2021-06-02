@@ -50,7 +50,7 @@ def make_tiny(url):
 def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      #find add to cart button (only available if not "sold out"?)
      _driver.get(_itemLink)
-     time.sleep(0.5)
+     #time.sleep(0.5)
      try:
           atcBtn = WebDriverWait(driver,_timeout).until(
                EC.element_to_be_clickable((By.CSS_SELECTOR,".add-to-cart-button"))
@@ -68,9 +68,9 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
           writeLog(m,"UNAVAILABLE",_loggingLevel)
           return
      if shortURL:
-          m=f"[Amazon][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
+          m=f"[BestBuy][{price}] {_itemName} is available at {make_tiny(_itemLink)}"
      else:
-          m=f"[Amazon][{price}] {_itemName} is available at {_itemLink}"
+          m=f"[BestBuy][{price}] {_itemName} is available at {_itemLink}"
      writeLog(m,"AVAILABLE")
      if(_alertSound and _alertSound != ""):
           playsound(_alertSound,False)
@@ -79,7 +79,7 @@ def bbIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=Fal
 
 def amzIsAvail(_driver,_itemName, _itemLink,_alertSound,_timeout,_openBrowser=False,_shortURL=True,_loggingLevel=0):
      _driver.get(_itemLink)
-     time.sleep(0.5)
+     #time.sleep(0.5)
      #try to see if there is a buy now button
      try:
           buyNowBTN = WebDriverWait(_driver,_timeout).until(
@@ -124,7 +124,7 @@ try:
      if loggingLevel < 0:
           loggingLevel = 0
      testMode = settings["debug"]["testMode"]
-     items = sorted (settings["available"]["items"],key= lambda k: k["name"])
+     items = sorted (settings["available"]["items"],key= lambda k: (k["type"],k["name"]))
      timeout = settings["available"]["timeout"]
      openBrowser = settings["available"]["openNewBrowser"]
      if(openBrowser):
@@ -141,10 +141,10 @@ try:
           except ImportError:
                from urllib2 import urlopen
 
-     if settings["debug"]["alertType"] == "wav":
-          alertSoundPath = scriptdir+"/sounds/alert.wav"
-     elif settings["debug"]["alertType"] == "mp3":
-          alertSoundPath = scriptdir+"/sounds/alert.mp3"
+     if settings["available"]["alertType"] == "wav":
+          alertSoundPath = scriptdir+"/sounds/alert_available.wav"
+     elif settings["available"]["alertType"] == "mp3":
+          alertSoundPath = scriptdir+"/sounds/alert_available.mp3"
      else:
           writeLog("Alert file type is invalid","ERROR",loggingLevel)
           exit()
@@ -156,6 +156,8 @@ options = webdriver.ChromeOptions()
 #options.headless = True
 options.add_argument("--log-level=3")
 options.add_experimental_option('excludeSwitches', ['enable-logging'])
+prefs = {"profile.default_content_setting_values.geolocation" :2}
+options.add_experimental_option("prefs",prefs)
 driver = webdriver.Chrome(scriptdir+"/chromedriver.exe",options=options)
 driver.minimize_window()
 writeLog("New Chrome opened - DONT CLOSE!","INFO",loggingLevel)

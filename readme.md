@@ -1,10 +1,22 @@
-# ShopPyBot
+# ShopPyBot [![discord](https://img.shields.io/discord/136001983852052480.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://clan.bravebearstudios.com)  [![Tips](https://img.shields.io/badge/Donate-PayPal-green.svg)](paypal.me/BraveBearStudios)
 
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg)
+*master*
+![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=master)
+![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=master)
+![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=master)
+
+*dev*
+![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=dev)
+![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=dev)
+![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=dev)
 
 A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
+
+### Disclaimer
+
+WARNING: The use of this software can result in a Amazon restricting access to your account and make it difficultfor you to purchase products, with or without the bot. By using this software, you acknowledge these risks. These restrictions cannot and will not be resolved by the developer(s). If this is a major issue you should consider avoiding use of this software.
+
+Account restrictions may be triggered by any of the following: 1) running multiple instances on one device, 2) running multiple instances on different devices, using the same account, regardless of their IP, proxy, or location, 3) configuring an instance to check stock too frequently/aggressively (default settings not guaranteed to be safe).
 
 ## Supported sites
 
@@ -56,7 +68,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 | --- | --- | --- |
 |loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
 |testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
-|alertType|The media type the alert file currently is. **Must be `mp3` or `wav`**|`wav`|
+
 
 <br>
 
@@ -65,6 +77,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|alertType|The media type the alert file currently is (`alert_buy`). **Must be `mp3` or `wav`**|`wav`|
 |amz_email*| your email for your Amazon account | *N/A* |
 |amz_pwd*| your password for your Amazon account | *N/A* |
 |bb_email*| your email for your Best Buy account | *N/A* |
@@ -82,15 +95,16 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |Key|Description| Default |
 | --- | --- | --- |
 |timeout|The timeout used in the Selenium driver for actions| 10 |
+|alertType|The media type the alert file currently is (`alert_available`). **Must be `mp3` or `wav`**|`wav`|
 |openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
 |shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
-|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item"}`| N/A |
+|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item","type":"category of product"}`| N/A |
 
 <br>
 
 ### Changing the Alert Sound
 
-The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the debug value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
+The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the alertType value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
 
 ## Support
 
