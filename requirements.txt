@@ -1,0 +1,7 @@
+selenium
+pyyaml
+colorama
+pygame
+urllib3
+requests
+webdriver_manager
