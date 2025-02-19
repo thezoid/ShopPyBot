@@ -3,3 +3,4 @@ dev*
 *.exe
 .venv*
 .DS_Store
+config.yml
