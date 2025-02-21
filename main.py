@@ -1,3 +1,4 @@
+import sys
 import os
 import requests
 from selenium import webdriver
@@ -13,6 +14,7 @@ from bestbuy_bot import check_bestbuy_item, auto_buy_bestbuy_item
 from utils import play_notification_sound, play_buy_sound, play_available_sound
 import time
 import webbrowser
+from selenium.webdriver.chrome.options import Options
 
 def get_chromedriver_path():
     writeLog("Entering get_chromedriver_path", "DEBUG")
@@ -47,7 +49,28 @@ def main():
     writeLog("Starting main function", "INFO")
     driver_path = get_chromedriver_path()
     service = Service(driver_path)
-    driver = webdriver.Chrome(service=service)
+    
+    # Set up Chrome options
+    chromeOptions = Options()
+    chromeOptions.add_experimental_option("prefs", {
+        "webauthn.enabled": False  # Disable WebAuthn prompts
+    })
+    chromeOptions.add_argument("--disable-features=WebAuthentication")
+    chromeOptions.add_argument("--disable-webauthn")  # May suppress passkey prompts
+
+    # Suppress unwanted console output
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w')
+    
+    driver = webdriver.Chrome(service=service, options=chromeOptions)
+    
+    # Disable WebAuthn through CDP
+    driver.execute_cdp_cmd("WebAuthn.disable", {})
+    
+    # Restore standard output and error streams
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+    
     test_mode = config['debug'].get('test_mode', False)
     open_browser = config['app'].get('open_browser', False)
     
@@ -73,7 +96,7 @@ def main():
                         writeLog(f"{item['name']} is available: {short_url}", "SUCCESS")
                         if auto_buy:
                             writeLog(f"Attempting to auto-buy {item['name']} on Amazon", "INFO")
-                            auto_buy_amazon_item(driver, item_url, config['app']['amz_email'], config['app']['amz_pwd'], quantity, test_mode)
+                            auto_buy_amazon_item(driver, item_url, config, quantity, test_mode)
                         else:
                             writeLog(f"{item['name']} is available but auto-buy is disabled", "INFO")
                             if open_browser:

@@ -101,4 +101,4 @@ Code is presented as is with no warranty or official support. Please open an iss
 
 ## Credits
 
-[wav Alert sound](https://opengameart.org/content/picked-coin-echo-2) - NenandSimic
+[Final Fantasy 14 Sound Fan Kit]https://na.finalfantasyxiv.com/lodestone/special/fankit/smartphone_ringtone/) - Square Enix

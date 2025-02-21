@@ -5,6 +5,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from logger import writeLog
 import time
 from utils import play_notification_sound
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 
 def detect_captcha(driver):
     try:
@@ -22,7 +24,8 @@ def check_amazon_item(driver, item_url):
             driver.get(item_url)
         if detect_captcha(driver):
             writeLog("CAPTCHA detected. Please solve it manually.", "WARNING")
-            input(f"{"-"*20}{"\n"*2}Press Enter after solving the CAPTCHA...{"\n"*2}{"-"*20}")
+            driver.focus()
+            input("--------------------\nPress Enter after solving the CAPTCHA...--------------------\n")
         writeLog("Waiting for add-to-cart or buy-now button", "DEBUG")
         try:
             add_to_cart_button = WebDriverWait(driver, 10).until(
@@ -51,15 +54,21 @@ def check_amazon_item(driver, item_url):
         writeLog(f"Error checking Amazon item: {e}", "ERROR")
         return False
 
-def amz_sign_in(driver, email, password):
+def amz_sign_in(driver, config):
     try:
+        email = config['app']['amz_email']
+        password = config['app']['amz_pwd']
+        
         # Check if the user is already signed in
         writeLog("Checking if user is already signed in", "INFO")
         try:
             account_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, "nav-link-accountList"))
             )
-            if "Sign in" not in account_element.text:
+            sign_in_button = account_element.find_element(By.CLASS_NAME, "nav-action-signin-button")
+            if sign_in_button:
+                writeLog("User is not signed in", "INFO")
+            else:
                 writeLog("User is already signed in", "INFO")
                 return
         except Exception as e:
@@ -68,24 +77,71 @@ def amz_sign_in(driver, email, password):
         # User is not signed in, proceed with sign-in
         writeLog("User is not signed in, proceeding with sign-in", "INFO")
         play_notification_sound()
-        driver.get("https://www.amazon.com/ap/signin")
-        
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "ap_email"))
-        ).send_keys(email)
-        driver.find_element(By.ID, "continue").click()
+        driver.get("https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.com%2F%3Fref_%3Dnav_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0")
+        try:
+          WebDriverWait(driver, 10).until(
+               EC.presence_of_element_located((By.ID, "ap_email"))
+          ).send_keys(email)
+          driver.find_element(By.ID, "continue").click()
+        except Exception as e: 
+          writeLog(f"Error during Amazon sign-in when entering email: {e}", "ERROR")
+          raise Exception("Sign-in failed - failed to enter email")
 
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "ap_password"))
-        ).send_keys(password)
-        driver.find_element(By.ID, "signInSubmit").click()
+     #    writeLog("Pausing for passkey load...","INFO")
+     #    time.sleep(2)
+
+     #    # Send an escape key press to close any pop-ups or prompts
+     #    try:
+     #        writeLog("Attempting to close pop-ups", "INFO")
+     #        for i in range(5):
+     #           actions = ActionChains(driver)
+     #           actions.key_down(Keys.ESCAPE)
+     #           actions.perform()
+     #           time.sleep(0.2)
+     #    except Exception as e:
+     #      writeLog(f"Error during Amazon sign-in when closing pop-ups: {e}", "ERROR")
+     #      raise Exception("Sign-in failed - failed to close pop-ups")
+        
+     #    writeLog("Pausing for password load...","INFO")
+     #    time.sleep(2)
+
+        input("Press enter once you dismiss the passkey prompt...")
+        
+        try:
+          writeLog("Attempting to enter password", "INFO")
+          WebDriverWait(driver, 10).until(
+               EC.presence_of_element_located((By.ID, "ap_password"))
+          ).send_keys(password)
+        except Exception as e:
+          writeLog(f"Error during Amazon sign-in when entering password: {e}", "ERROR")
+          raise Exception("Sign-in failed - failed to enter password")
+        
+        try:
+            writeLog("Attempting to click sign-in button", "INFO")
+            driver.find_element(By.ID, "signInSubmit").click()
+        except Exception as e:
+               writeLog(f"Error during Amazon sign-in when clicking sign-in button: {e}", "ERROR")
+               raise Exception("Sign-in failed")
+        # Check for MFA prompt
+        try:
+            writeLog("Checking for MFA prompt", "INFO")
+            mfa_form = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "auth-mfa-form"))
+            )
+            if mfa_form:
+                writeLog("MFA prompt detected. Please enter the OTP manually.", "WARNING")
+                play_notification_sound()
+                input("Press Enter after entering the OTP...")
+        except:
+            writeLog("No MFA prompt detected.", "warning")
+
         writeLog("Signed in to Amazon", "INFO")
     except Exception as e:
         writeLog(f"Error during Amazon sign-in: {e}", "ERROR")
 
-def auto_buy_amazon_item(driver, item_url, email, password, quantity, test_mode=False):
+def auto_buy_amazon_item(driver, item_url, config, quantity, test_mode=False):
     writeLog(f"Entering auto_buy_amazon_item for URL: {item_url}", "DEBUG")
-    amz_sign_in(driver, email, password)
+    amz_sign_in(driver, config)
     try:
         if driver.current_url != item_url:
             driver.get(item_url)
@@ -116,20 +172,6 @@ def auto_buy_amazon_item(driver, item_url, email, password, quantity, test_mode=
             writeLog(f"Error finding quantity option: {e}", "ERROR")
             return
         
-        try:
-            writeLog("Attempting to find proceed to checkout button", "INFO")
-            start_time = time.time()
-            proceed_to_checkout_button = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.NAME, "proceedToRetailCheckout"))
-            )
-            end_time = time.time()
-            writeLog(f"Time to find proceed to checkout button: {end_time - start_time:.2f} seconds", "DEBUG")
-            proceed_to_checkout_button.click()
-            writeLog("Proceeded to checkout on Amazon", "INFO")
-        except Exception as e:
-            writeLog(f"Error finding proceed to checkout button: {e}", "ERROR")
-            return
-
         if test_mode:
             writeLog("Test mode active: Pausing before final purchase step", "DEBUG")
             input("Press Enter to continue...")
