@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from logger import writeLog
 import time
+from utils import play_notification_sound
 
 def detect_captcha(driver):
     try:
@@ -17,10 +18,11 @@ def detect_captcha(driver):
 def check_amazon_item(driver, item_url):
     writeLog(f"Entering check_amazon_item for URL: {item_url}", "DEBUG")
     try:
-        driver.get(item_url)
+        if driver.current_url != item_url:
+            driver.get(item_url)
         if detect_captcha(driver):
             writeLog("CAPTCHA detected. Please solve it manually.", "WARNING")
-            input("Press Enter after solving the CAPTCHA...")
+            input(f"{"-"*20}{"\n"*2}Press Enter after solving the CAPTCHA...{"\n"*2}{"-"*20}")
         writeLog("Waiting for add-to-cart or buy-now button", "DEBUG")
         try:
             add_to_cart_button = WebDriverWait(driver, 10).until(
@@ -50,9 +52,24 @@ def check_amazon_item(driver, item_url):
         return False
 
 def amz_sign_in(driver, email, password):
-    writeLog("Entering amz_sign_in", "DEBUG")
     try:
+        # Check if the user is already signed in
+        writeLog("Checking if user is already signed in", "INFO")
+        try:
+            account_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "nav-link-accountList"))
+            )
+            if "Sign in" not in account_element.text:
+                writeLog("User is already signed in", "INFO")
+                return
+        except Exception as e:
+            writeLog(f"Error checking sign-in state: {e}", "ERROR")
+
+        # User is not signed in, proceed with sign-in
+        writeLog("User is not signed in, proceeding with sign-in", "INFO")
+        play_notification_sound()
         driver.get("https://www.amazon.com/ap/signin")
+        
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "ap_email"))
         ).send_keys(email)
@@ -68,68 +85,83 @@ def amz_sign_in(driver, email, password):
 
 def auto_buy_amazon_item(driver, item_url, email, password, quantity, test_mode=False):
     writeLog(f"Entering auto_buy_amazon_item for URL: {item_url}", "DEBUG")
+    amz_sign_in(driver, email, password)
     try:
-        driver.get(item_url)
+        if driver.current_url != item_url:
+            driver.get(item_url)
         
-        start_time = time.time()
-        add_to_cart_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "add-to-cart-button"))
-        )
-        end_time = time.time()
-        writeLog(f"Time to find add-to-cart button: {end_time - start_time:.2f} seconds", "DEBUG")
+        try:
+            writeLog("Attempting to find quantity dropdown", "INFO")
+            start_time = time.time()
+            quantity_dropdown = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "a-button-dropdown"))
+            )
+            end_time = time.time()
+            writeLog(f"Time to find quantity dropdown: {end_time - start_time:.2f} seconds", "DEBUG")
+            quantity_dropdown.click()
+        except Exception as e:
+            writeLog(f"Error finding quantity dropdown: {e}", "ERROR")
+            return
         
-        add_to_cart_button.click()
-        writeLog("Added to cart on Amazon", "INFO")
-
-        driver.get("https://www.amazon.com/gp/cart/view.html")
+        try:
+            writeLog(f"Attempting to find quantity option for {quantity}", "INFO")
+            start_time = time.time()
+            quantity_option = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, f"quantity_{quantity-1}"))
+            )
+            end_time = time.time()
+            writeLog(f"Time to find quantity option: {end_time - start_time:.2f} seconds", "DEBUG")
+            quantity_option.click()
+        except Exception as e:
+            writeLog(f"Error finding quantity option: {e}", "ERROR")
+            return
         
-        # Update quantity
-        start_time = time.time()
-        quantity_dropdown = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "a-dropdown-prompt"))
-        )
-        end_time = time.time()
-        writeLog(f"Time to find quantity dropdown: {end_time - start_time:.2f} seconds", "DEBUG")
-        
-        quantity_dropdown.click()
-        
-        start_time = time.time()
-        quantity_option = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, f"//a[@id='quantity_{quantity}']"))
-        )
-        end_time = time.time()
-        writeLog(f"Time to find quantity option: {end_time - start_time:.2f} seconds", "DEBUG")
-        
-        quantity_option.click()
-        
-        start_time = time.time()
-        proceed_to_checkout_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.NAME, "proceedToRetailCheckout"))
-        )
-        end_time = time.time()
-        writeLog(f"Time to find proceed to checkout button: {end_time - start_time:.2f} seconds", "DEBUG")
-        
-        proceed_to_checkout_button.click()
-        writeLog("Proceeded to checkout on Amazon", "INFO")
-
-        amz_sign_in(driver, email, password)
+        try:
+            writeLog("Attempting to find proceed to checkout button", "INFO")
+            start_time = time.time()
+            proceed_to_checkout_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.NAME, "proceedToRetailCheckout"))
+            )
+            end_time = time.time()
+            writeLog(f"Time to find proceed to checkout button: {end_time - start_time:.2f} seconds", "DEBUG")
+            proceed_to_checkout_button.click()
+            writeLog("Proceeded to checkout on Amazon", "INFO")
+        except Exception as e:
+            writeLog(f"Error finding proceed to checkout button: {e}", "ERROR")
+            return
 
         if test_mode:
             writeLog("Test mode active: Pausing before final purchase step", "DEBUG")
             input("Press Enter to continue...")
 
-        start_time = time.time()
-        buy_now_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "buy-now-button"))
-        )
-        end_time = time.time()
-        writeLog(f"Time to find buy-now button: {end_time - start_time:.2f} seconds", "DEBUG")
-        
-        if not test_mode:
+        try:
+            writeLog("Attempting to find buy-now button", "INFO")
+            start_time = time.time()
+            buy_now_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "buy-now-button"))
+            )
+            end_time = time.time()
+            writeLog(f"Time to find buy-now button: {end_time - start_time:.2f} seconds", "DEBUG")
             buy_now_button.click()
-        else:
-            writeLog("Test mode active: Skipping final purchase step", "INFO")
-        
-        writeLog("Order placed on Amazon", "SUCCESS")
+        except Exception as e:
+            writeLog(f"Error finding buy-now button: {e}", "ERROR")
+            return
+
+        try:
+            writeLog("Attempting to find place order button", "INFO")
+            start_time = time.time()
+            place_order_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "submitOrderButtonId"))
+            )
+            end_time = time.time()
+            writeLog(f"Time to find place order button: {end_time - start_time:.2f} seconds", "DEBUG")
+            if not test_mode:
+                place_order_button.click()
+                writeLog("Order placed on Amazon", "SUCCESS")
+            else:
+                writeLog("Test mode active: Skipping final purchase step", "INFO")
+        except Exception as e:
+            writeLog(f"Error finding place order button: {e}", "ERROR")
+            return
     except Exception as e:
         writeLog(f"Error during Amazon auto-buy: {e}", "ERROR")
