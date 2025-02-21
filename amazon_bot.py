@@ -5,8 +5,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from logger import writeLog
 import time
 from utils import play_notification_sound
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
+from models import update_item_purchased
 
 def detect_captcha(driver):
     try:
@@ -76,7 +75,6 @@ def amz_sign_in(driver, config):
 
         # User is not signed in, proceed with sign-in
         writeLog("User is not signed in, proceeding with sign-in", "INFO")
-        play_notification_sound()
         driver.get("https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.com%2F%3Fref_%3Dnav_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0")
         try:
           WebDriverWait(driver, 10).until(
@@ -87,24 +85,7 @@ def amz_sign_in(driver, config):
           writeLog(f"Error during Amazon sign-in when entering email: {e}", "ERROR")
           raise Exception("Sign-in failed - failed to enter email")
 
-     #    writeLog("Pausing for passkey load...","INFO")
-     #    time.sleep(2)
-
-     #    # Send an escape key press to close any pop-ups or prompts
-     #    try:
-     #        writeLog("Attempting to close pop-ups", "INFO")
-     #        for i in range(5):
-     #           actions = ActionChains(driver)
-     #           actions.key_down(Keys.ESCAPE)
-     #           actions.perform()
-     #           time.sleep(0.2)
-     #    except Exception as e:
-     #      writeLog(f"Error during Amazon sign-in when closing pop-ups: {e}", "ERROR")
-     #      raise Exception("Sign-in failed - failed to close pop-ups")
-        
-     #    writeLog("Pausing for password load...","INFO")
-     #    time.sleep(2)
-
+        play_notification_sound()
         input("Press enter once you dismiss the passkey prompt...")
         
         try:
@@ -171,7 +152,7 @@ def auto_buy_amazon_item(driver, item_url, config, quantity, test_mode=False):
         except Exception as e:
             writeLog(f"Error finding quantity option: {e}", "ERROR")
             return
-        
+
         if test_mode:
             writeLog("Test mode active: Pausing before final purchase step", "DEBUG")
             input("Press Enter to continue...")
@@ -200,8 +181,10 @@ def auto_buy_amazon_item(driver, item_url, config, quantity, test_mode=False):
             if not test_mode:
                 place_order_button.click()
                 writeLog("Order placed on Amazon", "SUCCESS")
+                update_item_purchased(item_url)
             else:
-                writeLog("Test mode active: Skipping final purchase step", "INFO")
+                writeLog("Test mode active: Skipping final purchase step, otherwise submitOrderButton would have been clicked!", "SUCCESS")
+                input("Press Enter to continue...")
         except Exception as e:
             writeLog(f"Error finding place order button: {e}", "ERROR")
             return

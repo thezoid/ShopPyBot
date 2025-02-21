@@ -1,11 +1,11 @@
 dev*
 *local*
-*logs*
+logs/*
 *.exe
 .venv*
 .DS_Store
 config.yml
-
+data/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
