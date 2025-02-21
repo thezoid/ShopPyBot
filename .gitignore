@@ -1,5 +1,6 @@
 dev*
-/local/&
+*local*
+*logs*
 *.exe
 .venv*
 .DS_Store

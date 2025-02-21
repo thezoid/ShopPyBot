@@ -1,4 +1,4 @@
-# ShopPyBot [![discord](https://img.shields.io/discord/136001983852052480.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://clan.bravebearstudios.com)  [![Tips](https://img.shields.io/badge/Donate-PayPal-green.svg)](paypal.me/BraveBearStudios)
+# ShopPyBot
 
 *master*
 ![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=master)
@@ -52,15 +52,9 @@ Account restrictions may be triggered by any of the following: 1) running multip
 3. Run `bot.py` or `bot-availCheck.py` through your favorite method
      - *NOTE:* It is recommended to run this through the command line to more easily observe any output that may come up
 
-### Link Processor
-
-To make the population of links for the availability check easier to process, modify `data.csv` such that each line is a pair of `item name, link to BestBuy item`. Once you have all your new items accounted for, run `processor.ps1` to generate new content in `out.json`. Copy and paste the contents of the `data` array inside of `out.json` to the `items` array in the `available` `settings.json` section.
-
 ## Customization
 
-Before putting the bot to work, you need to configure `settings.json` so that the scripts will function correctly. Be sure not to commit or otherwise save your sensitive information in a public place (email, password, cvv, etc.). Non-GPU items from BestBuy should work but it is not guranteed.
-
-OOtB the availability bot has a long list of RTX 30 series cards available on Best Buy; however, you will need to check the validity of this list to ensure your checks are up to date.
+Before putting the bot to work, you need to configure `config.yml` so that the application will function correctly. Be sure not to commit or otherwise save your sensitive information in a public place (email, password, cvv, etc.). Non-GPU items from BestBuy should work but it is not guranteed.
 
 ### Debug
 
@@ -68,9 +62,6 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 | --- | --- | --- |
 |loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
 |testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
-
-
-<br>
 
 ### App
 
@@ -88,7 +79,7 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 
 <br>
 
-****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII that may leak through your commits!***
+****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
 
 ### Available
 
@@ -100,15 +91,13 @@ OOtB the availability bot has a long list of RTX 30 series cards available on Be
 |shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
 |items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item","type":"category of product"}`| N/A |
 
-<br>
-
 ### Changing the Alert Sound
 
 The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the alertType value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
 
 ## Support
 
-Join my [Discord](https://clan.bravebearstudios.com) and join the Programmer's Parlor. #code-talk can be used to discuss this project, and code in general. Assistance may be provided on a case by case instance; however no offical or 24/7 support will be provided. **Do not** ping mods or admins for assitance for code.
+Code is presented as is with no warranty or official support. Please open an issue or fork and issue a PR for improvements.
 
 ## Credits
 
