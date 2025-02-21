@@ -1,3 +1,11 @@
-playsound==1.2.2
-selenium==3.141.0
-urllib3==1.26.5
+pytest
+selenium
+webdriver-manager
+pyyaml
+selenium
+pyyaml
+colorama
+pygame
+urllib3
+requests
+webdriver_manager

@@ -33,6 +33,7 @@ def writeLog(message, type,_loggingLevel=0):
           print(bcolors.WARNING,"WARNING:",message,bcolors.ENDC)
      elif type.upper() == "INFO" and _loggingLevel >= 3:
           print("\033[1;37;40mINFO:",message,bcolors.ENDC)
+
 def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_testMode,_loggingLevel=0):
      _driver.get(_link)
      
@@ -104,6 +105,7 @@ def bbBuy(_driver,_link,_alertSound,_timeout,_queueExists,_email,_pwd,_sec,_test
           if(_alertSound and _alertSound != ""):
                playsound(_alertSound,False)
           writeLog("YOU'RE IN QUEUE - GOOD LUCK","ALWAYS",_loggingLevel)
+          input("Press enter when finished in the Chrome browser")
           return True
      
 def amzSignIn(_driver,_timeout,_email,_pwd,_loggingLevel=0):

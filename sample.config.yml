@@ -1,0 +1,45 @@
+selenium:
+  driver_path: path/to/chromedriver
+
+app:
+  amz_email: "your_amazon_email@example.com"
+  amz_pwd: "your_amazon_password"
+  bb_email: "your_bestbuy_email@example.com"
+  bb_password: "your_bestbuy_password"
+  bb_cvv: "your_bestbuy_cvv"
+  open_browser: false
+
+debug:
+  logging_level: 5
+  test_mode: true
+
+available:
+  timeout: 10
+  short_url: true
+  alert_type: mp3
+  items:
+    - name: "Magic: The Gathering - Final Fantasy Play Booster Box (30 Packs)"
+      link: "https://www.amazon.com/Magic-Gathering-Final-Fantasy-Booster/dp/B0DTMQBLSY?ref_=ast_sto_dp"
+      type: card_mtg
+      auto_buy: true
+      quantity: 2
+    - name: "Magic: The Gathering Fantasy Collector Booster"
+      link: "https://www.amazon.com/Magic-Gathering-Fantasy-Collector-Booster/dp/B0DTN5HJD5?ref_=ast_sto_dp"
+      type: card_mtg
+      auto_buy: true
+      quantity: 4
+    - name: "Magic: The Gathering Fantasy Collectors Commander"
+      link: "https://www.amazon.com/Magic-Gathering-Fantasy-Collectors-Commander/dp/B0DTMRCY7J?ref_=ast_sto_dp"
+      type: card_mtg
+      auto_buy: true
+      quantity: 1
+    - name: "Magic: The Gathering - Final Fantasy Bundle"
+      link: "https://www.amazon.com/dp/B0DTMNNYN1?psc=1&smid=ATVPDKIKX0DER&ref_=chk_typ_imgToDp"
+      type: card_mtg
+      auto_buy: false
+      quantity: 1
+    - name: "Magic: The Gathering - Final Fantasy Bundle: Gift Edition"
+      link: "https://www.amazon.com/Magic-Gathering-Final-Fantasy-Bundle/dp/B0DTN6KRQQ?ref_=ast_sto_dp"
+      type: card_mtg
+      auto_buy: false
+      quantity: 1
