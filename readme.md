@@ -10,7 +10,8 @@
 ![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=dev)
 ![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=dev)
 
-A Python based system to 1) attempt to purchase an item from a link; and 2) check the availability of a list of items. This project takes advantage of the systems provided through Selenium in order to interact with shop web pages. This (as of writing) does not integrate with any shop APIs.
+## Overview
+ShopPyBot is a bot designed to automate the process of checking availability and purchasing items from online stores like Amazon and BestBuy.
 
 ### Disclaimer
 
@@ -18,86 +19,78 @@ WARNING: The use of this software can result in a Amazon restricting access to y
 
 Account restrictions may be triggered by any of the following: 1) running multiple instances on one device, 2) running multiple instances on different devices, using the same account, regardless of their IP, proxy, or location, 3) configuring an instance to check stock too frequently/aggressively (default settings not guaranteed to be safe).
 
-## Supported sites
+## Features
 
-- [x] Best Buy
-- [x] Amazon
-- [ ] Newegg
+- Automated availability checks
+- Automated purchasing
+- CAPTCHA detection and notification
+- Configurable via `config.yml`
+- Logging and error handling
 
-## Requirements
+## Setup
 
-- [Python](https://www.python.org/downloads/)
-- Selenium
-  - `pip install selenium`
-- Playsound
-  - `pip install playsound`
-- [Google Chrome](https://chrome.google.com)
-- [ChromeDriver](https://chromedriver.chromium.org/downloads)
-  - Drop this in the same directory as `bot.py` and `bot-availCheck.py`
+### Prerequisites
 
-### Best Buy
+- Python 3.8+
+- pip (Python package installer)
+
+#### Best Buy
 
 - A BestBuy account ([create one](https://www.bestbuy.com/identity/global/createAccount)) with a saved [payment method](https://www.bestbuy.com/profile/c/billinginfo/cc) (credit card)
 
-### Amazon
+#### Amazon
 
 - A valid Amazon account (presave your [address](https://smile.amazon.com/a/addresses) and [payment method](https://smile.amazon.com/cpe/yourpayments/wallet)!)
 - Your OTP device on hand (manual login required)
 
-## How to Use
+### Installation
 
-1. Make sure you have all the listed requirements above installed on your machine.
-     - Windows users can execute the supplied `installDependencies.ps1` script to walk through the requirements setup process
-2. Customize `settings.json` to include all of your appropriate information. Use the tables below if you are unsure of what values you should use.
-3. Run `bot.py` or `bot-availCheck.py` through your favorite method
-     - *NOTE:* It is recommended to run this through the command line to more easily observe any output that may come up
+1. Clone the repository:
 
-## Customization
+```sh
+git clone https://github.com/yourusername/ShopPyBot.git
+cd ShopPyBot
+```
 
-Before putting the bot to work, you need to configure `config.yml` so that the application will function correctly. Be sure not to commit or otherwise save your sensitive information in a public place (email, password, cvv, etc.). Non-GPU items from BestBuy should work but it is not guranteed.
+2. Create and activate a virtual environment:
 
-### Debug
+```sh
+python -m venv .venv
+.venv\Scripts\activate  # On Windows
+source .venv/bin/activate  # On macOS/Linux
+```
 
-|Key|Description| Default |
-| --- | --- | --- |
-|loggingLevel|Set the level of logging in the bot script such that <br><ul><li>`0 = SILENT`</li><li>`1 = ERROR`</li><li>`2 = WARNING`</li><li>`3 = INFO`</li></ul>| 3 |
-|testMode|Set to false to allow purchases to trigger, otherwise leave to true| true |
+3. Install the required dependencies:
 
-### App
+```sh
+pip install -r requirements.txt
+```
 
-|Key|Description| Default |
-| --- | --- | --- |
-|timeout|The timeout used in the Selenium driver for actions| 10 |
-|alertType|The media type the alert file currently is (`alert_buy`). **Must be `mp3` or `wav`**|`wav`|
-|amz_email*| your email for your Amazon account | *N/A* |
-|amz_pwd*| your password for your Amazon account | *N/A* |
-|bb_email*| your email for your Best Buy account | *N/A* |
-|bb_password*| your password for your Best Buy account | *N/A* |
-|bb_cvv*| your security code for your Best Buy saved payment method | *N/A* |
-|item | a link to the item of which you want to automate purchasing | *N/A* |
-|queueExists| represents whether the item being purchased is part of a queue system - **queue system requires manual input for final checkout** | true |
+## Configuration
 
-<br>
+1. Copy the sample configuration file and update it with your details:
+
+```sh
+cp sample.config.yml config.yml
+```
+
+2. Edit `config.ym`l to include your Amazon and BestBuy account details and the items you want to monitor.
 
 ****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
 
-### Available
-
-|Key|Description| Default |
-| --- | --- | --- |
-|timeout|The timeout used in the Selenium driver for actions| 10 |
-|alertType|The media type the alert file currently is (`alert_available`). **Must be `mp3` or `wav`**|`wav`|
-|openNewBrowser|Wheter to open a new browser window when an available item is found (uses default browser)| false |
-|shortURL|Whether the link presented in the console for will be a TinyURL link or the full shop link|true|
-|items|A list of items to check for availability. Must be presented as `{"name":"item name","link":"link to the item","type":"category of product"}`| N/A |
-
 ### Changing the Alert Sound
 
-The included alert sound can be changed to any other `.wav` file. Simply put the new `.wav.` file in the `sounds` folder and rename it to `alert.wav`. The process is similar if you would like to use a `.mp3` instead. Be sure to change the alertType value `alertType` to either `mp3` or `wav`. No other types are supported at this time.
+The alert sounds can simply be changed by replacing the existing `.mp3` files with new ones of the same name. There is also support for replacing the `.mp3` files with `.wav` files.
 
-## Support
+## Running the Bot
 
-Code is presented as is with no warranty or official support. Please open an issue or fork and issue a PR for improvements.
+```sh
+python main.py
+```
+
+## Contributing
+
+Contributions are welcome! Please read the contributing guidelines for more information.
 
 ## Credits
 

@@ -1,3 +1,7 @@
+pytest
+selenium
+webdriver-manager
+pyyaml
 selenium
 pyyaml
 colorama

@@ -6,6 +6,7 @@ logs/*
 .DS_Store
 config.yml
 data/*
+pytest-cache*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
