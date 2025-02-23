@@ -61,48 +61,46 @@ def amz_sign_in(driver, config):
         # Check if the user is already signed in
         writeLog("Checking if user is already signed in", "INFO")
         try:
-            account_element = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "nav-link-accountList"))
+            sign_out_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "nav-item-signout"))
             )
-            sign_in_button = account_element.find_element(By.CLASS_NAME, "nav-action-signin-button")
-            if sign_in_button:
-                writeLog("User is not signed in", "INFO")
-            else:
+            if sign_out_element:
                 writeLog("User is already signed in", "INFO")
                 return
         except Exception as e:
-            writeLog(f"Error checking sign-in state: {e}", "ERROR")
+            writeLog(f"User is not signed in: {e}", "INFO")
 
         # User is not signed in, proceed with sign-in
         writeLog("User is not signed in, proceeding with sign-in", "INFO")
         driver.get("https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.com%2F%3Fref_%3Dnav_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0")
         try:
-          WebDriverWait(driver, 10).until(
-               EC.presence_of_element_located((By.ID, "ap_email"))
-          ).send_keys(email)
-          driver.find_element(By.ID, "continue").click()
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "ap_email"))
+            ).send_keys(email)
+            driver.find_element(By.ID, "continue").click()
         except Exception as e: 
-          writeLog(f"Error during Amazon sign-in when entering email: {e}", "ERROR")
-          raise Exception("Sign-in failed - failed to enter email")
+            writeLog(f"Error during Amazon sign-in when entering email: {e}", "ERROR")
+            raise Exception("Sign-in failed - failed to enter email")
 
         play_notification_sound()
         input("Press enter once you dismiss the passkey prompt...")
         
         try:
-          writeLog("Attempting to enter password", "INFO")
-          WebDriverWait(driver, 10).until(
-               EC.presence_of_element_located((By.ID, "ap_password"))
-          ).send_keys(password)
+            writeLog("Attempting to enter password", "INFO")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "ap_password"))
+            ).send_keys(password)
         except Exception as e:
-          writeLog(f"Error during Amazon sign-in when entering password: {e}", "ERROR")
-          raise Exception("Sign-in failed - failed to enter password")
+            writeLog(f"Error during Amazon sign-in when entering password: {e}", "ERROR")
+            raise Exception("Sign-in failed - failed to enter password")
         
         try:
             writeLog("Attempting to click sign-in button", "INFO")
             driver.find_element(By.ID, "signInSubmit").click()
         except Exception as e:
-               writeLog(f"Error during Amazon sign-in when clicking sign-in button: {e}", "ERROR")
-               raise Exception("Sign-in failed")
+            writeLog(f"Error during Amazon sign-in when clicking sign-in button: {e}", "ERROR")
+            raise Exception("Sign-in failed")
+        
         # Check for MFA prompt
         try:
             writeLog("Checking for MFA prompt", "INFO")
@@ -114,7 +112,7 @@ def amz_sign_in(driver, config):
                 play_notification_sound()
                 input("Press Enter after entering the OTP...")
         except:
-            writeLog("No MFA prompt detected.", "warning")
+            writeLog("No MFA prompt detected.", "INFO")
 
         writeLog("Signed in to Amazon", "INFO")
     except Exception as e:
