@@ -15,11 +15,15 @@ PLUGIN_API_VERSION: int = 1
 class RetailerPlugin(ABC):
     """Abstract base for retail platform plugins.
 
-    Subclasses MUST set `domain_pattern` (class attribute, e.g. "amazon.com")
-    and implement `check_availability` and `auto_buy`.
+    Subclasses MUST set `domain_pattern` to a non-empty list of hostnames
+    (e.g. ["amazon.com", "amzn.to"]) and implement `check_availability` and
+    `auto_buy`. Per Phase 2 D-03, set `login_at_startup = True` to opt in to
+    a one-shot `.login()` call at startup before the polling loop begins.
     """
 
-    domain_pattern: str = ""
+    domain_pattern: list[str] = []
+    login_at_startup: bool = False
+    name: str = ""
 
     def __init__(self, platform_config) -> None:
         """Store platform-scoped config slice. Subclasses build self.driver here."""
