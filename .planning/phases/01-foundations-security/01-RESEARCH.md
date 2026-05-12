@@ -744,24 +744,28 @@ platforms:
 
 **If the planner needs user confirmation on any A# item, surface it in PLAN.md as an open question.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Schema for `platforms.<name>.credentials` when a platform is check-only (no auto_buy on any item)**
+1. **Schema for `platforms.<name>.credentials` when a platform is check-only (no auto_buy on any item)** — **RESOLVED in Plan 03 (pydantic config schema)**: `email`/`password` are required whenever `enabled: true`. Plugins that don't need login override `login()` to no-op (ABC default already does this). No "check-only" vs "purchase-capable" modeling in Phase 1.
+   - Original analysis:
    - What we know: D-04 says CVV is collected only for platforms that have at least one `auto_buy: true` item.
    - What's unclear: Should `credentials.email` and `credentials.password` also be conditionally optional? Today's bot needs them to sign in even on check-only flows because some sites only show stock to logged-in users.
    - Recommendation: Make `email`/`password` required when `enabled: true`. Plugins that don't need login can override `login()` to no-op (the ABC default already does this); Phase 1 doesn't need to model "check-only" vs "purchase-capable" platforms.
 
-2. **Should `requirements.txt` use hash pins (`==X.Y.Z --hash=sha256:...`)?**
+2. **Should `requirements.txt` use hash pins (`==X.Y.Z --hash=sha256:...`)?** — **RESOLVED in Plan 01 (test infra and pinned deps)**: Plain `==X.Y.Z` pins for Phase 1. Hash pins deferred to a future hardening phase.
+   - Original analysis:
    - What we know: CONTEXT.md Claude's Discretion list flags this.
    - What's unclear: Hash pins are stronger supply-chain security but a maintenance burden (every bump requires regenerating hashes, typically via `pip-tools`).
    - Recommendation: Plain `==X.Y.Z` for Phase 1. Hash pins can be added later (and are a natural fit for a future Phase 3 community-docs hardening task) without breaking anything.
 
-3. **REQUIREMENTS.md edit per CORE-01 revision (D-01)**
+3. **REQUIREMENTS.md edit per CORE-01 revision (D-01)** — **RESOLVED in Plan 01 Wave 0**: REQUIREMENTS.md edit (CORE-01 drops the `driver` parameter) is bundled into Plan 01's Wave 0 tasks alongside requirements.txt cleanup.
+   - Original analysis:
    - What we know: CONTEXT.md says CORE-01 wording must change to drop the `driver` parameter.
    - What's unclear: Whether the edit is part of Phase 1 or a one-line docs commit before planning starts.
    - Recommendation: Include as a small task in Phase 1 (Wave 0 alongside requirements.txt cleanup). Treats REQUIREMENTS.md as a code artifact, keeps the audit trail, and the verifier can confirm the edit.
 
-4. **Reconcile STATE.md staleness**
+4. **Reconcile STATE.md staleness** — **DEFERRED**: STATE.md doc-hygiene (bump 5 phases/39 reqs to 6 phases/44 reqs to match ROADMAP) is out of Phase 1 scope. Phase 1 is foundations/security; a STATE.md sync belongs in a separate planning-doc cleanup commit and is not a Phase 1 acceptance criterion.
+   - Original analysis:
    - What we know: STATE.md says 5 phases / 39 reqs; ROADMAP is authoritative at 6 phases / 44 reqs.
    - What's unclear: Whether STATE.md regenerates automatically as plans complete or requires a one-time fix.
    - Recommendation: One-line docs commit during Phase 1 planning to bump the numbers. Not a Phase 1 acceptance criterion.
