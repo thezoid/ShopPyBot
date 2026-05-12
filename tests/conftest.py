@@ -22,3 +22,11 @@ def tmp_config_yml(tmp_path, monkeypatch):
     )
     monkeypatch.chdir(tmp_path)
     return cfg
+
+
+@pytest.fixture
+def tmp_plugins_dir(tmp_path):
+    """Empty plugins/ dir for registry discovery tests."""
+    d = tmp_path / "plugins"
+    d.mkdir()
+    return d

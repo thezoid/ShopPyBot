@@ -1,9 +1,11 @@
+import typing
+
 import pytest
 from plugin_base import RetailerPlugin, PLUGIN_API_VERSION
 
 
 class _MinimalPlugin(RetailerPlugin):
-    domain_pattern = "example.com"
+    domain_pattern = ["example.com"]
 
     def check_availability(self, url: str) -> bool:
         return True
@@ -36,3 +38,16 @@ def test_login_default_is_noop():
 def test_detect_captcha_default_returns_false():
     plugin = _MinimalPlugin({})
     assert plugin.detect_captcha() is False
+
+
+def test_domain_pattern_is_list():
+    hints = typing.get_type_hints(RetailerPlugin)
+    assert hints["domain_pattern"] == list[str]
+
+
+def test_domain_pattern_default_is_empty_list():
+    assert RetailerPlugin.domain_pattern == []
+
+
+def test_login_at_startup_default_false():
+    assert RetailerPlugin.login_at_startup is False
