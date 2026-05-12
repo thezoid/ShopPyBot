@@ -1,0 +1,38 @@
+import pytest
+from plugin_base import RetailerPlugin, PLUGIN_API_VERSION
+
+
+class _MinimalPlugin(RetailerPlugin):
+    domain_pattern = "example.com"
+
+    def check_availability(self, url: str) -> bool:
+        return True
+
+    def auto_buy(self, url: str, config) -> bool:
+        return True
+
+
+def test_api_version_is_one():
+    assert PLUGIN_API_VERSION == 1
+    assert isinstance(PLUGIN_API_VERSION, int)
+
+
+def test_cannot_instantiate_abstract():
+    with pytest.raises(TypeError):
+        RetailerPlugin({})
+
+
+def test_subclass_with_required_methods_works():
+    plugin = _MinimalPlugin({})
+    assert plugin.check_availability("https://example.com") is True
+    assert plugin.auto_buy("https://example.com", {}) is True
+
+
+def test_login_default_is_noop():
+    plugin = _MinimalPlugin({})
+    assert plugin.login(None) is None
+
+
+def test_detect_captcha_default_returns_false():
+    plugin = _MinimalPlugin({})
+    assert plugin.detect_captcha() is False
