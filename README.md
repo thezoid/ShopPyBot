@@ -13,11 +13,34 @@
 ## Overview
 ShopPyBot is a bot designed to automate the process of checking availability and purchasing items from online stores like Amazon and BestBuy.
 
-### Disclaimer
+## Disclaimer
 
-WARNING: The use of this software can result in a Amazon restricting access to your account and make it difficultfor you to purchase products, with or without the bot. By using this software, you acknowledge these risks. These restrictions cannot and will not be resolved by the developer(s). If this is a major issue you should consider avoiding use of this software.
+ShopPyBot is intended for **personal use** only. Automating retail purchases
+may violate the Terms of Service (TOS) of the platforms it interacts with.
+You are solely responsible for any consequences, including the suspension
+or banning of your account, that result from running this software. Review
+each retailer's Terms of Service before enabling auto-buy on that platform.
 
-Account restrictions may be triggered by any of the following: 1) running multiple instances on one device, 2) running multiple instances on different devices, using the same account, regardless of their IP, proxy, or location, 3) configuring an instance to check stock too frequently/aggressively (default settings not guaranteed to be safe).
+Account restrictions may be triggered by any of the following: running
+multiple instances on one device, running multiple instances on different
+devices using the same account regardless of their IP/proxy/location, or
+configuring an instance to check stock too frequently or aggressively
+(default settings are not guaranteed to be safe).
+
+## Credentials and Environment
+
+Credentials are read from environment variables, not from `config.yml`.
+Set the following before running:
+
+- `SHOPBOT_PLATFORMS__AMAZON__CREDENTIALS__EMAIL`
+- `SHOPBOT_PLATFORMS__AMAZON__CREDENTIALS__PASSWORD`
+- `SHOPBOT_PLATFORMS__BESTBUY__CREDENTIALS__EMAIL`
+- `SHOPBOT_PLATFORMS__BESTBUY__CREDENTIALS__PASSWORD`
+
+The CVV is prompted at runtime via `getpass`. For headless deployments
+only, set `SHOPBOT_ALLOW_CVV_ENV=true` and supply per-platform
+`SHOPBOT_<PLATFORM>_CVV` env vars (visible in `/proc/<pid>/environ`,
+trusted infrastructure only).
 
 ## Features
 

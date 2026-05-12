@@ -55,8 +55,8 @@ def check_amazon_item(driver, item_url):
 
 def amz_sign_in(driver, config):
     try:
-        email = config['app']['amz_email']
-        password = config['app']['amz_pwd']
+        email = config.platforms['amazon'].credentials.email
+        password = config.platforms['amazon'].credentials.password
         
         # Check if the user is already signed in
         writeLog("Checking if user is already signed in", "INFO")
