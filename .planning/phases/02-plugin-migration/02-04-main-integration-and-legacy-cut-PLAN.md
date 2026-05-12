@@ -283,8 +283,10 @@ inline and handles the pause itself (Plan 02 task 2 spec).
        <interfaces>. Specifically:
        - Remove imports on current lines 19-20 (`from amazon_bot import ...` and `from bestbuy_bot import ...`)
        - Remove functions `_handle_amazon` (lines 50-68) and `_handle_bestbuy` (lines 71-89)
-       - Remove `from utils import play_notification_sound` if it is no longer used in main.py
-         (the only legacy call site was inside `_handle_amazon`; AmazonPlugin now owns it)
+       - Modify the existing `from utils import play_available_sound, play_buy_sound, play_notification_sound`
+         to drop `play_notification_sound` only (target line: `from utils import play_available_sound, play_buy_sound`).
+         `play_available_sound` and `play_buy_sound` are still called by `_poll_one` per <interfaces>;
+         `play_notification_sound`'s only legacy call site was inside `_handle_amazon` and AmazonPlugin now owns CAPTCHA alerts internally (Plan 02).
        - Add `from pathlib import Path`
        - Add `from plugin_registry import discover, route_url, verify_coverage`
        - Rewrite `main()` to match <interfaces> target. Keep `get_chromedriver_path` and
@@ -363,7 +365,7 @@ inline and handles the pause itself (Plan 02 task 2 spec).
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
 | T-2-CORE-03-LOOP | Denial of Service | polling loop | mitigate | `_poll_one` wraps each plugin call in try/except; logs ERROR and continues; matches legacy behavior. Runtime plugin failure cannot crash main loop (RESEARCH pitfall 10) |
-| T-2-CORE-04-COVERAGE | Repudiation | verify_coverage at startup | mitigate | Called between `discover` and login; raises ValueError naming offending URL before any side-effect (login flow, Chrome window startup for that plugin already occurred at discovery, but no purchases possible). Provides loud feedback over silent unsupported-URL skipping |
+| T-2-CORE-04-COVERAGE | Repudiation | verify_coverage at startup | mitigate | Called between `discover` and login. Acknowledged trade-off: `discover` instantiates plugins which constructs `self.driver` via `build_driver`, so two Chrome windows are open before `verify_coverage` runs. The mitigation prevents the more expensive side-effects: interactive OTP, sign-in flows, and any `auto_buy` purchase action. Provides loud feedback (`ValueError` naming offending URL) over silent unsupported-URL skipping. A stricter "validate class-level domain_pattern before instantiation" variant is deferred to v2 if Chrome-startup cost on misconfigured runs becomes an issue. |
 | T-2-D02-CUT | Tampering | legacy module deletion | mitigate | `git rm` removes amazon_bot.py and bestbuy_bot.py in same commit as main.py edit. Smoke tests assert non-existence; CI fail-fast if any future PR re-introduces them |
 | T-2-CORE-03-LEGACY-IMPORT | Tampering | residual imports | mitigate | AST test (`test_main_does_not_import_legacy_bots`) blocks regression; the import would also produce an ImportError at startup if a future contributor re-adds `from amazon_bot import ...` against deleted files |
 | T-2-D03-LOGIN | Spoofing | startup login loop | mitigate | `for plugin in registry: if plugin.login_at_startup: plugin.login(app_config)` runs every opt-in plugin's login once. Order is registry order (sorted by filename); deterministic |

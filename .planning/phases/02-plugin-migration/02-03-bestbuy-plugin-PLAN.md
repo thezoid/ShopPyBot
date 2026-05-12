@@ -21,7 +21,7 @@ must_haves:
   truths:
     - "plugins/shopbot_plugin_bestbuy.py defines a BestBuyPlugin subclass of RetailerPlugin"
     - "BestBuyPlugin.domain_pattern equals ['bestbuy.com']"
-    - "BestBuyPlugin.login_at_startup is True (D-03 opt-in: existing behavior preserved)"
+    - "BestBuyPlugin.login_at_startup is True (D-03 opt-in). Deliberate behavior change from legacy bestbuy_bot.py, which only called bb_sign_in mid-flow inside auto_buy_bestbuy_item. Moving login to startup aligns BestBuy with the Amazon flow and D-03 semantics; the mid-flow login call is preserved as a no-op-if-already-signed-in safety net."
     - "BestBuyPlugin.__init__ builds its own Selenium driver via driver.build_driver and stores it on self.driver (PLG-03)"
     - "BestBuyPlugin.check_availability(url) preserves the add-to-cart class-name presence logic from bestbuy_bot.check_bestbuy_item"
     - "BestBuyPlugin.login(config) preserves the email+password sign-in from bestbuy_bot.bb_sign_in but reads creds from self.platform_config.credentials instead of positional args"

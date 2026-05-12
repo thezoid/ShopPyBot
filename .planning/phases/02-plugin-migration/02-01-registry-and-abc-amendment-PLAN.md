@@ -32,7 +32,7 @@ must_haves:
     - "discover() resolves plugin name from optional `name: str` class attribute, defaulting to filename stem with shopbot_plugin_ prefix removed"
     - "route_url(url, registry) returns the matching plugin or None using normalized netloc + dotted-subdomain anchor (rejects evilamazon.com vs amazon.com)"
     - "verify_coverage(registry, items) raises a ValueError naming the offending URL when any item URL has no matching plugin (D-04 Phase B)"
-    - "Empty domain_pattern on a loaded plugin is treated as a configuration error during discovery (D-01)"
+    - "discover() raises ImportError naming the plugin file when a loaded plugin's domain_pattern is an empty list, before adding it to the registry (D-01 'import-time validation failure'). The ImportError is caught by the per-plugin try/except per D-04 Phase A and logged as a WARNING, so the bot does not crash, but the plugin is omitted from the registry and verify_coverage will hard-fail if its URLs are referenced in config."
   artifacts:
     - path: "plugin_base.py"
       provides: "Amended RetailerPlugin ABC with domain_pattern: list[str] and login_at_startup: bool"
@@ -148,6 +148,7 @@ Plugin name resolution rule (resolves RESEARCH open question 1): the registry ca
       - test_discover_hard_fails_on_two_classes: write a plugin module with TWO RetailerPlugin subclasses, assert ImportError raised (caught by discover, logged WARNING, file skipped)
       - test_discover_uses_name_attribute_when_present: plugin declares `name = "custom"`; assert registry entry .name == "custom"
       - test_discover_defaults_name_to_filename_stem: plugin omits name; assert registry derives "test" from shopbot_plugin_test.py
+      - test_discover_rejects_empty_domain_pattern: write a plugin with `domain_pattern = []`; assert plugin is NOT in returned registry AND a WARNING is logged naming the file (D-01 import-time validation failure surfaced via D-04 Phase A warn-and-skip)
       - test_route_url_returns_matching_plugin: parametrize Amazon + BestBuy URL fixtures
       - test_route_url_returns_none_on_unmatched: "https://example.com/x" -> None
       - test_verify_coverage_passes_when_all_urls_match: all items have plugins; no raise
@@ -250,6 +251,14 @@ Plugin name resolution rule (resolves RESEARCH open question 1): the registry ca
     - plugin_registry.py imports only stdlib + logger + plugin_base; no selenium, no third-party
   </behavior>
   <action>
+    0. Create the `plugins/` directory at repo root if it does not exist:
+       ```
+       mkdir -p plugins
+       ```
+       Wave 0 owns this precursor so Wave 1 plans (02, 03, 05) do not race to create it.
+       Do NOT add a `plugins/__init__.py` — `plugin_registry.discover` ignores dunder files
+       and the directory is loaded by path, not as a Python package.
+
     1. Edit `plugin_base.py`. Change line 22 `domain_pattern: str = ""` to `domain_pattern: list[str] = []`.
        Insert directly under that line:
        ```python
@@ -337,14 +346,13 @@ Plugin name resolution rule (resolves RESEARCH open question 1): the registry ca
                try:
                    module = _load_module(path)
                    cls = _find_plugin_class(module)
+                   if not cls.domain_pattern:
+                       raise ImportError(
+                           f"{cls.__name__} declares empty domain_pattern; "
+                           f"set domain_pattern: list[str] to a non-empty list of hostnames"
+                       )
                except Exception as e:
                    writeLog(f"Failed to load {path.name}: {e}", "WARNING")
-                   continue
-               if not cls.domain_pattern:
-                   writeLog(
-                       f"Plugin {cls.__name__} has empty domain_pattern; skipping",
-                       "WARNING",
-                   )
                    continue
                name = getattr(cls, "name", "") or path.stem.removeprefix(PLUGIN_PREFIX)
                try:
