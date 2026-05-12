@@ -4,7 +4,7 @@
 
 ### Core Framework
 
-- [ ] **CORE-01**: Plugin base class (ABC) defines `check_availability(url) → bool`, `auto_buy(driver, url, config) → bool`, `login(driver, config) → None`, `detect_captcha(driver) → bool`
+- [ ] **CORE-01**: Plugin base class (ABC) defines `check_availability(self, url) -> bool`, `auto_buy(self, url, config) -> bool`, `login(self, config) -> None` (no-op default), `detect_captcha(self) -> bool` (no-op default). Plugins own `self.driver`, constructed in `__init__`. (Updated per Phase 1 D-01.)
 - [ ] **CORE-02**: `PLUGIN_API_VERSION = 1` constant exported from plugin base; default no-op implementations for `login` and `detect_captcha` so plugins can be check-only
 - [ ] **CORE-03**: Plugin registry auto-discovers `shopbot_plugin_*.py` files in `plugins/` at startup via `importlib`; logs warning for non-matching `.py` files
 - [ ] **CORE-04**: Plugin registry routes item URLs to correct plugin via `domain_pattern` attribute on each plugin class
