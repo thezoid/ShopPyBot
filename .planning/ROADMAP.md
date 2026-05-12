@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
+- [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
 - [ ] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
 - [ ] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
 - [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
@@ -33,12 +33,12 @@
   5. `requirements.txt` specifies exact pinned versions, contains no duplicates, and declares `python_requires >= 3.11`; ChromeDriver output is suppressed without `sys.stdout` monkey-patching
 **Plans**: 6 plans
 Plans:
-- [ ] 01-01-PLAN.md — Test infrastructure + pinned requirements (Wave 0)
-- [ ] 01-02-PLAN.md — Plugin ABC contract (CORE-01, CORE-02)
-- [ ] 01-03-PLAN.md — Pydantic config schema + deprecation guard (CORE-05/06/07, SEC-01)
-- [ ] 01-04-PLAN.md — Driver hardening (SEC-03/04/05, INFRA-03)
-- [ ] 01-05-PLAN.md — Credentials runtime + logger refactor (SEC-02, INFRA-02)
-- [ ] 01-06-PLAN.md — main.py integration + README disclaimer (SEC-06)
+- [x] 01-01-PLAN.md — Test infrastructure + pinned requirements (Wave 0)
+- [x] 01-02-PLAN.md — Plugin ABC contract (CORE-01, CORE-02)
+- [x] 01-03-PLAN.md — Pydantic config schema + deprecation guard (CORE-05/06/07, SEC-01)
+- [x] 01-04-PLAN.md — Driver hardening (SEC-03/04/05, INFRA-03)
+- [x] 01-05-PLAN.md — Credentials runtime + logger refactor (SEC-02, INFRA-02)
+- [x] 01-06-PLAN.md — main.py integration + README disclaimer (SEC-06)
 
 ### Phase 2: Plugin Migration
 **Goal**: Amazon and BestBuy are fully migrated to the plugin ABC with isolated WebDriver instances, the plugin registry auto-discovers and routes plugins at startup, and contributor tooling is in place so the framework is immediately usable by external developers.
