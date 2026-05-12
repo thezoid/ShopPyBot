@@ -1,10 +1,31 @@
-"""Source-grep smoke tests for main.py integration invariants (Plan 01-06)."""
+"""Source-grep + AST smoke tests for main.py integration invariants.
+
+Phase 1 (01-06): legacy invariants on imports + monkey-patch absence.
+Phase 2 (02-04): registry integration assertions and hard-cut of legacy bots.
+"""
+import ast
 import pathlib
 
 
-def _src():
-    return pathlib.Path("main.py").read_text(encoding="utf-8")
+MAIN_FILE = pathlib.Path("main.py")
 
+
+def _src():
+    return MAIN_FILE.read_text(encoding="utf-8")
+
+
+def _main_ast():
+    return ast.parse(MAIN_FILE.read_text(encoding="utf-8"))
+
+
+def _walk_funcs(tree, name):
+    return [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == name
+    ]
+
+
+# --- Phase 1 invariants (unchanged) ---
 
 def test_no_stdout_monkey_patch():
     assert "sys.stdout = open(os.devnull" not in _src(), "INFRA-03"
@@ -16,10 +37,6 @@ def test_no_stderr_monkey_patch():
 
 def test_imports_appconfig():
     assert "from config_schema import AppConfig" in _src()
-
-
-def test_imports_build_driver():
-    assert "from driver import build_driver" in _src()
 
 
 def test_imports_collect_cvvs():
@@ -44,7 +61,103 @@ def test_no_old_app_credential_reads():
         "config['app']['amz_email']",
         "config['app']['amz_pwd']",
     ]
-    for fname in ("main.py", "amazon_bot.py", "bestbuy_bot.py"):
-        src = pathlib.Path(fname).read_text(encoding="utf-8")
-        for needle in forbidden:
-            assert needle not in src, f"{fname} still contains {needle!r}"
+    src = pathlib.Path("main.py").read_text(encoding="utf-8")
+    for needle in forbidden:
+        assert needle not in src, f"main.py still contains {needle!r}"
+
+
+# --- Phase 2 (02-04) registry integration + hard cut ---
+
+def test_amazon_bot_module_removed():
+    assert pathlib.Path("amazon_bot.py").exists() is False, \
+        "D-02 hard cut: amazon_bot.py must be removed"
+
+
+def test_bestbuy_bot_module_removed():
+    assert pathlib.Path("bestbuy_bot.py").exists() is False, \
+        "D-02 hard cut: bestbuy_bot.py must be removed"
+
+
+def test_main_imports_plugin_registry():
+    tree = _main_ast()
+    matches = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.ImportFrom) and n.module == "plugin_registry"
+    ]
+    assert len(matches) >= 1, "main.py must import from plugin_registry"
+
+
+def test_main_does_not_import_legacy_bots():
+    tree = _main_ast()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom):
+            assert n.module not in {"amazon_bot", "bestbuy_bot"}, (
+                f"Legacy import found: from {n.module} import ..."
+            )
+
+
+def test_main_has_no_handle_amazon():
+    tree = _main_ast()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.FunctionDef):
+            assert n.name not in {"_handle_amazon", "_handle_bestbuy"}, (
+                f"Legacy helper {n.name} still defined in main.py"
+            )
+
+
+def _calls_named(scope, target_name):
+    found = []
+    for n in ast.walk(scope):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == target_name:
+            found.append(n)
+    return found
+
+
+def test_main_calls_discover():
+    tree = _main_ast()
+    mains = _walk_funcs(tree, "main")
+    assert mains, "main() function must exist"
+    assert _calls_named(mains[0], "discover"), \
+        "main() must call discover(...)"
+
+
+def test_main_calls_verify_coverage():
+    tree = _main_ast()
+    mains = _walk_funcs(tree, "main")
+    assert mains, "main() function must exist"
+    assert _calls_named(mains[0], "verify_coverage"), \
+        "main() must call verify_coverage(...)"
+
+
+def test_main_calls_route_url():
+    tree = _main_ast()
+    assert _calls_named(tree, "route_url"), \
+        "main.py must call route_url(...) somewhere"
+
+
+def test_main_no_amazon_string_dispatch():
+    src = _src()
+    assert '"amazon.com" in link' not in src, \
+        "Legacy amazon.com string dispatch must be removed"
+    assert '"bestbuy.com" in link' not in src, \
+        "Legacy bestbuy.com string dispatch must be removed"
+
+
+def test_main_login_at_startup_loop():
+    tree = _main_ast()
+    mains = _walk_funcs(tree, "main")
+    assert mains, "main() function must exist"
+    main_node = mains[0]
+
+    has_attr = any(
+        isinstance(n, ast.Attribute) and n.attr == "login_at_startup"
+        for n in ast.walk(main_node)
+    )
+    has_login_call = any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "login"
+        for n in ast.walk(main_node)
+    )
+    assert has_attr, "main() must reference plugin.login_at_startup (D-03)"
+    assert has_login_call, "main() must call plugin.login(...) (D-03)"
