@@ -105,25 +105,27 @@ def test_example_plugin_no_config_singleton_import():
 
 
 def test_example_plugin_constructs_via_mock(monkeypatch):
-    # Stub selenium if missing so the import works in CI without browser deps.
-    if "selenium" not in sys.modules:
-        selenium = types.ModuleType("selenium")
-        webdriver_pkg = types.ModuleType("selenium.webdriver")
-        common = types.ModuleType("selenium.webdriver.common")
-        by_mod = types.ModuleType("selenium.webdriver.common.by")
+    # Stub selenium.webdriver.common.by so `from selenium.webdriver.common.by import By`
+    # succeeds without selenium's chrome submodule being available.
+    selenium = types.ModuleType("selenium")
+    webdriver_pkg = types.ModuleType("selenium.webdriver")
+    common = types.ModuleType("selenium.webdriver.common")
+    by_mod = types.ModuleType("selenium.webdriver.common.by")
 
-        class _By:
-            TAG_NAME = "tag name"
+    class _By:
+        TAG_NAME = "tag name"
 
-        by_mod.By = _By
-        sys.modules["selenium"] = selenium
-        sys.modules["selenium.webdriver"] = webdriver_pkg
-        sys.modules["selenium.webdriver.common"] = common
-        sys.modules["selenium.webdriver.common.by"] = by_mod
+    by_mod.By = _By
+    monkeypatch.setitem(sys.modules, "selenium", selenium)
+    monkeypatch.setitem(sys.modules, "selenium.webdriver", webdriver_pkg)
+    monkeypatch.setitem(sys.modules, "selenium.webdriver.common", common)
+    monkeypatch.setitem(sys.modules, "selenium.webdriver.common.by", by_mod)
 
+    # Stub `driver` module so `from driver import build_driver` returns a sentinel.
     sentinel = object()
-    import driver as driver_module  # noqa: WPS433 (intentional runtime import)
-    monkeypatch.setattr(driver_module, "build_driver", lambda *a, **kw: sentinel)
+    driver_stub = types.ModuleType("driver")
+    driver_stub.build_driver = lambda *a, **kw: sentinel
+    monkeypatch.setitem(sys.modules, "driver", driver_stub)
 
     spec = importlib.util.spec_from_file_location(
         "shoppybot_plugins.example_plugin_test", EXAMPLE_FILE
