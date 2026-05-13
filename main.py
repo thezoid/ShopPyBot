@@ -1,9 +1,9 @@
-"""ShopPyBot entrypoint (Phase 1 integration).
+"""ShopPyBot entrypoint (Phase 2 plugin-registry integration).
 
-Wires AppConfig (config_schema), build_driver (driver), collect_cvvs
-(credentials), and logger.configure into a single startup path. The
-polling-loop semantics (domain routing, CAPTCHA prompt, sound playback)
-are preserved from the legacy main.py.
+Drives the polling loop via the plugin registry. Discovery + coverage
+verification run at startup; per-iteration dispatch uses route_url. There
+is no direct knowledge of Amazon or BestBuy in this module: both are
+loaded as plugins under `plugins/shopbot_plugin_*.py`.
 """
 import sys
 
@@ -12,18 +12,17 @@ if sys.version_info < (3, 11):
 
 import os
 import webbrowser
+from pathlib import Path
 
 import requests
 from webdriver_manager.chrome import ChromeDriverManager
 
-from amazon_bot import auto_buy_amazon_item, check_amazon_item, detect_captcha
-from bestbuy_bot import auto_buy_bestbuy_item, check_bestbuy_item
 from config_schema import AppConfig
 from credentials import collect_cvvs
-from driver import build_driver
 from logger import configure as configure_logger, writeLog
 from models import add_items, get_items, initialize_db
-from utils import play_available_sound, play_buy_sound, play_notification_sound
+from plugin_registry import discover, route_url, verify_coverage
+from utils import play_available_sound, play_buy_sound
 
 
 def get_chromedriver_path(driver_path: str) -> str:
@@ -47,46 +46,57 @@ def make_tiny(url: str) -> str:
     return response.text
 
 
-def _handle_amazon(driver, name, link, auto_buy, quantity, app_config, test_mode, open_browser):
-    writeLog(f"Checking availability for Amazon item: {name}", "INFO")
-    driver.get(link)
-    if detect_captcha(driver):
-        writeLog("CAPTCHA detected. Please solve it manually.", "WARNING")
-        play_notification_sound()
-        input("Press Enter after solving the CAPTCHA...")
-    if not check_amazon_item(driver, link):
+def _poll_one(plugin, name, link, autoBuy, appConfig, openBrowser):
+    try:
+        available = plugin.check_availability(link)
+    except Exception as e:
+        writeLog(
+            f"Plugin {type(plugin).__name__} raised on check_availability for {link}: {e}",
+            "ERROR",
+        )
+        return
+    if not available:
         writeLog(f"{name} is not available", "INFO")
         return
     play_available_sound()
     writeLog(f"{name} is available: {make_tiny(link)}", "SUCCESS")
-    if auto_buy:
-        writeLog(f"Attempting to auto-buy {name} on Amazon", "INFO")
-        auto_buy_amazon_item(driver, link, app_config, quantity, test_mode)
-        return
-    writeLog(f"{name} is available but auto-buy is disabled", "INFO")
-    if open_browser:
-        webbrowser.open(link)
-
-
-def _handle_bestbuy(driver, name, link, auto_buy, quantity, app_config, cvvs, test_mode, open_browser):
-    writeLog(f"Checking availability for BestBuy item: {name}", "INFO")
-    if not check_bestbuy_item(driver, link):
-        writeLog(f"{name} is not available", "INFO")
-        return
-    play_available_sound()
-    writeLog(f"{name} is available: {make_tiny(link)}", "SUCCESS")
-    if auto_buy:
-        writeLog(f"Attempting to auto-buy {name} on BestBuy", "INFO")
-        if not test_mode:
-            bb = app_config.platforms['bestbuy'].credentials
-            auto_buy_bestbuy_item(driver, link, bb.email, bb.password, cvvs['bestbuy'], quantity)
+    if autoBuy:
+        try:
+            plugin.auto_buy(link, appConfig)
             play_buy_sound()
-        else:
-            writeLog("Test mode active: Skipping final purchase step", "INFO")
+        except Exception as e:
+            writeLog(
+                f"Plugin {type(plugin).__name__} raised on auto_buy for {link}: {e}",
+                "ERROR",
+            )
         return
     writeLog(f"{name} is available but auto-buy is disabled", "INFO")
-    if open_browser:
+    if openBrowser:
         webbrowser.open(link)
+
+
+def _seed_items(appConfig):
+    initialize_db()
+    add_items([
+        (it.name, it.link, it.auto_buy, it.quantity, False)
+        for it in appConfig.available.items
+    ])
+
+
+def _poll_loop(registry, appConfig):
+    openBrowser = appConfig.open_browser
+    while True:
+        writeLog("Starting new iteration of item checks", "INFO")
+        for item in get_items():
+            name, link, autoBuy, _qty, purchased = item
+            if purchased:
+                writeLog(f"{name} has already been purchased", "INFO")
+                continue
+            plugin = route_url(link, registry)
+            if plugin is None:
+                writeLog(f"Unsupported URL (no plugin): {link}", "WARNING")
+                continue
+            _poll_one(plugin, name, link, autoBuy, appConfig, openBrowser)
 
 
 def main():
@@ -100,33 +110,17 @@ def main():
     writeLog("Starting ShopPyBot", "INFO")
 
     cvvs = collect_cvvs(app_config)
+    app_config.selenium.driver_path = get_chromedriver_path(app_config.selenium.driver_path)
 
-    driver_path = get_chromedriver_path(app_config.selenium.driver_path)
-    driver = build_driver(driver_path)
+    registry = discover(Path("plugins"), app_config=app_config, cvvs=cvvs)
+    verify_coverage(registry, app_config.available.items)
 
-    initialize_db()
-    items = [
-        (it.name, it.link, it.auto_buy, it.quantity, False)
-        for it in app_config.available.items
-    ]
-    add_items(items)
+    for plugin in registry:
+        if plugin.login_at_startup:
+            plugin.login(app_config)
 
-    test_mode = app_config.debug.test_mode
-    open_browser = app_config.open_browser
-
-    while True:
-        writeLog("Starting new iteration of item checks", "INFO")
-        for item in get_items():
-            name, link, auto_buy, quantity, purchased = item
-            if purchased:
-                writeLog(f"{name} has already been purchased", "INFO")
-                continue
-            if "amazon.com" in link:
-                _handle_amazon(driver, name, link, auto_buy, quantity, app_config, test_mode, open_browser)
-            elif "bestbuy.com" in link:
-                _handle_bestbuy(driver, name, link, auto_buy, quantity, app_config, cvvs, test_mode, open_browser)
-            else:
-                writeLog(f"Unsupported URL: {link}", "WARNING")
+    _seed_items(app_config)
+    _poll_loop(registry, app_config)
 
 
 if __name__ == "__main__":
