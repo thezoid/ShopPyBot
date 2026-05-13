@@ -13,16 +13,16 @@
 
 ## Current Position
 
-**Phase**: 2 — Plugin Migration (Phase 1 complete)
+**Phase**: 3 — Community Documentation (Phase 2 complete)
 **Plan**: None started
-**Status**: Phase 1 verified PASS 2026-05-12; ready for Phase 2 planning
+**Status**: Phase 2 verified PASS 2026-05-12; ready for Phase 3 planning
 
 ```
 Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
            [  0%    ] [  0%   ] [  0%   ] [  0%   ] [  0%   ]
 ```
 
-**Overall**: 14/39 requirements complete (36%)
+**Overall**: 20/39 requirements complete (51%)
 
 ---
 
@@ -31,7 +31,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
 | 1 — Foundations + Security | Plugin ABC locked, Pydantic config, all security hardened | Complete (14/14 reqs) | 14 |
-| 2 — Plugin Migration | Amazon/BestBuy on ABC, registry operational, contributor docs | Not started | 6 |
+| 2 — Plugin Migration | Amazon/BestBuy on ABC, registry operational, contributor docs | Complete (6/6 reqs) | 6 |
 | 3 — Async Orchestrator | Concurrent plugins, WAL SQLite, no blocking I/O | Not started | 5 |
 | 4 — Notification System | Fan-out dispatcher, deduplication, all channels | Not started | 6 |
 | 5 — Platform Expansion | 5 new plugins, anti-detection config per platform | Not started | 8 |
@@ -40,10 +40,10 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 
 ## Performance Metrics
 
-**Plans completed**: 6
-**Requirements completed**: 14
-**Phases completed**: 1
-**Blockers resolved**: 4 (shared driver, per-call yaml load, plaintext creds, --disable-web-security)
+**Plans completed**: 11
+**Requirements completed**: 20
+**Phases completed**: 2
+**Blockers resolved**: 5 (Phase 1: shared driver, per-call yaml load, plaintext creds, --disable-web-security; Phase 2: missing update_item_purchased in BestBuy auto_buy)
 
 ---
 
@@ -75,9 +75,9 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 
 ## Session Continuity
 
-**Last action**: Phase 1 executed autonomously: 6 plans across 4 waves, 18 atomic commits, verifier PASS 14/14 reqs
-**Next action**: `/gsd-plan-phase 2` — plan Phase 2: Plugin Migration
-**Context to carry**: Plugin ABC contract is locked (`plugin_base.py`, `PLUGIN_API_VERSION = 1`, D-01 driver-arg drop). Phase 2 migrates `amazon_bot.py` and `bestbuy_bot.py` to the ABC and wires the plugin registry. Non-blocking Phase 1 follow-ups noted in VERIFICATION.md (tests/test_utils.py stale, README "Python 3.8+" line, _deprecated/ folder needs scrubbing pre-OSS).
+**Last action**: Phase 2 executed autonomously: 5 plans across 3 waves, 15 atomic commits, verifier PASS 6/6 reqs, all 4 locked decisions D-01..D-04 verified, 91 Phase-2 tests passing.
+**Next action**: `/gsd-plan-phase 3` — plan Phase 3: Community Documentation (CONTRIBUTING.md, SECURITY.md, issue/PR templates).
+**Context to carry**: Plugin framework is operational end-to-end. amazon_bot.py and bestbuy_bot.py are deleted; plugins/shopbot_plugin_amazon.py + plugins/shopbot_plugin_bestbuy.py + plugin_registry.py + plugins/PLUGIN_DEV.md are the public surface. Phase 3 should link CONTRIBUTING.md to PLUGIN_DEV.md rather than duplicating contract details. Non-blocking follow-ups (carried from Phase 1+2 VERIFICATION.md): tests/test_utils.py + tests/test_models.py pre-existing collection errors, README "Python 3.8+" line, _deprecated/ folder needs scrubbing pre-OSS launch.
 
 ---
 
