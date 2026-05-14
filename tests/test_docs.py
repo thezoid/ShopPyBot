@@ -319,3 +319,84 @@ def test_contributing_md_no_horizontal_rule():
         assert stripped not in ("---", "***", "___"), (
             f"CONTRIBUTING.md line {lineno} is a horizontal-rule line; use heading boundaries instead"
         )
+
+
+# ---------------------------------------------------------------------------
+# DOCS-03 (Plan 03-02): SECURITY.md
+# ---------------------------------------------------------------------------
+SECURITY_FILE = pathlib.Path("SECURITY.md")
+
+
+def _security_text() -> str:
+    return SECURITY_FILE.read_text(encoding="utf-8")
+
+
+def test_security_md_exists():
+    assert SECURITY_FILE.exists(), f"{SECURITY_FILE} must exist at repo root"
+
+
+def test_security_md_responsible_disclosure():
+    assert "responsible disclosure" in _security_text().lower(), (
+        "SECURITY.md must include a 'Responsible Disclosure' section"
+    )
+
+
+def test_security_md_contact_method():
+    text = _security_text()
+    has_placeholder = "<TODO: set security contact>" in text
+    has_email = "@" in text
+    assert has_placeholder or has_email, (
+        "SECURITY.md must include either a literal '<TODO: set security contact>' marker or an email address"
+    )
+    assert "security/advisories" in text, (
+        "SECURITY.md must link to GitHub Security Advisories (security/advisories)"
+    )
+
+
+def test_security_md_platforms_enumerated():
+    text = _security_text()
+    required = ["Amazon", "BestBuy", "Walmart", "Target", "GameStop", "Square Enix", "NewEgg"]
+    missing = [p for p in required if p not in text]
+    assert not missing, f"SECURITY.md missing platforms: {missing}"
+
+
+def test_security_md_anti_detection_walmart():
+    text = _security_text()
+    assert "PerimeterX" in text or "HUMAN Security" in text, (
+        "SECURITY.md must call out Walmart's PerimeterX / HUMAN Security difficulty"
+    )
+
+
+def test_security_md_anti_detection_target():
+    assert "Akamai" in _security_text(), (
+        "SECURITY.md must call out Target's Akamai bot manager difficulty"
+    )
+
+
+def test_security_md_credential_hygiene():
+    text = _security_text().lower()
+    assert "config.yml" in text, "SECURITY.md must reference config.yml"
+    assert "environment variable" in text or "env var" in text, (
+        "SECURITY.md must mention environment variables for credentials"
+    )
+    assert "getpass" in text, "SECURITY.md must mention getpass for CVV"
+
+
+def test_security_md_links_readme():
+    assert "README.md" in _security_text(), (
+        "SECURITY.md must back-reference README.md for TOS / disclaimer context"
+    )
+
+
+def test_security_md_no_em_dashes():
+    assert "—" not in _security_text(), (
+        "SECURITY.md must not contain em dashes (CLAUDE.md style)"
+    )
+
+
+def test_security_md_no_horizontal_rule():
+    for lineno, line in enumerate(_security_text().splitlines(), start=1):
+        stripped = line.strip()
+        assert stripped not in ("---", "***", "___"), (
+            f"SECURITY.md line {lineno} is a horizontal-rule line; use heading boundaries instead"
+        )
