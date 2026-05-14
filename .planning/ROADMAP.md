@@ -12,7 +12,7 @@
 
 - [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
 - [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
-- [ ] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
+- [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
 - [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
 - [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
 - [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
@@ -63,10 +63,10 @@ Plans:
   4. Opening a pull request presents a checklist covering ABC compliance, naming convention, test presence, and risk documentation
 **Plans**: 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — CONTRIBUTING.md (DOCS-01, DOCS-02) (Wave 0)
-- [ ] 03-02-PLAN.md — SECURITY.md (DOCS-03) (Wave 0)
-- [ ] 03-03-PLAN.md — GitHub issue templates (DOCS-04) (Wave 0)
-- [ ] 03-04-PLAN.md — GitHub PR template (DOCS-05) (Wave 0)
+- [x] 03-01-PLAN.md — CONTRIBUTING.md (DOCS-01, DOCS-02) (Wave 0)
+- [x] 03-02-PLAN.md — SECURITY.md (DOCS-03) (Wave 0)
+- [x] 03-03-PLAN.md — GitHub issue templates (DOCS-04) (Wave 0)
+- [x] 03-04-PLAN.md — GitHub PR template (DOCS-05) (Wave 0)
 **UI hint**: no
 
 ### Phase 4: Async Orchestrator
