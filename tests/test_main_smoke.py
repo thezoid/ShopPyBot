@@ -21,7 +21,7 @@ def _main_ast():
 def _walk_funcs(tree, name):
     return [
         n for n in ast.walk(tree)
-        if isinstance(n, ast.FunctionDef) and n.name == name
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name
     ]
 
 
@@ -117,8 +117,11 @@ def test_main_calls_discover():
     tree = _main_ast()
     mains = _walk_funcs(tree, "main")
     assert mains, "main() function must exist"
-    assert _calls_named(mains[0], "discover"), \
-        "main() must call discover(...)"
+    # Phase 4: discover_async replaces discover (D-04 stagger).
+    assert (
+        _calls_named(mains[0], "discover")
+        or _calls_named(mains[0], "discover_async")
+    ), "main() must call discover(...) or discover_async(...)"
 
 
 def test_main_calls_verify_coverage():
@@ -161,3 +164,32 @@ def test_main_login_at_startup_loop():
     )
     assert has_attr, "main() must reference plugin.login_at_startup (D-03)"
     assert has_login_call, "main() must call plugin.login(...) (D-03)"
+
+
+# --- Phase 4 additions: async refactor smoke ---
+
+def test_mainIsAsyncFunctionDef():
+    """Phase 4: main() must be `async def`, not `def`."""
+    tree = _main_ast()
+    mainFn = next(
+        (n for n in ast.walk(tree)
+         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "main"),
+        None,
+    )
+    assert isinstance(mainFn, ast.AsyncFunctionDef), "main must be an async function"
+
+
+def test_mainImportsDiscoverAsync():
+    tree = _main_ast()
+    foundDiscoverAsync = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "plugin_registry":
+            for alias in node.names:
+                if alias.name == "discover_async":
+                    foundDiscoverAsync = True
+    assert foundDiscoverAsync, "main.py must import discover_async from plugin_registry"
+
+
+def test_mainImportsTaskGroupViaAsyncio():
+    src = _src()
+    assert "asyncio.TaskGroup" in src or "TaskGroup" in src

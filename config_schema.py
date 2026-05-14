@@ -44,6 +44,11 @@ class AvailableConfig(BaseModel):
     items: list[ItemConfig]
 
 
+class AppSettings(BaseModel):
+    """Phase 4: orchestrator-level settings (polling cadence, etc.)."""
+    delay: float = Field(default=5.0, ge=0.1, le=3600.0)
+
+
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         extra="forbid",
@@ -57,6 +62,7 @@ class AppConfig(BaseSettings):
     available: AvailableConfig
     platforms: dict[str, PlatformConfig]
     open_browser: bool = False
+    app: AppSettings = AppSettings()
 
     @classmethod
     def settings_customise_sources(
