@@ -61,7 +61,12 @@ Plans:
   2. SECURITY.md explicitly lists known TOS/legal risks per platform and includes a responsible disclosure process with a contact method
   3. Submitting a bug report or plugin request via GitHub Issues presents a pre-filled template with the required fields
   4. Opening a pull request presents a checklist covering ABC compliance, naming convention, test presence, and risk documentation
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 03-01-PLAN.md — CONTRIBUTING.md (DOCS-01, DOCS-02) (Wave 0)
+- [ ] 03-02-PLAN.md — SECURITY.md (DOCS-03) (Wave 0)
+- [ ] 03-03-PLAN.md — GitHub issue templates (DOCS-04) (Wave 0)
+- [ ] 03-04-PLAN.md — GitHub PR template (DOCS-05) (Wave 0)
 **UI hint**: no
 
 ### Phase 4: Async Orchestrator
