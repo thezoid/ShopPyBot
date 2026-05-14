@@ -3,6 +3,7 @@
 SEC-06: README disclaimer substring tests (Plan 01-06).
 CORE-08: example_plugin.py + PLUGIN_DEV.md tests (Plan 02-05).
 DOCS-04: GitHub issue templates tests (Plan 03-03).
+DOCS-05: PR template tests (Plan 03-04).
 """
 import ast
 import importlib.util
@@ -499,3 +500,85 @@ def test_chooser_links_security():
         "config.yml contact_links must include an entry routing security issues "
         "to GitHub Security Advisories or SECURITY.md"
     )
+
+
+# ---------------------------------------------------------------------------
+# DOCS-05 (Plan 03-04): PR template
+# ---------------------------------------------------------------------------
+PR_TEMPLATE_FILE = pathlib.Path(".github/PULL_REQUEST_TEMPLATE.md")
+
+
+def _pr_text() -> str:
+    return PR_TEMPLATE_FILE.read_text(encoding="utf-8")
+
+
+def test_pr_template_exists():
+    assert PR_TEMPLATE_FILE.exists(), f"{PR_TEMPLATE_FILE} must exist"
+
+
+def test_pr_template_has_summary_section():
+    assert "## summary" in _pr_text().lower(), (
+        "PR template must include a '## Summary' section"
+    )
+
+
+def test_pr_template_has_type_of_change():
+    text = _pr_text()
+    for name in ("feat", "fix", "docs", "refactor", "test", "chore"):
+        assert name in text, (
+            f"PR template must include commit type '{name}' in type-of-change list"
+        )
+
+
+def test_pr_template_has_abc_compliance():
+    text = _pr_text()
+    lower = text.lower()
+    assert "abc compliance" in lower, "PR template must include an 'ABC Compliance' heading"
+    for token in ("RetailerPlugin", "check_availability", "auto_buy", "domain_pattern", "list[str]"):
+        assert token in text, f"PR template ABC section missing required token '{token}'"
+
+
+def test_pr_template_has_naming_section():
+    assert "shopbot_plugin_" in _pr_text(), (
+        "PR template must reference the shopbot_plugin_<platform>.py naming convention"
+    )
+
+
+def test_pr_template_has_tests_section():
+    lower = _pr_text().lower()
+    assert "pytest" in lower, "PR template must mention pytest"
+    assert "build_driver" in lower, "PR template must mention build_driver mocking requirement"
+
+
+def test_pr_template_has_risk_section():
+    text = _pr_text()
+    assert "anti-detection" in text, "PR template must mention anti-detection risk disclosure"
+    assert "SECURITY.md" in text, "PR template must link to SECURITY.md"
+
+
+def test_pr_template_has_secret_hygiene():
+    lower = _pr_text().lower()
+    assert "credentials" in lower, "PR template must mention credentials hygiene"
+    assert "pii" in lower or "personal" in lower, (
+        "PR template must mention PII / personal information hygiene"
+    )
+
+
+def test_pr_template_links_contributing():
+    assert "CONTRIBUTING.md" in _pr_text(), (
+        "PR template must forward-link to CONTRIBUTING.md"
+    )
+
+
+def test_pr_template_no_em_dashes():
+    assert "—" not in _pr_text(), (
+        "PR template must not contain em dashes (CLAUDE.md style)"
+    )
+
+
+def test_pr_template_no_horizontal_rule():
+    for lineno, line in enumerate(_pr_text().splitlines(), start=1):
+        stripped = line.strip()
+        assert stripped not in ("---", "***", "___"), (
+            f"PR template line {lineno} is a horizontal-rule line; use heading boundaries instead"
+        )
