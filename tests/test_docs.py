@@ -224,3 +224,98 @@ def test_plugin_dev_md_no_horizontal_rule():
         assert stripped not in ("---", "***", "___"), (
             f"PLUGIN_DEV.md line {lineno} is a horizontal-rule line; use heading boundaries instead"
         )
+
+
+# ---------------------------------------------------------------------------
+# DOCS-01/02 (Plan 03-01): CONTRIBUTING.md
+# ---------------------------------------------------------------------------
+CONTRIBUTING_FILE = pathlib.Path("CONTRIBUTING.md")
+
+COMMIT_TYPE_NAMES = {"feat", "fix", "docs", "style", "refactor", "test", "chore"}
+
+
+def _contributing_text() -> str:
+    return CONTRIBUTING_FILE.read_text(encoding="utf-8")
+
+
+def test_contributing_md_exists():
+    assert CONTRIBUTING_FILE.exists(), f"{CONTRIBUTING_FILE} must exist at repo root"
+
+
+def test_contributing_md_documents_workflow():
+    text = _contributing_text().lower()
+    assert "fork" in text, "CONTRIBUTING.md must document the fork step"
+    assert "branch" in text, "CONTRIBUTING.md must document the branch step"
+    assert "pull request" in text or " pr " in text or "pr " in text, (
+        "CONTRIBUTING.md must document pull request / PR step"
+    )
+
+
+def test_contributing_md_documents_commit_convention():
+    text = _contributing_text()
+    assert "type(scope): description" in text, (
+        "CONTRIBUTING.md must document the literal 'type(scope): description' convention"
+    )
+    lower = text.lower()
+    found = [name for name in COMMIT_TYPE_NAMES if name in lower]
+    assert len(found) >= 3, (
+        f"CONTRIBUTING.md must list at least 3 commit type names from {COMMIT_TYPE_NAMES}; found {found}"
+    )
+
+
+def test_contributing_md_documents_pytest():
+    assert "pytest" in _contributing_text().lower(), (
+        "CONTRIBUTING.md must mention pytest as the test runner"
+    )
+
+
+def test_contributing_md_links_plugin_dev():
+    assert "plugins/PLUGIN_DEV.md" in _contributing_text(), (
+        "CONTRIBUTING.md must link to plugins/PLUGIN_DEV.md"
+    )
+
+
+def test_contributing_md_links_security():
+    assert "SECURITY.md" in _contributing_text(), (
+        "CONTRIBUTING.md must link to SECURITY.md"
+    )
+
+
+def test_contributing_md_links_readme():
+    assert "README.md" in _contributing_text(), (
+        "CONTRIBUTING.md must link to README.md for TOS/disclaimer context"
+    )
+
+
+def test_contributing_md_has_plugin_checklist():
+    assert "plugin submission checklist" in _contributing_text().lower(), (
+        "CONTRIBUTING.md must include a 'Plugin Submission Checklist' section"
+    )
+
+
+def test_contributing_md_checklist_items():
+    text = _contributing_text()
+    required = [
+        "shopbot_plugin_",
+        "check_availability",
+        "auto_buy",
+        "domain_pattern",
+        "list[str]",
+        "anti-detection",
+    ]
+    missing = [s for s in required if s not in text]
+    assert not missing, f"CONTRIBUTING.md checklist missing required substrings: {missing}"
+
+
+def test_contributing_md_no_em_dashes():
+    assert "—" not in _contributing_text(), (
+        "CONTRIBUTING.md must not contain em dashes (CLAUDE.md style)"
+    )
+
+
+def test_contributing_md_no_horizontal_rule():
+    for lineno, line in enumerate(_contributing_text().splitlines(), start=1):
+        stripped = line.strip()
+        assert stripped not in ("---", "***", "___"), (
+            f"CONTRIBUTING.md line {lineno} is a horizontal-rule line; use heading boundaries instead"
+        )
