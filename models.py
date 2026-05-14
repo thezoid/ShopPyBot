@@ -3,7 +3,7 @@
 Connection rules:
 - WAL mode is set ONCE in initialize_db() and persisted by an immediate write.
 - busy_timeout is per-connection PRAGMA; applied inside _connect().
-- Every public function uses `with _connect() as conn:` — no raw sqlite3.connect.
+- Every public function uses `with _connect() as conn:`. No raw sqlite3.connect.
 - Connections are NOT cached at module scope (SQLite connections cannot cross threads).
 """
 import os

@@ -13,7 +13,7 @@
 - [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
 - [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
 - [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
-- [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
+- [x] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
 - [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
 - [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
 
@@ -80,11 +80,11 @@ Plans:
   4. Sustained parallel operation for 60+ minutes on two platforms produces zero `database is locked` SQLite errors; all `update_item_purchased()` calls succeed
 **Plans**: 5 plans
 Plans:
-- [ ] 04-01-PLAN.md: Async test infra + pytest-asyncio + RED skeletons (Wave 0) (ASYNC-01..05)
-- [ ] 04-02-PLAN.md: SQLite WAL + busy_timeout + context managers (Wave 1) (ASYNC-04)
-- [ ] 04-03-PLAN.md: RetailerPlugin async shutdown ABC (Wave 1) (ASYNC-01 cleanup)
-- [ ] 04-04-PLAN.md: plugin_registry discover_async + 1.5s stagger (Wave 1) (ASYNC-02)
-- [ ] 04-05-PLAN.md: Async main orchestrator + purchase_writer + shield shutdown (Wave 2) (ASYNC-01, ASYNC-03, ASYNC-05)
+- [x] 04-01-PLAN.md: Async test infra + pytest-asyncio + RED skeletons (Wave 0) (ASYNC-01..05)
+- [x] 04-02-PLAN.md: SQLite WAL + busy_timeout + context managers (Wave 1) (ASYNC-04)
+- [x] 04-03-PLAN.md: RetailerPlugin async shutdown ABC (Wave 1) (ASYNC-01 cleanup)
+- [x] 04-04-PLAN.md: plugin_registry discover_async + 1.5s stagger (Wave 1) (ASYNC-02)
+- [x] 04-05-PLAN.md: Async main orchestrator + purchase_writer + shield shutdown (Wave 2) (ASYNC-01, ASYNC-03, ASYNC-05)
 
 ### Phase 5: Notification System
 **Goal**: A fan-out notification dispatcher delivers stock alerts across all configured channels; a single channel failure does not prevent other channels from firing; each item triggers at most one notification per restock event.
