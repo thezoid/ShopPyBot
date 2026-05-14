@@ -4,6 +4,7 @@ Two-phase load per CONTEXT.md D-04:
 - Phase A (discover): lenient. Import errors logged + skipped.
 - Phase B (verify_coverage): strict. Missing plugin for any URL raises ValueError.
 """
+import asyncio
 import importlib.util
 import inspect
 import sys
@@ -14,6 +15,7 @@ from logger import writeLog
 from plugin_base import RetailerPlugin
 
 PLUGIN_PREFIX = "shopbot_plugin_"
+DEFAULT_STAGGER_SECONDS: float = 1.5
 
 
 def _normalize_netloc(url: str) -> str:
@@ -98,12 +100,8 @@ def _instantiate(cls, name, app_config, cvvs):
     )
 
 
-def discover(plugins_dir: Path, *, app_config, cvvs: dict[str, str]) -> list[RetailerPlugin]:
-    """Walk plugins_dir for shopbot_plugin_*.py files and return instances.
-
-    Per D-04 Phase A, per-plugin failures are logged as WARNING and skipped.
-    """
-    instances: list[RetailerPlugin] = []
+def _iter_plugin_paths(plugins_dir: Path):
+    """Yield sorted plugin file paths, logging+skipping non-conforming names."""
     for path in sorted(Path(plugins_dir).glob("*.py")):
         if path.name.startswith("_") or path.name == "__init__.py":
             continue
@@ -114,22 +112,70 @@ def discover(plugins_dir: Path, *, app_config, cvvs: dict[str, str]) -> list[Ret
                 "INFO",
             )
             continue
-        try:
-            cls = _load_plugin_class(path)
-        except Exception as e:
-            writeLog(f"Failed to load {path.name}: {e}", "WARNING")
-            continue
-        name = getattr(cls, "name", "") or path.stem.removeprefix(PLUGIN_PREFIX)
-        try:
-            inst = _instantiate(cls, name, app_config, cvvs)
-        except Exception as e:
-            writeLog(
-                f"Failed to instantiate {cls.__name__} from {path.name}: {e}",
-                "WARNING",
-            )
-            continue
-        inst.name = name
-        instances.append(inst)
+        yield path
+
+
+def _load_and_instantiate(path: Path, app_config, cvvs):
+    """Load module, find plugin class, instantiate. Returns instance or None.
+
+    Per D-04 Phase A: load/instantiate failures log WARNING and return None.
+    """
+    try:
+        cls = _load_plugin_class(path)
+    except Exception as e:
+        writeLog(f"Failed to load {path.name}: {e}", "WARNING")
+        return None
+    name = getattr(cls, "name", "") or path.stem.removeprefix(PLUGIN_PREFIX)
+    try:
+        inst = _instantiate(cls, name, app_config, cvvs)
+    except Exception as e:
+        writeLog(
+            f"Failed to instantiate {cls.__name__} from {path.name}: {e}",
+            "WARNING",
+        )
+        return None
+    inst.name = name
+    return inst
+
+
+def discover(plugins_dir: Path, *, app_config, cvvs: dict[str, str]) -> list[RetailerPlugin]:
+    """Walk plugins_dir for shopbot_plugin_*.py files and return instances.
+
+    Per D-04 Phase A, per-plugin failures are logged as WARNING and skipped.
+    """
+    instances: list[RetailerPlugin] = []
+    for path in _iter_plugin_paths(plugins_dir):
+        inst = _load_and_instantiate(path, app_config, cvvs)
+        if inst is not None:
+            instances.append(inst)
+    return instances
+
+
+async def discover_async(
+    plugins_dir: Path,
+    *,
+    app_config,
+    cvvs: dict[str, str],
+    stagger_seconds: float = DEFAULT_STAGGER_SECONDS,
+) -> list[RetailerPlugin]:
+    """Async plugin discovery with `stagger_seconds` sleep between plugins.
+
+    The sleep happens BEFORE each plugin's instantiation (Pitfall 7) so the
+    chromedriver TCP bind window cannot race with the next plugin. The first
+    plugin instantiates immediately with no leading sleep. Per-plugin failures
+    are logged as WARNING and skipped (D-04 Phase A). Each instantiation runs
+    via asyncio.to_thread because plugin __init__ calls blocking Selenium I/O.
+    """
+    instances: list[RetailerPlugin] = []
+    paths = list(_iter_plugin_paths(plugins_dir))
+    for index, path in enumerate(paths):
+        if index > 0:
+            await asyncio.sleep(stagger_seconds)
+        inst = await asyncio.to_thread(
+            _load_and_instantiate, path, app_config, cvvs
+        )
+        if inst is not None:
+            instances.append(inst)
     return instances
 
 
