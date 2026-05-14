@@ -9,6 +9,10 @@ config.yml
 data/*
 pytest-cache*
 
+# SQLite WAL sidecar files (transient transaction data; never commit)
+data/*.db-wal
+data/*.db-shm
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
