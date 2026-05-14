@@ -1,8 +1,8 @@
-# ShopPyBot — Roadmap
+# ShopPyBot â€” Roadmap
 
 ## Project
 
-**Core Value:** A drop-in plugin framework that lets the community add new retail platform integrations by placing a single Python file in `plugins/` — no core changes required.
+**Core Value:** A drop-in plugin framework that lets the community add new retail platform integrations by placing a single Python file in `plugins/` â€” no core changes required.
 
 **Milestone:** v1 Open Source Launch
 
@@ -10,35 +10,35 @@
 
 ## Phases
 
-- [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
-- [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
-- [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
-- [x] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
-- [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
-- [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
+- [x] **Phase 1: Foundations + Security** â€” Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
+- [x] **Phase 2: Plugin Migration** â€” Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
+- [x] **Phase 3: Community Documentation** â€” CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
+- [x] **Phase 4: Async Orchestrator** â€” All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
+- [ ] **Phase 5: Notification System** â€” Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
+- [ ] **Phase 6: Platform Expansion** â€” Five new platform plugins operational with anti-detection configuration
 
 ---
 
 ## Phase Details
 
 ### Phase 1: Foundations + Security
-**Goal**: The plugin interface contract is locked and versioned, config is validated at startup, and all credential/driver security issues are resolved — making the codebase safe to publish as open source.
+**Goal**: The plugin interface contract is locked and versioned, config is validated at startup, and all credential/driver security issues are resolved â€” making the codebase safe to publish as open source.
 **Depends on**: Nothing (first phase)
 **Requirements**: CORE-01, CORE-02, CORE-05, CORE-06, CORE-07, SEC-01, SEC-02, SEC-03, SEC-04, SEC-05, SEC-06, INFRA-01, INFRA-02, INFRA-03
 **Success Criteria** (what must be TRUE):
   1. A developer can implement `RetailerPlugin` ABC with only `check_availability` and `auto_buy` as required methods; `login` and `detect_captcha` have working no-op defaults and `PLUGIN_API_VERSION = 1` is importable
-  2. Starting the bot with a `config.yml` missing a required field prints an actionable error message describing exactly which field is missing and where to set it, then exits — it does not crash with a stack trace
+  2. Starting the bot with a `config.yml` missing a required field prints an actionable error message describing exactly which field is missing and where to set it, then exits â€” it does not crash with a stack trace
   3. No credentials, CVV, or passwords exist in `config.yml` or any log output; the bot prompts for CVV at runtime via `getpass` and reads credentials from environment variables only
   4. ChromeDriver launches without `--disable-web-security`, reports a real Chrome user agent string, and has `navigator.webdriver` hidden via CDP patch
   5. `requirements.txt` specifies exact pinned versions, contains no duplicates, and declares `python_requires >= 3.11`; ChromeDriver output is suppressed without `sys.stdout` monkey-patching
 **Plans**: 6 plans
 Plans:
-- [x] 01-01-PLAN.md — Test infrastructure + pinned requirements (Wave 0)
-- [x] 01-02-PLAN.md — Plugin ABC contract (CORE-01, CORE-02)
-- [x] 01-03-PLAN.md — Pydantic config schema + deprecation guard (CORE-05/06/07, SEC-01)
-- [x] 01-04-PLAN.md — Driver hardening (SEC-03/04/05, INFRA-03)
-- [x] 01-05-PLAN.md — Credentials runtime + logger refactor (SEC-02, INFRA-02)
-- [x] 01-06-PLAN.md — main.py integration + README disclaimer (SEC-06)
+- [x] 01-01-PLAN.md â€” Test infrastructure + pinned requirements (Wave 0)
+- [x] 01-02-PLAN.md â€” Plugin ABC contract (CORE-01, CORE-02)
+- [x] 01-03-PLAN.md â€” Pydantic config schema + deprecation guard (CORE-05/06/07, SEC-01)
+- [x] 01-04-PLAN.md â€” Driver hardening (SEC-03/04/05, INFRA-03)
+- [x] 01-05-PLAN.md â€” Credentials runtime + logger refactor (SEC-02, INFRA-02)
+- [x] 01-06-PLAN.md â€” main.py integration + README disclaimer (SEC-06)
 
 ### Phase 2: Plugin Migration
 **Goal**: Amazon and BestBuy are fully migrated to the plugin ABC with isolated WebDriver instances, the plugin registry auto-discovers and routes plugins at startup, and contributor tooling is in place so the framework is immediately usable by external developers.
@@ -46,7 +46,7 @@ Plans:
 **Requirements**: CORE-03, CORE-04, CORE-08, PLG-01, PLG-02, PLG-03
 **Success Criteria** (what must be TRUE):
   1. Dropping `plugins/shopbot_plugin_amazon.py` and `plugins/shopbot_plugin_bestbuy.py` into the `plugins/` directory causes the registry to discover and load both plugins at startup with no manual registration required
-  2. Placing a `.py` file in `plugins/` that does not match the `shopbot_plugin_*.py` naming convention produces a logged warning and is ignored — it does not crash the bot
+  2. Placing a `.py` file in `plugins/` that does not match the `shopbot_plugin_*.py` naming convention produces a logged warning and is ignored â€” it does not crash the bot
   3. Each plugin owns its own `self.driver` WebDriver instance; neither plugin references a global driver; BestBuy calls `update_item_purchased()` after a successful purchase
   4. A new contributor can read `plugins/PLUGIN_DEV.md` and `plugins/example_plugin.py`, copy the example, implement `check_availability` and `auto_buy`, and have a working skeleton plugin without reading any core source code
 **Plans**: TBD
@@ -57,16 +57,16 @@ Plans:
 **Depends on**: Phase 2
 **Requirements**: DOCS-01, DOCS-02, DOCS-03, DOCS-04, DOCS-05
 **Success Criteria** (what must be TRUE):
-  1. A first-time contributor can open CONTRIBUTING.md and find the full plugin submission workflow — naming convention, required ABC methods, test expectations, and anti-detection risk declaration — without reading any source code
+  1. A first-time contributor can open CONTRIBUTING.md and find the full plugin submission workflow â€” naming convention, required ABC methods, test expectations, and anti-detection risk declaration â€” without reading any source code
   2. SECURITY.md explicitly lists known TOS/legal risks per platform and includes a responsible disclosure process with a contact method
   3. Submitting a bug report or plugin request via GitHub Issues presents a pre-filled template with the required fields
   4. Opening a pull request presents a checklist covering ABC compliance, naming convention, test presence, and risk documentation
 **Plans**: 4 plans
 Plans:
-- [x] 03-01-PLAN.md — CONTRIBUTING.md (DOCS-01, DOCS-02) (Wave 0)
-- [x] 03-02-PLAN.md — SECURITY.md (DOCS-03) (Wave 0)
-- [x] 03-03-PLAN.md — GitHub issue templates (DOCS-04) (Wave 0)
-- [x] 03-04-PLAN.md — GitHub PR template (DOCS-05) (Wave 0)
+- [x] 03-01-PLAN.md â€” CONTRIBUTING.md (DOCS-01, DOCS-02) (Wave 0)
+- [x] 03-02-PLAN.md â€” SECURITY.md (DOCS-03) (Wave 0)
+- [x] 03-03-PLAN.md â€” GitHub issue templates (DOCS-04) (Wave 0)
+- [x] 03-04-PLAN.md â€” GitHub PR template (DOCS-05) (Wave 0)
 **UI hint**: no
 
 ### Phase 4: Async Orchestrator
@@ -74,7 +74,7 @@ Plans:
 **Depends on**: Phase 3
 **Requirements**: ASYNC-01, ASYNC-02, ASYNC-03, ASYNC-04, ASYNC-05
 **Success Criteria** (what must be TRUE):
-  1. Running the bot with Amazon and BestBuy both configured shows both platforms polling concurrently — log timestamps confirm overlapping execution, not sequential
+  1. Running the bot with Amazon and BestBuy both configured shows both platforms polling concurrently â€” log timestamps confirm overlapping execution, not sequential
   2. Starting the bot with three or more plugins does not produce ChromeDriver port conflicts; startup logs show each plugin's driver initializing at least 1.5 seconds apart
   3. No `input()` calls exist anywhere in the async code path; user intervention (e.g., manual CAPTCHA solve) is communicated via `asyncio.Event` notification
   4. Sustained parallel operation for 60+ minutes on two platforms produces zero `database is locked` SQLite errors; all `update_item_purchased()` calls succeed
@@ -91,11 +91,18 @@ Plans:
 **Depends on**: Phase 4
 **Requirements**: NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-05, NOTIF-06
 **Success Criteria** (what must be TRUE):
-  1. When Discord is misconfigured (bad webhook URL), the bot continues running and delivers notifications to email and sound — the error is logged but does not crash or block other channels
+  1. When Discord is misconfigured (bad webhook URL), the bot continues running and delivers notifications to email and sound â€” the error is logged but does not crash or block other channels
   2. An item going in and out of stock multiple times within one poll cycle produces exactly one notification per restock event, not one per poll tick
   3. A Discord notification includes item name, URL, platform, timestamp, and action taken (detected / purchased), formatted as an embed
   4. SMS via Twilio is disabled by default; enabling it requires explicit opt-in configuration; accidental activation without credentials produces a clear config error, not a silent no-op
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 05-01-PLAN.md: Foundation + RED skeletons (Wave 0) (NOTIF-01..06)
+- [ ] 05-02-PLAN.md: notifier_registry + sound notifier (Wave 1) (NOTIF-03)
+- [ ] 05-03-PLAN.md: Discord notifier (Wave 1) (NOTIF-04)
+- [ ] 05-04-PLAN.md: Email/SMTP notifier (Wave 1) (NOTIF-05)
+- [ ] 05-05-PLAN.md: SMS/Twilio two-lock notifier (Wave 1) (NOTIF-06)
+- [ ] 05-06-PLAN.md: Orchestrator integration + notification_writer (Wave 2) (NOTIF-01, NOTIF-02)
 **UI hint**: no
 
 ### Phase 6: Platform Expansion
@@ -178,4 +185,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-04-19 — roadmap initialized*
+*Last updated: 2026-04-19 â€” roadmap initialized*
