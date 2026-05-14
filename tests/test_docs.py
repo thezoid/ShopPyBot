@@ -2,6 +2,7 @@
 
 SEC-06: README disclaimer substring tests (Plan 01-06).
 CORE-08: example_plugin.py + PLUGIN_DEV.md tests (Plan 02-05).
+DOCS-04: GitHub issue templates tests (Plan 03-03).
 """
 import ast
 import importlib.util
@@ -10,6 +11,7 @@ import sys
 import types
 
 import pytest
+import yaml
 
 
 # ---------------------------------------------------------------------------
@@ -400,3 +402,100 @@ def test_security_md_no_horizontal_rule():
         assert stripped not in ("---", "***", "___"), (
             f"SECURITY.md line {lineno} is a horizontal-rule line; use heading boundaries instead"
         )
+
+
+# ---------------------------------------------------------------------------
+# DOCS-04 (Plan 03-03): GitHub issue templates
+# ---------------------------------------------------------------------------
+ISSUE_TEMPLATE_DIR = pathlib.Path(".github/ISSUE_TEMPLATE")
+FORM_FILES = ["bug_report.yml", "plugin_request.yml", "platform_issue.yml"]
+CHOOSER_FILE = ISSUE_TEMPLATE_DIR / "config.yml"
+
+
+def _load_yaml(path: pathlib.Path):
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def test_issue_template_dir_exists():
+    assert ISSUE_TEMPLATE_DIR.is_dir(), (
+        f"{ISSUE_TEMPLATE_DIR} must exist as a directory"
+    )
+
+
+def test_bug_report_yml_exists():
+    assert (ISSUE_TEMPLATE_DIR / "bug_report.yml").exists()
+
+
+def test_plugin_request_yml_exists():
+    assert (ISSUE_TEMPLATE_DIR / "plugin_request.yml").exists()
+
+
+def test_platform_issue_yml_exists():
+    assert (ISSUE_TEMPLATE_DIR / "platform_issue.yml").exists()
+
+
+def test_chooser_config_yml_exists():
+    assert CHOOSER_FILE.exists(), f"{CHOOSER_FILE} must exist"
+
+
+@pytest.mark.parametrize(
+    "filename", FORM_FILES + ["config.yml"]
+)
+def test_form_yml_files_parse(filename):
+    path = ISSUE_TEMPLATE_DIR / filename
+    data = _load_yaml(path)
+    assert data is not None, f"{path} must parse to a non-empty YAML document"
+
+
+@pytest.mark.parametrize("filename", FORM_FILES)
+def test_form_templates_have_required_top_level_keys(filename):
+    data = _load_yaml(ISSUE_TEMPLATE_DIR / filename)
+    for key in ("name", "description", "body", "labels"):
+        assert key in data, (
+            f"{filename} must have top-level key '{key}' (GitHub issue form syntax)"
+        )
+
+
+@pytest.mark.parametrize("filename", FORM_FILES)
+def test_form_bodies_have_at_least_one_required_field(filename):
+    data = _load_yaml(ISSUE_TEMPLATE_DIR / filename)
+    body = data.get("body", [])
+    assert isinstance(body, list) and body, f"{filename} body must be a non-empty list"
+    has_required = False
+    for entry in body:
+        if not isinstance(entry, dict):
+            continue
+        validations = entry.get("validations")
+        if isinstance(validations, dict) and validations.get("required") is True:
+            has_required = True
+            break
+    assert has_required, (
+        f"{filename} must have at least one body entry with validations.required: true"
+    )
+
+
+def test_chooser_disables_blank_issues():
+    data = _load_yaml(CHOOSER_FILE)
+    assert data.get("blank_issues_enabled") is False, (
+        "config.yml must set blank_issues_enabled: false"
+    )
+
+
+def test_chooser_links_security():
+    data = _load_yaml(CHOOSER_FILE)
+    links = data.get("contact_links", [])
+    assert isinstance(links, list) and links, (
+        "config.yml must have a non-empty contact_links list"
+    )
+    found = False
+    for entry in links:
+        if not isinstance(entry, dict):
+            continue
+        url = str(entry.get("url", ""))
+        if "security/advisories" in url or "SECURITY.md" in url:
+            found = True
+            break
+    assert found, (
+        "config.yml contact_links must include an entry routing security issues "
+        "to GitHub Security Advisories or SECURITY.md"
+    )
