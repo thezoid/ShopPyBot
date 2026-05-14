@@ -5,6 +5,7 @@ logs/*
 .venv*
 .DS_Store
 config.yml
+!.github/ISSUE_TEMPLATE/config.yml
 data/*
 pytest-cache*
 

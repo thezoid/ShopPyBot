@@ -1,0 +1,65 @@
+name: Bug Report
+description: Report a defect in ShopPyBot core or an officially supported plugin
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please complete every required field.
+        Security issues: do NOT use this form. See SECURITY.md.
+  - type: input
+    id: shoppybot-version
+    attributes:
+      label: ShopPyBot version / commit SHA
+      description: Output of `git rev-parse --short HEAD` or release tag
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version (output of `python --version`)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimum config.yml (REDACT CREDENTIALS) and exact commands
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior + log snippet
+      description: Paste relevant lines from logs/. Redact credentials and PII.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have not included credentials, CVVs, or PII in this report
+          required: true
+        - label: This is not a security vulnerability (those go to SECURITY.md)
+          required: true
+        - label: I have read CONTRIBUTING.md
+          required: true

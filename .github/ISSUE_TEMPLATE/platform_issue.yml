@@ -1,0 +1,49 @@
+name: Existing Plugin Issue
+description: Report a problem with an existing platform plugin (Amazon, BestBuy, or community)
+title: "[Plugin Issue]: "
+labels: ["plugin-issue", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for issues with a specific plugin. For core bugs,
+        use the Bug Report template. For security issues, see SECURITY.md.
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Affected plugin
+      options:
+        - amazon
+        - bestbuy
+        - walmart
+        - target
+        - gamestop
+        - squareenix
+        - newegg
+        - other
+    validations:
+      required: true
+  - type: input
+    id: store-url
+    attributes:
+      label: Product URL that triggered the issue
+    validations:
+      required: true
+  - type: textarea
+    id: log-snippet
+    attributes:
+      label: Log snippet (redact credentials)
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: last-working
+    attributes:
+      label: Last known working commit / version (if any)
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have redacted credentials, CVVs, and PII from the log snippet
+          required: true

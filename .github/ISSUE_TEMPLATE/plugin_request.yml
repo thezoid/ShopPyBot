@@ -1,0 +1,47 @@
+name: New Platform Plugin Request
+description: Request support for a new retailer
+title: "[Plugin]: "
+labels: ["plugin-request", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ShopPyBot welcomes new plugins. Plugins ship as drop-in files
+        in `plugins/`. See `plugins/PLUGIN_DEV.md` and `CONTRIBUTING.md`.
+  - type: input
+    id: platform-name
+    attributes:
+      label: Platform name
+    validations:
+      required: true
+  - type: input
+    id: store-url
+    attributes:
+      label: Storefront URL (example product page)
+    validations:
+      required: true
+  - type: dropdown
+    id: anti-detection
+    attributes:
+      label: Known anti-detection difficulty
+      options:
+        - "Low (no visible bot detection)"
+        - "Medium (CAPTCHA on checkout)"
+        - "High (PerimeterX, Akamai, or similar)"
+        - "Unknown"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Known quirks, account/membership requirements, regional restrictions
+  - type: checkboxes
+    id: contributor
+    attributes:
+      label: Contributor intent
+      options:
+        - label: I am willing to implement this plugin myself
+        - label: I am requesting someone else implement it
+        - label: I confirm I have read SECURITY.md and accept the TOS / account-risk disclaimer
+          required: true
