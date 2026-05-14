@@ -78,7 +78,13 @@ Plans:
   2. Starting the bot with three or more plugins does not produce ChromeDriver port conflicts; startup logs show each plugin's driver initializing at least 1.5 seconds apart
   3. No `input()` calls exist anywhere in the async code path; user intervention (e.g., manual CAPTCHA solve) is communicated via `asyncio.Event` notification
   4. Sustained parallel operation for 60+ minutes on two platforms produces zero `database is locked` SQLite errors; all `update_item_purchased()` calls succeed
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 04-01-PLAN.md: Async test infra + pytest-asyncio + RED skeletons (Wave 0) (ASYNC-01..05)
+- [ ] 04-02-PLAN.md: SQLite WAL + busy_timeout + context managers (Wave 1) (ASYNC-04)
+- [ ] 04-03-PLAN.md: RetailerPlugin async shutdown ABC (Wave 1) (ASYNC-01 cleanup)
+- [ ] 04-04-PLAN.md: plugin_registry discover_async + 1.5s stagger (Wave 1) (ASYNC-02)
+- [ ] 04-05-PLAN.md: Async main orchestrator + purchase_writer + shield shutdown (Wave 2) (ASYNC-01, ASYNC-03, ASYNC-05)
 
 ### Phase 5: Notification System
 **Goal**: A fan-out notification dispatcher delivers stock alerts across all configured channels; a single channel failure does not prevent other channels from firing; each item triggers at most one notification per restock event.
