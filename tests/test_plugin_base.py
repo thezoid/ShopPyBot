@@ -51,3 +51,10 @@ def test_domain_pattern_default_is_empty_list():
 
 def test_login_at_startup_default_false():
     assert RetailerPlugin.login_at_startup is False
+
+
+def test_shutdownIsAsyncCoroutineFunction():
+    """Phase 4 D-04: shutdown must be an async coroutine, not a sync method."""
+    import inspect
+    from plugin_base import RetailerPlugin
+    assert inspect.iscoroutinefunction(RetailerPlugin.shutdown)
