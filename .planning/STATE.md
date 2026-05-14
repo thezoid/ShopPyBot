@@ -6,23 +6,23 @@
 
 **Project**: ShopPyBot
 **Milestone**: v1 Open Source Launch
-**Total Phases**: 5
-**Total Requirements**: 39
+**Total Phases**: 6
+**Total Requirements**: 44
 
 ---
 
 ## Current Position
 
-**Phase**: 3 — Community Documentation (Phase 2 complete)
-**Plan**: None started
-**Status**: Phase 2 verified PASS 2026-05-12; ready for Phase 3 planning
+**Phase**: 3 — Community Documentation (planned, awaiting execution)
+**Plan**: 4 plans created, all Wave 0
+**Status**: Phase 3 planned 2026-05-12; ready for /gsd-execute-phase 3
 
 ```
 Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
            [  0%    ] [  0%   ] [  0%   ] [  0%   ] [  0%   ]
 ```
 
-**Overall**: 20/39 requirements complete (51%)
+**Overall**: 20/44 requirements complete (45%)
 
 ---
 
@@ -31,10 +31,11 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
 | 1 — Foundations + Security | Plugin ABC locked, Pydantic config, all security hardened | Complete (14/14 reqs) | 14 |
-| 2 — Plugin Migration | Amazon/BestBuy on ABC, registry operational, contributor docs | Complete (6/6 reqs) | 6 |
-| 3 — Async Orchestrator | Concurrent plugins, WAL SQLite, no blocking I/O | Not started | 5 |
-| 4 — Notification System | Fan-out dispatcher, deduplication, all channels | Not started | 6 |
-| 5 — Platform Expansion | 5 new plugins, anti-detection config per platform | Not started | 8 |
+| 2 — Plugin Migration | Amazon/BestBuy on ABC, registry operational, contributor tooling | Complete (6/6 reqs) | 6 |
+| 3 — Community Documentation | CONTRIBUTING.md, SECURITY.md, issue/PR templates | Planned (4 plans, Wave 0) | 5 |
+| 4 — Async Orchestrator | Concurrent plugins, WAL SQLite, no blocking I/O | Not started | 5 |
+| 5 — Notification System | Fan-out dispatcher, deduplication, all channels | Not started | 6 |
+| 6 — Platform Expansion | 5 new plugins, anti-detection config per platform | Not started | 8 |
 
 ---
 
