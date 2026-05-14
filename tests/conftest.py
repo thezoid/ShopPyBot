@@ -49,10 +49,11 @@ def tmpDbPath(tmp_path, monkeypatch):
 def appConfigStub():
     """Minimal AppConfig-shaped namespace for orchestrator tests (Phase 4)."""
     class _Debug:
-        loggingLevel = 0
-        testMode = True
+        logging_level = 0
+        test_mode = True
 
     class _App:
+        # Tight loop in tests; real default is 5.0.
         delay = 0.0
 
     class _Available:
@@ -61,7 +62,7 @@ def appConfigStub():
     class _Cfg:
         debug = _Debug()
         app = _App()
-        openBrowser = False
+        open_browser = False
         available = _Available()
 
     return _Cfg()

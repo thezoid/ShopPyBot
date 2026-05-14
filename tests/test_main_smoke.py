@@ -147,23 +147,29 @@ def test_main_no_amazon_string_dispatch():
 
 
 def test_main_login_at_startup_loop():
+    # Phase 4: main() may delegate startup login to a helper (_startup_logins).
+    # The D-03 invariant is that main.py somewhere references login_at_startup
+    # and calls plugin.login(...).
     tree = _main_ast()
-    mains = _walk_funcs(tree, "main")
-    assert mains, "main() function must exist"
-    main_node = mains[0]
-
     has_attr = any(
         isinstance(n, ast.Attribute) and n.attr == "login_at_startup"
-        for n in ast.walk(main_node)
+        for n in ast.walk(tree)
     )
+    # Phase 4 D-02: login may be invoked via asyncio.to_thread(plugin.login, ...);
+    # accept either a direct call OR an Attribute reference to `.login`.
     has_login_call = any(
         isinstance(n, ast.Call)
         and isinstance(n.func, ast.Attribute)
         and n.func.attr == "login"
-        for n in ast.walk(main_node)
+        for n in ast.walk(tree)
     )
-    assert has_attr, "main() must reference plugin.login_at_startup (D-03)"
-    assert has_login_call, "main() must call plugin.login(...) (D-03)"
+    has_login_ref = any(
+        isinstance(n, ast.Attribute) and n.attr == "login"
+        for n in ast.walk(tree)
+    )
+    assert has_attr, "main.py must reference plugin.login_at_startup (D-03)"
+    assert has_login_call or has_login_ref, \
+        "main.py must call or reference plugin.login (D-03 / D-02)"
 
 
 # --- Phase 4 additions: async refactor smoke ---
