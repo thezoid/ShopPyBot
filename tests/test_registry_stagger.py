@@ -1,76 +1,83 @@
-"""Phase 4 RED skeleton for ASYNC-02 (see 04-01-PLAN.md).
+"""Phase 4 GREEN: tests for ASYNC-02 (1.5s stagger in discover_async).
 
-All tests in this file are expected to FAIL until Plan 04-03 lands.
-ASYNC-02: discover_async sleeps 1.5s between plugin instantiations to avoid
-chromedriver TCP port conflicts; first plugin must not sleep before construction.
+Covers: stagger between plugins, no leading sleep for first plugin,
+stagger_seconds override, failed-instantiation still triggers stagger for
+the next plugin (sleep is per path-iteration, not per successful load).
 """
-import asyncio
 import textwrap
 from pathlib import Path
 
 import pytest
 
-from plugin_registry import discover_async  # noqa: F401 — ImportError is the RED signal
+from plugin_registry import DEFAULT_STAGGER_SECONDS, discover_async
 
 
-def _writeStubPlugin(pluginDir: Path, suffix: str) -> None:
-    """Drop a minimal RetailerPlugin subclass into pluginDir."""
-    body = textwrap.dedent(f"""
-        from plugin_base import RetailerPlugin
+PLUGIN_TEMPLATE = textwrap.dedent("""\
+    from plugin_base import RetailerPlugin
+
+    class {className}(RetailerPlugin):
+        domain_pattern = ["{domain}"]
+        def __init__(self, platform_config=None, cvv=None, driver_path=None):
+            super().__init__(platform_config=platform_config)
+        def check_availability(self, url): return False
+        def auto_buy(self, url, config): return False
+""")
 
 
-        class StubPlugin{suffix.capitalize()}(RetailerPlugin):
-            domain_pattern = ["{suffix}.example"]
-            name = "{suffix}"
-
-            def __init__(self, **kwargs):
-                self.platform_config = kwargs.get("platform_config")
-
-            def check_availability(self, url):
-                return False
-
-            def auto_buy(self, url, config):
-                return False
-    """).strip() + "\n"
-    (pluginDir / f"shopbot_plugin_{suffix}.py").write_text(body, encoding="utf-8")
-
-
-async def test_staggerBetweenPlugins(tmp_plugins_dir, monkeypatch):
-    """Two plugins => exactly one 1.5s sleep recorded between them."""
-    _writeStubPlugin(tmp_plugins_dir, "one")
-    _writeStubPlugin(tmp_plugins_dir, "two")
-
-    recordedSleeps: list[float] = []
-    realSleep = asyncio.sleep
-
-    async def trackingSleep(delay: float, *args, **kwargs):
-        recordedSleeps.append(delay)
-        await realSleep(0)
-
-    monkeypatch.setattr("asyncio.sleep", trackingSleep)
-
-    await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
-
-    assert recordedSleeps == [1.5], (
-        f"expected exactly one 1.5s stagger between two plugins, got {recordedSleeps}"
+def _writePlugin(directory: Path, slug: str, className: str, domain: str) -> None:
+    (directory / f"shopbot_plugin_{slug}.py").write_text(
+        PLUGIN_TEMPLATE.format(className=className, domain=domain)
     )
 
 
-async def test_firstPluginNoSleep(tmp_plugins_dir, monkeypatch):
-    """Single plugin => no sleep before construction (stagger is between plugins)."""
-    _writeStubPlugin(tmp_plugins_dir, "solo")
+@pytest.fixture
+def fakeAsyncSleep(monkeypatch):
+    sleeps: list[float] = []
 
-    recordedSleeps: list[float] = []
-    realSleep = asyncio.sleep
+    async def _fake(delay):
+        sleeps.append(delay)
 
-    async def trackingSleep(delay: float, *args, **kwargs):
-        recordedSleeps.append(delay)
-        await realSleep(0)
+    monkeypatch.setattr("plugin_registry.asyncio.sleep", _fake)
+    return sleeps
 
-    monkeypatch.setattr("asyncio.sleep", trackingSleep)
 
-    await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+async def test_staggerBetweenTwoPlugins(tmp_plugins_dir, fakeAsyncSleep):
+    _writePlugin(tmp_plugins_dir, "alpha", "Alpha", "alpha.example")
+    _writePlugin(tmp_plugins_dir, "beta", "Beta", "beta.example")
+    plugins = await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+    assert len(plugins) == 2
+    assert fakeAsyncSleep == [DEFAULT_STAGGER_SECONDS]
 
-    assert recordedSleeps == [], (
-        f"expected no sleeps for a single plugin, got {recordedSleeps}"
+
+async def test_firstPluginNoSleep(tmp_plugins_dir, fakeAsyncSleep):
+    _writePlugin(tmp_plugins_dir, "alpha", "Alpha", "alpha.example")
+    plugins = await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+    assert len(plugins) == 1
+    assert fakeAsyncSleep == []
+
+
+async def test_staggerOverride(tmp_plugins_dir, fakeAsyncSleep):
+    _writePlugin(tmp_plugins_dir, "a", "A", "a.example")
+    _writePlugin(tmp_plugins_dir, "b", "B", "b.example")
+    _writePlugin(tmp_plugins_dir, "c", "C", "c.example")
+    await discover_async(
+        tmp_plugins_dir, app_config=None, cvvs={}, stagger_seconds=0.25
     )
+    assert fakeAsyncSleep == [0.25, 0.25]
+
+
+async def test_failedInstantiationStillStaggersNext(tmp_plugins_dir, fakeAsyncSleep):
+    """A plugin that fails to load does NOT skip the stagger before the NEXT plugin.
+
+    Sleep happens at every path-iteration boundary past the first, regardless of
+    whether the preceding load succeeded. Locks in the contract; any future
+    optimization that conditions the sleep on success must update this test.
+    """
+    _writePlugin(tmp_plugins_dir, "ok", "Ok", "ok.example")
+    (tmp_plugins_dir / "shopbot_plugin_broken.py").write_text(
+        "raise RuntimeError('broken')\n"
+    )
+    _writePlugin(tmp_plugins_dir, "good", "Good", "good.example")
+    plugins = await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+    assert len(plugins) == 2
+    assert fakeAsyncSleep == [DEFAULT_STAGGER_SECONDS, DEFAULT_STAGGER_SECONDS]
