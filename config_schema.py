@@ -49,6 +49,44 @@ class AppSettings(BaseModel):
     delay: float = Field(default=5.0, ge=0.1, le=3600.0)
 
 
+class SoundNotifierConfig(BaseModel):
+    """Sound notifier defaults on (matches pre-Phase-5 behavior)."""
+    enabled: bool = True
+
+
+class DiscordNotifierConfig(BaseModel):
+    """Discord webhook channel. webhook_url comes from SHOPBOT_DISCORD_WEBHOOK_URL env (SEC-01)."""
+    enabled: bool = False
+
+
+class EmailNotifierConfig(BaseModel):
+    """SMTP channel. smtp_password comes from SHOPBOT_SMTP_PASSWORD env (SEC-01)."""
+    enabled: bool = False
+    from_addr: str | None = None
+    to_addr: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str | None = None
+
+
+class SmsNotifierConfig(BaseModel):
+    """Twilio SMS. account_sid / auth_token / from_number come from env vars (SEC-01).
+
+    Two-lock model: config.enabled AND SHOPBOT_ENABLE_SMS=true env are both required.
+    """
+    enabled: bool = False
+    to: str | None = None
+
+
+class NotificationsConfig(BaseModel):
+    """Top-level notifications block; single source of truth for dedup window."""
+    restock_window_seconds: int = Field(default=600, ge=0, le=86400)
+    sound: SoundNotifierConfig = SoundNotifierConfig()
+    discord: DiscordNotifierConfig = DiscordNotifierConfig()
+    email: EmailNotifierConfig = EmailNotifierConfig()
+    sms: SmsNotifierConfig = SmsNotifierConfig()
+
+
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         extra="forbid",
@@ -63,6 +101,7 @@ class AppConfig(BaseSettings):
     platforms: dict[str, PlatformConfig]
     open_browser: bool = False
     app: AppSettings = AppSettings()
+    notifications: NotificationsConfig = NotificationsConfig()
 
     @classmethod
     def settings_customise_sources(

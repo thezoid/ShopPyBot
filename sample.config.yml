@@ -33,3 +33,27 @@ platforms:
 
 available:
   items: []
+
+# Phase 5: notification channels. Each channel defaults to disabled except sound.
+# Secrets are read from env vars, NEVER from this file (SEC-01).
+#   Discord: SHOPBOT_DISCORD_WEBHOOK_URL
+#   Email:   SHOPBOT_SMTP_PASSWORD
+#   SMS:     SHOPBOT_TWILIO_ACCOUNT_SID, SHOPBOT_TWILIO_AUTH_TOKEN,
+#            SHOPBOT_TWILIO_FROM, SHOPBOT_ENABLE_SMS
+notifications:
+  restock_window_seconds: 600   # dedup: one notification per item per 10 minutes
+  sound:
+    enabled: true
+  discord:
+    enabled: false              # set true AND export SHOPBOT_DISCORD_WEBHOOK_URL
+  email:
+    enabled: false              # set true AND export SHOPBOT_SMTP_PASSWORD
+    from_addr: null
+    to_addr: null
+    smtp_host: null
+    smtp_port: 587              # 587=STARTTLS (default), 465=SMTPS
+    smtp_user: null
+  sms:
+    enabled: false              # Set to true AND export SHOPBOT_ENABLE_SMS=true to enable.
+                                # See SECURITY.md for billing-risk warning (Twilio charges per message).
+    to: null

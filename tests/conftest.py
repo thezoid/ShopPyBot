@@ -101,3 +101,30 @@ def fakePluginFactory() -> Callable[..., RetailerPlugin]:
         return inst
 
     return _make
+
+
+@pytest.fixture
+def fakeNotifierFactory():
+    """Build minimal Notifier subclasses with controllable send() behavior (Phase 5)."""
+    from notifier_base import Notifier
+
+    def _make(*, name: str = "fakeNotifier",
+              enabled: bool = True,
+              sendRaises: Exception | None = None,
+              sendRecorder: list | None = None):
+        class _FakeNotifier(Notifier):
+            def __init__(self) -> None:
+                self.name = name
+                self.enabled = enabled
+                self.sendCalls = 0
+
+            async def send(self, event) -> None:
+                self.sendCalls += 1
+                if sendRecorder is not None:
+                    sendRecorder.append((self.name, event))
+                if sendRaises is not None:
+                    raise sendRaises
+
+        return _FakeNotifier()
+
+    return _make

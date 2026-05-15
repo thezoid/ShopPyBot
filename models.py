@@ -9,6 +9,7 @@ Connection rules:
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Iterator
 
 DB_PATH = os.path.join("data", "shop_py_bot.db")
@@ -34,6 +35,25 @@ def _connect() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    """Return True iff `column` exists on `table` per PRAGMA table_info."""
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+
+def _migrate_add_last_notified_at(conn) -> None:
+    """Idempotent migration: add last_notified_at column if absent (Phase 5 NOTIF-02).
+
+    Plain ADD COLUMN is NOT idempotent in SQLite (duplicate column error on
+    re-run). Precheck with PRAGMA table_info so legacy v1 databases upgrade
+    without dropping data and fresh-install runs are no-ops.
+    """
+    if not _column_exists(conn, "items", "last_notified_at"):
+        conn.execute(
+            "ALTER TABLE items ADD COLUMN last_notified_at TIMESTAMP NULL"
+        )
+
+
 def initialize_db(delete: bool = False) -> None:
     if delete and os.path.exists(DB_PATH):
         os.remove(DB_PATH)
@@ -51,9 +71,11 @@ def initialize_db(delete: bool = False) -> None:
                 link TEXT NOT NULL UNIQUE,
                 auto_buy BOOLEAN NOT NULL,
                 quantity INTEGER NOT NULL,
-                purchased BOOLEAN NOT NULL DEFAULT 0
+                purchased BOOLEAN NOT NULL DEFAULT 0,
+                last_notified_at TIMESTAMP NULL
             )"""
         )
+        _migrate_add_last_notified_at(conn)
 
 
 def add_items(items) -> None:
@@ -80,3 +102,31 @@ def get_items():
         return conn.execute(
             "SELECT name, link, auto_buy, quantity, purchased FROM items"
         ).fetchall()
+
+
+def should_notify(link: str, restock_window_seconds: int) -> bool:
+    """True if no prior notification recorded OR last notification older than window.
+
+    Uses the Phase 4 _connect() context manager. Tz-naive timestamps from
+    SQLite CURRENT_TIMESTAMP are backfilled to UTC before arithmetic.
+    """
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT last_notified_at FROM items WHERE link = ?", (link,)
+        ).fetchone()
+        if row is None or row[0] is None:
+            return True
+        last = datetime.fromisoformat(row[0])
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed > restock_window_seconds
+
+
+def mark_notified(link: str) -> None:
+    """Set last_notified_at = CURRENT_TIMESTAMP for `link` (parameterized)."""
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE items SET last_notified_at = CURRENT_TIMESTAMP WHERE link = ?",
+            (link,),
+        )
