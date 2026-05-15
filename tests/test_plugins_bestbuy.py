@@ -197,6 +197,41 @@ def test_bestbuy_plugin_no_config_singleton_import():
             pytest.fail(f"Forbidden config import: {line!r}")
 
 
+def test_bestbuyPassesHeadlessAndUserAgentsToBuildDriver(monkeypatch):
+    """ANTI-02 + ANTI-03: BestBuy threads headless + user_agents to build_driver."""
+    sentinel = object()
+    _install_selenium_stubs(monkeypatch)
+
+    buildCalls = []
+    fake_driver = types.ModuleType("driver")
+
+    def _trackedBuild(*a, **kw):
+        buildCalls.append((a, kw))
+        return sentinel
+
+    fake_driver.build_driver = _trackedBuild
+    monkeypatch.setitem(sys.modules, "driver", fake_driver)
+
+    sys.modules.pop("test_bestbuy_ua_load", None)
+    spec = importlib.util.spec_from_file_location(
+        "test_bestbuy_ua_load", PLUGIN_FILE,
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    class _Platform:
+        credentials = _DummyCreds()
+        headless = True
+
+    uas = ["BB-UA-1", "BB-UA-2"]
+    module.BestBuyPlugin(_Platform(), driver_path="x", user_agents=uas)
+    assert len(buildCalls) == 1
+    _, kw = buildCalls[0]
+    assert kw.get("headless") is True
+    assert kw.get("user_agents") == uas
+
+
 def test_bestbuy_plugin_no_positional_credential_args():
     """login and auto_buy must NOT have parameters named email/password/cvv."""
     tree = ast.parse(PLUGIN_FILE.read_text(encoding="utf-8"))

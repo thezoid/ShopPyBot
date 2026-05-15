@@ -191,6 +191,83 @@ def test_amazon_plugin_calls_update_item_purchased_on_success():
     assert found, "update_item_purchased not called inside AmazonPlugin"
 
 
+def test_amazonHeadlessLoginRaises(monkeypatch):
+    """ANTI-03 / RESEARCH Q11: Amazon refuses headless when login_at_startup=True.
+
+    The guard must fire BEFORE build_driver is called, so a misconfigured
+    Amazon plugin never spawns a headless Chrome.
+    """
+    sentinel = object()
+    _install_selenium_stubs(monkeypatch)
+    _install_pygame_stub(monkeypatch)
+
+    buildCalls = []
+
+    fake_driver = types.ModuleType("driver")
+
+    def _trackedBuild(*a, **kw):
+        buildCalls.append((a, kw))
+        return sentinel
+
+    fake_driver.build_driver = _trackedBuild
+    monkeypatch.setitem(sys.modules, "driver", fake_driver)
+
+    sys.modules.pop("test_amazon_headless_load", None)
+    spec = importlib.util.spec_from_file_location(
+        "test_amazon_headless_load", PLUGIN_FILE,
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    class _HeadlessPlatform:
+        credentials = _DummyCreds()
+        headless = True
+
+    with pytest.raises(ValueError) as excinfo:
+        module.AmazonPlugin(_HeadlessPlatform(), driver_path="ignored")
+    msg = str(excinfo.value)
+    assert "AmazonPlugin does not support headless mode" in msg
+    assert "OTP requires visual access" in msg
+    assert buildCalls == [], "build_driver must NOT be called when guard fires"
+
+
+def test_amazonPassesHeadlessAndUserAgentsToBuildDriver(monkeypatch):
+    """ANTI-02 + ANTI-03: Amazon threads headless + user_agents to build_driver."""
+    sentinel = object()
+    _install_selenium_stubs(monkeypatch)
+    _install_pygame_stub(monkeypatch)
+
+    buildCalls = []
+    fake_driver = types.ModuleType("driver")
+
+    def _trackedBuild(*a, **kw):
+        buildCalls.append((a, kw))
+        return sentinel
+
+    fake_driver.build_driver = _trackedBuild
+    monkeypatch.setitem(sys.modules, "driver", fake_driver)
+
+    sys.modules.pop("test_amazon_ua_load", None)
+    spec = importlib.util.spec_from_file_location(
+        "test_amazon_ua_load", PLUGIN_FILE,
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    class _Platform:
+        credentials = _DummyCreds()
+        headless = False
+
+    uas = ["UA-1", "UA-2"]
+    module.AmazonPlugin(_Platform(), driver_path="x", user_agents=uas)
+    assert len(buildCalls) == 1
+    _, kw = buildCalls[0]
+    assert kw.get("headless") is False
+    assert kw.get("user_agents") == uas
+
+
 def test_amazon_plugin_no_config_singleton_import():
     """Anti-pattern guard: plugins must not `from config import ...`."""
     source = PLUGIN_FILE.read_text(encoding="utf-8")

@@ -191,3 +191,188 @@ def test_shutdownGathersNotifiers():
         "shutdown gather must iterate notifiers"
     assert "asyncio.shield" in src, \
         "notifier shutdowns must be wrapped in asyncio.shield"
+
+
+# --- Phase 6 (06-07) plugin.next_delay() + iscoroutinefunction branches ----
+
+from unittest.mock import MagicMock
+
+from main import _poll_once
+
+
+def _makeSyncPlugin(name="sync", available=False):
+    from plugin_base import RetailerPlugin
+
+    class _Sync(RetailerPlugin):
+        domain_pattern = [f"{name}.example"]
+
+        def __init__(self):
+            super().__init__(platform_config=None)
+            self.driver = MagicMock()
+            self.nextDelayCalls = 0
+            self.checkCalls = 0
+            self.autoBuyCalls = 0
+
+        def next_delay(self) -> float:
+            self.nextDelayCalls += 1
+            return 0.0
+
+        def check_availability(self, url):
+            self.checkCalls += 1
+            return available
+
+        def auto_buy(self, url, config):
+            self.autoBuyCalls += 1
+            return True
+
+    inst = _Sync()
+    inst.name = name
+    return inst
+
+
+def _makeAsyncPlugin(name="async", available=False):
+    from plugin_base import RetailerPlugin
+
+    class _Async(RetailerPlugin):
+        domain_pattern = [f"{name}.example"]
+
+        def __init__(self):
+            super().__init__(platform_config=None)
+            self.driver = MagicMock()
+            self.nextDelayCalls = 0
+            self.checkCalls = 0
+            self.autoBuyCalls = 0
+
+        def next_delay(self) -> float:
+            self.nextDelayCalls += 1
+            return 0.0
+
+        async def check_availability(self, url):
+            self.checkCalls += 1
+            return available
+
+        async def auto_buy(self, url, config):
+            self.autoBuyCalls += 1
+            return True
+
+    inst = _Async()
+    inst.name = name
+    return inst
+
+
+async def test_pollPluginUsesNextDelay(appConfigStub, tmpDbPath):
+    """ANTI-01: poll_plugin must call plugin.next_delay() per iteration."""
+    from models import initialize_db
+    initialize_db(delete=True)
+    plugin = _makeSyncPlugin(name="nd")
+    q: asyncio.Queue = asyncio.Queue()
+    nq: asyncio.Queue = asyncio.Queue()
+    stop = asyncio.Event()
+
+    async def runBriefly():
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(poll_plugin(plugin, appConfigStub, q, nq, stop))
+            await asyncio.sleep(0.05)
+            stop.set()
+
+    await runBriefly()
+    assert plugin.nextDelayCalls >= 1
+
+
+async def test_pollOnceAwaitsAsyncCheck(appConfigStub, tmpDbPath, monkeypatch):
+    """Async check_availability must be awaited directly, NOT via to_thread."""
+    from models import initialize_db, add_items
+    initialize_db(delete=True)
+    add_items([("a", "https://async.example/x", False, 1, False)])
+    plugin = _makeAsyncPlugin(name="async")
+    toThreadCalls = []
+    realToThread = asyncio.to_thread
+
+    async def recorder(func, *args, **kwargs):
+        toThreadCalls.append(getattr(func, "__name__", repr(func)))
+        return await realToThread(func, *args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "to_thread", recorder)
+    q: asyncio.Queue = asyncio.Queue()
+    nq: asyncio.Queue = asyncio.Queue()
+    await _poll_once(plugin, appConfigStub, q, nq, False)
+    assert plugin.checkCalls == 1
+    assert "check_availability" not in toThreadCalls
+
+
+async def test_pollOnceToThreadSyncCheck(appConfigStub, tmpDbPath, monkeypatch):
+    """Sync check_availability must be wrapped via asyncio.to_thread."""
+    from models import initialize_db, add_items
+    initialize_db(delete=True)
+    add_items([("a", "https://sync.example/x", False, 1, False)])
+    plugin = _makeSyncPlugin(name="sync")
+    toThreadCalls = []
+    realToThread = asyncio.to_thread
+
+    async def recorder(func, *args, **kwargs):
+        toThreadCalls.append(getattr(func, "__name__", repr(func)))
+        return await realToThread(func, *args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "to_thread", recorder)
+    q: asyncio.Queue = asyncio.Queue()
+    nq: asyncio.Queue = asyncio.Queue()
+    await _poll_once(plugin, appConfigStub, q, nq, False)
+    assert plugin.checkCalls == 1
+    assert "check_availability" in toThreadCalls
+
+
+async def test_attemptPurchaseAwaitsAsyncAutoBuy(appConfigStub, monkeypatch):
+    plugin = _makeAsyncPlugin(name="async")
+    toThreadCalls = []
+    realToThread = asyncio.to_thread
+
+    async def recorder(func, *args, **kwargs):
+        toThreadCalls.append(getattr(func, "__name__", repr(func)))
+        return await realToThread(func, *args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "to_thread", recorder)
+    q: asyncio.Queue = asyncio.Queue()
+    nq: asyncio.Queue = asyncio.Queue()
+    await _attempt_purchase(plugin, "https://async.example/x", "n", appConfigStub, q, nq)
+    assert plugin.autoBuyCalls == 1
+    assert "auto_buy" not in toThreadCalls
+
+
+async def test_attemptPurchaseToThreadSyncAutoBuy(appConfigStub, monkeypatch):
+    plugin = _makeSyncPlugin(name="sync")
+    toThreadCalls = []
+    realToThread = asyncio.to_thread
+
+    async def recorder(func, *args, **kwargs):
+        toThreadCalls.append(getattr(func, "__name__", repr(func)))
+        return await realToThread(func, *args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "to_thread", recorder)
+    q: asyncio.Queue = asyncio.Queue()
+    nq: asyncio.Queue = asyncio.Queue()
+    await _attempt_purchase(plugin, "https://sync.example/x", "n", appConfigStub, q, nq)
+    assert plugin.autoBuyCalls == 1
+    assert "auto_buy" in toThreadCalls
+
+
+def test_mainImportsInspect():
+    src = _read_main()
+    assert "import inspect" in src, "main.py must `import inspect`"
+
+
+def test_mainUsesIscoroutinefunctionForCheck():
+    src = _read_main()
+    assert "iscoroutinefunction(plugin.check_availability" in src
+
+
+def test_mainUsesIscoroutinefunctionForAutoBuy():
+    src = _read_main()
+    assert "iscoroutinefunction(plugin.auto_buy" in src
+
+
+def test_pollPluginNoLongerReadsAppDelay():
+    src = _read_main()
+    # poll_plugin must use plugin.next_delay() instead of app_config.app.delay
+    assert "plugin.next_delay()" in src
+    # the literal `app_config.app.delay` line must be gone from poll_plugin
+    assert "app_config.app.delay" not in src
