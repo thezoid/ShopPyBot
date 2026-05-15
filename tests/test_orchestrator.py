@@ -46,12 +46,13 @@ async def test_pluginCrashIsolated(
     bad = fakePluginFactory(name="bad", checkRaises=RuntimeError("boom"))
     bad.domain_pattern = ["bad.example"]
     queue: asyncio.Queue = asyncio.Queue()
+    notifQueue: asyncio.Queue = asyncio.Queue()
     stop = asyncio.Event()
 
     async def runBriefly():
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(poll_plugin(good, appConfigStub, queue, stop))
-            tg.create_task(poll_plugin(bad, appConfigStub, queue, stop))
+            tg.create_task(poll_plugin(good, appConfigStub, queue, notifQueue, stop))
+            tg.create_task(poll_plugin(bad, appConfigStub, queue, notifQueue, stop))
             await asyncio.sleep(0.05)
             stop.set()
 

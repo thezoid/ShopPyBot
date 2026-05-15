@@ -1,14 +1,20 @@
-"""ShopPyBot entrypoint (Phase 4: async orchestrator).
+"""ShopPyBot entrypoint (Phase 5: notification fan-out + async orchestrator).
 
 Concurrency model:
 - async def main() drives an asyncio.TaskGroup with one task per plugin plus
-  one purchase_writer task.
+  one purchase_writer task plus one notification_writer task.
 - Blocking Selenium calls bridged via asyncio.to_thread.
 - Shared ThreadPoolExecutor sized max(4, N*2) installed via
   loop.set_default_executor BEFORE TaskGroup opens (Pitfall 4-2).
 - Plugin task crashes are isolated (try/except Exception inside poll_plugin).
-- purchase_writer crash is FATAL (Pitfall 4-10): it tears down the TaskGroup.
-- Shutdown: asyncio.shield(p.shutdown()) for each plugin in finally block.
+- purchase_writer and notification_writer crashes are FATAL (Pitfall 4-10):
+  they tear down the TaskGroup.
+- notification_writer fans out per-event across all notifiers via
+  asyncio.gather(return_exceptions=True) so per-channel failures stay isolated
+  (NOTIF-01). Detected events run through should_notify dedup gate; purchased
+  events bypass dedup (RESEARCH Q8).
+- Shutdown: asyncio.shield wraps every plugin.shutdown() AND every
+  notifier.shutdown() in a single gather (RESEARCH Q10.5).
 - Windows: SelectorEventLoopPolicy installed (Pitfall 4-6).
 """
 import sys
@@ -21,6 +27,7 @@ import os
 import signal
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -29,9 +36,17 @@ from webdriver_manager.chrome import ChromeDriverManager
 from config_schema import AppConfig
 from credentials import collect_cvvs
 from logger import configure as configure_logger, writeLog
-from models import add_items, get_items, initialize_db, update_item_purchased
+from models import (
+    add_items,
+    get_items,
+    initialize_db,
+    mark_notified,
+    should_notify,
+    update_item_purchased,
+)
+from notifier_base import NotificationEvent, Notifier
+from notifier_registry import discover_notifiers
 from plugin_registry import discover_async, route_url, verify_coverage
-from utils import play_available_sound, play_buy_sound
 
 
 def get_chromedriver_path(driver_path: str) -> str:
@@ -71,11 +86,63 @@ async def purchase_writer(queue: asyncio.Queue) -> None:
             queue.task_done()
 
 
-async def _attempt_purchase(plugin, link, app_config, queue) -> None:
+async def notification_writer(
+    queue: asyncio.Queue,
+    notifiers: list[Notifier],
+    restock_window_seconds: int,
+) -> None:
+    """Single consumer for fan-out notification dispatch (NOTIF-01).
+
+    Mirrors purchase_writer. A crash here is FATAL by design (Phase 4 Pitfall
+    4-10). Per-notifier exceptions isolated via gather(return_exceptions=True).
+    Dedup check + mark_notified happen INSIDE this writer for the detected
+    action (single-writer eliminates race). Purchased events bypass dedup.
+    """
+    while True:
+        event = await queue.get()
+        try:
+            if event.action == "detected":
+                allowed = await asyncio.to_thread(
+                    should_notify, event.url, restock_window_seconds,
+                )
+                if not allowed:
+                    continue
+            active = [n for n in notifiers if n.enabled]
+            results = await asyncio.gather(
+                *(n.send(event) for n in active),
+                return_exceptions=True,
+            )
+            for n, r in zip(active, results):
+                if isinstance(r, Exception):
+                    writeLog(
+                        f"notifier {n.name} failed on {event.url}: {r}",
+                        "ERROR",
+                    )
+            if event.action == "detected":
+                try:
+                    await asyncio.to_thread(mark_notified, event.url)
+                except Exception as e:
+                    writeLog(
+                        f"mark_notified failed for {event.url}: {e}",
+                        "ERROR",
+                    )
+        finally:
+            queue.task_done()
+
+
+async def _attempt_purchase(
+    plugin, link, name, app_config, purchase_queue, notification_queue,
+) -> None:
     try:
         await asyncio.to_thread(plugin.auto_buy, link, app_config)
-        play_buy_sound()
-        await queue.put((link,))
+        await purchase_queue.put((link,))
+        await notification_queue.put(NotificationEvent(
+            item_name=name,
+            url=link,
+            platform=plugin.name,
+            timestamp=datetime.now(timezone.utc),
+            action="purchased",
+        ))
     except Exception as e:
         writeLog(
             f"{plugin.name}: auto_buy raised on {link}: {e}",
@@ -83,8 +150,10 @@ async def _attempt_purchase(plugin, link, app_config, queue) -> None:
         )
 
 
-async def _poll_once(plugin, app_config, queue, open_browser) -> None:
-    """One iteration: fetch items, check, auto-buy if available."""
+async def _poll_once(
+    plugin, app_config, purchase_queue, notification_queue, open_browser,
+) -> None:
+    """One iteration: fetch items, check, enqueue notification, auto-buy if requested."""
     items = await asyncio.to_thread(get_items)
     for name, link, autoBuy, _qty, purchased in items:
         if purchased:
@@ -102,10 +171,18 @@ async def _poll_once(plugin, app_config, queue, open_browser) -> None:
             continue
         if not available:
             continue
-        play_available_sound()
         writeLog(f"{name} is available: {make_tiny(link)}", "SUCCESS")
+        await notification_queue.put(NotificationEvent(
+            item_name=name,
+            url=link,
+            platform=plugin.name,
+            timestamp=datetime.now(timezone.utc),
+            action="detected",
+        ))
         if autoBuy:
-            await _attempt_purchase(plugin, link, app_config, queue)
+            await _attempt_purchase(
+                plugin, link, name, app_config, purchase_queue, notification_queue,
+            )
         elif open_browser:
             webbrowser.open(link)
 
@@ -113,7 +190,8 @@ async def _poll_once(plugin, app_config, queue, open_browser) -> None:
 async def poll_plugin(
     plugin,
     app_config,
-    queue: asyncio.Queue,
+    purchase_queue: asyncio.Queue,
+    notification_queue: asyncio.Queue,
     stop_event: asyncio.Event,
 ) -> None:
     """Run one plugin's polling loop. Crash-isolated per Pitfall 4-1."""
@@ -121,7 +199,9 @@ async def poll_plugin(
     delay = app_config.app.delay
     while not stop_event.is_set():
         try:
-            await _poll_once(plugin, app_config, queue, open_browser)
+            await _poll_once(
+                plugin, app_config, purchase_queue, notification_queue, open_browser,
+            )
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -160,11 +240,12 @@ async def _startup_logins(registry, app_config) -> None:
             await asyncio.to_thread(plugin.login, app_config)
 
 
-async def _shutdown_plugins(registry) -> None:
-    """Pitfall 4-4 + D-04: shield each shutdown from Ctrl-C cancellation."""
-    writeLog("Shutting down plugins", "INFO")
+async def _shutdown_all(registry, notifiers) -> None:
+    """Pitfall 4-4 + D-04 + RESEARCH Q10.5: shield every shutdown from Ctrl-C cancellation."""
+    writeLog("Shutting down plugins and notifiers", "INFO")
     await asyncio.gather(
         *(asyncio.shield(p.shutdown()) for p in registry),
+        *(asyncio.shield(n.shutdown()) for n in notifiers),
         return_exceptions=True,
     )
 
@@ -188,6 +269,9 @@ async def main() -> None:
         Path("plugins"), app_config=app_config, cvvs=cvvs,
     )
     verify_coverage(registry, app_config.available.items)
+    notifiers = await discover_notifiers(
+        Path("notifiers"), app_config=app_config,
+    )
 
     loop = asyncio.get_running_loop()
     max_workers = max(4, len(registry) * 2)
@@ -200,22 +284,30 @@ async def main() -> None:
     _seed_items(app_config)
 
     purchase_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    notification_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
     stop_event = asyncio.Event()
     _install_signal_handler(stop_event)
 
     try:
         async with asyncio.TaskGroup() as tg:
             tg.create_task(purchase_writer(purchase_queue))
+            tg.create_task(notification_writer(
+                notification_queue,
+                notifiers,
+                app_config.notifications.restock_window_seconds,
+            ))
             for plugin in registry:
                 tg.create_task(
-                    poll_plugin(plugin, app_config, purchase_queue, stop_event)
+                    poll_plugin(
+                        plugin, app_config, purchase_queue, notification_queue, stop_event,
+                    )
                 )
     except* KeyboardInterrupt:
         pass
     except* asyncio.CancelledError:
         pass
     finally:
-        await _shutdown_plugins(registry)
+        await _shutdown_all(registry, notifiers)
         executor.shutdown(wait=True, cancel_futures=False)
         writeLog("ShopPyBot stopped cleanly", "INFO")
 
