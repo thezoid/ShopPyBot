@@ -32,10 +32,12 @@ class BestBuyPlugin(RetailerPlugin):
     def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):
         super().__init__(platform_config)
         self.cvv = cvv
-        # user_agents kwarg accepted for registry compat (Plan 06-07 wires it
-        # through to build_driver). Currently ignored by Selenium plugins.
         self._user_agents = user_agents
-        self.driver = build_driver(driver_path or "chromedriver.exe")
+        self.driver = build_driver(
+            driver_path or "chromedriver.exe",
+            headless=getattr(platform_config, "headless", False),
+            user_agents=user_agents,
+        )
 
     def check_availability(self, url: str) -> bool:
         writeLog(f"Entering check_availability for URL: {url}", "DEBUG")

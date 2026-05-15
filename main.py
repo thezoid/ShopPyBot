@@ -23,6 +23,7 @@ if sys.version_info < (3, 11):
     sys.exit(f"ShopPyBot requires Python 3.11+. Detected: {sys.version}")
 
 import asyncio
+import inspect
 import os
 import signal
 import webbrowser
@@ -134,7 +135,10 @@ async def _attempt_purchase(
     plugin, link, name, app_config, purchase_queue, notification_queue,
 ) -> None:
     try:
-        await asyncio.to_thread(plugin.auto_buy, link, app_config)
+        if inspect.iscoroutinefunction(plugin.auto_buy):
+            await plugin.auto_buy(link, app_config)
+        else:
+            await asyncio.to_thread(plugin.auto_buy, link, app_config)
         await purchase_queue.put((link,))
         await notification_queue.put(NotificationEvent(
             item_name=name,
@@ -162,7 +166,10 @@ async def _poll_once(
         if matched is None:
             continue
         try:
-            available = await asyncio.to_thread(plugin.check_availability, link)
+            if inspect.iscoroutinefunction(plugin.check_availability):
+                available = await plugin.check_availability(link)
+            else:
+                available = await asyncio.to_thread(plugin.check_availability, link)
         except Exception as e:
             writeLog(
                 f"{plugin.name}: check_availability raised on {link}: {e}",
@@ -196,7 +203,6 @@ async def poll_plugin(
 ) -> None:
     """Run one plugin's polling loop. Crash-isolated per Pitfall 4-1."""
     open_browser = getattr(app_config, "open_browser", False)
-    delay = app_config.app.delay
     while not stop_event.is_set():
         try:
             await _poll_once(
@@ -207,7 +213,7 @@ async def poll_plugin(
         except Exception as e:
             writeLog(f"{plugin.name}: unexpected error: {e}", "ERROR")
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=delay)
+            await asyncio.wait_for(stop_event.wait(), timeout=plugin.next_delay())
         except asyncio.TimeoutError:
             pass
 
