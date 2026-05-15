@@ -17,7 +17,7 @@ PLUGIN_TEMPLATE = textwrap.dedent("""\
 
     class {className}(RetailerPlugin):
         domain_pattern = ["{domain}"]
-        def __init__(self, platform_config=None, cvv=None, driver_path=None):
+        def __init__(self, platform_config=None, cvv=None, driver_path=None, user_agents=None):
             super().__init__(platform_config=platform_config)
         def check_availability(self, url): return False
         def auto_buy(self, url, config): return False

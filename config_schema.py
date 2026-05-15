@@ -21,7 +21,21 @@ class PlatformCredentials(BaseModel):
 
 class PlatformConfig(BaseModel):
     enabled: bool = True
-    credentials: PlatformCredentials
+    credentials: PlatformCredentials | None = None
+    min_delay: float = 3.0
+    max_delay: float = 8.0
+    headless: bool = False
+
+    @model_validator(mode="after")
+    def validate_delay_range(self) -> "PlatformConfig":
+        if self.min_delay <= 0 or self.max_delay <= 0:
+            raise ValueError("min_delay and max_delay must be > 0")
+        if self.min_delay > self.max_delay:
+            raise ValueError(
+                f"min_delay ({self.min_delay}) must be <= "
+                f"max_delay ({self.max_delay})"
+            )
+        return self
 
 
 class SeleniumConfig(BaseModel):
@@ -45,8 +59,12 @@ class AvailableConfig(BaseModel):
 
 
 class AppSettings(BaseModel):
-    """Phase 4: orchestrator-level settings (polling cadence, etc.)."""
+    """Phase 4: orchestrator-level settings (polling cadence, etc.).
+
+    Phase 6 ANTI-02: optional UA pool for build_driver rotation.
+    """
     delay: float = Field(default=5.0, ge=0.1, le=3600.0)
+    user_agents: list[str] | None = None
 
 
 class SoundNotifierConfig(BaseModel):

@@ -15,7 +15,7 @@ class TestPlugin(RetailerPlugin):
     domain_pattern = {domain_pattern!r}
     login_at_startup = False
 
-    def __init__(self, platform_config, *, cvv=None, driver_path=None):
+    def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):
         super().__init__(platform_config)
         self.driver = None
 
@@ -143,13 +143,13 @@ def test_discover_hard_fails_on_two_classes(tmp_plugins_dir, capsys):
         "from plugin_base import RetailerPlugin\n"
         "class PluginA(RetailerPlugin):\n"
         "    domain_pattern = ['a.com']\n"
-        "    def __init__(self, platform_config, *, cvv=None, driver_path=None):\n"
+        "    def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):\n"
         "        super().__init__(platform_config)\n"
         "    def check_availability(self, url): return False\n"
         "    def auto_buy(self, url, config): return False\n"
         "class PluginB(RetailerPlugin):\n"
         "    domain_pattern = ['b.com']\n"
-        "    def __init__(self, platform_config, *, cvv=None, driver_path=None):\n"
+        "    def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):\n"
         "        super().__init__(platform_config)\n"
         "    def check_availability(self, url): return False\n"
         "    def auto_buy(self, url, config): return False\n"
@@ -170,7 +170,7 @@ def test_discover_uses_name_attribute_when_present(tmp_plugins_dir):
         "class TestPlugin(RetailerPlugin):\n"
         "    name = 'custom'\n"
         "    domain_pattern = ['custom.example.com']\n"
-        "    def __init__(self, platform_config, *, cvv=None, driver_path=None):\n"
+        "    def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):\n"
         "        super().__init__(platform_config)\n"
         "    def check_availability(self, url): return False\n"
         "    def auto_buy(self, url, config): return False\n"

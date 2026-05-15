@@ -92,11 +92,19 @@ def _load_plugin_class(path: Path) -> type[RetailerPlugin]:
     return cls
 
 
+def _safe_user_agents(app_config):
+    if app_config is None:
+        return None
+    app = getattr(app_config, "app", None)
+    return getattr(app, "user_agents", None) if app else None
+
+
 def _instantiate(cls, name, app_config, cvvs):
     return cls(
         platform_config=_safe_platform(app_config, name),
         cvv=cvvs.get(name) if cvvs else None,
         driver_path=_safe_driver_path(app_config),
+        user_agents=_safe_user_agents(app_config),
     )
 
 
@@ -174,8 +182,17 @@ async def discover_async(
         inst = await asyncio.to_thread(
             _load_and_instantiate, path, app_config, cvvs
         )
-        if inst is not None:
-            instances.append(inst)
+        if inst is None:
+            continue
+        try:
+            await inst.open()
+        except Exception as e:
+            writeLog(
+                f"{type(inst).__name__}.open() raised: {e}; skipping plugin",
+                "WARNING",
+            )
+            continue
+        instances.append(inst)
     return instances
 
 
