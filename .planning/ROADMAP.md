@@ -14,7 +14,7 @@
 - [x] **Phase 2: Plugin Migration** â€” Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
 - [x] **Phase 3: Community Documentation** â€” CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
 - [x] **Phase 4: Async Orchestrator** â€” All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
-- [ ] **Phase 5: Notification System** â€” Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
+- [x] **Phase 5: Notification System** â€” Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
 - [ ] **Phase 6: Platform Expansion** â€” Five new platform plugins operational with anti-detection configuration
 
 ---
@@ -97,12 +97,12 @@ Plans:
   4. SMS via Twilio is disabled by default; enabling it requires explicit opt-in configuration; accidental activation without credentials produces a clear config error, not a silent no-op
 **Plans**: 6 plans
 Plans:
-- [ ] 05-01-PLAN.md: Foundation + RED skeletons (Wave 0) (NOTIF-01..06)
-- [ ] 05-02-PLAN.md: notifier_registry + sound notifier (Wave 1) (NOTIF-03)
-- [ ] 05-03-PLAN.md: Discord notifier (Wave 1) (NOTIF-04)
-- [ ] 05-04-PLAN.md: Email/SMTP notifier (Wave 1) (NOTIF-05)
-- [ ] 05-05-PLAN.md: SMS/Twilio two-lock notifier (Wave 1) (NOTIF-06)
-- [ ] 05-06-PLAN.md: Orchestrator integration + notification_writer (Wave 2) (NOTIF-01, NOTIF-02)
+- [x] 05-01-PLAN.md: Foundation + RED skeletons (Wave 0) (NOTIF-01..06)
+- [x] 05-02-PLAN.md: notifier_registry + sound notifier (Wave 1) (NOTIF-03)
+- [x] 05-03-PLAN.md: Discord notifier (Wave 1) (NOTIF-04)
+- [x] 05-04-PLAN.md: Email/SMTP notifier (Wave 1) (NOTIF-05)
+- [x] 05-05-PLAN.md: SMS/Twilio two-lock notifier (Wave 1) (NOTIF-06)
+- [x] 05-06-PLAN.md: Orchestrator integration + notification_writer (Wave 2) (NOTIF-01, NOTIF-02)
 **UI hint**: no
 
 ### Phase 6: Platform Expansion
