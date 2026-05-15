@@ -188,6 +188,59 @@ When you open a PR for a new plugin, include:
 * No edits to `main.py`, `plugin_registry.py`, or other plugins (changes there
   indicate the new plugin is reaching outside its boundary).
 
+## Selenium vs nodriver: choosing a driver
+
+ShopPyBot supports two browser-automation drivers behind the same `RetailerPlugin` ABC. Pick one when implementing a new plugin:
+
+| Driver | When to use | Lifecycle |
+|--------|-------------|-----------|
+| Selenium (via `build_driver`) | Retailer needs manual OTP, passkey, or CAPTCHA-by-typing flows (Amazon-style). `self.driver = build_driver(driver_path, headless=..., user_agents=...)` in `__init__`. | Sync init in `__init__`; `shutdown()` default awaits `asyncio.to_thread(self.driver.quit)`. |
+| nodriver (via `await uc.start`) | Retailer has strong anti-bot detection (PerimeterX, Akamai, HUMAN, hCaptcha). Async-native CDP-direct evades many fingerprint surfaces. | Build `self.driver` in `async def open(self)` (ABC default no-op); orchestrator awaits `open()` AFTER `__init__` AND BEFORE the next stagger sleep. Override `shutdown()` to `await self.driver.stop()`. |
+
+### nodriver plugin checklist
+
+1. `import nodriver as uc` at module top
+2. `self.driver = None` in `__init__` (driver built in `open()`)
+3. Override `async def open(self) -> None: self.driver = await uc.start(headless=..., browser_args=[f"--user-agent={ua}", "--disable-blink-features=AutomationControlled"])`
+4. `check_availability` and `auto_buy` are `async def` and call `await self.driver.get(url)` and `await tab.select(...)`
+5. Override `async def shutdown(self) -> None` to `await self.driver.stop()` with try/except plus WARNING (no shutdown can crash the orchestrator)
+6. DO NOT import `selenium` or any `selenium.*` submodule
+7. DO NOT import from `notifier_base` or call `play_*_sound` directly. Notifications fire via the orchestrator's `notification_queue`
+
+### Risky auto-buy gate
+
+Plugins that perform full auto-buy on retailers with aggressive anti-bot protection (Walmart, Target, GameStop, Square Enix, NewEgg) MUST gate the purchase flow behind the `SHOPBOT_ENABLE_RISKY_AUTOBUY` environment variable, read ONCE in `__init__`:
+
+```python
+def __init__(self, platform_config, *, cvv=None, driver_path=None, user_agents=None):
+    super().__init__(platform_config)
+    self._riskyAutoBuyEnabled = (
+        os.environ.get("SHOPBOT_ENABLE_RISKY_AUTOBUY", "").strip().lower() == "true"
+    )
+    # ...
+
+async def auto_buy(self, url, config):
+    if not self._riskyAutoBuyEnabled:
+        writeLog(
+            "<Retailer> auto_buy skipped: set SHOPBOT_ENABLE_RISKY_AUTOBUY=true to enable",
+            "WARNING",
+        )
+        return False
+    # actual purchase flow
+```
+
+This mirrors the Phase 5 SMS two-lock pattern: cost-bearing actions require both a config opt-in (the item's `auto_buy: true`) AND an env opt-in (`SHOPBOT_ENABLE_RISKY_AUTOBUY=true`). Either alone keeps the plugin in check-only mode.
+
+### Live-retailer integration tests are out of scope
+
+Unit tests MUST mock `nodriver.start` via `AsyncMock(return_value=fakeBrowser)` (see `tests/conftest.py`'s `fakeBrowser` fixture). Spawning Chrome and hitting live retailer PDPs in CI is unreliable (rate limits, IP bans, page reflows) and unsafe (risk of triggering bot detection on the user's IP).
+
+End-to-end verification against live retailers is a manual step the contributor performs at plan-time when writing the plugin.
+
+### PLUGIN_API_VERSION stays at 1
+
+The `open()` and `next_delay()` additions to `RetailerPlugin` in Phase 6 are non-abstract defaults (no-op plus `random.uniform(self.min_delay, self.max_delay)`). Existing Phase 2 plugins continue to work unmodified. Additive defaults do not bump the API version.
+
 ## Anti-patterns (Things NOT to do)
 
 These patterns are rejected at code review or fail in the registry. They are
