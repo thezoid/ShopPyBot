@@ -119,3 +119,75 @@ def test_pluginShutdownCalledUnderShield():
         "asyncio.shield(p.shutdown())" in src
         or "asyncio.shield(plugin.shutdown())" in src
     ), "plugin.shutdown() must be wrapped in asyncio.shield per Pitfall 4-4"
+
+
+# --- Phase 5 (05-06) notification fan-out assertions ------------------------
+
+def test_noInlineSoundCalls():
+    """Phase 5: SoundNotifier owns sound playback; inline calls must be removed."""
+    tree = ast.parse(_read_main())
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert "play_available_sound" not in names
+    assert "play_buy_sound" not in names
+
+
+def test_notificationWriterInTaskGroup():
+    """notification_writer must be created as a task inside the TaskGroup."""
+    tree = ast.parse(_read_main())
+    found = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "create_task":
+            if node.args and isinstance(node.args[0], ast.Call):
+                called = node.args[0].func
+                if isinstance(called, ast.Name) and called.id == "notification_writer":
+                    found = True
+                    break
+    assert found, "notification_writer not added to TaskGroup"
+
+
+def test_notificationEventTimestampsTzAware():
+    """Every NotificationEvent(...) call must use datetime.now(timezone.utc)."""
+    tree = ast.parse(_read_main())
+    sites = 0
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "NotificationEvent"
+        ):
+            sites += 1
+            ts = next((kw for kw in node.keywords if kw.arg == "timestamp"), None)
+            assert ts is not None, "NotificationEvent missing timestamp kwarg"
+            v = ts.value
+            assert isinstance(v, ast.Call), "timestamp must be a Call (datetime.now(...))"
+            func_name = ""
+            if isinstance(v.func, ast.Attribute):
+                func_name = v.func.attr
+            assert func_name == "now", "timestamp must be datetime.now(...)"
+            args_and_kwargs = list(v.args) + [kw.value for kw in v.keywords]
+            has_utc = any(
+                isinstance(a, ast.Attribute) and a.attr == "utc"
+                for a in args_and_kwargs
+            )
+            assert has_utc, "NotificationEvent timestamp not tz-aware UTC"
+    assert sites >= 2, "expected at least two NotificationEvent put-sites in main.py"
+
+
+def test_mainImportsDiscoverNotifiers():
+    tree = ast.parse(_read_main())
+    ok = any(
+        isinstance(n, ast.ImportFrom)
+        and n.module == "notifier_registry"
+        and any(a.name == "discover_notifiers" for a in n.names)
+        for n in ast.walk(tree)
+    )
+    assert ok, "main.py must import discover_notifiers from notifier_registry"
+
+
+def test_shutdownGathersNotifiers():
+    """Finally-block shutdown gather must cover notifiers under asyncio.shield."""
+    src = _read_main()
+    assert "for n in notifiers" in src, \
+        "shutdown gather must iterate notifiers"
+    assert "asyncio.shield" in src, \
+        "notifier shutdowns must be wrapped in asyncio.shield"
