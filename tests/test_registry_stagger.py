@@ -66,6 +66,65 @@ async def test_staggerOverride(tmp_plugins_dir, fakeAsyncSleep):
     assert fakeAsyncSleep == [0.25, 0.25]
 
 
+OPEN_PLUGIN_TEMPLATE = textwrap.dedent("""\
+    from plugin_base import RetailerPlugin
+
+    class {className}(RetailerPlugin):
+        domain_pattern = ["{domain}"]
+        def __init__(self, platform_config=None, cvv=None, driver_path=None, user_agents=None):
+            super().__init__(platform_config=platform_config)
+            type(self).open_call_count = 0
+        async def open(self):
+            type(self).open_call_count += 1
+        def check_availability(self, url): return False
+        def auto_buy(self, url, config): return False
+""")
+
+
+BROKEN_OPEN_TEMPLATE = textwrap.dedent("""\
+    from plugin_base import RetailerPlugin
+
+    class {className}(RetailerPlugin):
+        domain_pattern = ["{domain}"]
+        def __init__(self, platform_config=None, cvv=None, driver_path=None, user_agents=None):
+            super().__init__(platform_config=platform_config)
+        async def open(self):
+            raise RuntimeError("open exploded")
+        def check_availability(self, url): return False
+        def auto_buy(self, url, config): return False
+""")
+
+
+async def test_discoverAsyncAwaitsOpenOncePerPlugin(tmp_plugins_dir, fakeAsyncSleep):
+    (tmp_plugins_dir / "shopbot_plugin_alpha.py").write_text(
+        OPEN_PLUGIN_TEMPLATE.format(className="Alpha", domain="alpha.example")
+    )
+    (tmp_plugins_dir / "shopbot_plugin_beta.py").write_text(
+        OPEN_PLUGIN_TEMPLATE.format(className="Beta", domain="beta.example")
+    )
+    plugins = await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+    assert len(plugins) == 2
+    for inst in plugins:
+        assert type(inst).open_call_count == 1
+
+
+async def test_discoverAsyncSkipsPluginWhenOpenRaises(tmp_plugins_dir, fakeAsyncSleep, capsys):
+    (tmp_plugins_dir / "shopbot_plugin_ok.py").write_text(
+        OPEN_PLUGIN_TEMPLATE.format(className="OkPlugin", domain="ok.example")
+    )
+    (tmp_plugins_dir / "shopbot_plugin_bad.py").write_text(
+        BROKEN_OPEN_TEMPLATE.format(className="BadPlugin", domain="bad.example")
+    )
+    plugins = await discover_async(tmp_plugins_dir, app_config=None, cvvs={})
+    class_names = {type(p).__name__ for p in plugins}
+    assert "OkPlugin" in class_names
+    assert "BadPlugin" not in class_names
+    captured = capsys.readouterr()
+    combined = (captured.out + captured.err).upper()
+    assert "WARNING" in combined
+    assert "BADPLUGIN" in combined
+
+
 async def test_failedInstantiationStillStaggersNext(tmp_plugins_dir, fakeAsyncSleep):
     """A plugin that fails to load does NOT skip the stagger before the NEXT plugin.
 

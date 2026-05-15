@@ -89,3 +89,59 @@ def test_env_var_overrides_yaml(tmp_path, monkeypatch, clean_env):
     from config_schema import AppConfig
     cfg = AppConfig()
     assert cfg.platforms["amazon"].credentials.email == "env@example.com"
+
+
+# ---------- Phase 6: PlatformConfig delay fields + validator + optional creds ----------
+
+
+def test_platformConfigDelayDefaults():
+    from config_schema import PlatformConfig
+    cfg = PlatformConfig()
+    assert cfg.min_delay == 3.0
+    assert cfg.max_delay == 8.0
+    assert cfg.headless is False
+
+
+def test_platformConfigCustomDelays():
+    from config_schema import PlatformConfig
+    cfg = PlatformConfig(min_delay=2.5, max_delay=4.5, headless=True)
+    assert cfg.min_delay == 2.5
+    assert cfg.max_delay == 4.5
+    assert cfg.headless is True
+
+
+def test_platformConfigDelayValidatorRejectsInvertedRange():
+    from config_schema import PlatformConfig
+    with pytest.raises(ValidationError) as exc:
+        PlatformConfig(min_delay=5.0, max_delay=3.0)
+    assert "min_delay" in str(exc.value)
+    assert "max_delay" in str(exc.value)
+
+
+def test_platformConfigDelayValidatorRejectsZeroMinDelay():
+    from config_schema import PlatformConfig
+    with pytest.raises(ValidationError):
+        PlatformConfig(min_delay=0.0, max_delay=8.0)
+
+
+def test_platformConfigDelayValidatorRejectsNegativeMaxDelay():
+    from config_schema import PlatformConfig
+    with pytest.raises(ValidationError):
+        PlatformConfig(min_delay=1.0, max_delay=-0.5)
+
+
+def test_platformConfigCredentialsOptional():
+    from config_schema import PlatformConfig
+    cfg = PlatformConfig(enabled=True)
+    assert cfg.credentials is None
+
+
+def test_appSettingsUserAgentsDefaultsNone():
+    from config_schema import AppSettings
+    assert AppSettings().user_agents is None
+
+
+def test_appSettingsUserAgentsAcceptsList():
+    from config_schema import AppSettings
+    cfg = AppSettings(user_agents=["UA-A", "UA-B"])
+    assert cfg.user_agents == ["UA-A", "UA-B"]

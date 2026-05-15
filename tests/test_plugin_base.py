@@ -58,3 +58,38 @@ def test_shutdownIsAsyncCoroutineFunction():
     import inspect
     from plugin_base import RetailerPlugin
     assert inspect.iscoroutinefunction(RetailerPlugin.shutdown)
+
+
+# ---------- Phase 6 D-03/D-04 additions: open(), next_delay(), delay attrs ----------
+
+
+def test_openIsAsyncCoroutineFunction():
+    import inspect
+    assert inspect.iscoroutinefunction(RetailerPlugin.open)
+
+
+async def test_openDefaultIsNoOp():
+    plugin = _MinimalPlugin({})
+    result = await plugin.open()
+    assert result is None
+
+
+def test_classAttrDelayDefaults():
+    assert RetailerPlugin.min_delay == 3.0
+    assert RetailerPlugin.max_delay == 8.0
+
+
+def test_nextDelayInDefaultRange():
+    plugin = _MinimalPlugin({})
+    for _ in range(100):
+        delay = plugin.next_delay()
+        assert 3.0 <= delay <= 8.0
+
+
+def test_nextDelayHonorsInstanceAttrs():
+    plugin = _MinimalPlugin({})
+    plugin.min_delay = 1.0
+    plugin.max_delay = 2.0
+    for _ in range(50):
+        delay = plugin.next_delay()
+        assert 1.0 <= delay <= 2.0

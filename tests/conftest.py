@@ -1,10 +1,25 @@
 import os
 from typing import Callable
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from plugin_base import RetailerPlugin
+
+
+@pytest.fixture
+def fakeBrowser():
+    """AsyncMock shaped to mimic a nodriver Browser/Tab for Wave 1 plugin tests.
+
+    Exposes the methods Wave 1 plugins exercise: get, stop, select, select_all.
+    Each test gets a fresh AsyncMock so call counts are isolated.
+    """
+    browser = AsyncMock()
+    browser.get = AsyncMock()
+    browser.stop = AsyncMock()
+    browser.select = AsyncMock()
+    browser.select_all = AsyncMock()
+    return browser
 
 
 @pytest.fixture
