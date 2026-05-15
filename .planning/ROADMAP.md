@@ -114,7 +114,15 @@ Plans:
   2. Setting `platforms.walmart.min_delay: 8` and `platforms.walmart.max_delay: 15` in `config.yml` causes Walmart polling intervals to vary randomly between 8 and 15 seconds with no code changes
   3. Setting `platforms.amazon.headless: false` launches an Amazon browser session in visible mode while other platforms run headless, all in the same bot process
   4. The Walmart plugin README section documents PerimeterX/HUMAN Security detection risk; the Target plugin documents that auto-buy is experimental due to Akamai headless blocking
-**Plans**: TBD
+**Plans**: 7 plans
+Plans:
+- [ ] 06-01-PLAN.md: Foundation + RED skeletons (Wave 0) (PLG-04..08, ANTI-01..03)
+- [ ] 06-02-PLAN.md: Walmart plugin (Wave 1) (PLG-04)
+- [ ] 06-03-PLAN.md: Target plugin (Wave 1) (PLG-05)
+- [ ] 06-04-PLAN.md: GameStop plugin (Wave 1) (PLG-06)
+- [ ] 06-05-PLAN.md: Square Enix plugin (Wave 1) (PLG-07)
+- [ ] 06-06-PLAN.md: NewEgg plugin (Wave 1) (PLG-08)
+- [ ] 06-07-PLAN.md: Orchestrator integration + docs (Wave 2) (ANTI-01/03, PLG-04..08)
 **UI hint**: no
 
 ---
