@@ -31,7 +31,13 @@
   3. No credentials, CVV, or passwords exist in `config.yml` or any log output; the bot prompts for CVV at runtime via `getpass` and reads credentials from environment variables only
   4. ChromeDriver launches without `--disable-web-security`, reports a real Chrome user agent string, and has `navigator.webdriver` hidden via CDP patch
   5. `requirements.txt` specifies exact pinned versions, contains no duplicates, and declares `python_requires >= 3.11`; ChromeDriver output is suppressed without `sys.stdout` monkey-patching
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 01-01-PLAN.md — Wave 0: repair broken test suite, add pyproject.toml + shared fixtures
+- [ ] 01-02-PLAN.md — RetailerPlugin ABC + PLUGIN_API_VERSION (CORE-01, CORE-02)
+- [ ] 01-03-PLAN.md — AppConfig pydantic-settings validation (CORE-05, CORE-06, CORE-07, SEC-01)
+- [ ] 01-04-PLAN.md — requirements.txt pin/dedupe + logger singleton (INFRA-01, INFRA-02)
+- [ ] 01-05-PLAN.md — main.py security hardening + sample config + .env.example + README disclaimer (SEC-01..06, INFRA-03)
 
 ### Phase 2: Plugin Migration
 **Goal**: Amazon and BestBuy are fully migrated to the plugin ABC with isolated WebDriver instances, the plugin registry auto-discovers and routes plugins at startup, and contributor tooling is in place so the framework is immediately usable by external developers.
@@ -98,7 +104,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundations + Security | 0/? | Not started | - |
+| 1. Foundations + Security | 0/5 | Planned | - |
 | 2. Plugin Migration | 0/? | Not started | - |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
