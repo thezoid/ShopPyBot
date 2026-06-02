@@ -119,10 +119,12 @@ def main():
     open_browser = False
 
     # SEC-01/02: collect BestBuy credentials from environment; CVV via getpass.
-    # Only prompt for CVV if at least one BestBuy item has auto_buy enabled.
-    needs_bb_autobuy = any(
-        "bestbuy.com" in item.link and item.auto_buy
-        for item in cfg.available.items
+    # Only prompt for CVV if not in test_mode AND at least one BestBuy item has
+    # auto_buy enabled. In test_mode the purchase step is skipped, so blocking
+    # on a getpass prompt would break CI and violate the test_mode contract (WR-02).
+    needs_bb_autobuy = (
+        not test_mode
+        and any("bestbuy.com" in item.link and item.auto_buy for item in cfg.available.items)
     )
     cvv = collect_cvv() if needs_bb_autobuy else None
 
