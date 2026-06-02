@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-02T04:46:58.820Z"
+last_updated: "2026-06-02T13:09:33.425Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ progress:
 ## Current Position
 
 Phase: 01 (foundations-security) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 **Phase**: 1 — Foundations + Security
 **Plan**: 0 of 5 executed
 **Status**: Planned — ready to execute
@@ -91,9 +91,9 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 
 ## Session Continuity
 
-**Last action**: Completed plan 01-03 — AppConfig pydantic-settings schema with 5 tests passing
-**Next action**: Execute plan 01-04 (security hardening patches to main.py and logger.py)
-**Context to carry**: AppConfig uses yaml_file= kwarg for injection (not _yaml_file=). core/config_schema.py is complete; main.py (plan 05) should instantiate AppConfig() with ValidationError catch. Plan 01-04 has a blocking human-verify checkpoint for nodriver/pydantic-settings package legitimacy.
+**Last action**: Completed plan 01-04 — requirements.txt pinned/deduped (INFRA-01) and logger.py caches level at import (INFRA-02); 15 tests passing
+**Next action**: Execute plan 01-05 (security hardening patches to main.py: AppConfig instantiation with ValidationError catch, selenium Service log_output)
+**Context to carry**: requirements.txt now exact-pinned; nodriver==0.50.3 and pydantic-settings[yaml]==2.14.0 locked and human-verified. logger._LOGGING_LEVEL caches the level at import; do not re-add per-call config reads. AppConfig uses yaml_file= kwarg for injection (not _yaml_file=). core/config_schema.py is complete; main.py (plan 05) should instantiate AppConfig() with ValidationError catch. selenium pinned at 4.43.0 for Service log_output in plan 05.
 
 ---
 
@@ -106,6 +106,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 01-foundations-security P01 | 8m | 3 tasks | 5 files |
 | Phase 01 P02 | 5m | - tasks | - files |
 | Phase 01 P03 | 5m | 2 tasks | 2 files |
+| Phase 01 P04 | 8min | 3 tasks | 3 files |
 
 ## Decisions
 
@@ -113,3 +114,4 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: PLUGIN_API_VERSION defined module-level before class body; importable without instantiation (T-01-VER)
 - [Phase 01-03]: yaml_file= constructor kwarg (not _yaml_file=) used for test injection; _active_yaml_file class sentinel bridges __init__ to classmethod settings_customise_sources
 - [Phase 01-03]: No env_prefix on AppConfig; single-user tool keeps DEBUG__LOGGING_LEVEL format simpler than SHOPBOT_DEBUG__LOGGING_LEVEL
+- [Phase ?]: [Phase 01-04]: Pinned all deps to exact installed versions; added nodriver==0.50.3 and pydantic-settings[yaml]==2.14.0 after human package-legitimacy approval; logger caches level at import (_LOGGING_LEVEL), eliminating per-loop config.yml reads

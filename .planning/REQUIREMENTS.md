@@ -61,8 +61,8 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: `requirements.txt` pinned to exact versions; duplicates removed; `python_requires >= 3.11`
-- [ ] **INFRA-02**: Logger singleton loaded once at module level; does not re-read `config.yml` on every log call
+- [x] **INFRA-01**: `requirements.txt` pinned to exact versions; duplicates removed; `python_requires >= 3.11`
+- [x] **INFRA-02**: Logger singleton loaded once at module level; does not re-read `config.yml` on every log call
 - [ ] **INFRA-03**: `sys.stdout` suppression block in `main.py` removed; ChromeDriver output suppressed via service log path
 
 ### Community Documentation
@@ -135,8 +135,8 @@
 | NOTIF-04 | Phase 5 — Notification System | Pending |
 | NOTIF-05 | Phase 5 — Notification System | Pending |
 | NOTIF-06 | Phase 5 — Notification System | Pending |
-| INFRA-01 | Phase 1 — Foundations + Security | Pending |
-| INFRA-02 | Phase 1 — Foundations + Security | Pending |
+| INFRA-01 | Phase 1 — Foundations + Security | Complete |
+| INFRA-02 | Phase 1 — Foundations + Security | Complete |
 | INFRA-03 | Phase 1 — Foundations + Security | Pending |
 | DOCS-01 | Phase 3 — Community Documentation | Pending |
 | DOCS-02 | Phase 3 — Community Documentation | Pending |
