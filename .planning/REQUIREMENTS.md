@@ -8,14 +8,14 @@
 - [x] **CORE-02**: `PLUGIN_API_VERSION = 1` constant exported from plugin base; default no-op implementations for `login` and `detect_captcha` so plugins can be check-only
 - [ ] **CORE-03**: Plugin registry auto-discovers `shopbot_plugin_*.py` files in `plugins/` at startup via `importlib`; logs warning for non-matching `.py` files
 - [ ] **CORE-04**: Plugin registry routes item URLs to correct plugin via `domain_pattern` attribute on each plugin class
-- [ ] **CORE-05**: Pydantic `AppConfig` validates `config.yml` at startup; startup fails with actionable error messages on missing/invalid fields
-- [ ] **CORE-06**: Config schema supports flat per-platform credential sections (`platforms.amazon.email`, `platforms.bestbuy.cvv`, etc.)
-- [ ] **CORE-07**: Config migration warnings emitted when old `app.amz_email` / `app.bb_email` keys are detected, guiding user to new schema
+- [x] **CORE-05**: Pydantic `AppConfig` validates `config.yml` at startup; startup fails with actionable error messages on missing/invalid fields
+- [x] **CORE-06**: Config schema supports flat per-platform credential sections (`platforms.amazon.email`, `platforms.bestbuy.cvv`, etc.)
+- [x] **CORE-07**: Config migration warnings emitted when old `app.amz_email` / `app.bb_email` keys are detected, guiding user to new schema
 - [ ] **CORE-08**: `example_plugin.py` with stub implementations + inline comments; `plugins/PLUGIN_DEV.md` contributor guide
 
 ### Security
 
-- [ ] **SEC-01**: Credentials (`amz_email`, `amz_pwd`, `bb_email`, `bb_password`) read from environment variables; config.yml holds non-sensitive settings only
+- [x] **SEC-01**: Credentials (`amz_email`, `amz_pwd`, `bb_email`, `bb_password`) read from environment variables; config.yml holds non-sensitive settings only
 - [ ] **SEC-02**: CVV collected via `getpass.getpass()` at runtime — never stored in config.yml or logs
 - [ ] **SEC-03**: `--disable-web-security` Chrome flag removed from driver setup
 - [ ] **SEC-04**: CDP patch applied at driver startup to hide `navigator.webdriver` property
@@ -103,11 +103,11 @@
 | CORE-02 | Phase 1 — Foundations + Security | Complete |
 | CORE-03 | Phase 2 — Plugin Migration | Pending |
 | CORE-04 | Phase 2 — Plugin Migration | Pending |
-| CORE-05 | Phase 1 — Foundations + Security | Pending |
-| CORE-06 | Phase 1 — Foundations + Security | Pending |
-| CORE-07 | Phase 1 — Foundations + Security | Pending |
+| CORE-05 | Phase 1 — Foundations + Security | Complete |
+| CORE-06 | Phase 1 — Foundations + Security | Complete |
+| CORE-07 | Phase 1 — Foundations + Security | Complete |
 | CORE-08 | Phase 2 — Plugin Migration | Pending |
-| SEC-01 | Phase 1 — Foundations + Security | Pending |
+| SEC-01 | Phase 1 — Foundations + Security | Complete |
 | SEC-02 | Phase 1 — Foundations + Security | Pending |
 | SEC-03 | Phase 1 — Foundations + Security | Pending |
 | SEC-04 | Phase 1 — Foundations + Security | Pending |

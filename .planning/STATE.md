@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-02T04:39:58.725Z"
+last_updated: "2026-06-02T04:46:58.820Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ progress:
 ## Current Position
 
 Phase: 01 (foundations-security) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 **Phase**: 1 — Foundations + Security
 **Plan**: 0 of 5 executed
 **Status**: Planned — ready to execute
@@ -91,9 +91,9 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 
 ## Session Continuity
 
-**Last action**: Phase 1 planned — 5 plans across 3 waves, verified by plan-checker (all 14 reqs covered, all 12 dimensions pass)
-**Next action**: `/gsd-execute-phase 1` — execute Phase 1: Foundations + Security
-**Context to carry**: SEC-04 decided — satisfy navigator.webdriver hiding on existing Selenium driver via CDP patch in Phase 1 (NOT deferred to Phase 2 nodriver). Plan 01-04 has a blocking human-verify checkpoint for nodriver/pydantic-settings package legitimacy. Phase 1 creates core/plugin_base.py + core/config_schema.py; does NOT touch amazon_bot.py/bestbuy_bot.py.
+**Last action**: Completed plan 01-03 — AppConfig pydantic-settings schema with 5 tests passing
+**Next action**: Execute plan 01-04 (security hardening patches to main.py and logger.py)
+**Context to carry**: AppConfig uses yaml_file= kwarg for injection (not _yaml_file=). core/config_schema.py is complete; main.py (plan 05) should instantiate AppConfig() with ValidationError catch. Plan 01-04 has a blocking human-verify checkpoint for nodriver/pydantic-settings package legitimacy.
 
 ---
 
@@ -105,8 +105,11 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 |-------|------|----------|-------|
 | Phase 01-foundations-security P01 | 8m | 3 tasks | 5 files |
 | Phase 01 P02 | 5m | - tasks | - files |
+| Phase 01 P03 | 5m | 2 tasks | 2 files |
 
 ## Decisions
 
 - [Phase ?]: Used importlib.reload + monkeypatch.chdir in tests to isolate config.py module-level load without touching production code
 - [Phase ?]: PLUGIN_API_VERSION defined module-level before class body; importable without instantiation (T-01-VER)
+- [Phase 01-03]: yaml_file= constructor kwarg (not _yaml_file=) used for test injection; _active_yaml_file class sentinel bridges __init__ to classmethod settings_customise_sources
+- [Phase 01-03]: No env_prefix on AppConfig; single-user tool keeps DEBUG__LOGGING_LEVEL format simpler than SHOPBOT_DEBUG__LOGGING_LEVEL
