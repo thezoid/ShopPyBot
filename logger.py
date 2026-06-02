@@ -4,17 +4,22 @@ from datetime import datetime
 from colorama import Fore, Style
 import yaml
 
-def load_settings():
-    with open('config.yml', 'r') as file:
-        return yaml.safe_load(file)
+def _load_logging_level() -> int:
+    try:
+        with open('config.yml', 'r') as file:
+            settings = yaml.safe_load(file)
+        return settings.get('debug', {}).get('logging_level', 5)
+    except (FileNotFoundError, KeyError, TypeError):
+        return 5
+
+_LOGGING_LEVEL: int = _load_logging_level()
 
 def setup_logger():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     return logging.getLogger(__name__)
 
 def writeLog(message: str, type: str, writeTofile: bool = True) -> None:
-    settings = load_settings()
-    loggingLevel = settings.get('debug', {}).get('logging_level', 5)
+    loggingLevel = _LOGGING_LEVEL
     log_levels = {
         "ALWAYS": (Fore.CYAN, 0),
         "ERROR": (Fore.RED, 1),
