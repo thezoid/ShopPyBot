@@ -13,8 +13,8 @@ def _load_logging_level() -> int:
     try:
         with open(_CONFIG_PATH, 'r') as file:
             settings = yaml.safe_load(file)
-        return settings.get('debug', {}).get('logging_level', 5)
-    except (FileNotFoundError, KeyError, TypeError):
+        return int(settings.get('debug', {}).get('logging_level', 5))
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
         return 5
 
 _LOGGING_LEVEL: int = _load_logging_level()

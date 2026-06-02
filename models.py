@@ -6,6 +6,7 @@ DB_PATH = os.path.join('data', 'shop_py_bot.db')
 def initialize_db(delete=False):
     if delete and os.path.exists(DB_PATH):
         os.remove(DB_PATH)
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
