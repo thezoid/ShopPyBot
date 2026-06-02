@@ -1,13 +1,17 @@
 selenium:
   driver_path: path/to/chromedriver
 
-app:
-  amz_email: "your_amazon_email@example.com"
-  amz_pwd: "your_amazon_password"
-  bb_email: "your_bestbuy_email@example.com"
-  bb_password: "your_bestbuy_password"
-  bb_cvv: "your_bestbuy_cvv"
-  open_browser: false
+# Credentials are NOT stored here. Set AMZ_EMAIL, AMZ_PWD, BB_EMAIL, BB_PASSWORD
+# as environment variables (see .env.example); the CVV is collected at runtime
+# via a hidden prompt and never written to disk.
+
+platforms:
+  amazon:
+    delay_seconds: 30.0
+    delay_jitter: 10.0
+  bestbuy:
+    delay_seconds: 30.0
+    delay_jitter: 10.0
 
 debug:
   logging_level: 5
