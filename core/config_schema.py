@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import warnings
 from pathlib import Path
 
@@ -17,6 +18,10 @@ _DEFAULT_YAML_PATH: Path = Path(__file__).parent.parent / "config.yml"
 _LEGACY_KEYS = {
     "app": ["amz_email", "amz_pwd", "bb_email", "bb_password", "bb_cvv"]
 }
+
+# Thread-local storage for yaml path injection: eliminates race on mutable class
+# attribute when two AppConfig() constructions run concurrently (CR-03).
+_yaml_path_local: threading.local = threading.local()
 
 
 class SeleniumConfig(BaseModel):
@@ -58,11 +63,8 @@ class PlatformsConfig(BaseModel):
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
-    # pydantic-settings routes unrecognised init kwargs through init_settings,
-    # so we intercept in __init__ and store on a class-level sentinel before
-    # super().__init__ triggers settings_customise_sources (a classmethod).
-    # We use a plain class attribute (no underscore) so pydantic treats it as
-    # a class-level value, not a PrivateAttr.
+    # Thread-safe: path stored in _yaml_path_local (threading.local) so concurrent
+    # AppConfig() constructions cannot clobber each other (CR-03).
     model_config = SettingsConfigDict(
         extra="ignore",
         env_nested_delimiter="__",
@@ -73,17 +75,10 @@ class AppConfig(BaseSettings):
     available: AvailableConfig = AvailableConfig()
     platforms: PlatformsConfig = PlatformsConfig()
 
-    # Class-level sentinel read by settings_customise_sources.
-    # Each AppConfig() call may temporarily override this via __init__.
-    _active_yaml_file: Path = _DEFAULT_YAML_PATH
-
     def __init__(self, yaml_file: Path | str | None = None, **values):
-        # Temporarily set the class-level path so settings_customise_sources picks it up.
-        # This is safe for single-threaded use (the typical test/CLI scenario).
-        if yaml_file is not None:
-            AppConfig._active_yaml_file = Path(yaml_file)
-        else:
-            AppConfig._active_yaml_file = _DEFAULT_YAML_PATH
+        # Store path in thread-local so settings_customise_sources (a classmethod)
+        # picks up the correct path per-thread without a shared mutable class attr (CR-03).
+        _yaml_path_local.active = Path(yaml_file) if yaml_file is not None else _DEFAULT_YAML_PATH
         super().__init__(**values)
 
     @model_validator(mode="before")
@@ -114,6 +109,6 @@ class AppConfig(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # env_settings first: env vars override YAML (SEC-01)
-        # yaml_file is resolved from class-level sentinel (supports test injection)
-        yaml_file = getattr(cls, "_active_yaml_file", _DEFAULT_YAML_PATH)
+        # yaml_file is resolved from thread-local (CR-03: no shared mutable class attr)
+        yaml_file = getattr(_yaml_path_local, "active", _DEFAULT_YAML_PATH)
         return (env_settings, YamlConfigSettingsSource(settings_cls, yaml_file=yaml_file))
