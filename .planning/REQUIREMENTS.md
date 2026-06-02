@@ -16,11 +16,11 @@
 ### Security
 
 - [x] **SEC-01**: Credentials (`amz_email`, `amz_pwd`, `bb_email`, `bb_password`) read from environment variables; config.yml holds non-sensitive settings only
-- [ ] **SEC-02**: CVV collected via `getpass.getpass()` at runtime — never stored in config.yml or logs
-- [ ] **SEC-03**: `--disable-web-security` Chrome flag removed from driver setup
-- [ ] **SEC-04**: CDP patch applied at driver startup to hide `navigator.webdriver` property
-- [ ] **SEC-05**: Real Chrome user agent string used instead of Selenium default
-- [ ] **SEC-06**: README includes disclaimer on personal use, TOS compliance, and account risk
+- [x] **SEC-02**: CVV collected via `getpass.getpass()` at runtime — never stored in config.yml or logs
+- [x] **SEC-03**: `--disable-web-security` Chrome flag removed from driver setup
+- [x] **SEC-04**: CDP patch applied at driver startup to hide `navigator.webdriver` property
+- [x] **SEC-05**: Real Chrome user agent string used instead of Selenium default
+- [x] **SEC-06**: README includes disclaimer on personal use, TOS compliance, and account risk
 
 ### Platform Plugins — Existing (Refactor)
 
@@ -63,7 +63,7 @@
 
 - [x] **INFRA-01**: `requirements.txt` pinned to exact versions; duplicates removed; `python_requires >= 3.11`
 - [x] **INFRA-02**: Logger singleton loaded once at module level; does not re-read `config.yml` on every log call
-- [ ] **INFRA-03**: `sys.stdout` suppression block in `main.py` removed; ChromeDriver output suppressed via service log path
+- [x] **INFRA-03**: `sys.stdout` suppression block in `main.py` removed; ChromeDriver output suppressed via service log path
 
 ### Community Documentation
 
@@ -108,11 +108,11 @@
 | CORE-07 | Phase 1 — Foundations + Security | Complete |
 | CORE-08 | Phase 2 — Plugin Migration | Pending |
 | SEC-01 | Phase 1 — Foundations + Security | Complete |
-| SEC-02 | Phase 1 — Foundations + Security | Pending |
-| SEC-03 | Phase 1 — Foundations + Security | Pending |
-| SEC-04 | Phase 1 — Foundations + Security | Pending |
-| SEC-05 | Phase 1 — Foundations + Security | Pending |
-| SEC-06 | Phase 1 — Foundations + Security | Pending |
+| SEC-02 | Phase 1 — Foundations + Security | Complete |
+| SEC-03 | Phase 1 — Foundations + Security | Complete |
+| SEC-04 | Phase 1 — Foundations + Security | Complete |
+| SEC-05 | Phase 1 — Foundations + Security | Complete |
+| SEC-06 | Phase 1 — Foundations + Security | Complete |
 | PLG-01 | Phase 2 — Plugin Migration | Pending |
 | PLG-02 | Phase 2 — Plugin Migration | Pending |
 | PLG-03 | Phase 2 — Plugin Migration | Pending |
@@ -137,7 +137,7 @@
 | NOTIF-06 | Phase 5 — Notification System | Pending |
 | INFRA-01 | Phase 1 — Foundations + Security | Complete |
 | INFRA-02 | Phase 1 — Foundations + Security | Complete |
-| INFRA-03 | Phase 1 — Foundations + Security | Pending |
+| INFRA-03 | Phase 1 — Foundations + Security | Complete |
 | DOCS-01 | Phase 3 — Community Documentation | Pending |
 | DOCS-02 | Phase 3 — Community Documentation | Pending |
 | DOCS-03 | Phase 3 — Community Documentation | Pending |

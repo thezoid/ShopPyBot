@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source
+- [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source (completed 2026-06-02)
 - [ ] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
 - [ ] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
 - [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
@@ -41,7 +41,7 @@ Plans:
 - [x] 01-02-PLAN.md — RetailerPlugin ABC + PLUGIN_API_VERSION (CORE-01, CORE-02)
 - [x] 01-03-PLAN.md — AppConfig pydantic-settings validation (CORE-05, CORE-06, CORE-07, SEC-01)
 - [x] 01-04-PLAN.md — requirements.txt pin/dedupe + logger singleton (INFRA-01, INFRA-02)
-- [ ] 01-05-PLAN.md — main.py security hardening + sample config + .env.example + README disclaimer (SEC-01..06, INFRA-03)
+- [x] 01-05-PLAN.md — main.py security hardening + sample config + .env.example + README disclaimer (SEC-01..06, INFRA-03)
 
 ### Phase 2: Plugin Migration
 
@@ -123,7 +123,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundations + Security | 4/5 | In Progress|  |
+| 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 0/? | Not started | - |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
