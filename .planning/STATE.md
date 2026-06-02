@@ -6,16 +6,16 @@
 
 **Project**: ShopPyBot
 **Milestone**: v1 Open Source Launch
-**Total Phases**: 5
-**Total Requirements**: 39
+**Total Phases**: 6
+**Total Requirements**: 44
 
 ---
 
 ## Current Position
 
 **Phase**: 1 — Foundations + Security
-**Plan**: None started
-**Status**: Not started
+**Plan**: 0 of 5 executed
+**Status**: Planned — ready to execute
 
 ```
 Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
@@ -75,10 +75,10 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 
 ## Session Continuity
 
-**Last action**: Roadmap created — all 39 v1 requirements mapped to 5 phases
-**Next action**: `/gsd-plan-phase 1` — plan Phase 1: Foundations + Security
-**Context to carry**: Phase 1 is a prerequisite for open source launch; security items (SEC-01 through SEC-06) are the hard gate
+**Last action**: Phase 1 planned — 5 plans across 3 waves, verified by plan-checker (all 14 reqs covered, all 12 dimensions pass)
+**Next action**: `/gsd-execute-phase 1` — execute Phase 1: Foundations + Security
+**Context to carry**: SEC-04 decided — satisfy navigator.webdriver hiding on existing Selenium driver via CDP patch in Phase 1 (NOT deferred to Phase 2 nodriver). Plan 01-04 has a blocking human-verify checkpoint for nodriver/pydantic-settings package legitimacy. Phase 1 creates core/plugin_base.py + core/config_schema.py; does NOT touch amazon_bot.py/bestbuy_bot.py.
 
 ---
 
-*Last updated: 2026-04-19 — initialized by gsd-roadmap*
+*Last updated: 2026-06-02 — Phase 1 planned by gsd-plan-phase*
