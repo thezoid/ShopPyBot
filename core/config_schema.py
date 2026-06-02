@@ -19,6 +19,10 @@ _LEGACY_KEYS = {
 }
 
 
+class SeleniumConfig(BaseModel):
+    driver_path: str = "chromedriver"
+
+
 class ItemConfig(BaseModel):
     name: str
     link: str
@@ -64,6 +68,7 @@ class AppConfig(BaseSettings):
         env_nested_delimiter="__",
     )
 
+    selenium: SeleniumConfig = SeleniumConfig()
     debug: DebugConfig = DebugConfig()
     available: AvailableConfig = AvailableConfig()
     platforms: PlatformsConfig = PlatformsConfig()
