@@ -3,12 +3,12 @@ status: partial
 phase: 01-foundations-security
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md]
 started: 2026-06-02T17:20:20Z
-updated: 2026-06-02T17:40:00Z
+updated: 2026-06-02T17:50:00Z
 ---
 
 ## Current Test
 
-[testing paused — 2 items blocked by the cold-start crash; re-run after fix]
+[testing paused — 1 item (Test 4) blocked on a live BestBuy stock event + interactive TTY]
 
 ## Tests
 
@@ -30,13 +30,12 @@ note: "Initially FAILED (major): debug.logging_level='high' produced a raw TypeE
 expected: With a BestBuy item set auto_buy=true and BB_EMAIL / BB_PASSWORD env vars unset, run the bot until that item is found (or trigger the buy path). The bot logs an actionable ERROR about missing credentials and skips the purchase WITHOUT crashing the loop.
 result: blocked
 blocked_by: other
-reason: "Cold-start crash now fixed (loop runs), but still cannot observe live without a live-AVAILABLE BestBuy auto_buy item to reach the buy branch (main.py:167-181) with BB_EMAIL/BB_PASSWORD unset. Needs a real BestBuy item + availability event. Code path inspected: missing-cred branch logs ERROR and skips without crashing."
+reason: "Cannot fully observe in an automated run: the buy branch (main.py:169-178) fires only when check_bestbuy_item returns available=True for a real BestBuy auto_buy item, AND the startup CVV gate must first be satisfied via an interactive TTY (test_mode is false in this scenario). Two compounding requirements: live BestBuy stock event + interactive terminal. Branch code-verified (main.py:173-178): when BB_EMAIL/BB_PASSWORD unset it logs 'ERROR: BB_EMAIL or BB_PASSWORD env var not set. Skipping auto-buy for this item.' and falls through WITHOUT calling auto_buy_bestbuy_item and WITHOUT crashing the loop. MANUAL REPRO: in an interactive terminal, set test_mode: false, add an in-stock bestbuy.com auto_buy item, leave BB_EMAIL/BB_PASSWORD unset, enter a dummy CVV at the prompt, and confirm the ERROR log + loop continues when the item is found available."
 
 ### 5. CVV Runtime Prompt
 expected: With a BestBuy auto_buy item configured and BB credentials set, on startup the bot shows a hidden CVV prompt (getpass — typed digits do not echo). Check-only runs (no BestBuy auto_buy item) do NOT prompt for CVV.
-result: blocked
-blocked_by: other
-reason: "Cannot observe live: getpass needs an interactive TTY (unavailable in automated run); requires non-test_mode + a bestbuy.com auto_buy item. Gate logic verified by code (main.py:122-129): prompts only when not test_mode AND any bestbuy.com auto_buy item; current config (test_mode true, all amazon links) correctly skips. The interactive 'no echo' behavior is getpass's guarantee."
+result: pass
+note: "Verified by live behavioral run. Set test_mode: false + first item link to bestbuy.com with auto_buy: true. Bot set up the driver then HALTED before any item check (no 'Starting new iteration of item checks' in log), blocking at collect_cvv()'s hidden getpass prompt (Windows getpass reads the console directly, so a redirected empty stdin did not satisfy it — it waited for keystrokes = the hidden no-echo prompt). Contrast: Test 1 (test_mode true, amazon-only) ran the loop immediately with no prompt. Both gate branches (main.py:125-129) confirmed: prompt fires at startup ONLY when not test_mode AND a bestbuy.com auto_buy item exists. Interactive keystroke entry + no-echo is getpass's library guarantee, not separately keystroke-tested."
 
 ### 6. README Disclaimer
 expected: Open README.md. Disclaimer section covers personal/non-commercial use, retailer Terms-of-Service responsibility, account suspension/ban risk, and an as-is/no-warranty clause.
@@ -45,13 +44,13 @@ result: pass
 ## Summary
 
 total: 6
-passed: 4
+passed: 5
 issues: 0
 pending: 0
 skipped: 0
-blocked: 2
+blocked: 1
 
-Note: Tests 1 and 3 initially failed (1 blocker, 1 major); both fixed in this UAT session (models.py + logger.py) and re-verified passing. Tests 4 and 5 remain blocked on environment (need a live-available BestBuy auto_buy item / interactive TTY), not on code defects.
+Note: Tests 1 and 3 initially failed (1 blocker, 1 major); both fixed in this UAT session (models.py + logger.py) and re-verified passing. Test 5 (CVV prompt) verified by live behavioral run (gate fires at startup under test_mode false + bestbuy auto_buy). Test 4 (missing-cred skip) remains blocked: needs a live-AVAILABLE BestBuy auto_buy item plus an interactive TTY to pass the CVV gate first; the skip branch is code-verified.
 
 ## Gaps
 
