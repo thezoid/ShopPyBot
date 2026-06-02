@@ -22,79 +22,98 @@
 ## Phase Details
 
 ### Phase 1: Foundations + Security
+
 **Goal**: The plugin interface contract is locked and versioned, config is validated at startup, and all credential/driver security issues are resolved — making the codebase safe to publish as open source.
 **Depends on**: Nothing (first phase)
 **Requirements**: CORE-01, CORE-02, CORE-05, CORE-06, CORE-07, SEC-01, SEC-02, SEC-03, SEC-04, SEC-05, SEC-06, INFRA-01, INFRA-02, INFRA-03
 **Success Criteria** (what must be TRUE):
+
   1. A developer can implement `RetailerPlugin` ABC with only `check_availability` and `auto_buy` as required methods; `login` and `detect_captcha` have working no-op defaults and `PLUGIN_API_VERSION = 1` is importable
   2. Starting the bot with a `config.yml` missing a required field prints an actionable error message describing exactly which field is missing and where to set it, then exits — it does not crash with a stack trace
   3. No credentials, CVV, or passwords exist in `config.yml` or any log output; the bot prompts for CVV at runtime via `getpass` and reads credentials from environment variables only
   4. ChromeDriver launches without `--disable-web-security`, reports a real Chrome user agent string, and has `navigator.webdriver` hidden via CDP patch
   5. `requirements.txt` specifies exact pinned versions, contains no duplicates, and declares `python_requires >= 3.11`; ChromeDriver output is suppressed without `sys.stdout` monkey-patching
+
 **Plans**: 5 plans
 Plans:
-- [ ] 01-01-PLAN.md — Wave 0: repair broken test suite, add pyproject.toml + shared fixtures
+
+- [x] 01-01-PLAN.md — Wave 0: repair broken test suite, add pyproject.toml + shared fixtures
 - [ ] 01-02-PLAN.md — RetailerPlugin ABC + PLUGIN_API_VERSION (CORE-01, CORE-02)
 - [ ] 01-03-PLAN.md — AppConfig pydantic-settings validation (CORE-05, CORE-06, CORE-07, SEC-01)
 - [ ] 01-04-PLAN.md — requirements.txt pin/dedupe + logger singleton (INFRA-01, INFRA-02)
 - [ ] 01-05-PLAN.md — main.py security hardening + sample config + .env.example + README disclaimer (SEC-01..06, INFRA-03)
 
 ### Phase 2: Plugin Migration
+
 **Goal**: Amazon and BestBuy are fully migrated to the plugin ABC with isolated WebDriver instances, the plugin registry auto-discovers and routes plugins at startup, and contributor tooling is in place so the framework is immediately usable by external developers.
 **Depends on**: Phase 1
 **Requirements**: CORE-03, CORE-04, CORE-08, PLG-01, PLG-02, PLG-03
 **Success Criteria** (what must be TRUE):
+
   1. Dropping `plugins/shopbot_plugin_amazon.py` and `plugins/shopbot_plugin_bestbuy.py` into the `plugins/` directory causes the registry to discover and load both plugins at startup with no manual registration required
   2. Placing a `.py` file in `plugins/` that does not match the `shopbot_plugin_*.py` naming convention produces a logged warning and is ignored — it does not crash the bot
   3. Each plugin owns its own `self.driver` WebDriver instance; neither plugin references a global driver; BestBuy calls `update_item_purchased()` after a successful purchase
   4. A new contributor can read `plugins/PLUGIN_DEV.md` and `plugins/example_plugin.py`, copy the example, implement `check_availability` and `auto_buy`, and have a working skeleton plugin without reading any core source code
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 3: Community Documentation
+
 **Goal**: CONTRIBUTING.md, SECURITY.md, issue templates, and a PR template are in place so external contributors know how to submit plugins, report security issues, and engage with the project safely.
 **Depends on**: Phase 2
 **Requirements**: DOCS-01, DOCS-02, DOCS-03, DOCS-04, DOCS-05
 **Success Criteria** (what must be TRUE):
+
   1. A first-time contributor can open CONTRIBUTING.md and find the full plugin submission workflow — naming convention, required ABC methods, test expectations, and anti-detection risk declaration — without reading any source code
   2. SECURITY.md explicitly lists known TOS/legal risks per platform and includes a responsible disclosure process with a contact method
   3. Submitting a bug report or plugin request via GitHub Issues presents a pre-filled template with the required fields
   4. Opening a pull request presents a checklist covering ABC compliance, naming convention, test presence, and risk documentation
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 4: Async Orchestrator
+
 **Goal**: All active platform plugins run concurrently in a single async event loop, SQLite handles parallel writes without locking errors, and no blocking `input()` calls stall the async loop.
 **Depends on**: Phase 3
 **Requirements**: ASYNC-01, ASYNC-02, ASYNC-03, ASYNC-04, ASYNC-05
 **Success Criteria** (what must be TRUE):
+
   1. Running the bot with Amazon and BestBuy both configured shows both platforms polling concurrently — log timestamps confirm overlapping execution, not sequential
   2. Starting the bot with three or more plugins does not produce ChromeDriver port conflicts; startup logs show each plugin's driver initializing at least 1.5 seconds apart
   3. No `input()` calls exist anywhere in the async code path; user intervention (e.g., manual CAPTCHA solve) is communicated via `asyncio.Event` notification
   4. Sustained parallel operation for 60+ minutes on two platforms produces zero `database is locked` SQLite errors; all `update_item_purchased()` calls succeed
+
 **Plans**: TBD
 
 ### Phase 5: Notification System
+
 **Goal**: A fan-out notification dispatcher delivers stock alerts across all configured channels; a single channel failure does not prevent other channels from firing; each item triggers at most one notification per restock event.
 **Depends on**: Phase 4
 **Requirements**: NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-05, NOTIF-06
 **Success Criteria** (what must be TRUE):
+
   1. When Discord is misconfigured (bad webhook URL), the bot continues running and delivers notifications to email and sound — the error is logged but does not crash or block other channels
   2. An item going in and out of stock multiple times within one poll cycle produces exactly one notification per restock event, not one per poll tick
   3. A Discord notification includes item name, URL, platform, timestamp, and action taken (detected / purchased), formatted as an embed
   4. SMS via Twilio is disabled by default; enabling it requires explicit opt-in configuration; accidental activation without credentials produces a clear config error, not a silent no-op
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 6: Platform Expansion
+
 **Goal**: Five new platform plugins (Walmart, Target, GameStop, Square Enix, NewEgg) are operational, each with documented anti-detection risk levels, and per-platform delay/jitter/headless configuration is available across all plugins.
 **Depends on**: Phase 5
 **Requirements**: PLG-04, PLG-05, PLG-06, PLG-07, PLG-08, ANTI-01, ANTI-02, ANTI-03
 **Success Criteria** (what must be TRUE):
+
   1. All five new platform plugins load via the plugin registry without modifying any core code; each plugin file is self-contained
   2. Setting `platforms.walmart.min_delay: 8` and `platforms.walmart.max_delay: 15` in `config.yml` causes Walmart polling intervals to vary randomly between 8 and 15 seconds with no code changes
   3. Setting `platforms.amazon.headless: false` launches an Amazon browser session in visible mode while other platforms run headless, all in the same bot process
   4. The Walmart plugin README section documents PerimeterX/HUMAN Security detection risk; the Target plugin documents that auto-buy is experimental due to Akamai headless blocking
+
 **Plans**: TBD
 **UI hint**: no
 
@@ -104,7 +123,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundations + Security | 0/5 | Planned | - |
+| 1. Foundations + Security | 1/5 | In Progress|  |
 | 2. Plugin Migration | 0/? | Not started | - |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
