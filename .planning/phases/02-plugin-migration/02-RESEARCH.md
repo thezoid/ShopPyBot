@@ -637,22 +637,25 @@ A fictional retailer (e.g. "FakeShop") that:
 
 **Note on A5:** D-07 defines `domain_patterns: list[str]` as a class-level annotation. Class attributes are accessible on both the class and instances. The registry can read `PluginClass.domain_patterns` before calling `__init__`, which is safe for eager discovery.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`tab.url` attribute name**
    - What we know: `Tab` inherits from `Connection`; `current_url` is the Selenium name; nodriver source uses `target.url` internally.
    - What's unclear: The exact public attribute name for the current tab URL on a `Tab` object.
    - Recommendation: In `check_availability`, skip the `if driver.current_url != item_url` guard entirely (just always navigate) — it was a minor optimization in the Selenium version. This avoids the unknown and simplifies the port.
+   - RESOLVED: Skip the current_url guard, always navigate. Handled in Plan 02-04 Task 1 action.
 
 2. **BestBuy quantity dropdown selector**
    - What we know: `bestbuy_bot.py` uses `By.CLASS_NAME, "a-dropdown-prompt"` — this is an Amazon-style class name (prefix `a-`) on BestBuy, which is suspicious.
    - What's unclear: Whether this selector is actually correct for BestBuy's cart quantity control, or was a copy-paste error.
    - Recommendation: Port the selector as-is (it was "proven" in Phase-1 UAT per CONTEXT.md), but add a TODO comment flagging the questionable class name for live testing.
+   - RESOLVED: Port `.a-dropdown-prompt` as-is with a TODO comment for live verification. Handled in Plan 02-04 Task 2 action.
 
 3. **`pytest-asyncio==1.3.0` configuration**
    - What we know: The installed version string `1.3.0` is non-standard (typical releases are `0.x`).
    - What's unclear: Whether this version requires `asyncio_mode = "auto"` in `pyproject.toml`, or whether `@pytest.mark.asyncio` decorators suffice.
    - Recommendation: Wave 0 task: add a single `async def test_asyncio_smoke(): pass` with `@pytest.mark.asyncio` and run it before writing any real async tests. If it fails, add `asyncio_mode = "auto"` to `[tool.pytest.ini_options]` in `pyproject.toml`.
+   - RESOLVED: Wave 0 smoke test in Plan 02-01 Task 1; `asyncio_mode = auto` already set in pyproject.toml from Phase 1.
 
 ## State of the Art
 
