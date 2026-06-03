@@ -52,8 +52,10 @@ async def test_taskgroup_creates_per_plugin_tasks(fake_plugin):
     class _TrackingGroup:
         def create_task(self, coro, *, name=None):
             created_tasks.append(name or "")
-            # Return a quickly-cancellable task
-            task = asyncio.get_running_loop().create_task(coro, name=name)
+            # Close the coroutine immediately (avoids unawaited-coroutine warnings)
+            # and return a cancelled task so the group exits cleanly.
+            coro.close()
+            task = asyncio.get_running_loop().create_task(asyncio.sleep(0), name=name)
             task.cancel()
             return task
 
@@ -67,13 +69,19 @@ async def test_taskgroup_creates_per_plugin_tasks(fake_plugin):
     fake_cfg = MagicMock()
     fake_cfg.app.poll_interval = 0.01
 
+    async def fake_run_in_executor(executor, fn, *args):
+        return []
+
+    fake_loop = MagicMock()
+    fake_loop.run_in_executor = fake_run_in_executor
+
     with (
         patch("core.orchestrator.PluginRegistry") as MockRegistry,
         patch("core.orchestrator.asyncio.TaskGroup", return_value=_TrackingGroup()),
         patch("core.orchestrator.asyncio.Queue", return_value=asyncio.Queue()),
         patch("core.orchestrator._staggered_setup", new=AsyncMock()),
         patch("core.orchestrator._start_stdin_listener"),
-        patch("core.orchestrator.loop_run_in_executor_get_items", return_value=[]),
+        patch("core.orchestrator.asyncio.get_running_loop", return_value=fake_loop),
     ):
         mock_registry = _make_registry_with_plugins(plugin_a, plugin_b)
         MockRegistry.return_value = mock_registry
@@ -264,17 +272,18 @@ async def test_event_wakes_coroutine(event_shim):
 
 async def test_stdin_listener_sets_plugin_events():
     """_stdin_listener_thread signals all known intervention events on all plugins."""
+    import warnings
     from core.orchestrator import _stdin_listener_thread
 
     event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
-    plugin = MagicMock()
-    plugin.captcha_event = event
-    # Other known attrs absent -- listener must skip missing attrs gracefully
-    del plugin.passkey_event
-    del plugin.otp_event
-    del plugin.test_pause_event
+    # Use a plain object (not MagicMock) to avoid unawaited-coroutine warnings from
+    # auto-specced mock attributes; listener must skip absent attrs gracefully.
+    class _PluginStub:
+        captcha_event = event
+
+    plugin = _PluginStub()
 
     fired: list[str] = []
 
