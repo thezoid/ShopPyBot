@@ -1,9 +1,10 @@
-"""Tests for plugins/shopbot_plugin_amazon.py (PLG-01, PLG-03).
+"""Tests for plugins/shopbot_plugin_amazon.py (PLG-01, PLG-03, ASYNC-03).
 
 Loads the plugin via importlib.util.spec_from_file_location to mirror how the
 registry discovers plugins -- no sys.path manipulation required.
 """
 
+import asyncio
 import importlib.util
 import inspect
 import sys
@@ -159,3 +160,104 @@ async def test_detect_captcha_returns_false_when_element_absent(fake_browser):
     result = await plugin.detect_captcha()
 
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# ASYNC-03: asyncio.Event intervention pattern tests (TDD RED)
+# ---------------------------------------------------------------------------
+
+
+def test_amazon_plugin_has_four_event_attrs():
+    """AmazonPlugin.__init__ must create 4 asyncio.Event attributes (ASYNC-03)."""
+    plugin = AmazonPlugin(config=None)
+    for attr in ("captcha_event", "passkey_event", "otp_event", "test_pause_event"):
+        assert hasattr(plugin, attr), f"AmazonPlugin missing attribute: {attr}"
+        assert isinstance(getattr(plugin, attr), asyncio.Event), (
+            f"{attr} must be asyncio.Event, got {type(getattr(plugin, attr))}"
+        )
+
+
+def test_amazon_plugin_has_wait_user_action_helper():
+    """AmazonPlugin must define _wait_user_action coroutine method (ASYNC-03)."""
+    plugin = AmazonPlugin(config=None)
+    assert hasattr(plugin, "_wait_user_action"), (
+        "AmazonPlugin missing _wait_user_action helper"
+    )
+    assert asyncio.iscoroutinefunction(plugin._wait_user_action), (
+        "_wait_user_action must be an async def coroutine"
+    )
+
+
+def test_no_input_call_in_amazon_source():
+    """No input() call (non-comment) must exist in the Amazon plugin source (ASYNC-03)."""
+    source_lines = _PLUGIN_PATH.read_text().splitlines()
+    violations = [
+        (i + 1, line)
+        for i, line in enumerate(source_lines)
+        if "input(" in line and not line.lstrip().startswith("#")
+    ]
+    assert not violations, (
+        "Found input() calls in non-comment lines:\n"
+        + "\n".join(f"  line {ln}: {txt}" for ln, txt in violations)
+    )
+
+
+@pytest.mark.asyncio
+async def test_captcha_event_resumes_check_availability(fake_browser, event_shim):
+    """check_availability resumes after captcha_event is set (ASYNC-03 Event wakeup).
+
+    Sequence:
+      1. detect_captcha returns True -> _wait_user_action is called on captcha_event
+      2. Before the await can block, the event_shim fires captcha_event via
+         loop.call_soon_threadsafe (the real stdin-listener bridge)
+      3. check_availability completes and returns a bool without hanging
+    """
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+
+    loop = asyncio.get_running_loop()
+
+    # Schedule the event signal to fire on the next iteration of the event loop.
+    # This ensures _wait_user_action hits its await before the event is set,
+    # proving the coroutine wakes from the Event -- not from a pre-set flag.
+    loop.call_soon(event_shim, plugin.captcha_event, loop)
+
+    with patch.object(plugin, "detect_captcha", new=AsyncMock(return_value=True)):
+        result = await plugin.check_availability("https://www.amazon.com/dp/B00TEST")
+
+    assert isinstance(result, bool)
+
+
+@pytest.mark.asyncio
+async def test_wait_user_action_clears_event_after_resume():
+    """_wait_user_action must clear the event in finally so next cycle re-waits (Pitfall 7)."""
+    plugin = AmazonPlugin(config=None)
+    event = plugin.captcha_event
+    event.set()  # pre-set so wait_for returns immediately
+
+    with patch("plugins.shopbot_plugin_amazon.play_notification_sound"), \
+         patch("plugins.shopbot_plugin_amazon.writeLog"):
+        await plugin._wait_user_action(event, "test message")
+
+    assert not event.is_set(), "Event must be cleared after _wait_user_action returns"
+
+
+@pytest.mark.asyncio
+async def test_wait_user_action_timeout_does_not_raise():
+    """_wait_user_action must log and continue (not raise) on 300s timeout."""
+    plugin = AmazonPlugin(config=None)
+    event = asyncio.Event()  # never set -> will time out
+
+    with patch("plugins.shopbot_plugin_amazon.play_notification_sound"), \
+         patch("plugins.shopbot_plugin_amazon.writeLog"), \
+         patch("plugins.shopbot_plugin_amazon.asyncio") as mock_asyncio:
+        # Mock asyncio.wait_for to raise TimeoutError immediately
+        mock_asyncio.wait_for = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_asyncio.TimeoutError = asyncio.TimeoutError
+        mock_asyncio.Event = asyncio.Event
+
+        # Should not raise -- timeout is caught internally
+        try:
+            await plugin._wait_user_action(event, "test")
+        except asyncio.TimeoutError:
+            pytest.fail("_wait_user_action must not propagate TimeoutError")
