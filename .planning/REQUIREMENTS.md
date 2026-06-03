@@ -52,7 +52,7 @@
 
 ### Notifications
 
-- [ ] **NOTIF-01**: Notification dispatcher fan-outs to all configured channels; per-channel failures are isolated (one channel error does not block others)
+- [x] **NOTIF-01**: Notification dispatcher fan-outs to all configured channels; per-channel failures are isolated (one channel error does not block others)
 - [x] **NOTIF-02**: Deduplication: one notification per item per restock event — not one per poll cycle; SQLite tracks `last_notified` timestamp per item
 - [x] **NOTIF-03**: Sound notifier wraps existing `play_available_sound()` / `play_buy_sound()` / `play_notification_sound()`
 - [x] **NOTIF-04**: Discord webhook notifier posts standardized embed (item name, URL, platform, timestamp, action taken)
@@ -129,7 +129,7 @@
 | ANTI-01 | Phase 6 — Platform Expansion | Pending |
 | ANTI-02 | Phase 6 — Platform Expansion | Pending |
 | ANTI-03 | Phase 6 — Platform Expansion | Pending |
-| NOTIF-01 | Phase 5 — Notification System | Pending |
+| NOTIF-01 | Phase 5 — Notification System | Complete |
 | NOTIF-02 | Phase 5 — Notification System | Complete |
 | NOTIF-03 | Phase 5 — Notification System | Complete |
 | NOTIF-04 | Phase 5 — Notification System | Complete |

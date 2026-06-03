@@ -126,7 +126,7 @@ Plans:
 - [x] 05-01-PLAN.md — Wave 0: NotificationsConfig + SMS startup gate + dedup columns/state functions + Notifier ABC + 14-test scaffold (NOTIF-02, NOTIF-06)
 - [x] 05-02-PLAN.md — SoundNotifier (wraps utils) + DiscordNotifier embed POST (NOTIF-03, NOTIF-04)
 - [x] 05-03-PLAN.md — EmailNotifier (smtplib STARTTLS) + SmsNotifier (Twilio REST) (NOTIF-05, NOTIF-06)
-- [ ] 05-04-PLAN.md — NotificationDispatcher fan-out with per-channel isolation + secret scrub (NOTIF-01)
+- [x] 05-04-PLAN.md — NotificationDispatcher fan-out with per-channel isolation + secret scrub (NOTIF-01)
 - [ ] 05-05-PLAN.md — Orchestrator wiring: build_dispatcher + dedup edge-trigger + typed write queue + live Discord human-verify (NOTIF-01, NOTIF-02, NOTIF-04)
 
 **UI hint**: no
@@ -156,7 +156,7 @@ Plans:
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
-| 5. Notification System | 3/5 | In Progress|  |
+| 5. Notification System | 4/5 | In Progress|  |
 | 6. Platform Expansion | 0/? | Not started | - |
 
 ---
