@@ -18,7 +18,13 @@ from pathlib import Path
 
 from core.registry import PluginRegistry
 from logger import writeLog
-from models import get_items_sync, update_item_purchased_sync
+from models import (
+    get_items_sync,
+    update_item_purchased_sync,
+    set_item_available_sync,
+    clear_item_available_sync,
+    get_item_notification_state_sync,
+)
 
 
 _STAGGER_SECS = 1.5
@@ -63,16 +69,46 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue):
         writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
 
 
+async def _dispatch_write(loop, item) -> None:
+    """Execute a single typed write-queue item against the correct models function.
+
+    Supported tuple tags:
+      ("purchased", link)            -> update_item_purchased_sync(link)
+      ("set_available", link, ts)    -> set_item_available_sync(link, ts)
+      ("clear_available", link)      -> clear_item_available_sync(link)
+    """
+    if not isinstance(item, tuple):
+        # Legacy bare-link support: treat as purchased
+        await loop.run_in_executor(None, update_item_purchased_sync, item)
+        writeLog(f"Marked purchased: {item}", "INFO")
+        return
+
+    tag = item[0]
+    if tag == "purchased":
+        link = item[1]
+        await loop.run_in_executor(None, update_item_purchased_sync, link)
+        writeLog(f"Marked purchased: {link}", "INFO")
+    elif tag == "set_available":
+        link, ts = item[1], item[2]
+        await loop.run_in_executor(None, set_item_available_sync, link, ts)
+        writeLog(f"Marked available: {link}", "DEBUG")
+    elif tag == "clear_available":
+        link = item[1]
+        await loop.run_in_executor(None, clear_item_available_sync, link)
+        writeLog(f"Cleared available: {link}", "DEBUG")
+    else:
+        writeLog(f"Unknown write-queue tag '{tag}' -- skipped", "WARNING")
+
+
 async def _write_queue_drain(queue: asyncio.Queue) -> None:
     """Serializes all DB writes. Runs until cancelled."""
     loop = asyncio.get_running_loop()
     while True:
-        link = await queue.get()
+        item = await queue.get()
         try:
-            await loop.run_in_executor(None, update_item_purchased_sync, link)
-            writeLog(f"Marked purchased: {link}", "INFO")
+            await _dispatch_write(loop, item)
         except Exception as exc:
-            writeLog(f"DB write failed for {link}: {exc}", "ERROR")
+            writeLog(f"DB write failed for {item!r}: {exc}", "ERROR")
         finally:
             queue.task_done()
 

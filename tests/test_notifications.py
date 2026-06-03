@@ -571,3 +571,156 @@ async def test_sms_payload(monkeypatch):
     assert data_arg.get("To") == "+15559998888"
     assert data_arg.get("From") == "+15550001111"
     assert "Body" in data_arg
+
+
+# ============================================================
+# build_dispatcher factory (Plan 05-05 Task 1)
+# ============================================================
+
+
+class _FakeCfg:
+    """Minimal AppConfig-like wrapper for build_dispatcher tests."""
+    def __init__(self, notifications):
+        self.notifications = notifications
+
+
+def _make_notifications_config(
+    sound: bool = True,
+    discord_enabled: bool = False,
+    email_enabled: bool = False,
+    sms_enabled: bool = False,
+    monkeypatch=None,
+):
+    """Build a _FakeCfg wrapping a NotificationsConfig with the requested enable flags."""
+    from core.config_schema import (
+        NotificationsConfig,
+        DiscordConfig,
+        EmailConfig,
+        SmsConfig,
+    )
+
+    # SMS requires Twilio creds if enabled
+    sms_cfg = SmsConfig(enabled=False)
+    if sms_enabled and monkeypatch:
+        monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACSID123")
+        monkeypatch.setenv("TWILIO_AUTH_TOKEN", "token456")
+        monkeypatch.setenv("TWILIO_FROM", "+15550000000")
+        sms_cfg = SmsConfig(enabled=True, to_number="+15559999999")
+
+    notif = NotificationsConfig(
+        sound=sound,
+        discord=DiscordConfig(enabled=discord_enabled),
+        email=EmailConfig(
+            enabled=email_enabled,
+            smtp_host="smtp.example.com",
+            smtp_port=587,
+            sender="bot@example.com",
+            recipients=["user@example.com"],
+        ),
+        sms=sms_cfg,
+    )
+    return _FakeCfg(notif)
+
+
+def test_build_dispatcher_sound_only():
+    """build_dispatcher with only sound=True returns exactly [SoundNotifier]."""
+    from notifications import build_dispatcher
+    from notifications.sound_notifier import SoundNotifier
+
+    cfg = _make_notifications_config(sound=True)
+    dispatcher = build_dispatcher(cfg)
+
+    assert len(dispatcher._notifiers) == 1
+    assert isinstance(dispatcher._notifiers[0], SoundNotifier)
+
+
+def test_build_dispatcher_no_sound_empty():
+    """build_dispatcher with sound=False and all channels off returns empty notifiers list."""
+    from notifications import build_dispatcher
+
+    cfg = _make_notifications_config(sound=False)
+    dispatcher = build_dispatcher(cfg)
+
+    assert dispatcher._notifiers == []
+
+
+def test_build_dispatcher_discord_added_when_enabled(monkeypatch):
+    """build_dispatcher with discord.enabled=True and env var set includes DiscordNotifier."""
+    from notifications import build_dispatcher
+    from notifications.discord_notifier import DiscordNotifier
+    from notifications.sound_notifier import SoundNotifier
+
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/test/token")
+    cfg = _make_notifications_config(sound=True, discord_enabled=True)
+    dispatcher = build_dispatcher(cfg)
+
+    types = [type(n) for n in dispatcher._notifiers]
+    assert SoundNotifier in types
+    assert DiscordNotifier in types
+
+
+def test_build_dispatcher_discord_skipped_without_env(monkeypatch):
+    """build_dispatcher with discord.enabled=True but no DISCORD_WEBHOOK_URL skips DiscordNotifier."""
+    from notifications import build_dispatcher
+    from notifications.discord_notifier import DiscordNotifier
+
+    monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+    cfg = _make_notifications_config(sound=True, discord_enabled=True)
+    dispatcher = build_dispatcher(cfg)
+
+    types = [type(n) for n in dispatcher._notifiers]
+    assert DiscordNotifier not in types
+
+
+def test_build_dispatcher_email_added_when_enabled(monkeypatch):
+    """build_dispatcher with email.enabled=True includes EmailNotifier."""
+    from notifications import build_dispatcher
+    from notifications.email_notifier import EmailNotifier
+
+    monkeypatch.setenv("SMTP_PASSWORD", "secret")
+    cfg = _make_notifications_config(sound=True, email_enabled=True)
+    dispatcher = build_dispatcher(cfg)
+
+    types = [type(n) for n in dispatcher._notifiers]
+    assert EmailNotifier in types
+
+
+def test_build_dispatcher_sms_added_when_enabled(monkeypatch):
+    """build_dispatcher with sms.enabled=True and creds set includes SmsNotifier."""
+    from notifications import build_dispatcher
+    from notifications.sms_notifier import SmsNotifier
+
+    cfg = _make_notifications_config(sound=True, sms_enabled=True, monkeypatch=monkeypatch)
+    dispatcher = build_dispatcher(cfg)
+
+    types = [type(n) for n in dispatcher._notifiers]
+    assert SmsNotifier in types
+
+
+def test_build_dispatcher_all_channels(monkeypatch):
+    """build_dispatcher with all channels enabled includes all four notifier types."""
+    from notifications import build_dispatcher
+    from notifications.sound_notifier import SoundNotifier
+    from notifications.discord_notifier import DiscordNotifier
+    from notifications.email_notifier import EmailNotifier
+    from notifications.sms_notifier import SmsNotifier
+
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/test/token")
+    monkeypatch.setenv("SMTP_PASSWORD", "secret")
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACSID123")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "token456")
+    monkeypatch.setenv("TWILIO_FROM", "+15550000000")
+    cfg = _make_notifications_config(
+        sound=True,
+        discord_enabled=True,
+        email_enabled=True,
+        sms_enabled=True,
+        monkeypatch=monkeypatch,
+    )
+    dispatcher = build_dispatcher(cfg)
+
+    types = [type(n) for n in dispatcher._notifiers]
+    assert SoundNotifier in types
+    assert DiscordNotifier in types
+    assert EmailNotifier in types
+    assert SmsNotifier in types

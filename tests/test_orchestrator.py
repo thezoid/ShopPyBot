@@ -239,6 +239,123 @@ async def test_write_queue_task_done_on_exception():
 
 
 # ---------------------------------------------------------------------------
+# Typed write-queue ops (Plan 05-05 Task 1)
+# ---------------------------------------------------------------------------
+
+
+async def test_drain_typed_purchased_tuple():
+    """("purchased", link) must invoke update_item_purchased_sync, not others."""
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://bestbuy.com/item1"
+    await queue.put(("purchased", link))
+
+    mock_purchased = MagicMock(return_value=None)
+    mock_set_avail = MagicMock(return_value=None)
+    mock_clear_avail = MagicMock(return_value=None)
+
+    async def fake_executor(executor, fn, *args):
+        fn(*args)
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.update_item_purchased_sync", mock_purchased),
+        patch("core.orchestrator.set_item_available_sync", mock_set_avail),
+        patch("core.orchestrator.clear_item_available_sync", mock_clear_avail),
+    ):
+        async def drain_once():
+            loop = asyncio.get_running_loop()
+            with patch.object(loop, "run_in_executor", side_effect=fake_executor):
+                drain_task = asyncio.create_task(_write_queue_drain(queue))
+                await queue.join()
+                drain_task.cancel()
+                try:
+                    await drain_task
+                except asyncio.CancelledError:
+                    pass
+
+        await drain_once()
+
+    mock_purchased.assert_called_once_with(link)
+    mock_set_avail.assert_not_called()
+    mock_clear_avail.assert_not_called()
+
+
+async def test_drain_typed_set_available_tuple():
+    """("set_available", link, ts) must invoke set_item_available_sync with link + ts."""
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://bestbuy.com/item2"
+    ts = "2026-06-03T12:00:00+00:00"
+    await queue.put(("set_available", link, ts))
+
+    mock_purchased = MagicMock(return_value=None)
+    mock_set_avail = MagicMock(return_value=None)
+    mock_clear_avail = MagicMock(return_value=None)
+
+    async def fake_executor(executor, fn, *args):
+        fn(*args)
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.update_item_purchased_sync", mock_purchased),
+        patch("core.orchestrator.set_item_available_sync", mock_set_avail),
+        patch("core.orchestrator.clear_item_available_sync", mock_clear_avail),
+    ):
+        async def drain_once():
+            loop = asyncio.get_running_loop()
+            with patch.object(loop, "run_in_executor", side_effect=fake_executor):
+                drain_task = asyncio.create_task(_write_queue_drain(queue))
+                await queue.join()
+                drain_task.cancel()
+                try:
+                    await drain_task
+                except asyncio.CancelledError:
+                    pass
+
+        await drain_once()
+
+    mock_set_avail.assert_called_once_with(link, ts)
+    mock_purchased.assert_not_called()
+    mock_clear_avail.assert_not_called()
+
+
+async def test_drain_typed_clear_available_tuple():
+    """("clear_available", link) must invoke clear_item_available_sync."""
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://bestbuy.com/item3"
+    await queue.put(("clear_available", link))
+
+    mock_purchased = MagicMock(return_value=None)
+    mock_set_avail = MagicMock(return_value=None)
+    mock_clear_avail = MagicMock(return_value=None)
+
+    async def fake_executor(executor, fn, *args):
+        fn(*args)
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.update_item_purchased_sync", mock_purchased),
+        patch("core.orchestrator.set_item_available_sync", mock_set_avail),
+        patch("core.orchestrator.clear_item_available_sync", mock_clear_avail),
+    ):
+        async def drain_once():
+            loop = asyncio.get_running_loop()
+            with patch.object(loop, "run_in_executor", side_effect=fake_executor):
+                drain_task = asyncio.create_task(_write_queue_drain(queue))
+                await queue.join()
+                drain_task.cancel()
+                try:
+                    await drain_task
+                except asyncio.CancelledError:
+                    pass
+
+        await drain_once()
+
+    mock_clear_avail.assert_called_once_with(link)
+    mock_purchased.assert_not_called()
+    mock_set_avail.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # ASYNC-03: Event wakeup via call_soon_threadsafe
 # ---------------------------------------------------------------------------
 
