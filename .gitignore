@@ -4,7 +4,7 @@ logs/*
 *.exe
 .venv*
 .DS_Store
-config.yml
+/config.yml
 data/*
 pytest-cache*
 

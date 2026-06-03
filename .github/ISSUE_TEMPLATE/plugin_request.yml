@@ -1,0 +1,79 @@
+name: New Plugin / Platform Request
+description: Request support for a new retailer or propose a plugin you plan to build.
+labels: ["plugin-request"]
+body:
+  - type: input
+    id: retailer_name
+    attributes:
+      label: Target Retailer Name
+      description: The name of the retailer or e-commerce platform.
+      placeholder: "Walmart"
+    validations:
+      required: true
+
+  - type: input
+    id: retailer_url
+    attributes:
+      label: Retailer Homepage URL
+      description: The homepage URL of the retailer.
+      placeholder: "https://www.walmart.com"
+    validations:
+      required: true
+
+  - type: input
+    id: example_product_url
+    attributes:
+      label: Example Product URL
+      description: An example product page URL showing the add-to-cart flow.
+      placeholder: "https://www.walmart.com/ip/some-product/123456"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: implementer
+    attributes:
+      label: Implementation Intent
+      description: Do you intend to implement this plugin yourself?
+      options:
+        - "Yes, I plan to implement it and open a PR."
+        - "No, I am requesting that someone else implement it."
+        - "Unsure / open to collaboration."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk_level
+    attributes:
+      label: Anticipated Anti-Detection Risk Level
+      description: >-
+        Estimate the anti-detection and TOS/legal risk for this retailer.
+        See SECURITY.md for the risk scale used in this project.
+      options:
+        - low
+        - medium
+        - high
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_rationale
+    attributes:
+      label: Risk Rationale
+      description: >-
+        One or two sentences explaining why you chose that risk level.
+        Consider bot-detection aggressiveness, CAPTCHA usage, and TOS language.
+      placeholder: "This retailer uses a simple availability check with no login required and no known bot-detection layer."
+    validations:
+      required: true
+
+  - type: textarea
+    id: tos_concerns
+    attributes:
+      label: Known TOS or Legal Concerns
+      description: >-
+        List any known Terms of Service clauses, legal restrictions, or concerns
+        for automated purchasing on this platform. Write "None known" if you are
+        not aware of any.
+      placeholder: "The retailer's TOS section 5.2 prohibits automated access."
+    validations:
+      required: false

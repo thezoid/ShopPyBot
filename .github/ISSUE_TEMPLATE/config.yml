@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/thezoid/ShopPyBot/blob/master/SECURITY.md
+    about: >-
+      Vulnerabilities must NOT be filed as public issues. See SECURITY.md for
+      private reporting channels. Use GitHub's private security advisory or
+      the contact email listed there.
