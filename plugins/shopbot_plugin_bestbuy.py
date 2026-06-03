@@ -7,8 +7,8 @@ Credentials are sourced exclusively from environment variables (SEC-01):
 The CVV is threaded via self._cvv, set by main.py after setup() is called (SEC-02).
 Neither credentials nor CVV are ever logged, stored to disk, or written to config.yml.
 
-PLG-02 fix: update_item_purchased(url) is now called after a successful purchase.
-The bug existed in bestbuy_bot.py line 71 where the call was absent.
+ASYNC-05: auto_buy returns True on success without calling update_item_purchased
+directly. The orchestrator's write queue owns the sole write path.
 """
 
 import os
@@ -17,7 +17,6 @@ import nodriver
 
 from core.plugin_base import RetailerPlugin
 from logger import writeLog
-from models import update_item_purchased
 
 
 class BestBuyPlugin(RetailerPlugin):
@@ -101,7 +100,9 @@ class BestBuyPlugin(RetailerPlugin):
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
 
-        PLG-02 fix: calls update_item_purchased(url) after a successful purchase.
+        ASYNC-05: does NOT call update_item_purchased directly. The orchestrator's
+        write queue owns the sole write path; auto_buy returns True on success and
+        the orchestrator enqueues the DB write.
         """
         writeLog(f"Entering auto_buy for BestBuy: {url}", "DEBUG")
         try:
@@ -157,10 +158,7 @@ class BestBuyPlugin(RetailerPlugin):
                 return False
             await place_order.click()
             writeLog("Order placed on BestBuy", "SUCCESS")
-
-            # PLG-02 FIX: call update_item_purchased -- was missing in bestbuy_bot.py line 71.
-            # Without this call, the loop re-attempts purchase on every iteration.
-            update_item_purchased(url)
+            # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
             return True
         except Exception as exc:
             writeLog(f"Error during BestBuy auto-buy: {exc}", "ERROR")
