@@ -63,7 +63,7 @@ Plans:
 - [x] 02-03-PLAN.md — Plugin registry: importlib discovery + domain routing + lazy lifecycle (CORE-03, CORE-04)
 - [x] 02-04-PLAN.md — Amazon + BestBuy nodriver plugins; PLG-02 update_item_purchased fix (PLG-01, PLG-02, PLG-03)
 - [ ] 02-05-PLAN.md — main.py async conversion: registry-driven loop, Selenium/CDP removal, CVV threading
-- [ ] 02-06-PLAN.md — Contributor tooling: example_plugin.py + PLUGIN_DEV.md (CORE-08)
+- [x] 02-06-PLAN.md — Contributor tooling: example_plugin.py + PLUGIN_DEV.md (CORE-08)
 
 **UI hint**: no
 
@@ -133,7 +133,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
-| 2. Plugin Migration | 4/6 | In Progress|  |
+| 2. Plugin Migration | 5/6 | In Progress|  |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |

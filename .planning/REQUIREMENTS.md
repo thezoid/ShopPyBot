@@ -11,7 +11,7 @@
 - [x] **CORE-05**: Pydantic `AppConfig` validates `config.yml` at startup; startup fails with actionable error messages on missing/invalid fields
 - [x] **CORE-06**: Config schema supports flat per-platform credential sections (`platforms.amazon.email`, `platforms.bestbuy.cvv`, etc.)
 - [x] **CORE-07**: Config migration warnings emitted when old `app.amz_email` / `app.bb_email` keys are detected, guiding user to new schema
-- [ ] **CORE-08**: `example_plugin.py` with stub implementations + inline comments; `plugins/PLUGIN_DEV.md` contributor guide
+- [x] **CORE-08**: `example_plugin.py` with stub implementations + inline comments; `plugins/PLUGIN_DEV.md` contributor guide
 
 ### Security
 
@@ -106,7 +106,7 @@
 | CORE-05 | Phase 1 — Foundations + Security | Complete |
 | CORE-06 | Phase 1 — Foundations + Security | Complete |
 | CORE-07 | Phase 1 — Foundations + Security | Complete |
-| CORE-08 | Phase 2 — Plugin Migration | Pending |
+| CORE-08 | Phase 2 — Plugin Migration | Complete |
 | SEC-01 | Phase 1 — Foundations + Security | Complete |
 | SEC-02 | Phase 1 — Foundations + Security | Complete |
 | SEC-03 | Phase 1 — Foundations + Security | Complete |
