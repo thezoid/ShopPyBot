@@ -30,9 +30,9 @@
 
 ### Platform Plugins — New
 
-- [ ] **PLG-04**: `plugins/shopbot_plugin_walmart.py` — availability check + auto-buy; documented as high anti-detection risk (PerimeterX/HUMAN Security)
-- [ ] **PLG-05**: `plugins/shopbot_plugin_target.py` — availability check; checkout labeled experimental (Akamai blocks headless Selenium consistently)
-- [ ] **PLG-06**: `plugins/shopbot_plugin_gamestop.py` — availability check + auto-buy; CAPTCHA on checkout documented
+- [x] **PLG-04**: `plugins/shopbot_plugin_walmart.py` — availability check + auto-buy; documented as high anti-detection risk (PerimeterX/HUMAN Security)
+- [x] **PLG-05**: `plugins/shopbot_plugin_target.py` — availability check; checkout labeled experimental (Akamai blocks headless Selenium consistently)
+- [x] **PLG-06**: `plugins/shopbot_plugin_gamestop.py` — availability check + auto-buy; CAPTCHA on checkout documented
 - [ ] **PLG-07**: `plugins/shopbot_plugin_squareenix.py` — availability check + auto-buy
 - [ ] **PLG-08**: `plugins/shopbot_plugin_newegg.py` — availability check + auto-buy
 
@@ -116,9 +116,9 @@
 | PLG-01 | Phase 2 — Plugin Migration | Complete |
 | PLG-02 | Phase 2 — Plugin Migration | Complete |
 | PLG-03 | Phase 2 — Plugin Migration | Complete |
-| PLG-04 | Phase 6 — Platform Expansion | Pending |
-| PLG-05 | Phase 6 — Platform Expansion | Pending |
-| PLG-06 | Phase 6 — Platform Expansion | Pending |
+| PLG-04 | Phase 6 — Platform Expansion | Complete |
+| PLG-05 | Phase 6 — Platform Expansion | Complete |
+| PLG-06 | Phase 6 — Platform Expansion | Complete |
 | PLG-07 | Phase 6 — Platform Expansion | Pending |
 | PLG-08 | Phase 6 — Platform Expansion | Pending |
 | ASYNC-01 | Phase 4 — Async Orchestrator | Complete |
