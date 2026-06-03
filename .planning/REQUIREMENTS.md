@@ -6,8 +6,8 @@
 
 - [x] **CORE-01**: Plugin base class (ABC) defines `check_availability(url) → bool`, `auto_buy(driver, url, config) → bool`, `login(driver, config) → None`, `detect_captcha(driver) → bool`
 - [x] **CORE-02**: `PLUGIN_API_VERSION = 1` constant exported from plugin base; default no-op implementations for `login` and `detect_captcha` so plugins can be check-only
-- [ ] **CORE-03**: Plugin registry auto-discovers `shopbot_plugin_*.py` files in `plugins/` at startup via `importlib`; logs warning for non-matching `.py` files
-- [ ] **CORE-04**: Plugin registry routes item URLs to correct plugin via `domain_pattern` attribute on each plugin class
+- [x] **CORE-03**: Plugin registry auto-discovers `shopbot_plugin_*.py` files in `plugins/` at startup via `importlib`; logs warning for non-matching `.py` files
+- [x] **CORE-04**: Plugin registry routes item URLs to correct plugin via `domain_pattern` attribute on each plugin class
 - [x] **CORE-05**: Pydantic `AppConfig` validates `config.yml` at startup; startup fails with actionable error messages on missing/invalid fields
 - [x] **CORE-06**: Config schema supports flat per-platform credential sections (`platforms.amazon.email`, `platforms.bestbuy.cvv`, etc.)
 - [x] **CORE-07**: Config migration warnings emitted when old `app.amz_email` / `app.bb_email` keys are detected, guiding user to new schema
@@ -101,8 +101,8 @@
 |-------------|-------|--------|
 | CORE-01 | Phase 1 — Foundations + Security | Complete |
 | CORE-02 | Phase 1 — Foundations + Security | Complete |
-| CORE-03 | Phase 2 — Plugin Migration | Pending |
-| CORE-04 | Phase 2 — Plugin Migration | Pending |
+| CORE-03 | Phase 2 — Plugin Migration | Complete |
+| CORE-04 | Phase 2 — Plugin Migration | Complete |
 | CORE-05 | Phase 1 — Foundations + Security | Complete |
 | CORE-06 | Phase 1 — Foundations + Security | Complete |
 | CORE-07 | Phase 1 — Foundations + Security | Complete |

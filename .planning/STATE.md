@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase complete — ready for verification
-last_updated: "2026-06-03T00:14:25.631Z"
+last_updated: "2026-06-03T00:24:49.700Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 8
   percent: 17
 ---
 
@@ -109,6 +109,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 01 P04 | 8min | 3 tasks | 3 files |
 | Phase 01 P05 | 11min | 3 tasks | 4 files |
 | Phase 02-plugin-migration P01 | 207 | 2 tasks | 2 files |
+| Phase 02-plugin-migration P03 | 20m | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -121,3 +122,4 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: Credentials sourced from env vars (BB_EMAIL/BB_PASSWORD); CVV via runtime getpass, never persisted or logged
 - [Phase ?]: open_browser hardcoded False pending AppConfig relocation (app block removed for SEC-01)
 - [Phase ?]: pytest-asyncio 1.3.0 with asyncio_mode=auto: no decorators needed on plain async def test_ functions
+- [Phase ?]: _route_all routes against _all_plugins to enable lazy-launch before active list is populated
