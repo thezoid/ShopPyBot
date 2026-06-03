@@ -79,7 +79,12 @@ Plans:
   3. Submitting a bug report or plugin request via GitHub Issues presents a pre-filled template with the required fields
   4. Opening a pull request presents a checklist covering ABC compliance, naming convention, test presence, and risk documentation
 
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+
+- [ ] 03-01-PLAN.md — Governance prose docs: SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md (DOCS-01, DOCS-02, DOCS-03)
+- [ ] 03-02-PLAN.md — GitHub templates: PR template + bug/plugin issue forms + ISSUE_TEMPLATE config (DOCS-04, DOCS-05)
+
 **UI hint**: no
 
 ### Phase 4: Async Orchestrator
@@ -134,7 +139,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
-| 3. Community Documentation | 0/? | Not started | - |
+| 3. Community Documentation | 0/2 | Planned | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |
 | 6. Platform Expansion | 0/? | Not started | - |
@@ -194,4 +199,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-04-19 — roadmap initialized*
+*Last updated: 2026-06-03 — Phase 3 planned (2 plans)*
