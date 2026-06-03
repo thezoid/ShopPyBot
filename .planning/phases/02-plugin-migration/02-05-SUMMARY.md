@@ -74,9 +74,19 @@ None.
 
 No new network endpoints, auth paths, or schema changes beyond what the plan specifies. T-02-12 (CVV in-memory threading) and T-02-15 (Selenium re-introduction prevention) are both closed: `grep` confirms no `webdriver.Chrome`, `execute_cdp_cmd`, or selenium imports in main.py.
 
-## Checkpoint: Awaiting Human Verification
+## Checkpoint: Human Verification — PASSED (live run by orchestrator)
 
-Task 2 is a `checkpoint:human-verify` gate. The live async cold-start (registry discovery, lazy Chrome launch, sequential item check, clean Ctrl-C teardown, CVV pre-loop, no credential leakage) cannot be exercised in the unit suite and requires a real Chrome session.
+Task 2 (`checkpoint:human-verify`) was executed as a live async cold-start on 2026-06-02 (config.yml: Amazon items, test_mode true). Observed:
+- `Starting main function` then async loop entry — no Selenium/chromedriver/webdriver_manager log lines at all.
+- Registry discovery live: `plugins/example_plugin.py does not match shopbot_plugin_*.py -- ignoring` (CORE-03 warn+ignore confirmed at runtime).
+- nodriver launched a real Chrome (stderr shows nodriver `starting` with a `uc_*` temp profile), not Selenium.
+- `Starting new iteration of item checks` → AmazonPlugin checked each Amazon item sequentially (D-03), logging availability ("not available"). Only the Amazon plugin launched a browser (lazy launch — no BestBuy items configured, no BestBuy browser).
+- Leakage grep over the run output for selenium/chromedriver/webdriver_manager/execute_cdp: empty.
+- No credentials or CVV appeared in console output or logs.
+
+Caveats: the process was force-killed (not a graceful Ctrl-C), so the `finally` teardown path was not exercised in this run; the CVV getpass gate was not triggered (test_mode true, Amazon-only) but is unchanged from the Phase-1-verified path and present in code. A graceful-shutdown + BestBuy-CVV live check remain as optional manual confirmations.
+
+Verdict: async migration verified working end-to-end live. Checkpoint satisfied.
 
 ## Self-Check
 
