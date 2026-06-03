@@ -46,9 +46,9 @@
 
 ### Anti-Detection
 
-- [ ] **ANTI-01**: Per-platform configurable check interval with random jitter (`min_delay`, `max_delay` in config per platform)
-- [ ] **ANTI-02**: Rotating user agent strings drawn from a configurable list
-- [ ] **ANTI-03**: Headless mode toggle per platform in config (`headless: true/false`)
+- [x] **ANTI-01**: Per-platform configurable check interval with random jitter (`min_delay`, `max_delay` in config per platform)
+- [x] **ANTI-02**: Rotating user agent strings drawn from a configurable list
+- [x] **ANTI-03**: Headless mode toggle per platform in config (`headless: true/false`)
 
 ### Notifications
 
@@ -126,9 +126,9 @@
 | ASYNC-03 | Phase 4 — Async Orchestrator | Complete |
 | ASYNC-04 | Phase 4 — Async Orchestrator | Complete |
 | ASYNC-05 | Phase 4 — Async Orchestrator | Complete |
-| ANTI-01 | Phase 6 — Platform Expansion | Pending |
-| ANTI-02 | Phase 6 — Platform Expansion | Pending |
-| ANTI-03 | Phase 6 — Platform Expansion | Pending |
+| ANTI-01 | Phase 6 — Platform Expansion | Complete |
+| ANTI-02 | Phase 6 — Platform Expansion | Complete |
+| ANTI-03 | Phase 6 — Platform Expansion | Complete |
 | NOTIF-01 | Phase 5 — Notification System | Complete |
 | NOTIF-02 | Phase 5 — Notification System | Complete |
 | NOTIF-03 | Phase 5 — Notification System | Complete |
