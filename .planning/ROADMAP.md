@@ -13,7 +13,7 @@
 - [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source (completed 2026-06-02)
 - [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published (completed 2026-06-03)
 - [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors (completed 2026-06-03)
-- [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
+- [x] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop (completed 2026-06-03)
 - [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
 - [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
 
@@ -106,7 +106,7 @@ Plans:
 - [x] 04-02-PLAN.md — SQLite WAL context manager + *_sync functions + concurrent-write stress proxy (ASYNC-04, ASYNC-05)
 - [x] 04-03-PLAN.md — Orchestrator: TaskGroup + 1.5s stagger + write-queue drain + stdin listener (ASYNC-01, ASYNC-02, ASYNC-05)
 - [x] 04-04-PLAN.md — Replace 5 Amazon input() with asyncio.Event; remove direct DB writes (ASYNC-03, ASYNC-05)
-- [ ] 04-05-PLAN.md — main.py wiring to orchestrator + live concurrency/zero-lock human-verify (ASYNC-01..05)
+- [x] 04-05-PLAN.md — main.py wiring to orchestrator + live concurrency/zero-lock human-verify (ASYNC-01..05)
 
 ### Phase 5: Notification System
 
@@ -147,7 +147,7 @@ Plans:
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
-| 4. Async Orchestrator | 4/5 | In Progress|  |
+| 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
 | 5. Notification System | 0/? | Not started | - |
 | 6. Platform Expansion | 0/? | Not started | - |
 
