@@ -43,6 +43,19 @@ def initialize_db(delete=False):
                 purchased BOOLEAN NOT NULL DEFAULT 0
             )
         ''')
+        # Idempotent column additions: read existing columns first, add only if absent.
+        existing = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(items)").fetchall()
+        }
+        if "last_seen_available" not in existing:
+            conn.execute(
+                "ALTER TABLE items ADD COLUMN last_seen_available INTEGER NOT NULL DEFAULT 0"
+            )
+        if "last_notified" not in existing:
+            conn.execute(
+                "ALTER TABLE items ADD COLUMN last_notified TEXT"
+            )
 
 
 def get_items_sync():
@@ -72,6 +85,36 @@ def add_items_sync(items):
                     " VALUES (?, ?, ?, ?, ?)",
                     item,
                 )
+
+
+def get_item_notification_state_sync(link: str) -> tuple[bool, str | None]:
+    """Return (last_seen_available as bool, last_notified) for dedup checks (NOTIF-02)."""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT last_seen_available, last_notified FROM items WHERE link=?",
+            (link,),
+        ).fetchone()
+    if row is None:
+        return False, None
+    return bool(row[0]), row[1]
+
+
+def set_item_available_sync(link: str, notified_at: str) -> None:
+    """Set last_seen_available=1 and last_notified=notified_at for rising-edge dedup (NOTIF-02)."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET last_seen_available=1, last_notified=? WHERE link=?",
+            (notified_at, link),
+        )
+
+
+def clear_item_available_sync(link: str) -> None:
+    """Set last_seen_available=0 (item went out of stock); preserve last_notified (NOTIF-02)."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET last_seen_available=0 WHERE link=?",
+            (link,),
+        )
 
 
 # Legacy names kept for backward compatibility (existing tests and imports).
