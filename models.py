@@ -1,60 +1,89 @@
-import sqlite3
+import contextlib
 import os
+import sqlite3
 
 DB_PATH = os.path.join('data', 'shop_py_bot.db')
+
+
+@contextlib.contextmanager
+def get_db_connection():
+    """Open a WAL-enabled connection, yield it, commit/rollback, close.
+
+    PRAGMA sequence (ASYNC-04, exact order required):
+      journal_mode=WAL    -- readers never block writers under concurrent polling
+      busy_timeout=5000   -- retry for up to 5s on write-lock contention
+      synchronous=NORMAL  -- safe with WAL; better throughput than FULL
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=5)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 
 def initialize_db(delete=False):
     if delete and os.path.exists(DB_PATH):
         os.remove(DB_PATH)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS items (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            link TEXT NOT NULL UNIQUE,
-            auto_buy BOOLEAN NOT NULL,
-            quantity INTEGER NOT NULL,
-            purchased BOOLEAN NOT NULL DEFAULT 0
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    with get_db_connection() as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS items (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                link TEXT NOT NULL UNIQUE,
+                auto_buy BOOLEAN NOT NULL,
+                quantity INTEGER NOT NULL,
+                purchased BOOLEAN NOT NULL DEFAULT 0
+            )
+        ''')
 
-def add_items(items):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    for item in items:
-        cursor.execute('''
-            SELECT COUNT(*) FROM items WHERE link = ?
-        ''', (item[1],))
-        if cursor.fetchone()[0] == 0:
-            cursor.execute('''
-                INSERT INTO items (name, link, auto_buy, quantity, purchased)
-                VALUES (?, ?, ?, ?, ?)
-            ''', item)
-    conn.commit()
-    conn.close()
 
-def update_item_purchased(link):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE items
-        SET purchased = 1
-        WHERE link = ?
-    ''', (link,))
-    conn.commit()
-    conn.close()
+def get_items_sync():
+    """Return all items as a list of (name, link, auto_buy, quantity, purchased)."""
+    with get_db_connection() as conn:
+        return conn.execute(
+            "SELECT name, link, auto_buy, quantity, purchased FROM items"
+        ).fetchall()
+
+
+def update_item_purchased_sync(link):
+    """Set purchased=1 for the item with the given link."""
+    with get_db_connection() as conn:
+        conn.execute("UPDATE items SET purchased=1 WHERE link=?", (link,))
+
+
+def add_items_sync(items):
+    """Insert items that are not already present (unique by link)."""
+    with get_db_connection() as conn:
+        for item in items:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM items WHERE link=?", (item[1],)
+            ).fetchone()[0]
+            if count == 0:
+                conn.execute(
+                    "INSERT INTO items (name, link, auto_buy, quantity, purchased)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    item,
+                )
+
+
+# Legacy names kept for backward compatibility (existing tests and imports).
+# Single source of truth: body lives in the _sync functions above.
 
 def get_items():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT name, link, auto_buy, quantity, purchased
-        FROM items
-    ''')
-    items = cursor.fetchall()
-    conn.close()
-    return items
+    return get_items_sync()
+
+
+def update_item_purchased(link):
+    return update_item_purchased_sync(link)
+
+
+def add_items(items):
+    return add_items_sync(items)
