@@ -6,6 +6,8 @@ logs/*
 .DS_Store
 /config.yml
 data/*
+data/*.db-wal
+data/*.db-shm
 pytest-cache*
 
 # Byte-compiled / optimized / DLL files
