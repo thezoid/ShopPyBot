@@ -7,13 +7,13 @@ Credentials are sourced exclusively from environment variables (SEC-01):
 Neither value is ever logged, stored to disk, or written to config.yml.
 """
 
+import asyncio
 import os
 
 import nodriver
 
 from core.plugin_base import RetailerPlugin
 from logger import writeLog
-from models import update_item_purchased
 from utils import play_notification_sound
 
 
@@ -21,6 +21,35 @@ class AmazonPlugin(RetailerPlugin):
     """Amazon platform plugin; owns one isolated nodriver Browser process."""
 
     domain_patterns = ["amazon.com", "amazon.co.uk", "amazon.ca"]
+
+    def __init__(self, config) -> None:
+        super().__init__(config)
+        # One Event per distinct intervention type (ASYNC-03).
+        # asyncio.Event() is safe to create before loop start in Python 3.10+.
+        self.captcha_event: asyncio.Event = asyncio.Event()
+        self.passkey_event: asyncio.Event = asyncio.Event()
+        self.otp_event: asyncio.Event = asyncio.Event()
+        self.test_pause_event: asyncio.Event = asyncio.Event()
+
+    async def _wait_user_action(self, event: asyncio.Event, message: str) -> None:
+        """Notify user, await their Enter, clear the event for reuse (ASYNC-03).
+
+        Plays alert sound and logs the message, then awaits the event with a
+        5-minute unattended guard. On timeout, logs and continues. Always clears
+        the event in finally so the next poll cycle genuinely re-waits (Pitfall 7).
+        Security: never reads, echoes, or stores any typed text (T-04-13).
+        """
+        play_notification_sound()
+        writeLog(message, "WARNING")
+        try:
+            await asyncio.wait_for(event.wait(), timeout=300)
+        except asyncio.TimeoutError:
+            writeLog(
+                "User action timed out (300s) -- continuing without intervention",
+                "WARNING",
+            )
+        finally:
+            event.clear()
 
     async def setup(self) -> None:
         # nodriver.start() MUST be awaited from async context.
@@ -49,15 +78,14 @@ class AmazonPlugin(RetailerPlugin):
         """Return True if the item at url has an add-to-cart or buy-now button."""
         writeLog(f"Checking Amazon availability: {url}", "DEBUG")
         try:
-            # Always navigate; skip the current_url guard (RESEARCH Open Question 1).
             tab = await self.driver.get(url)
 
             captcha_present = await self.detect_captcha()
             if captcha_present:
-                writeLog("CAPTCHA detected. Please solve it manually.", "WARNING")
-                play_notification_sound()
-                # Phase 4 (ASYNC-03): replace input() with asyncio.Event notification.
-                input("--------------------\nPress Enter after solving the CAPTCHA...\n--------------------\n")
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "CAPTCHA detected on Amazon. Solve it in the browser, then press Enter.",
+                )
 
             writeLog("Waiting for add-to-cart or buy-now button", "DEBUG")
             add_to_cart = await tab.select("#add-to-cart-button", timeout=10)
@@ -108,9 +136,10 @@ class AmazonPlugin(RetailerPlugin):
                 await continue_btn.click()
 
             # Passkey prompt: user must dismiss manually before we can enter password.
-            play_notification_sound()
-            # Phase 4 (ASYNC-03): replace input() with asyncio.Event notification.
-            input("Press enter once you dismiss the passkey prompt...")
+            await self._wait_user_action(
+                self.passkey_event,
+                "Amazon passkey prompt visible. Dismiss it in the browser, then press Enter.",
+            )
 
             writeLog("Attempting to enter password", "INFO")
             password_field = await tab.select("#ap_password", timeout=10)
@@ -130,21 +159,25 @@ class AmazonPlugin(RetailerPlugin):
             writeLog("Checking for MFA prompt", "INFO")
             mfa_form = await tab.select("#auth-mfa-form", timeout=10)
             if mfa_form:
-                writeLog("MFA prompt detected. Please enter the OTP manually.", "WARNING")
-                play_notification_sound()
-                # Phase 4 (ASYNC-03): replace input() with asyncio.Event notification.
-                input("Press Enter after entering the OTP...")
+                await self._wait_user_action(
+                    self.otp_event,
+                    "MFA/OTP prompt detected. Enter your code in the browser, then press Enter.",
+                )
 
             writeLog("Signed in to Amazon", "INFO")
         except Exception as exc:
             writeLog(f"Error during Amazon sign-in: {exc}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
-        """Attempt to purchase the item at url. Returns True on success."""
+        """Attempt to purchase the item at url. Returns True on success.
+
+        ASYNC-05: does NOT call update_item_purchased directly. The orchestrator's
+        write queue owns the sole write path; auto_buy returns True on success and
+        the orchestrator enqueues the DB write.
+        """
         writeLog(f"Entering auto_buy for Amazon: {url}", "DEBUG")
         await self.login()
         try:
-            # Always navigate to the item page (skip current_url guard per Open Question 1).
             tab = await self.driver.get(url)
 
             # Resolve quantity from config items by matching url; default to 1.
@@ -172,8 +205,10 @@ class AmazonPlugin(RetailerPlugin):
             test_mode = self.config.debug.test_mode if self.config else True
             if test_mode:
                 writeLog("Test mode active: pausing before buy-now", "DEBUG")
-                # Phase 4 (ASYNC-03): replace input() with asyncio.Event notification.
-                input("Press Enter to continue...")
+                await self._wait_user_action(
+                    self.test_pause_event,
+                    "TEST MODE: review the browser, then press Enter to continue.",
+                )
 
             writeLog("Attempting to find buy-now button", "INFO")
             buy_now = await tab.select("#buy-now-button", timeout=10)
@@ -191,15 +226,16 @@ class AmazonPlugin(RetailerPlugin):
             if not test_mode:
                 await place_order.click()
                 writeLog("Order placed on Amazon", "SUCCESS")
-                update_item_purchased(url)
                 return True
             else:
                 writeLog(
                     "Test mode active: skipping submitOrderButton click",
                     "SUCCESS",
                 )
-                # Phase 4 (ASYNC-03): replace input() with asyncio.Event notification.
-                input("Press Enter to continue...")
+                await self._wait_user_action(
+                    self.test_pause_event,
+                    "TEST MODE: order review complete. Press Enter to continue.",
+                )
                 return False
         except Exception as exc:
             writeLog(f"Error during Amazon auto-buy: {exc}", "ERROR")

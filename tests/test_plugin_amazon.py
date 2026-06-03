@@ -235,8 +235,9 @@ async def test_wait_user_action_clears_event_after_resume():
     event = plugin.captcha_event
     event.set()  # pre-set so wait_for returns immediately
 
-    with patch("plugins.shopbot_plugin_amazon.play_notification_sound"), \
-         patch("plugins.shopbot_plugin_amazon.writeLog"):
+    # Use patch.object on the importlib-loaded module (not string import path).
+    with patch.object(_amazon_module, "play_notification_sound"), \
+         patch.object(_amazon_module, "writeLog"):
         await plugin._wait_user_action(event, "test message")
 
     assert not event.is_set(), "Event must be cleared after _wait_user_action returns"
@@ -244,19 +245,22 @@ async def test_wait_user_action_clears_event_after_resume():
 
 @pytest.mark.asyncio
 async def test_wait_user_action_timeout_does_not_raise():
-    """_wait_user_action must log and continue (not raise) on 300s timeout."""
+    """_wait_user_action must log and continue (not raise) on 300s timeout.
+
+    Patches asyncio.wait_for on the plugin module object to raise TimeoutError
+    immediately, verifying the exception is caught and does not propagate.
+    """
     plugin = AmazonPlugin(config=None)
-    event = asyncio.Event()  # never set -> will time out
+    event = asyncio.Event()  # never set
 
-    with patch("plugins.shopbot_plugin_amazon.play_notification_sound"), \
-         patch("plugins.shopbot_plugin_amazon.writeLog"), \
-         patch("plugins.shopbot_plugin_amazon.asyncio") as mock_asyncio:
-        # Mock asyncio.wait_for to raise TimeoutError immediately
-        mock_asyncio.wait_for = AsyncMock(side_effect=asyncio.TimeoutError())
-        mock_asyncio.TimeoutError = asyncio.TimeoutError
-        mock_asyncio.Event = asyncio.Event
+    async def _fast_timeout(coro, timeout):
+        # Close the coroutine we won't await to avoid ResourceWarning.
+        coro.close()
+        raise asyncio.TimeoutError()
 
-        # Should not raise -- timeout is caught internally
+    with patch.object(_amazon_module.asyncio, "wait_for", _fast_timeout), \
+         patch.object(_amazon_module, "play_notification_sound"), \
+         patch.object(_amazon_module, "writeLog"):
         try:
             await plugin._wait_user_action(event, "test")
         except asyncio.TimeoutError:
