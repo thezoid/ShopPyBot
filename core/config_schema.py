@@ -5,7 +5,7 @@ import threading
 import warnings
 from pathlib import Path
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -15,6 +15,16 @@ from pydantic_settings import (
 
 # Absolute path to config.yml — avoids CWD-relative default (RESEARCH Pitfall 2)
 _DEFAULT_YAML_PATH: Path = Path(__file__).parent.parent / "config.yml"
+
+# Global default UA pool (ANTI-02): plugins fall back to this when platform
+# user_agents list is empty.  Non-secret cosmetic config; update freely.
+DEFAULT_USER_AGENTS: list[str] = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+]
 
 _LEGACY_KEYS = {
     "app": ["amz_email", "amz_pwd", "bb_email", "bb_password", "bb_cvv"]
@@ -47,18 +57,82 @@ class DebugConfig(BaseModel):
 
 
 class AmazonPlatformConfig(BaseModel):
+    # NOTE: Amazon/BestBuy use delay_seconds/delay_jitter (legacy field names).
+    # The five Phase-6 platforms use min_delay/max_delay instead.
+    # This naming difference is intentional -- harmonization is deferred (out of Phase-6 scope).
     delay_seconds: float = 30.0
     delay_jitter: float = 10.0
+    # SC3: declared field so extra="ignore" does not silently drop it from YAML.
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
 
 
 class BestBuyPlatformConfig(BaseModel):
+    # NOTE: see AmazonPlatformConfig comment above on delay field naming.
     delay_seconds: float = 30.0
     delay_jitter: float = 10.0
+    # SC3: declared field so extra="ignore" does not silently drop it from YAML.
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
+
+
+class WalmartPlatformConfig(BaseModel):
+    """Per-platform anti-detection config for Walmart (ANTI-01/02/03)."""
+
+    min_delay: float = Field(default=8.0, ge=0.0)   # ANTI-01: jitter lower bound
+    max_delay: float = Field(default=15.0, ge=0.0)  # ANTI-01: jitter upper bound
+    headless: bool = True                            # ANTI-03: per-platform headless toggle
+    user_agents: list[str] = Field(default_factory=list)  # ANTI-02: empty = global default pool
+
+
+class TargetPlatformConfig(BaseModel):
+    """Per-platform anti-detection config for Target (ANTI-01/02/03)."""
+
+    min_delay: float = Field(default=8.0, ge=0.0)
+    max_delay: float = Field(default=15.0, ge=0.0)
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
+
+
+class GameStopPlatformConfig(BaseModel):
+    """Per-platform anti-detection config for GameStop (ANTI-01/02/03)."""
+
+    min_delay: float = Field(default=8.0, ge=0.0)
+    max_delay: float = Field(default=15.0, ge=0.0)
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
+
+
+class SquareEnixPlatformConfig(BaseModel):
+    """Per-platform anti-detection config for Square Enix (ANTI-01/02/03).
+
+    Config key: platforms.squareenix (no underscore) -- matches plugin platform_key="squareenix".
+    """
+
+    min_delay: float = Field(default=8.0, ge=0.0)
+    max_delay: float = Field(default=15.0, ge=0.0)
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
+
+
+class NeweggPlatformConfig(BaseModel):
+    """Per-platform anti-detection config for NewEgg (ANTI-01/02/03)."""
+
+    min_delay: float = Field(default=8.0, ge=0.0)
+    max_delay: float = Field(default=15.0, ge=0.0)
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
 
 
 class PlatformsConfig(BaseModel):
     amazon: AmazonPlatformConfig = AmazonPlatformConfig()
     bestbuy: BestBuyPlatformConfig = BestBuyPlatformConfig()
+    walmart: WalmartPlatformConfig = WalmartPlatformConfig()
+    target: TargetPlatformConfig = TargetPlatformConfig()
+    gamestop: GameStopPlatformConfig = GameStopPlatformConfig()
+    # squareenix (no underscore): matches plugin platform_key and YAML key (RESEARCH Pitfall 4)
+    squareenix: SquareEnixPlatformConfig = SquareEnixPlatformConfig()
+    newegg: NeweggPlatformConfig = NeweggPlatformConfig()
 
 
 class AppSettingsConfig(BaseModel):
