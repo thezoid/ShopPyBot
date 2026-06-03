@@ -99,7 +99,14 @@ Plans:
   3. No `input()` calls exist anywhere in the async code path; user intervention (e.g., manual CAPTCHA solve) is communicated via `asyncio.Event` notification
   4. Sustained parallel operation for 60+ minutes on two platforms produces zero `database is locked` SQLite errors; all `update_item_purchased()` calls succeed
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+
+- [ ] 04-01-PLAN.md — Wave 0: poll_interval config field + fake_plugin/Event test fixtures (ASYNC-01, ASYNC-02, ASYNC-03, ASYNC-05)
+- [ ] 04-02-PLAN.md — SQLite WAL context manager + *_sync functions + concurrent-write stress proxy (ASYNC-04, ASYNC-05)
+- [ ] 04-03-PLAN.md — Orchestrator: TaskGroup + 1.5s stagger + write-queue drain + stdin listener (ASYNC-01, ASYNC-02, ASYNC-05)
+- [ ] 04-04-PLAN.md — Replace 5 Amazon input() with asyncio.Event; remove direct DB writes (ASYNC-03, ASYNC-05)
+- [ ] 04-05-PLAN.md — main.py wiring to orchestrator + live concurrency/zero-lock human-verify (ASYNC-01..05)
 
 ### Phase 5: Notification System
 
@@ -140,7 +147,7 @@ Plans:
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
-| 4. Async Orchestrator | 0/? | Not started | - |
+| 4. Async Orchestrator | 0/5 | Planned | - |
 | 5. Notification System | 0/? | Not started | - |
 | 6. Platform Expansion | 0/? | Not started | - |
 
@@ -199,4 +206,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-06-03 — Phase 3 planned (2 plans)*
+*Last updated: 2026-06-03 — Phase 4 planned (5 plans)*

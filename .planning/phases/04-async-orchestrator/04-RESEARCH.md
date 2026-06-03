@@ -840,7 +840,9 @@ def test_no_input_in_async_paths():
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved in the plans: Q1 poll_interval added at cfg.app.poll_interval (Plan 04-01); Q2 asyncio.Event attrs on AmazonPlugin only (Plan 04-04); Q3 pytest-asyncio already in requirements (no add).
 
 1. **poll_interval config key location**
    - What we know: `cfg.app` is an AppConfig Pydantic model; current config has no
