@@ -11,7 +11,7 @@
 ## Phases
 
 - [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source (completed 2026-06-02)
-- [ ] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published
+- [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published (completed 2026-06-03)
 - [ ] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
 - [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
 - [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
@@ -62,7 +62,7 @@ Plans:
 - [x] 02-02-PLAN.md — Revise RetailerPlugin ABC v1 to v2 (async, self.driver, setup/teardown, version 2)
 - [x] 02-03-PLAN.md — Plugin registry: importlib discovery + domain routing + lazy lifecycle (CORE-03, CORE-04)
 - [x] 02-04-PLAN.md — Amazon + BestBuy nodriver plugins; PLG-02 update_item_purchased fix (PLG-01, PLG-02, PLG-03)
-- [ ] 02-05-PLAN.md — main.py async conversion: registry-driven loop, Selenium/CDP removal, CVV threading
+- [x] 02-05-PLAN.md — main.py async conversion: registry-driven loop, Selenium/CDP removal, CVV threading
 - [x] 02-06-PLAN.md — Contributor tooling: example_plugin.py + PLUGIN_DEV.md (CORE-08)
 
 **UI hint**: no
@@ -133,7 +133,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
-| 2. Plugin Migration | 5/6 | In Progress|  |
+| 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |

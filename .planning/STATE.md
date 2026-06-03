@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase complete — ready for verification
-last_updated: "2026-06-03T00:40:08.391Z"
+last_updated: "2026-06-03T00:45:49.408Z"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 10
-  percent: 17
+  completed_plans: 11
+  percent: 33
 ---
 
 # ShopPyBot — State
@@ -112,6 +112,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 02-plugin-migration P03 | 20m | 2 tasks | 2 files |
 | Phase 02-plugin-migration P04 | 20min | 2 tasks | 4 files |
 | Phase 02-plugin-migration P06 | 15 | 2 tasks | 3 files |
+| Phase 02-plugin-migration P05 | 10 | 1 tasks | 1 files |
 
 ## Decisions
 
@@ -125,3 +126,4 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: open_browser hardcoded False pending AppConfig relocation (app block removed for SEC-01)
 - [Phase ?]: pytest-asyncio 1.3.0 with asyncio_mode=auto: no decorators needed on plain async def test_ functions
 - [Phase ?]: _route_all routes against _all_plugins to enable lazy-launch before active list is populated
+- [Phase ?]: D-02 closed: nodriver handles stealth architecturally; Selenium imports gone
