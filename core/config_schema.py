@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 import warnings
 from pathlib import Path
@@ -70,6 +71,55 @@ class AppSettingsConfig(BaseModel):
     poll_interval: int = 30
 
 
+class DiscordConfig(BaseModel):
+    """Discord webhook notification config. Webhook URL is env-only (DISCORD_WEBHOOK_URL)."""
+
+    enabled: bool = False
+
+
+class EmailConfig(BaseModel):
+    """Email/SMTP notification config. SMTP password is env-only (SMTP_PASSWORD)."""
+
+    enabled: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_ssl: bool = False
+    sender: str = ""
+    smtp_username: str = ""  # defaults to sender when empty (per RESEARCH Open Question 1)
+    recipients: list[str] = []
+
+
+class SmsConfig(BaseModel):
+    """SMS/Twilio notification config. Credentials are env-only (TWILIO_*)."""
+
+    enabled: bool = False
+    to_number: str = ""  # recipient; From number is TWILIO_FROM env var
+
+    @model_validator(mode="after")
+    def require_creds_if_enabled(self) -> "SmsConfig":
+        """Gate: sms.enabled=true without TWILIO_* env vars raises at startup (NOTIF-06)."""
+        if self.enabled:
+            missing = [
+                v for v in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM")
+                if not os.environ.get(v)
+            ]
+            if missing:
+                raise ValueError(
+                    f"notifications.sms.enabled=true requires environment variables: "
+                    f"{', '.join(missing)}"
+                )
+        return self
+
+
+class NotificationsConfig(BaseModel):
+    """Notification channel config. Sound is on by default; all network channels off."""
+
+    sound: bool = True
+    discord: DiscordConfig = DiscordConfig()
+    email: EmailConfig = EmailConfig()
+    sms: SmsConfig = SmsConfig()
+
+
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
@@ -85,6 +135,7 @@ class AppConfig(BaseSettings):
     available: AvailableConfig = AvailableConfig()
     platforms: PlatformsConfig = PlatformsConfig()
     app: AppSettingsConfig = AppSettingsConfig()
+    notifications: NotificationsConfig = NotificationsConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)
