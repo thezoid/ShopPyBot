@@ -56,7 +56,7 @@
 - [x] **NOTIF-02**: Deduplication: one notification per item per restock event — not one per poll cycle; SQLite tracks `last_notified` timestamp per item
 - [x] **NOTIF-03**: Sound notifier wraps existing `play_available_sound()` / `play_buy_sound()` / `play_notification_sound()`
 - [x] **NOTIF-04**: Discord webhook notifier posts standardized embed (item name, URL, platform, timestamp, action taken)
-- [ ] **NOTIF-05**: Email/SMTP notifier sends alert on stock detection; configurable sender/recipient in config
+- [x] **NOTIF-05**: Email/SMTP notifier sends alert on stock detection; configurable sender/recipient in config
 - [x] **NOTIF-06**: SMS/Twilio notifier (opt-in only; disabled by default to avoid accidental charges)
 
 ### Infrastructure
@@ -133,7 +133,7 @@
 | NOTIF-02 | Phase 5 — Notification System | Complete |
 | NOTIF-03 | Phase 5 — Notification System | Complete |
 | NOTIF-04 | Phase 5 — Notification System | Complete |
-| NOTIF-05 | Phase 5 — Notification System | Pending |
+| NOTIF-05 | Phase 5 — Notification System | Complete |
 | NOTIF-06 | Phase 5 — Notification System | Complete |
 | INFRA-01 | Phase 1 — Foundations + Security | Complete |
 | INFRA-02 | Phase 1 — Foundations + Security | Complete |
