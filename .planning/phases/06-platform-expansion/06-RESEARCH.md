@@ -57,7 +57,7 @@
 
 Phase 6 adds five new plugins and extends the config schema with three anti-detection knobs per platform. The work splits into two independent tracks: (1) five plugin files that are purely additive (no core changes, only drop-ins to `plugins/`), and (2) changes to `core/config_schema.py`, `core/orchestrator.py`, and plugin `setup()` methods to wire up jitter, headless, and UA rotation.
 
-The nodriver API for headless and user-agent override is verified from the installed 0.50.3 source. Headless is a first-class parameter to `nodriver.start()` and to `nodriver.core.config.Config`. User-agent override is a CDP call (`cdp.network.set_user_agent_override`) issued from the tab context after the browser is open; nodriver itself does not expose a UA parameter at the `start()` level -- the approach is to send the CDP command once per new tab, mirroring nodriver's own internal `_prepare_headless` pattern.
+The nodriver API for headless and user-agent override is verified from the installed 0.50.3 source. Headless is a first-class parameter to `nodriver.start()` and to `nodriver.core.config.Config`. For user-agent: the CHOSEN approach (Pattern 4 Option A, which the plans implement) is to pass `browser_args=["--user-agent=<ua>"]` to `nodriver.start()` -- `--user-agent` is NOT in nodriver's blocked-argument list, so it passes through cleanly at launch. A CDP call (`cdp.network.set_user_agent_override`) issued from the tab context is a VALID alternative (Option B, mirroring nodriver's own internal `_prepare_headless` pattern) but is NOT used by these plans. See Pattern 4 below for both; Pattern 4 supersedes this summary line.
 
 The five domain targets are well-established retail sites. Walmart uses PerimeterX/HUMAN Security (confirmed MEDIUM via multiple scraping-service docs). Target uses Akamai Bot Manager (confirmed MEDIUM). GameStop has checkout CAPTCHA (LOW-MEDIUM, widely reported). Square Enix NA store and NewEgg have lighter protections ([ASSUMED] LOW-MEDIUM). Selector-level details for all five are UNVERIFIABLE from this environment and must carry `# TODO: verify selectors against live <site>` markers throughout.
 
@@ -667,7 +667,9 @@ _DEFAULT_USER_AGENTS = [
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> RESOLVED: (1) Do NOT harmonize Amazon/BestBuy delay fields to min/max this phase (out of scope). (2) Global default UA pool constant lives at config_schema.py module level (DEFAULT_USER_AGENTS). (3) Config attr name is `squareenix` (no underscore). (4) UA override uses browser_args (Pattern 4 Option A), not the CDP call. (5) SC3 explicitly names amazon.headless, so AmazonPlatformConfig AND BestBuyPlatformConfig also gain a headless flag and their plugins read it (added in the revised plan).
 
 1. **platform_key naming convention for `squareenix`**
    - What we know: Python attribute `platforms.squareenix` works as a single-word key.
