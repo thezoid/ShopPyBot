@@ -90,6 +90,22 @@ class PluginRegistry:
                 return plugin
         return None
 
+    def plugins_for_items(self, items) -> list[RetailerPlugin]:
+        """Return the subset of _all_plugins that match at least one item link.
+
+        Deduplicates by plugin identity (id()), preserving first-seen order.
+        Does NOT call setup() -- caller (orchestrator) staggers setup itself.
+        items: iterable of DB rows -- (name, link, auto_buy, quantity, purchased).
+        """
+        needed: list[RetailerPlugin] = []
+        seen: set[int] = set()
+        for item in items:
+            plugin = self._route_all(item[1])  # item[1] is the link
+            if plugin and id(plugin) not in seen:
+                needed.append(plugin)
+                seen.add(id(plugin))
+        return needed
+
     async def setup_for_items(self, items) -> None:
         """Await setup() only for plugins that have at least one matching item (D-09).
 
