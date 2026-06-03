@@ -387,6 +387,185 @@ async def test_event_wakes_coroutine(event_shim):
     await waiter_task
 
 
+# ---------------------------------------------------------------------------
+# Dedup edge-trigger wiring (Plan 05-05 Task 2)
+# ---------------------------------------------------------------------------
+
+
+def _make_detected_event(name="Widget", link="https://example.com/w", platform="FakePlugin"):
+    """Build a detected NotificationEvent for orchestrator dedup tests."""
+    from notifications.base import NotificationEvent
+    from datetime import datetime, timezone
+    return NotificationEvent(
+        item_name=name,
+        item_url=link,
+        platform=platform,
+        timestamp=datetime.now(timezone.utc),
+        action="detected",
+    )
+
+
+async def test_check_and_buy_notifies_on_rising_edge(fake_plugin, fake_notifier):
+    """_check_and_buy must call dispatcher.notify exactly once on unavailable->available."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    # Simulate: was_available=False (rising edge)
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue=queue, dispatcher=dispatcher)
+
+    assert len(notifier.events) == 1, "Exactly one notify on rising edge"
+    assert notifier.events[0].action == "detected"
+    # set_available tuple enqueued
+    items = []
+    while not queue.empty():
+        items.append(await queue.get())
+    assert any(isinstance(i, tuple) and i[0] == "set_available" for i in items)
+
+
+async def test_check_and_buy_suppresses_while_available(fake_plugin, fake_notifier):
+    """_check_and_buy must NOT call dispatcher.notify when item was already available."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    # Simulate: was_available=True (no edge - suppress)
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "2026-06-03T12:00:00Z")),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue=queue, dispatcher=dispatcher)
+
+    assert len(notifier.events) == 0, "No notify when already available (suppress)"
+
+
+async def test_check_and_buy_enqueues_clear_on_unavailable(fake_plugin, fake_notifier):
+    """_check_and_buy must enqueue clear_available when item goes unavailable from available."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=False)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    # was_available=True but now unavailable -> enqueue clear_available
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "2026-06-03T12:00:00Z")),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue=queue, dispatcher=dispatcher)
+
+    items = []
+    while not queue.empty():
+        items.append(await queue.get())
+    assert any(isinstance(i, tuple) and i[0] == "clear_available" for i in items)
+    assert len(notifier.events) == 0, "No notify on falling edge"
+
+
+async def test_check_and_buy_no_queue_when_unavailable_stays_unavailable(fake_plugin, fake_notifier):
+    """_check_and_buy must not enqueue anything when item stays unavailable."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=False)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue=queue, dispatcher=dispatcher)
+
+    assert queue.empty(), "No queue writes when unavailable stays unavailable"
+    assert len(notifier.events) == 0
+
+
+async def test_check_and_buy_purchase_dispatches_purchased_event(fake_plugin, fake_notifier):
+    """On successful auto_buy, dispatcher.notify must be called with action='purchased'."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(plugin, "Widget", link, auto_buy=True, write_queue=queue, dispatcher=dispatcher)
+
+    # At least one notify with action="detected" (rising edge) and one with action="purchased"
+    actions = [e.action for e in notifier.events]
+    assert "detected" in actions, "detected event must fire on rising edge"
+    assert "purchased" in actions, "purchased event must fire on successful auto_buy"
+
+    items = []
+    while not queue.empty():
+        items.append(await queue.get())
+    assert any(isinstance(i, tuple) and i[0] == "purchased" for i in items)
+
+
+async def test_dedup_renotify_after_full_cycle(fake_plugin, fake_notifier):
+    """Flap: unavail->avail->avail->unavail->avail must yield exactly two detected notifies."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    link = "https://example.com/w"
+
+    # We simulate state manually: first False, then True (stays), then False, then False again
+    state_sequence = [
+        (False, None),   # tick 1: rising edge, available=True -> notify
+        (True, "t1"),    # tick 2: available=True, was=True -> suppress
+        (True, "t1"),    # tick 3: available=False, was=True -> clear (no notify)
+        (False, None),   # tick 4: available=True again -> notify (second restock)
+    ]
+    available_sequence = [True, True, False, True]
+    state_iter = iter(state_sequence)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+
+    for avail in available_sequence:
+        state = next(state_iter)
+        plugin = fake_plugin(domains=["example.com"], available=avail)
+        with (
+            patch("core.orchestrator.get_item_notification_state_sync", return_value=state),
+            patch("core.orchestrator.writeLog"),
+        ):
+            await _check_and_buy(plugin, "Widget", link, auto_buy=False, write_queue=queue, dispatcher=dispatcher)
+
+    detected_count = sum(1 for e in notifier.events if e.action == "detected")
+    assert detected_count == 2, f"Expected 2 detected notifies for flap sequence, got {detected_count}"
+
+
 async def test_stdin_listener_sets_plugin_events():
     """_stdin_listener_thread signals all known intervention events on all plugins."""
     import warnings

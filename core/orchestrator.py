@@ -14,6 +14,7 @@ Design constraints:
 
 import asyncio
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from core.registry import PluginRegistry
@@ -31,7 +32,19 @@ _STAGGER_SECS = 1.5
 _KNOWN_EVENTS = ("captcha_event", "passkey_event", "otp_event", "test_pause_event")
 
 
-async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float) -> None:
+def _build_event(name: str, link: str, plugin_name: str, action: str):
+    """Construct a NotificationEvent for the given action."""
+    from notifications.base import NotificationEvent
+    return NotificationEvent(
+        item_name=name,
+        item_url=link,
+        platform=plugin_name,
+        timestamp=datetime.now(timezone.utc),
+        action=action,
+    )
+
+
+async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None) -> None:
     """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
     loop = asyncio.get_running_loop()
     while True:
@@ -41,32 +54,49 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float) -
                 continue
             if not any(p in (link or "") for p in plugin.domain_patterns):
                 continue
-            await _check_and_buy(plugin, name, link, auto_buy, write_queue)
+            await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
         await asyncio.sleep(poll_interval)
 
 
-async def _check_and_buy(plugin, name, link, auto_buy, write_queue):
+async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
+    """Attempt auto-buy; dispatch purchased event and enqueue on success."""
+    try:
+        success = await plugin.auto_buy(link)
+        if success:
+            if dispatcher is not None:
+                await dispatcher.notify(
+                    _build_event(name, link, plugin.__class__.__name__, "purchased")
+                )
+            await write_queue.put(("purchased", link))
+    except Exception as exc:
+        writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
+
+
+async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
     """Check one item and optionally buy it. Logs and continues on any error."""
+    loop = asyncio.get_running_loop()
     try:
         available = await plugin.check_availability(link)
     except Exception as exc:
         writeLog(f"[{plugin.__class__.__name__}] check error: {exc}", "ERROR")
         return
-    if not available:
+
+    was_available, _ = await loop.run_in_executor(None, get_item_notification_state_sync, link)
+
+    if available and not was_available:
+        writeLog(f"{name} is AVAILABLE -- {link}", "SUCCESS")
+        if dispatcher is not None:
+            await dispatcher.notify(_build_event(name, link, plugin.__class__.__name__, "detected"))
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await write_queue.put(("set_available", link, now_iso))
+    elif not available and was_available:
+        await write_queue.put(("clear_available", link))
         return
-    from utils import play_available_sound
-    play_available_sound()
-    writeLog(f"{name} is AVAILABLE -- {link}", "SUCCESS")
-    if not auto_buy:
+    elif not available:
         return
-    try:
-        success = await plugin.auto_buy(link)
-        if success:
-            from utils import play_buy_sound
-            play_buy_sound()
-            await write_queue.put(link)
-    except Exception as exc:
-        writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
+
+    if auto_buy:
+        await _try_auto_buy(plugin, name, link, write_queue, dispatcher)
 
 
 async def _dispatch_write(loop, item) -> None:
@@ -164,6 +194,8 @@ def _start_stdin_listener(plugins: list, loop: asyncio.AbstractEventLoop) -> Non
 
 async def async_main(cfg, cvv) -> None:
     """Entry point: stagger setup, run TaskGroup, teardown cleanly."""
+    from notifications import build_dispatcher
+
     plugins_dir = Path(__file__).parent.parent / "plugins"
     registry = PluginRegistry(cfg, plugins_dir)
     loop = asyncio.get_running_loop()
@@ -178,6 +210,7 @@ async def async_main(cfg, cvv) -> None:
 
     poll_interval = float(getattr(cfg.app, "poll_interval", 30))
     write_queue: asyncio.Queue = asyncio.Queue()
+    dispatcher = build_dispatcher(cfg)
 
     _start_stdin_listener(registry._active_plugins, loop)
 
@@ -186,7 +219,7 @@ async def async_main(cfg, cvv) -> None:
             tg.create_task(_write_queue_drain(write_queue), name="write-queue-drain")
             for plugin in registry._active_plugins:
                 tg.create_task(
-                    run_plugin(plugin, write_queue, poll_interval),
+                    run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher),
                     name=f"poll-{plugin.__class__.__name__}",
                 )
     except* KeyboardInterrupt:
