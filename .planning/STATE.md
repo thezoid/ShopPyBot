@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase complete — ready for verification
-last_updated: "2026-06-03T16:43:57.566Z"
+last_updated: "2026-06-03T16:59:34.946Z"
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 23
-  completed_plans: 22
-  percent: 67
+  completed_plans: 23
+  percent: 83
 ---
 
 # ShopPyBot — State
@@ -121,6 +121,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 05-notification-system P02 | 12m | 2 tasks | 3 files |
 | Phase 05-notification-system P03 | 4m | 2 tasks | 3 files |
 | Phase 05-notification-system P04 | 3 | 1 tasks | 3 files |
+| Phase 05-notification-system P05 | 25 | 2 tasks | 4 files |
 
 ## Decisions
 
@@ -144,3 +145,4 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: SoundNotifier: synchronous pygame calls (no executor, thread-safety unconfirmed)
 - [Phase ?]: DiscordNotifier: secret-safe error logging (class+status only, never webhook URL or str(exc))
 - [Phase ?]: Discord 429: raises RuntimeError with Retry-After; no retry loop in Phase 5 scope
+- [Phase ?]: build_dispatcher factory selects notifiers from config flags; dedup edge-trigger notifies once per restock via get_item_notification_state_sync

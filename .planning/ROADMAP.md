@@ -14,7 +14,7 @@
 - [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published (completed 2026-06-03)
 - [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors (completed 2026-06-03)
 - [x] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop (completed 2026-06-03)
-- [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
+- [x] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication (completed 2026-06-03)
 - [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
 
 ---
@@ -127,7 +127,7 @@ Plans:
 - [x] 05-02-PLAN.md — SoundNotifier (wraps utils) + DiscordNotifier embed POST (NOTIF-03, NOTIF-04)
 - [x] 05-03-PLAN.md — EmailNotifier (smtplib STARTTLS) + SmsNotifier (Twilio REST) (NOTIF-05, NOTIF-06)
 - [x] 05-04-PLAN.md — NotificationDispatcher fan-out with per-channel isolation + secret scrub (NOTIF-01)
-- [ ] 05-05-PLAN.md — Orchestrator wiring: build_dispatcher + dedup edge-trigger + typed write queue + live Discord human-verify (NOTIF-01, NOTIF-02, NOTIF-04)
+- [x] 05-05-PLAN.md — Orchestrator wiring: build_dispatcher + dedup edge-trigger + typed write queue + live Discord human-verify (NOTIF-01, NOTIF-02, NOTIF-04)
 
 **UI hint**: no
 
@@ -156,7 +156,7 @@ Plans:
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
-| 5. Notification System | 4/5 | In Progress|  |
+| 5. Notification System | 5/5 | Complete   | 2026-06-03 |
 | 6. Platform Expansion | 0/? | Not started | - |
 
 ---
