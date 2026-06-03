@@ -60,6 +60,16 @@ class PlatformsConfig(BaseModel):
     bestbuy: BestBuyPlatformConfig = BestBuyPlatformConfig()
 
 
+class AppSettingsConfig(BaseModel):
+    """Top-level app settings not tied to a specific platform.
+
+    poll_interval: seconds between each full check cycle across all plugins.
+    Per-platform jitter is Phase 6; do NOT add jitter fields here.
+    """
+
+    poll_interval: int = 30
+
+
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
@@ -74,6 +84,7 @@ class AppConfig(BaseSettings):
     debug: DebugConfig = DebugConfig()
     available: AvailableConfig = AvailableConfig()
     platforms: PlatformsConfig = PlatformsConfig()
+    app: AppSettingsConfig = AppSettingsConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)
