@@ -24,9 +24,9 @@
 
 ### Platform Plugins — Existing (Refactor)
 
-- [ ] **PLG-01**: `plugins/shopbot_plugin_amazon.py` implements `RetailerPlugin` ABC; all purchase logic migrated from `amazon_bot.py`
-- [ ] **PLG-02**: `plugins/shopbot_plugin_bestbuy.py` implements `RetailerPlugin` ABC; fixes missing `update_item_purchased()` call after successful purchase
-- [ ] **PLG-03**: Each plugin owns its own WebDriver instance (`self.driver`) initialized in `__init__`; no shared global driver
+- [x] **PLG-01**: `plugins/shopbot_plugin_amazon.py` implements `RetailerPlugin` ABC; all purchase logic migrated from `amazon_bot.py`
+- [x] **PLG-02**: `plugins/shopbot_plugin_bestbuy.py` implements `RetailerPlugin` ABC; fixes missing `update_item_purchased()` call after successful purchase
+- [x] **PLG-03**: Each plugin owns its own WebDriver instance (`self.driver`) initialized in `__init__`; no shared global driver
 
 ### Platform Plugins — New
 
@@ -113,9 +113,9 @@
 | SEC-04 | Phase 1 — Foundations + Security | Complete |
 | SEC-05 | Phase 1 — Foundations + Security | Complete |
 | SEC-06 | Phase 1 — Foundations + Security | Complete |
-| PLG-01 | Phase 2 — Plugin Migration | Pending |
-| PLG-02 | Phase 2 — Plugin Migration | Pending |
-| PLG-03 | Phase 2 — Plugin Migration | Pending |
+| PLG-01 | Phase 2 — Plugin Migration | Complete |
+| PLG-02 | Phase 2 — Plugin Migration | Complete |
+| PLG-03 | Phase 2 — Plugin Migration | Complete |
 | PLG-04 | Phase 6 — Platform Expansion | Pending |
 | PLG-05 | Phase 6 — Platform Expansion | Pending |
 | PLG-06 | Phase 6 — Platform Expansion | Pending |

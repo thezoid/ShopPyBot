@@ -57,12 +57,14 @@ Plans:
 
 **Plans**: 6 plans
 Plans:
-- [ ] 02-01-PLAN.md — Wave 0: rewrite plugin-base tests for ABC v2 + async fixtures/smoke test
+
+- [x] 02-01-PLAN.md — Wave 0: rewrite plugin-base tests for ABC v2 + async fixtures/smoke test
 - [ ] 02-02-PLAN.md — Revise RetailerPlugin ABC v1 to v2 (async, self.driver, setup/teardown, version 2)
 - [ ] 02-03-PLAN.md — Plugin registry: importlib discovery + domain routing + lazy lifecycle (CORE-03, CORE-04)
 - [ ] 02-04-PLAN.md — Amazon + BestBuy nodriver plugins; PLG-02 update_item_purchased fix (PLG-01, PLG-02, PLG-03)
 - [ ] 02-05-PLAN.md — main.py async conversion: registry-driven loop, Selenium/CDP removal, CVV threading
 - [ ] 02-06-PLAN.md — Contributor tooling: example_plugin.py + PLUGIN_DEV.md (CORE-08)
+
 **UI hint**: no
 
 ### Phase 3: Community Documentation
@@ -131,7 +133,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
-| 2. Plugin Migration | 0/6 | Planned | - |
+| 2. Plugin Migration | 1/6 | In Progress|  |
 | 3. Community Documentation | 0/? | Not started | - |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |
