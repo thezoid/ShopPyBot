@@ -369,28 +369,136 @@ async def test_discord_send_calls_run_in_executor(monkeypatch, notification_even
 
 
 # ============================================================
-# NOTIF-05: Email notifier (xfail — Plan 05-03)
+# NOTIF-05: Email notifier (Plan 05-03)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-03", strict=False)
-def test_email_starttls():
-    """EmailNotifier must send via STARTTLS with correct headers."""
-    pytest.fail("not yet implemented")
+async def test_email_starttls(monkeypatch):
+    """EmailNotifier must call starttls(), login(), and send_message() via STARTTLS path."""
+    import smtplib
+    from unittest.mock import AsyncMock, MagicMock, patch, call
+    from core.config_schema import EmailConfig
+    from notifications.email_notifier import EmailNotifier
+    from notifications.base import NotificationEvent
+
+    monkeypatch.setenv("SMTP_PASSWORD", "secret-pass")
+
+    cfg = EmailConfig(
+        enabled=True,
+        smtp_host="smtp.example.com",
+        smtp_port=587,
+        smtp_ssl=False,
+        sender="bot@example.com",
+        recipients=["user@example.com"],
+    )
+    notifier = EmailNotifier(cfg)
+
+    mock_smtp_instance = MagicMock()
+    mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
+    mock_smtp_instance.__exit__ = MagicMock(return_value=False)
+
+    event = NotificationEvent(
+        item_name="RTX 5090",
+        item_url="https://bestbuy.com/rtx5090",
+        platform="BestBuy",
+        timestamp=datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc),
+        action="detected",
+    )
+
+    with patch("smtplib.SMTP", return_value=mock_smtp_instance) as mock_smtp_cls:
+        await notifier.send(event)
+
+    mock_smtp_cls.assert_called_once_with("smtp.example.com", 587, timeout=10)
+    mock_smtp_instance.starttls.assert_called_once()
+    mock_smtp_instance.login.assert_called_once_with("bot@example.com", "secret-pass")
+    mock_smtp_instance.send_message.assert_called_once()
+
+    sent_msg = mock_smtp_instance.send_message.call_args[0][0]
+    assert sent_msg["From"] == "bot@example.com"
+    assert "user@example.com" in sent_msg["To"]
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-03", strict=False)
-def test_email_auth_error_isolated():
-    """SMTPAuthenticationError in EmailNotifier must be caught at the channel boundary."""
-    pytest.fail("not yet implemented")
+async def test_email_auth_error_isolated(monkeypatch):
+    """SMTPAuthenticationError raised by mock must propagate out of send(), not be swallowed."""
+    import smtplib
+    from unittest.mock import MagicMock, patch
+    from core.config_schema import EmailConfig
+    from notifications.email_notifier import EmailNotifier
+    from notifications.base import NotificationEvent
+
+    monkeypatch.setenv("SMTP_PASSWORD", "wrong-pass")
+
+    cfg = EmailConfig(
+        enabled=True,
+        smtp_host="smtp.example.com",
+        smtp_port=587,
+        smtp_ssl=False,
+        sender="bot@example.com",
+        recipients=["user@example.com"],
+    )
+    notifier = EmailNotifier(cfg)
+
+    mock_smtp_instance = MagicMock()
+    mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
+    mock_smtp_instance.__exit__ = MagicMock(return_value=False)
+    mock_smtp_instance.login.side_effect = smtplib.SMTPAuthenticationError(535, "auth failed")
+
+    event = NotificationEvent(
+        item_name="RTX 5090",
+        item_url="https://bestbuy.com/rtx5090",
+        platform="BestBuy",
+        timestamp=datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc),
+        action="detected",
+    )
+
+    with patch("smtplib.SMTP", return_value=mock_smtp_instance):
+        with pytest.raises(smtplib.SMTPAuthenticationError):
+            await notifier.send(event)
 
 
 # ============================================================
-# NOTIF-06: SMS notifier payload (xfail — Plan 05-03)
+# NOTIF-06: SMS notifier payload (Plan 05-03)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-03", strict=False)
-def test_sms_payload():
-    """SmsNotifier must POST to the correct Twilio URL with Basic Auth + form params."""
-    pytest.fail("not yet implemented")
+async def test_sms_payload(monkeypatch):
+    """SmsNotifier must POST to Twilio Messages.json with HTTPBasicAuth + To/From/Body form data."""
+    from requests.auth import HTTPBasicAuth
+    from core.config_schema import SmsConfig
+    from notifications.sms_notifier import SmsNotifier
+    from notifications.base import NotificationEvent
+
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACTEST123")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "authtoken456")
+    monkeypatch.setenv("TWILIO_FROM", "+15550001111")
+
+    cfg = SmsConfig(enabled=True, to_number="+15559998888")
+    notifier = SmsNotifier(cfg)
+
+    event = NotificationEvent(
+        item_name="RTX 5090",
+        item_url="https://bestbuy.com/rtx5090",
+        platform="BestBuy",
+        timestamp=datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc),
+        action="detected",
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 201
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        await notifier.send(event)
+
+    mock_post.assert_called_once()
+    call_args = mock_post.call_args
+    posted_url = call_args.args[0] if call_args.args else call_args.kwargs.get("url")
+    assert posted_url.endswith("/Messages.json")
+
+    auth_arg = call_args.kwargs.get("auth")
+    assert isinstance(auth_arg, HTTPBasicAuth)
+
+    data_arg = call_args.kwargs.get("data", {})
+    assert data_arg.get("To") == "+15559998888"
+    assert data_arg.get("From") == "+15550001111"
+    assert "Body" in data_arg
