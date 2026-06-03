@@ -12,7 +12,7 @@
 
 - [x] **Phase 1: Foundations + Security** — Plugin ABC contract locked, Pydantic config validation, all credential security hardening complete; safe to open source (completed 2026-06-02)
 - [x] **Phase 2: Plugin Migration** — Amazon and BestBuy refactored to ABC, plugin registry operational, contributor tooling published (completed 2026-06-03)
-- [ ] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors
+- [x] **Phase 3: Community Documentation** — CONTRIBUTING.md, SECURITY.md, issue templates, and PR template in place so the project is ready for external contributors (completed 2026-06-03)
 - [ ] **Phase 4: Async Orchestrator** — All platforms run concurrently, SQLite safe under parallel writes, no blocking I/O in async loop
 - [ ] **Phase 5: Notification System** — Fan-out dispatcher delivers alerts across all configured channels with per-item deduplication
 - [ ] **Phase 6: Platform Expansion** — Five new platform plugins operational with anti-detection configuration
@@ -83,7 +83,7 @@ Plans:
 Plans:
 
 - [x] 03-01-PLAN.md — Governance prose docs: SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md (DOCS-01, DOCS-02, DOCS-03)
-- [ ] 03-02-PLAN.md — GitHub templates: PR template + bug/plugin issue forms + ISSUE_TEMPLATE config (DOCS-04, DOCS-05)
+- [x] 03-02-PLAN.md — GitHub templates: PR template + bug/plugin issue forms + ISSUE_TEMPLATE config (DOCS-04, DOCS-05)
 
 **UI hint**: no
 
@@ -139,7 +139,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
-| 3. Community Documentation | 1/2 | In Progress|  |
+| 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |
 | 6. Platform Expansion | 0/? | Not started | - |

@@ -70,8 +70,8 @@
 - [x] **DOCS-01**: `CONTRIBUTING.md` covers fork/branch/PR workflow, commit conventions, test requirements, and links to `plugins/PLUGIN_DEV.md` for plugin contributions
 - [x] **DOCS-02**: `CONTRIBUTING.md` includes plugin submission checklist: naming convention, required ABC methods, domain_pattern, test coverage, anti-detection risk declaration
 - [x] **DOCS-03**: `SECURITY.md` covers responsible disclosure policy, known TOS/legal risks per platform, and guidance on keeping credentials out of commits
-- [ ] **DOCS-04**: GitHub issue templates for bug reports, plugin requests, and platform-specific issues
-- [ ] **DOCS-05**: GitHub PR template with checklist covering ABC compliance, naming convention, test presence, and risk documentation
+- [x] **DOCS-04**: GitHub issue templates for bug reports, plugin requests, and platform-specific issues
+- [x] **DOCS-05**: GitHub PR template with checklist covering ABC compliance, naming convention, test presence, and risk documentation
 
 ---
 
@@ -141,5 +141,5 @@
 | DOCS-01 | Phase 3 — Community Documentation | Complete |
 | DOCS-02 | Phase 3 — Community Documentation | Complete |
 | DOCS-03 | Phase 3 — Community Documentation | Complete |
-| DOCS-04 | Phase 3 — Community Documentation | Pending |
-| DOCS-05 | Phase 3 — Community Documentation | Pending |
+| DOCS-04 | Phase 3 — Community Documentation | Complete |
+| DOCS-05 | Phase 3 — Community Documentation | Complete |

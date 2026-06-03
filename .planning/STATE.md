@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase complete — ready for verification
-last_updated: "2026-06-03T13:16:58.893Z"
+last_updated: "2026-06-03T13:26:54.537Z"
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 12
-  percent: 33
+  completed_plans: 13
+  percent: 50
 ---
 
 # ShopPyBot — State
@@ -114,6 +114,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 02-plugin-migration P06 | 15 | 2 tasks | 3 files |
 | Phase 02-plugin-migration P05 | 10 | 1 tasks | 1 files |
 | Phase 03-community-documentation P01 | 8m | 2 tasks | 3 files |
+| Phase 03-community-documentation P02 | 5min | 2 tasks | 5 files |
 
 ## Decisions
 
@@ -129,3 +130,5 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: _route_all routes against _all_plugins to enable lazy-launch before active list is populated
 - [Phase ?]: D-02 closed: nodriver handles stealth architecturally; Selenium imports gone
 - [Phase ?]: Placeholder email SECURITY_CONTACT_PLACEHOLDER@example.com in SECURITY.md and CODE_OF_CONDUCT.md; maintainer must replace before launch
+- [Phase ?]: Anchored /config.yml in .gitignore to repo root to prevent ISSUE_TEMPLATE/config.yml exclusion
+- [Phase ?]: config.yml contact_links url points to SECURITY.md blob on master branch for private vulnerability reporting
