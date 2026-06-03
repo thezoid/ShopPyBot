@@ -82,7 +82,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 
-- [ ] 03-01-PLAN.md — Governance prose docs: SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md (DOCS-01, DOCS-02, DOCS-03)
+- [x] 03-01-PLAN.md — Governance prose docs: SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md (DOCS-01, DOCS-02, DOCS-03)
 - [ ] 03-02-PLAN.md — GitHub templates: PR template + bug/plugin issue forms + ISSUE_TEMPLATE config (DOCS-04, DOCS-05)
 
 **UI hint**: no
@@ -139,7 +139,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundations + Security | 5/5 | Complete   | 2026-06-02 |
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
-| 3. Community Documentation | 0/2 | Planned | - |
+| 3. Community Documentation | 1/2 | In Progress|  |
 | 4. Async Orchestrator | 0/? | Not started | - |
 | 5. Notification System | 0/? | Not started | - |
 | 6. Platform Expansion | 0/? | Not started | - |
