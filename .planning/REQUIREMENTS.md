@@ -41,7 +41,7 @@
 - [x] **ASYNC-01**: Orchestrator runs all active plugins concurrently using `asyncio.TaskGroup`; one thread per plugin via `ThreadPoolExecutor`
 - [x] **ASYNC-02**: Plugin WebDriver instances are staggered on startup (1.5s delay between each) to avoid ChromeDriver port conflicts
 - [x] **ASYNC-03**: All `input()` blocking calls replaced with `asyncio.Event` + notification pattern
-- [ ] **ASYNC-04**: SQLite uses WAL mode and `busy_timeout=5000`; all connection usage wrapped in context managers
+- [x] **ASYNC-04**: SQLite uses WAL mode and `busy_timeout=5000`; all connection usage wrapped in context managers
 - [x] **ASYNC-05**: Single async write queue serializes all `update_item_purchased()` calls to prevent concurrent write conflicts
 
 ### Anti-Detection
@@ -124,7 +124,7 @@
 | ASYNC-01 | Phase 4 — Async Orchestrator | Complete |
 | ASYNC-02 | Phase 4 — Async Orchestrator | Complete |
 | ASYNC-03 | Phase 4 — Async Orchestrator | Complete |
-| ASYNC-04 | Phase 4 — Async Orchestrator | Pending |
+| ASYNC-04 | Phase 4 — Async Orchestrator | Complete |
 | ASYNC-05 | Phase 4 — Async Orchestrator | Complete |
 | ANTI-01 | Phase 6 — Platform Expansion | Pending |
 | ANTI-02 | Phase 6 — Platform Expansion | Pending |
