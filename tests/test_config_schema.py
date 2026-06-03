@@ -58,3 +58,22 @@ def test_env_var_override(valid_config_yml, monkeypatch):
     monkeypatch.setenv("DEBUG__LOGGING_LEVEL", "1")
     config = AppConfig(yaml_file=valid_config_yml)
     assert config.debug.logging_level == 1
+
+
+def test_poll_interval_default(valid_config_yml):
+    """ASYNC-01: cfg.app.poll_interval defaults to 30 when app section absent."""
+    config = AppConfig(yaml_file=valid_config_yml)
+    assert config.app.poll_interval == 30
+
+
+def test_poll_interval_yaml_override(tmp_path):
+    """ASYNC-01: cfg.app.poll_interval reads integer from config.yml app section."""
+    cfg = {
+        "debug": {"logging_level": 3, "test_mode": True},
+        "available": {"timeout": 10, "items": []},
+        "app": {"poll_interval": 15},
+    }
+    f = tmp_path / "config.yml"
+    f.write_text(yaml.dump(cfg))
+    config = AppConfig(yaml_file=f)
+    assert config.app.poll_interval == 15
