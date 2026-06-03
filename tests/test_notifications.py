@@ -1,15 +1,17 @@
 """Notification system test scaffold (Phase 5).
 
-Wave 0 (this plan — 05-01):
+Wave 0 (this plan -- 05-01):
   - test_sms_misconfigured_raises: passes now (config schema)
   - test_sms_disabled_by_default: passes now (config schema)
   - test_dedup_*: passes now (models dedup columns/state fns)
+  - test_notifier_abc_*: passes now (Notifier ABC + NotificationEvent)
   - All 14 named tests present; tests for Plans 02-04 marked xfail.
 
 Wave 1+ (Plans 02-04): xfail tests become real as channel notifiers are implemented.
 """
 
 import os
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -61,6 +63,69 @@ def test_sms_disabled_by_default(monkeypatch):
     from core.config_schema import SmsConfig
     cfg = SmsConfig()  # must not raise
     assert cfg.enabled is False
+
+
+# ============================================================
+# Notifier ABC + NotificationEvent contract (passes in Plan 05-01)
+# ============================================================
+
+
+def test_notifier_abc_cannot_instantiate_without_send():
+    """A Notifier subclass that does not override send must raise TypeError."""
+    from notifications.base import Notifier
+
+    class _Bad(Notifier):
+        pass
+
+    with pytest.raises(TypeError):
+        _Bad()
+
+
+def test_notifier_abc_concrete_subclass_works():
+    """A Notifier subclass that overrides send must be instantiable."""
+    from notifications.base import Notifier, NotificationEvent
+
+    class _Good(Notifier):
+        async def send(self, event: NotificationEvent) -> None:
+            pass
+
+    instance = _Good()
+    assert isinstance(instance, Notifier)
+
+
+def test_notification_event_fields():
+    """NotificationEvent must carry all required fields."""
+    from notifications.base import NotificationEvent
+
+    event = NotificationEvent(
+        item_name="GPU",
+        item_url="https://bestbuy.com/gpu",
+        platform="BestBuy",
+        timestamp=datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc),
+        action="detected",
+    )
+    assert event.item_name == "GPU"
+    assert event.item_url == "https://bestbuy.com/gpu"
+    assert event.platform == "BestBuy"
+    assert event.action == "detected"
+    assert event.timestamp.tzinfo is not None
+
+
+async def test_fake_notifier_records_events(fake_notifier, notification_event):
+    """fake_notifier fixture must record sent events."""
+    notifier = fake_notifier()
+    event = notification_event()
+    await notifier.send(event)
+    assert len(notifier.events) == 1
+    assert notifier.events[0] is event
+
+
+async def test_fake_notifier_can_raise(fake_notifier, notification_event):
+    """fake_notifier(raises=...) must raise the configured exception on send."""
+    notifier = fake_notifier(raises=ValueError("boom"))
+    event = notification_event()
+    with pytest.raises(ValueError, match="boom"):
+        await notifier.send(event)
 
 
 # ============================================================

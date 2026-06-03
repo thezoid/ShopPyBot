@@ -117,6 +117,66 @@ def fake_plugin():
 
 
 @pytest.fixture
+def fake_notifier():
+    """Factory fixture: returns a builder that creates a configurable Notifier subclass.
+
+    Usage:
+        notifier = fake_notifier()           # records calls, never raises
+        notifier = fake_notifier(raises=ValueError("boom"))  # raises on send
+
+    The returned instance is a concrete Notifier subclass whose send() appends
+    each event to notifier.events and optionally raises a pre-configured exception.
+    """
+    from notifications.base import Notifier, NotificationEvent
+
+    def _build(raises: Exception | None = None):
+        class _FakeNotifier(Notifier):
+            def __init__(self):
+                self.events: list[NotificationEvent] = []
+                self._raises = raises
+
+            async def send(self, event: NotificationEvent) -> None:
+                self.events.append(event)
+                if self._raises is not None:
+                    raise self._raises
+
+        return _FakeNotifier()
+
+    return _build
+
+
+@pytest.fixture
+def notification_event():
+    """Factory fixture: builds a NotificationEvent with sensible defaults.
+
+    Usage:
+        event = notification_event()
+        event = notification_event(action="purchased", platform="BestBuy")
+    """
+    from notifications.base import NotificationEvent
+    from datetime import datetime, timezone
+
+    def _build(
+        item_name: str = "Test Widget",
+        item_url: str = "https://example.com/widget",
+        platform: str = "Amazon",
+        timestamp: datetime | None = None,
+        action: str = "detected",
+    ) -> NotificationEvent:
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+        return NotificationEvent(
+            item_name=item_name,
+            item_url=item_url,
+            platform=platform,
+            timestamp=timestamp,
+            action=action,
+        )
+
+    return _build
+
+
+@pytest.fixture
 def event_shim():
     """Fixture returning a helper that simulates the stdin listener thread.
 
