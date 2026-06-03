@@ -177,6 +177,39 @@ def notification_event():
 
 
 @pytest.fixture
+def mock_nodriver_start():
+    """Patch nodriver.start so it never launches Chrome.
+
+    Yields a recorder object with:
+        .last_kwargs  -- the kwargs from the most recent nodriver.start() call
+        .calls        -- list of all kwargs dicts from every call made
+
+    Usage in a plugin test:
+        async def test_setup_headless(mock_nodriver_start, fake_browser):
+            mock_nodriver_start.browser = fake_browser
+            await plugin.setup()
+            assert mock_nodriver_start.last_kwargs.get("headless") is True
+    """
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    class _Recorder:
+        def __init__(self):
+            self.calls: list[dict] = []
+            self.last_kwargs: dict = {}
+            self.browser = MagicMock()
+
+    recorder = _Recorder()
+
+    async def _fake_start(*args, **kwargs):
+        recorder.calls.append(kwargs)
+        recorder.last_kwargs = kwargs
+        return recorder.browser
+
+    with patch("nodriver.start", new=_fake_start):
+        yield recorder
+
+
+@pytest.fixture
 def event_shim():
     """Fixture returning a helper that simulates the stdin listener thread.
 
