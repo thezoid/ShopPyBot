@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 import yaml
 from unittest.mock import AsyncMock, MagicMock
@@ -80,3 +82,59 @@ def tmp_plugins_dir(tmp_path):
     )
     (tmp_path / "shopbot_plugin_fake.py").write_text(plugin_code)
     return tmp_path
+
+
+@pytest.fixture
+def fake_plugin():
+    """Factory fixture: returns a builder fn that creates a no-browser RetailerPlugin.
+
+    Usage:
+        plugin = fake_plugin(domains=["ex.com"], available=True, bought=False)
+
+    The returned instance subclasses RetailerPlugin with AsyncMock setup/teardown
+    and async check_availability/auto_buy that return the configured values. No real
+    browser is launched. Downstream tests may attach asyncio.Event attributes
+    (captcha_event, passkey_event, otp_event, test_pause_event) as needed.
+    """
+    from core.plugin_base import RetailerPlugin
+
+    def _build(domains=None, available=True, bought=False, config=None):
+        class _FakePlugin(RetailerPlugin):
+            domain_patterns = domains or ["fake.example.com"]
+
+            async def check_availability(self, url: str) -> bool:
+                return available
+
+            async def auto_buy(self, url: str) -> bool:
+                return bought
+
+        instance = _FakePlugin(config=config)
+        instance.setup = AsyncMock()
+        instance.teardown = AsyncMock()
+        return instance
+
+    return _build
+
+
+@pytest.fixture
+def event_shim():
+    """Fixture returning a helper that simulates the stdin listener thread.
+
+    The real _stdin_listener_thread uses loop.call_soon_threadsafe(event.set)
+    as the only thread-safe bridge (RESEARCH Pitfall 1). This shim replicates
+    that exact call so downstream tests can drive asyncio.Events from sync code
+    and prove a waiting coroutine resumes correctly.
+
+    Usage:
+        shim = event_shim  # the fixture value IS the helper function
+        event = asyncio.Event()
+        loop = asyncio.get_event_loop()
+        shim(event, loop)    # fires event from thread-safe bridge
+        await event.wait()   # would have unblocked
+    """
+
+    def _fire(event: asyncio.Event, loop: asyncio.AbstractEventLoop) -> None:
+        """Signal event via the thread-safe bridge used by _stdin_listener_thread."""
+        loop.call_soon_threadsafe(event.set)
+
+    return _fire
