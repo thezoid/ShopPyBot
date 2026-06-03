@@ -42,6 +42,11 @@ table below uses a three-tier scale: **low**, **medium**, **high**.
 |--------------|---------------------|----------------|-------|
 | amazon.com   | High                | High           | Aggressive bot detection; automated purchasing violates Amazon Conditions of Use. Account suspension risk is well-documented. |
 | bestbuy.com  | Medium              | Medium         | Queue-based checkout partially mitigates bot detection; TOS prohibits automated purchasing. Account-ban risk is real but less aggressive than Amazon. |
+| walmart.com  | High                | High           | Protected by PerimeterX/HUMAN Security (Bot Defender), which scores 2,500+ behavioral signals per request; headless detection without spoofing is near-certain. Automated purchasing violates Walmart TOS; auto-buy will likely be blocked. |
+| target.com   | High                | High           | Protected by Akamai Bot Manager, which detects headless Chromium with ~80% accuracy. Auto-buy (checkout) is experimental and frequently blocked; availability checks may intermittently succeed in non-headless mode. Automated purchasing violates Target TOS. |
+| gamestop.com | Medium              | Medium         | Product-page protection is lighter than Walmart or Target, but a CAPTCHA appears at checkout. Availability checks are likely functional; auto-buy will be blocked without a CAPTCHA solver integration. Automated purchasing violates GameStop TOS. |
+| store.square-enix-games.com | Medium | Medium      | Best-estimate risk: likely basic Cloudflare or OEM protection (no major vendor confirmed). Lower-volume retail site; headless detection is less aggressive than PerimeterX or Akamai. Selectors are best-effort and require live verification. Automated purchasing likely violates Square Enix TOS. |
+| newegg.com   | Medium              | Medium         | Best-estimate risk: likely Cloudflare or lightweight protection (no major vendor confirmed). Historically targeted during GPU drops; UA rotation and headless toggle reduce signal at the margins but do not guarantee evasion. Automated purchasing likely violates NewEgg TOS. |
 
 When new platforms are added (Phase 6), each must append a row to this table
 with a documented risk assessment before the plugin is merged.
