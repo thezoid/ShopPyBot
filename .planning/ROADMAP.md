@@ -120,7 +120,15 @@ Plans:
   3. A Discord notification includes item name, URL, platform, timestamp, and action taken (detected / purchased), formatted as an embed
   4. SMS via Twilio is disabled by default; enabling it requires explicit opt-in configuration; accidental activation without credentials produces a clear config error, not a silent no-op
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+
+- [ ] 05-01-PLAN.md — Wave 0: NotificationsConfig + SMS startup gate + dedup columns/state functions + Notifier ABC + 14-test scaffold (NOTIF-02, NOTIF-06)
+- [ ] 05-02-PLAN.md — SoundNotifier (wraps utils) + DiscordNotifier embed POST (NOTIF-03, NOTIF-04)
+- [ ] 05-03-PLAN.md — EmailNotifier (smtplib STARTTLS) + SmsNotifier (Twilio REST) (NOTIF-05, NOTIF-06)
+- [ ] 05-04-PLAN.md — NotificationDispatcher fan-out with per-channel isolation + secret scrub (NOTIF-01)
+- [ ] 05-05-PLAN.md — Orchestrator wiring: build_dispatcher + dedup edge-trigger + typed write queue + live Discord human-verify (NOTIF-01, NOTIF-02, NOTIF-04)
+
 **UI hint**: no
 
 ### Phase 6: Platform Expansion
@@ -148,7 +156,7 @@ Plans:
 | 2. Plugin Migration | 6/6 | Complete   | 2026-06-03 |
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
-| 5. Notification System | 0/? | Not started | - |
+| 5. Notification System | 0/5 | Planned | - |
 | 6. Platform Expansion | 0/? | Not started | - |
 
 ---
@@ -206,4 +214,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-06-03 — Phase 4 planned (5 plans)*
+*Last updated: 2026-06-03 — Phase 5 planned (5 plans)*

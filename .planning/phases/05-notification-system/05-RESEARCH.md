@@ -603,7 +603,9 @@ def send_email(host: str, port: int, sender: str, recipients: list[str], subject
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> RESOLVED: (1) SMTP sender vs login username — add a distinct smtp_username field defaulting to sender (Plan 05-01 T1). (2) Dispatcher call for purchases in _check_and_buy — direct `await dispatcher.notify(event)` from the async poll coroutine, NOT routed through the sync write queue (Plan 05-05 T2). (3) Sound notifier + pygame thread-safety — keep sound on the main thread / guard repeat init (Plan 05-02 T1).
 
 1. **SMTP sender vs login username**
    - What we know: Most consumer SMTP (Gmail, Outlook) uses the sender email as login. Transactional relays (SendGrid, SES) use a separate API key or SMTP username.
