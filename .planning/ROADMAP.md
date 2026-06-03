@@ -149,7 +149,7 @@ Plans:
 - [x] 06-01-PLAN.md — Wave 0: config_schema 5 platform submodels + UA pool constant + mock-nodriver fixture + 7 test scaffolds (ANTI-01, ANTI-02, ANTI-03)
 - [x] 06-02-PLAN.md — Orchestrator per-platform jitter: _get_plugin_sleep + run_plugin wiring + jitter tests (ANTI-01)
 - [x] 06-03-PLAN.md — Walmart + Target + GameStop plugins; ANTI-02/03 setup; SC4 risk docstrings (PLG-04, PLG-05, PLG-06, ANTI-02, ANTI-03)
-- [ ] 06-04-PLAN.md — Square Enix + NewEgg plugins; ANTI-02/03 setup; risk docstrings (PLG-07, PLG-08, ANTI-02, ANTI-03)
+- [x] 06-04-PLAN.md — Square Enix + NewEgg plugins; ANTI-02/03 setup; risk docstrings (PLG-07, PLG-08, ANTI-02, ANTI-03)
 - [ ] 06-05-PLAN.md — SECURITY.md 5 risk rows + SC4 phrase tests + SC1 7-plugin discovery gate (PLG-04, PLG-05, PLG-06, PLG-07, PLG-08)
 
 **UI hint**: no
@@ -165,7 +165,7 @@ Plans:
 | 3. Community Documentation | 2/2 | Complete   | 2026-06-03 |
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
 | 5. Notification System | 5/5 | Complete   | 2026-06-03 |
-| 6. Platform Expansion | 3/5 | In Progress|  |
+| 6. Platform Expansion | 4/5 | In Progress|  |
 
 ---
 
