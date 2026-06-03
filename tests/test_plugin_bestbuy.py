@@ -160,3 +160,78 @@ async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
         result = await plugin.auto_buy(item_url)
 
     assert result is True, "auto_buy must return True after successful purchase"
+
+
+# ---------------------------------------------------------------------------
+# SC3: setup() reads config.platforms.bestbuy.headless (Task 3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_setup_passes_headless_true_from_config(mock_nodriver_start):
+    """setup() passes headless=True when config.platforms.bestbuy.headless is True (SC3)."""
+    cfg = MagicMock()
+    cfg.platforms.bestbuy.headless = True
+    plugin = BestBuyPlugin(config=cfg)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is True
+
+
+@pytest.mark.asyncio
+async def test_setup_passes_headless_false_from_config(mock_nodriver_start):
+    """setup() passes headless=False when config.platforms.bestbuy.headless is False (SC3)."""
+    cfg = MagicMock()
+    cfg.platforms.bestbuy.headless = False
+    plugin = BestBuyPlugin(config=cfg)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is False
+
+
+@pytest.mark.asyncio
+async def test_setup_with_config_none_defaults_headless_true(mock_nodriver_start):
+    """setup() defaults headless=True when self.config is None (guard test, SC3)."""
+    plugin = BestBuyPlugin(config=None)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is True
+
+
+@pytest.mark.asyncio
+async def test_sc3_mixed_mode_amazon_visible_bestbuy_headless(mock_nodriver_start):
+    """SC3 mixed-mode: Amazon setup() passes headless=False while BestBuy passes headless=True.
+
+    Proves that two plugins can run with different headless states in the same process.
+    Amazon's config sets headless=False (visible); BestBuy's config sets headless=True.
+    Both setup() calls are captured by the same mock_nodriver_start fixture.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    # Load the Amazon plugin in this test's context
+    amazon_path = Path(__file__).parent.parent / "plugins" / "shopbot_plugin_amazon.py"
+    spec = importlib.util.spec_from_file_location("shopbot_plugin_amazon_sc3", amazon_path)
+    amazon_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(amazon_mod)
+    AmazonPluginSC3 = amazon_mod.AmazonPlugin
+
+    # Amazon: headless=False (visible)
+    amz_cfg = MagicMock()
+    amz_cfg.platforms.amazon.headless = False
+    amz_plugin = AmazonPluginSC3(config=amz_cfg)
+    await amz_plugin.setup()
+    amz_headless = mock_nodriver_start.calls[-1].get("headless")
+    assert amz_headless is False, (
+        f"Amazon setup() must pass headless=False when config.platforms.amazon.headless=False, got {amz_headless}"
+    )
+
+    # BestBuy: headless=True (headless)
+    bb_cfg = MagicMock()
+    bb_cfg.platforms.bestbuy.headless = True
+    bb_plugin = BestBuyPlugin(config=bb_cfg)
+    await bb_plugin.setup()
+    bb_headless = mock_nodriver_start.calls[-1].get("headless")
+    assert bb_headless is True, (
+        f"BestBuy setup() must pass headless=True when config.platforms.bestbuy.headless=True, got {bb_headless}"
+    )
+
+    # Verify both calls were recorded -- different headless values in same run (SC3)
+    assert len(mock_nodriver_start.calls) >= 2, "Both plugins must have called nodriver.start"

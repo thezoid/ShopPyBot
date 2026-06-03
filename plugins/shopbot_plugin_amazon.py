@@ -55,7 +55,14 @@ class AmazonPlugin(RetailerPlugin):
         # nodriver.start() MUST be awaited from async context.
         # Browser.__init__ raises RuntimeError if no running event loop, so
         # this can never be called in __init__ (see RESEARCH.md Pitfall 1).
-        self.driver = await nodriver.start(headless=False)
+        # SC3: headless flag is config-driven; read from config.platforms.amazon.headless.
+        # Defaults to True (headless) when self.config is None or the attribute is absent.
+        headless = True
+        if self.config:
+            platform_cfg = getattr(getattr(self.config, "platforms", None), "amazon", None)
+            if platform_cfg is not None:
+                headless = getattr(platform_cfg, "headless", True)
+        self.driver = await nodriver.start(headless=headless)
 
     async def teardown(self) -> None:
         if self.driver:

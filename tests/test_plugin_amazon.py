@@ -265,3 +265,44 @@ async def test_wait_user_action_timeout_does_not_raise():
             await plugin._wait_user_action(event, "test")
         except asyncio.TimeoutError:
             pytest.fail("_wait_user_action must not propagate TimeoutError")
+
+
+# ---------------------------------------------------------------------------
+# SC3: setup() reads config.platforms.amazon.headless (Task 3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_setup_passes_headless_false_from_config(mock_nodriver_start):
+    """setup() passes headless=False when config.platforms.amazon.headless is False (SC3)."""
+    cfg = MagicMock()
+    cfg.platforms.amazon.headless = False
+    plugin = AmazonPlugin(config=cfg)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is False
+
+
+@pytest.mark.asyncio
+async def test_setup_passes_headless_true_from_config(mock_nodriver_start):
+    """setup() passes headless=True when config.platforms.amazon.headless is True (SC3)."""
+    cfg = MagicMock()
+    cfg.platforms.amazon.headless = True
+    plugin = AmazonPlugin(config=cfg)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is True
+
+
+@pytest.mark.asyncio
+async def test_setup_with_config_none_defaults_headless_true(mock_nodriver_start):
+    """setup() defaults headless=True when self.config is None (guard test, SC3)."""
+    plugin = AmazonPlugin(config=None)
+    await plugin.setup()
+    assert mock_nodriver_start.last_kwargs.get("headless") is True
+
+
+def test_amazon_event_attrs_preserved_after_setup_change():
+    """Amazon __init__ Event attributes must remain after setup() is updated (SC3 preservation)."""
+    plugin = AmazonPlugin(config=None)
+    for attr in ("captcha_event", "passkey_event", "otp_event", "test_pause_event"):
+        assert hasattr(plugin, attr), f"AmazonPlugin still must have attribute: {attr}"
+        assert isinstance(getattr(plugin, attr), asyncio.Event)
