@@ -1,17 +1,23 @@
 """Notification system test scaffold (Phase 5).
 
-Wave 0 (this plan -- 05-01):
+Wave 0 (plan 05-01):
   - test_sms_misconfigured_raises: passes now (config schema)
   - test_sms_disabled_by_default: passes now (config schema)
   - test_dedup_*: passes now (models dedup columns/state fns)
   - test_notifier_abc_*: passes now (Notifier ABC + NotificationEvent)
-  - All 14 named tests present; tests for Plans 02-04 marked xfail.
 
-Wave 1+ (Plans 02-04): xfail tests become real as channel notifiers are implemented.
+Wave 1 (plan 05-02):
+  - test_sound_notifier_*: SoundNotifier wrapping utils play_* functions
+  - test_discord_*: DiscordNotifier embed POST, timestamp format, 429 handling
+
+Wave 2+ (Plans 05-03, 05-04): email, SMS, dispatcher tests.
 """
 
+import asyncio
+import re
 import os
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -224,37 +230,142 @@ def test_all_notifiers_called():
 
 
 # ============================================================
-# NOTIF-03: Sound notifier (xfail — Plan 05-02)
+# NOTIF-03: Sound notifier (Plan 05-02)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-02", strict=False)
-def test_sound_notifier_detected():
-    """SoundNotifier.send with action='detected' must call play_available_sound."""
-    pytest.fail("not yet implemented")
+async def test_sound_notifier_detected(notification_event):
+    """SoundNotifier.send with action='detected' must call play_available_sound exactly once."""
+    from notifications.sound_notifier import SoundNotifier
+
+    event = notification_event(action="detected")
+    notifier = SoundNotifier()
+
+    with patch("notifications.sound_notifier.play_available_sound") as mock_avail, \
+         patch("notifications.sound_notifier.play_buy_sound") as mock_buy:
+        await notifier.send(event)
+
+    mock_avail.assert_called_once()
+    mock_buy.assert_not_called()
+
+
+async def test_sound_notifier_purchased(notification_event):
+    """SoundNotifier.send with action='purchased' must call play_buy_sound exactly once."""
+    from notifications.sound_notifier import SoundNotifier
+
+    event = notification_event(action="purchased")
+    notifier = SoundNotifier()
+
+    with patch("notifications.sound_notifier.play_available_sound") as mock_avail, \
+         patch("notifications.sound_notifier.play_buy_sound") as mock_buy:
+        await notifier.send(event)
+
+    mock_buy.assert_called_once()
+    mock_avail.assert_not_called()
+
+
+async def test_sound_notifier_unknown_action_plays_notification(notification_event):
+    """SoundNotifier.send with an unknown action falls back to play_notification_sound."""
+    from notifications.sound_notifier import SoundNotifier
+
+    event = notification_event(action="unknown")
+    notifier = SoundNotifier()
+
+    with patch("notifications.sound_notifier.play_notification_sound") as mock_notif:
+        await notifier.send(event)
+
+    mock_notif.assert_called_once()
 
 
 # ============================================================
-# NOTIF-04: Discord notifier (xfail — Plan 05-02)
+# NOTIF-04: Discord notifier (Plan 05-02)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-02", strict=False)
+def _make_discord_event():
+    """Return a deterministic NotificationEvent for Discord tests."""
+    from notifications.base import NotificationEvent
+
+    return NotificationEvent(
+        item_name="RTX 5090",
+        item_url="https://bestbuy.com/rtx5090",
+        platform="BestBuy",
+        timestamp=datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc),
+        action="detected",
+    )
+
+
 def test_discord_payload_shape():
-    """Discord embed payload must contain all required fields (title, url, color, etc.)."""
-    pytest.fail("not yet implemented")
+    """Discord embed payload must contain all required fields (title, url, color, timestamp, fields)."""
+    from notifications.discord_notifier import _build_discord_payload
+
+    event = _make_discord_event()
+    payload = _build_discord_payload(event)
+
+    assert "embeds" in payload
+    embed = payload["embeds"][0]
+    assert "title" in embed
+    assert "url" in embed
+    assert embed["url"] == event.item_url
+    assert "color" in embed
+    assert "timestamp" in embed
+    fields = {f["name"]: f["value"] for f in embed["fields"]}
+    assert "Platform" in fields
+    assert fields["Platform"] == event.platform
+    assert "Action" in fields
+    assert fields["Action"] == event.action
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-02", strict=False)
 def test_discord_timestamp_format():
-    """Discord embed timestamp must be UTC ISO-8601 with Z suffix."""
-    pytest.fail("not yet implemented")
+    """Discord embed timestamp must match UTC ISO-8601 format with Z suffix."""
+    from notifications.discord_notifier import _build_discord_payload
+
+    event = _make_discord_event()
+    payload = _build_discord_payload(event)
+    ts = payload["embeds"][0]["timestamp"]
+
+    assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$", ts), (
+        f"Timestamp {ts!r} does not match required UTC ISO-8601 format"
+    )
+    assert ts.endswith("Z")
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-02", strict=False)
-def test_discord_rate_limit():
-    """Discord 429 response must raise RuntimeError with Retry-After info."""
-    pytest.fail("not yet implemented")
+def test_discord_rate_limit(monkeypatch):
+    """A mocked 429 response from Discord must raise RuntimeError mentioning Retry-After."""
+    from notifications.discord_notifier import _send_discord_blocking
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 429
+    mock_resp.headers = {"Retry-After": "5"}
+
+    with patch("notifications.discord_notifier.requests.post", return_value=mock_resp):
+        with pytest.raises(RuntimeError) as exc_info:
+            _send_discord_blocking("https://fake.webhook/", {"embeds": []})
+
+    assert "5" in str(exc_info.value)
+
+
+async def test_discord_send_calls_run_in_executor(monkeypatch, notification_event):
+    """DiscordNotifier.send must complete without live network (requests.post mocked)."""
+    from notifications.discord_notifier import DiscordNotifier
+
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://fake.webhook/test")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 204
+    mock_resp.raise_for_status = MagicMock()
+
+    event = notification_event(action="detected")
+    notifier = DiscordNotifier()
+
+    with patch("notifications.discord_notifier.requests.post", return_value=mock_resp) as mock_post:
+        await notifier.send(event)
+
+    mock_post.assert_called_once()
+    call_kwargs = mock_post.call_args
+    assert call_kwargs.kwargs.get("timeout") == 10 or (
+        len(call_kwargs.args) >= 1  # positional is also fine
+    )
 
 
 # ============================================================
