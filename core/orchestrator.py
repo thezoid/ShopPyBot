@@ -13,6 +13,7 @@ Design constraints:
 """
 
 import asyncio
+import random
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +45,29 @@ def _build_event(name: str, link: str, plugin_name: str, action: str):
     )
 
 
+def _get_plugin_sleep(plugin, poll_interval: float) -> float:
+    """Return per-platform jitter sleep or shared poll_interval as fallback.
+
+    Reads plugin.platform_key to resolve config.platforms.<key>. Returns
+    random.uniform(min_delay, max_delay) when both are defined; otherwise
+    returns poll_interval. Any attribute lookup failure falls back safely.
+    """
+    try:
+        platform_key = getattr(plugin, "platform_key", None)
+        if not platform_key:
+            return poll_interval
+        platform_cfg = getattr(plugin.config.platforms, platform_key, None)
+        if platform_cfg is None:
+            return poll_interval
+        min_delay = getattr(platform_cfg, "min_delay", None)
+        max_delay = getattr(platform_cfg, "max_delay", None)
+        if min_delay is None or max_delay is None:
+            return poll_interval
+        return random.uniform(min_delay, max_delay)
+    except Exception:
+        return poll_interval
+
+
 async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None) -> None:
     """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
     loop = asyncio.get_running_loop()
@@ -55,7 +79,7 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
             if not any(p in (link or "") for p in plugin.domain_patterns):
                 continue
             await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
-        await asyncio.sleep(poll_interval)
+        await asyncio.sleep(_get_plugin_sleep(plugin, poll_interval))
 
 
 async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
