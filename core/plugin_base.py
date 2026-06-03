@@ -1,29 +1,43 @@
 from abc import ABC, abstractmethod
 
-PLUGIN_API_VERSION = 1  # importable without instantiation; defined before class body
+PLUGIN_API_VERSION = 2  # bumped from 1; v1 subclasses are not compatible
 
 class RetailerPlugin(ABC):
     """Base class for all retail platform plugins.
 
-    Subclasses must implement check_availability and auto_buy.
-    login and detect_captcha have working no-op defaults so check-only
-    plugins can omit them.
+    Concrete plugins must implement check_availability and auto_buy.
+    All other methods have working no-op defaults.
     """
 
-    @abstractmethod
-    def check_availability(self, url: str) -> bool:
-        """Return True if the item at url is available for purchase."""
+    domain_patterns: list[str]  # class attribute; registry reads before __init__
+
+    def __init__(self, config) -> None:
+        self.config = config   # typed AppConfig passed by registry
+        self.driver = None     # set by setup(); never in __init__ (nodriver constraint:
+                               # Browser.__init__ raises RuntimeError with no running loop)
+
+    async def setup(self) -> None:
+        """Build the nodriver Browser. Registry awaits this after construction."""
         ...
 
     @abstractmethod
-    def auto_buy(self, driver, url: str, config: dict) -> bool:
+    async def check_availability(self, url: str) -> bool:
+        """Return True if the item at url is in stock and purchasable."""
+        ...
+
+    @abstractmethod
+    async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Return True on success."""
         ...
 
-    def login(self, driver, config: dict) -> None:
+    async def login(self) -> None:
         """Authenticate with the retail platform. No-op default."""
         return None
 
-    def detect_captcha(self, driver) -> bool:
-        """Return True if a CAPTCHA is present on the current page. No-op default."""
+    async def detect_captcha(self) -> bool:
+        """Return True if a CAPTCHA is present. No-op default."""
         return False
+
+    async def teardown(self) -> None:
+        """Close the browser. Registry calls at shutdown."""
+        ...
