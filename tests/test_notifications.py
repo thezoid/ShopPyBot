@@ -213,20 +213,89 @@ def test_dedup_renotify_after_restock(tmp_data_dir):
 
 
 # ============================================================
-# NOTIF-01: Dispatcher fan-out (xfail — Plan 05-04)
+# NOTIF-01: Dispatcher fan-out (Plan 05-04)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-04", strict=False)
-def test_failing_notifier_does_not_block():
-    """A failing channel notifier must not prevent other channels from firing."""
-    pytest.fail("not yet implemented")
+async def test_all_notifiers_called(fake_notifier, notification_event):
+    """All registered notifiers must receive the event when none raises."""
+    from notifications.dispatcher import NotificationDispatcher
+
+    a = fake_notifier()
+    b = fake_notifier()
+    c = fake_notifier()
+    event = notification_event()
+
+    dispatcher = NotificationDispatcher([a, b, c])
+    await dispatcher.notify(event)
+
+    assert len(a.events) == 1 and a.events[0] is event
+    assert len(b.events) == 1 and b.events[0] is event
+    assert len(c.events) == 1 and c.events[0] is event
 
 
-@pytest.mark.xfail(reason="implemented in plan 05-04", strict=False)
-def test_all_notifiers_called():
-    """All enabled notifiers must be called for a single NotificationEvent."""
-    pytest.fail("not yet implemented")
+async def test_failing_notifier_does_not_block(fake_notifier, notification_event):
+    """A failing middle notifier must not prevent the other two from receiving the event."""
+    from notifications.dispatcher import NotificationDispatcher
+
+    a = fake_notifier()
+    b = fake_notifier(raises=RuntimeError("channel exploded"))
+    c = fake_notifier()
+    event = notification_event()
+
+    dispatcher = NotificationDispatcher([a, b, c])
+    # notify() must return without raising even though b raises
+    await dispatcher.notify(event)
+
+    assert len(a.events) == 1 and a.events[0] is event, "first notifier must fire"
+    assert len(c.events) == 1 and c.events[0] is event, "third notifier must fire"
+    # b recorded the event before raising
+    assert len(b.events) == 1, "failing notifier still appended the event before raising"
+
+
+async def test_dispatcher_does_not_propagate(fake_notifier, notification_event):
+    """notify() must return normally even when every notifier raises."""
+    from notifications.dispatcher import NotificationDispatcher
+
+    a = fake_notifier(raises=ValueError("bad"))
+    b = fake_notifier(raises=RuntimeError("worse"))
+    event = notification_event()
+
+    dispatcher = NotificationDispatcher([a, b])
+    # Should not raise
+    await dispatcher.notify(event)
+
+
+async def test_dispatcher_secret_scrub(fake_notifier, notification_event, capsys):
+    """Failure log must contain the notifier class name but NOT the exception string (secret).
+
+    writeLog() uses print() (not Python logging), so capsys captures the output.
+    The test verifies that the exception message -- which embeds a fake webhook URL --
+    never reaches the log, satisfying T-05-11 (secret scrub on channel failure).
+    """
+    from notifications.dispatcher import NotificationDispatcher
+
+    secret_url = "https://discord.com/api/webhooks/999/secret-token-xyzzy"
+
+    # Simulate a notifier whose exception embeds a secret webhook URL
+    err = RuntimeError(f"POST {secret_url} returned 403")
+    leaky = fake_notifier(raises=err)
+    good = fake_notifier()
+    event = notification_event()
+
+    dispatcher = NotificationDispatcher([leaky, good])
+    await dispatcher.notify(event)
+
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+
+    assert output, "expected at least one log line written to stdout/stderr"
+    assert "_FakeNotifier" in output, "notifier class name must appear in the log"
+    assert secret_url not in output, "secret webhook URL must NOT appear in the log"
+    assert "RuntimeError" in output, "exception class name must appear in the log"
+
+    # Other notifier still fires
+    assert len(good.events) == 1 and good.events[0] is event
 
 
 # ============================================================
