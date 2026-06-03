@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase complete — ready for verification
-last_updated: "2026-06-03T16:20:18.452Z"
+last_updated: "2026-06-03T16:30:29.869Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 67
 ---
 
@@ -118,6 +118,7 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 | Phase 04-async-orchestrator P01 | 15 | 2 tasks | 3 files |
 | Phase 04-async-orchestrator P04 | 15m | 2 tasks | 5 files |
 | Phase 04-async-orchestrator P05 | 15 | 1 tasks | 3 files |
+| Phase 05-notification-system P02 | 12m | 2 tasks | 3 files |
 
 ## Decisions
 
@@ -138,3 +139,6 @@ Progress: [ Phase 1 ][ Phase 2 ][ Phase 3 ][ Phase 4 ][ Phase 5 ]
 - [Phase ?]: TaskGroup of per-plugin coroutines with 1.5s stagger and single write-queue drain via asyncio.Queue
 - [Phase ?]: stdin listener thread uses loop.call_soon_threadsafe as the only thread-safe Event bridge; no direct event.set() from non-loop threads (ASYNC-03)
 - [Phase ?]: run_in_executor used only for sqlite3 calls and stdin readline; nodriver browser work stays on the event loop (ASYNC-01 primary model)
+- [Phase ?]: SoundNotifier: synchronous pygame calls (no executor, thread-safety unconfirmed)
+- [Phase ?]: DiscordNotifier: secret-safe error logging (class+status only, never webhook URL or str(exc))
+- [Phase ?]: Discord 429: raises RuntimeError with Retry-After; no retry loop in Phase 5 scope
