@@ -133,16 +133,15 @@ async def test_check_availability_never_raises(fake_browser):
 
 
 @pytest.mark.asyncio
-async def test_autobuy_calls_update_purchased(fake_browser):
-    """PLG-02: auto_buy must call update_item_purchased(url) after a successful purchase.
+async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
+    """ASYNC-05: auto_buy must return True on success WITHOUT calling update_item_purchased.
 
-    Drives the full auto_buy flow with a fake tab where every select returns
-    a clickable fake element.  Patches:
-      - models.update_item_purchased on the plugin module (the name as imported)
-      - login() to avoid real BB_EMAIL/BB_PASSWORD dependency
-      - os.environ so login does not early-return if called anyway
-    Asserts update_item_purchased was called once with the item url and
-    auto_buy returned True.
+    The orchestrator's write queue owns the sole write path (ASYNC-05). The plugin
+    signals success by returning True; the orchestrator enqueues the DB write.
+
+    Drives the full auto_buy flow with a fake tab. Verifies:
+      - auto_buy returns True on a successful flow
+      - update_item_purchased is NOT called (import removed; orchestrator owns writes)
     """
     item_url = "https://www.bestbuy.com/site/test/1234.p"
 
@@ -150,12 +149,14 @@ async def test_autobuy_calls_update_purchased(fake_browser):
     plugin.driver = fake_browser
     plugin._cvv = "123"  # set as main.py would after setup()
 
-    # Patch update_item_purchased on the plugin module (the imported name).
-    with patch.object(_bestbuy_module, "update_item_purchased") as mock_update, \
-         patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
+    # update_item_purchased must not be importable from the plugin module (ASYNC-05).
+    assert not hasattr(_bestbuy_module, "update_item_purchased"), (
+        "BestBuyPlugin module must not import update_item_purchased (ASYNC-05)"
+    )
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
          patch.dict("os.environ", {"BB_EMAIL": "test@test.com", "BB_PASSWORD": "pw"}):
 
         result = await plugin.auto_buy(item_url)
 
     assert result is True, "auto_buy must return True after successful purchase"
-    mock_update.assert_called_once_with(item_url)
