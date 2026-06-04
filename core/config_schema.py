@@ -171,7 +171,13 @@ class SmsConfig(BaseModel):
 
     @model_validator(mode="after")
     def require_creds_if_enabled(self) -> "SmsConfig":
-        """Gate: sms.enabled=true without TWILIO_* env vars raises at startup (NOTIF-06)."""
+        """Gate: sms.enabled=true without TWILIO_* env vars raises at startup (NOTIF-06).
+
+        DELIBERATE os.environ exception: AppConfig() construction runs BEFORE init_store()
+        can be called (init_store needs the constructed config). This validator is a
+        startup presence check, not a runtime secret read. Do NOT migrate to get_store()
+        here. See RESEARCH.md Pitfall 7.
+        """
         if self.enabled:
             missing = [
                 v for v in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM")
@@ -194,6 +200,18 @@ class NotificationsConfig(BaseModel):
     sms: SmsConfig = SmsConfig()
 
 
+class CredentialsConfig(BaseModel):
+    """Credential store config. Secrets are NEVER stored here (CRED-06).
+
+    This section controls which backend the credential store uses and where the
+    encrypted file lives. Actual secret values must come from the active backend
+    (OS keyring, encrypted file, or env vars) -- never from config.yml.
+    """
+
+    backend: str = "auto"  # auto | keyring | file | env
+    data_dir: str = ""     # empty = data/creds.bin (project-relative default)
+
+
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
@@ -210,6 +228,7 @@ class AppConfig(BaseSettings):
     platforms: PlatformsConfig = PlatformsConfig()
     app: AppSettingsConfig = AppSettingsConfig()
     notifications: NotificationsConfig = NotificationsConfig()
+    credentials: CredentialsConfig = CredentialsConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)
