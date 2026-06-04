@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-04T14:52:44.192Z"
+last_updated: "2026-06-04T15:08:26.715Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 7
   total_plans: 35
-  completed_plans: 33
+  completed_plans: 34
   percent: 64
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 08 (credential-store) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-04
 
@@ -123,6 +123,7 @@ Last activity: 2026-06-04
 | Phase 07-modular-core-service P03 | 5m | 2 tasks | 2 files |
 | Phase 08-credential-store P01 | 8min | 3 tasks | 4 files |
 | Phase 08-credential-store P02 | 7min | 2 tasks | 3 files |
+| Phase 08 P03 | 12min | 3 tasks | 4 files |
 
 ## Decisions
 
@@ -163,3 +164,4 @@ Last activity: 2026-06-04
 - [Phase ?]: _build_store stub returns EnvVarBackend in plan 08-01; auto-detection keyring->file->env deferred to plan 08-03
 - [Phase ?]: KeyringBackend uses SERVICE=shopbot hardcoded; keyring has no enumerate API so list() probes each SECRET_KEY individually (CRED-02)
 - [Phase ?]: EncryptedFileBackend: scrypt n=2**14 + fresh 16B salt per write; fdopen-in-with + os.replace-outside for Windows-safe atomic write; InvalidToken -> ValueError(SHOPBOT_STORE_PASSPHRASE) (CRED-03)
+- [Phase ?]: _build_store: explicit config > real keyring > encrypted-file (passphrase in env) > env-var; getpass deferred to explicit 'file' backend path only
