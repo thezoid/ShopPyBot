@@ -97,6 +97,11 @@ async def add_item(request: Request):
             {"status": "error", "detail": "quantity must be an integer"},
             status_code=422,
         )
+    if quantity < 1:
+        return JSONResponse(
+            {"status": "error", "detail": "quantity must be >= 1"},
+            status_code=422,
+        )
     auto_buy = bool(body.get("auto_buy", False))
     request.app.state.svc.add_item(name, link, auto_buy, quantity)
     return JSONResponse({"status": "ok"})

@@ -90,6 +90,39 @@ def test_post_item_bad_quantity_returns_422(mock_svc, client):
     mock_svc.add_item.assert_not_called()
 
 
+def test_post_item_zero_quantity_returns_422(mock_svc, client):
+    """POST /api/items with quantity 0 returns 422 and does not add a row (WR-01-new)."""
+    resp = client.post(
+        "/api/items",
+        json={"name": "Widget", "link": "https://ex.com/w", "auto_buy": False, "quantity": 0},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 422
+    mock_svc.add_item.assert_not_called()
+
+
+def test_post_item_negative_quantity_returns_422(mock_svc, client):
+    """POST /api/items with quantity -5 returns 422 and does not add a row (WR-01-new)."""
+    resp = client.post(
+        "/api/items",
+        json={"name": "Widget", "link": "https://ex.com/w", "auto_buy": False, "quantity": -5},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 422
+    mock_svc.add_item.assert_not_called()
+
+
+def test_post_item_omitted_quantity_defaults_to_1(mock_svc, client):
+    """POST /api/items with quantity omitted defaults to 1 (WR-01-new)."""
+    resp = client.post(
+        "/api/items",
+        json={"name": "Widget", "link": "https://ex.com/w", "auto_buy": False},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 200
+    mock_svc.add_item.assert_called_once_with("Widget", "https://ex.com/w", False, 1)
+
+
 def test_web_add_item_parity(tmp_data_dir):
     """Web add produces identical DB state to CLI add (SC2)."""
     from models import initialize_db
