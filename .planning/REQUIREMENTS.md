@@ -102,7 +102,7 @@
 
 ### Optional Web UI
 
-- [ ] **GUI-01**: Optional local web UI (FastAPI) launched via `shoppybot web`, served on localhost; provides nothing the CLI cannot do.
+- [x] **GUI-01**: Optional local web UI (FastAPI) launched via `shoppybot web`, served on localhost; provides nothing the CLI cannot do.
 - [x] **GUI-02**: Manage tracked items (list/add/remove) through the UI via `BotService`.
 - [x] **GUI-03**: Manage credentials + per-platform config through the UI, persisting secrets via `CredentialStore` (never plaintext to the browser, localStorage, or disk).
 - [x] **GUI-04**: Start/stop the bot and view live status + recent logs from the UI.
@@ -196,7 +196,7 @@
 | CLI-02 | Phase 9 — CLI Front-End | Complete |
 | CLI-03 | Phase 9 — CLI Front-End | Complete |
 | CLI-04 | Phase 9 — CLI Front-End | Complete |
-| GUI-01 | Phase 10 — Optional Web UI | Pending |
+| GUI-01 | Phase 10 — Optional Web UI | Complete |
 | GUI-02 | Phase 10 — Optional Web UI | Complete |
 | GUI-03 | Phase 10 — Optional Web UI | Complete |
 | GUI-04 | Phase 10 — Optional Web UI | Complete |

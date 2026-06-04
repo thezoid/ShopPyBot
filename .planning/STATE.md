@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: executing
-last_updated: "2026-06-04T22:03:36.086Z"
+status: verifying
+last_updated: "2026-06-04T22:15:50.523Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 43
-  completed_plans: 42
-  percent: 98
+  completed_plans: 43
+  percent: 91
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 10 (Optional Web UI) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
 ## Phase Status
@@ -135,6 +135,7 @@ Last activity: 2026-06-04
 | Phase 10-optional-web-ui P01 | 15m | 3 tasks | 21 files |
 | Phase 10-optional-web-ui P02 | 6m | 2 tasks | 2 files |
 | Phase 10-optional-web-ui P03 | 3m | 1 tasks | 1 files |
+| Phase 10-optional-web-ui P04 | 8min | 2 tasks | 3 files |
 
 ## Decisions
 
@@ -188,3 +189,4 @@ Last activity: 2026-06-04
 - [Phase ?]: svc.start() called with zero args (no CVV) per locked web-scope decision
 - [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list
 - [Phase 10-03]: import core.credentials as module (not from-import) so patch("core.credentials.get_store") resolves the reference at call time in tests
+- [Phase ?]: [Phase 10-04]: Config routes in web/routes/config.py; WEB_ALLOWLIST gate (notifier toggles only, no platform enabled fields); SC3 HTML-leak guard test green

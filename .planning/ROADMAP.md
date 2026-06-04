@@ -165,7 +165,7 @@ Plans:
 - [x] **Phase 7: Modular Core Service** — `BotService` wraps all bot logic behind a stable API; installable package with `shoppybot` entry point; `main.py` becomes a thin shim (completed 2026-06-04)
 - [x] **Phase 8: Credential Store** — `CredentialStore` interface with OS-keyring/encrypted-file/env-var backends; all secret reads routed through it; no scattered `os.environ` reads remain (completed 2026-06-04)
 - [x] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI (completed 2026-06-04)
-- [ ] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server
+- [x] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server (completed 2026-06-04)
 - [ ] **Phase 11: Cross-Platform Verification** — Documented and automated verification that import, CLI, and credential-backend selection work correctly on both Ubuntu and Windows
 
 ---
@@ -258,7 +258,7 @@ Plans:
 - [x] 10-01-PLAN.md — [web] extra + web/ package skeleton (create_app, security, log_reader, config_web) + handle_web body + Wave 0 tests (GUI-05, GUI-06)
 - [x] 10-02-PLAN.md — items + bot-control + status/logs routes via BotService; SC2 parity (GUI-02, GUI-04)
 - [x] 10-03-PLAN.md — credential routes: name+is_set GET, status-only POST via CredentialStore; SC3 no-leak (GUI-03)
-- [ ] 10-04-PLAN.md — config routes + dashboard page/template/CSS per UI-SPEC; non-local banner (GUI-01, GUI-03)
+- [x] 10-04-PLAN.md — config routes + dashboard page/template/CSS per UI-SPEC; non-local banner (GUI-01, GUI-03)
 
 **UI hint**: yes
 
@@ -292,7 +292,7 @@ Plans:
 | 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
 | 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
-| 10. Optional Web UI | 3/4 | In Progress|  |
+| 10. Optional Web UI | 4/4 | Complete   | 2026-06-04 |
 | 11. Cross-Platform Verification | 0/TBD | Not started | - |
 
 ---
