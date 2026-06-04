@@ -82,7 +82,15 @@ def build_parser() -> argparse.ArgumentParser:
     show_p = config_sub.add_parser("show", help="Print the current effective config.")
     show_p.set_defaults(func=handle_config_show)
 
-    set_p = config_sub.add_parser("set", help="Update an allowlisted config key.")
+    set_p = config_sub.add_parser(
+        "set",
+        help="Update an allowlisted config key.",
+        description=(
+            "Update an allowlisted config key in config.yml. "
+            "Note: comments and custom formatting in config.yml are not preserved "
+            "after a 'config set' -- the file is rewritten with standard YAML formatting."
+        ),
+    )
     set_p.add_argument("key", help="Config key (test_mode, logging_level).")
     set_p.add_argument("value", help="New value.")
     set_p.set_defaults(func=handle_config_set)

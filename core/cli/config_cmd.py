@@ -72,7 +72,13 @@ def handle_config_show(args, svc=None) -> int:
 
 
 def handle_config_set(args, svc=None) -> int:
-    """Update an allowlisted config key in config.yml atomically."""
+    """Update an allowlisted config key in config.yml atomically.
+
+    Note (WR-04): rewrites the entire file via yaml.dump -- comments, blank
+    lines, and custom key ordering in config.yml are not preserved. This is
+    accepted behavior under the no-new-dependencies constraint; use ruamel.yaml
+    if comment preservation becomes a requirement.
+    """
     key = args.key
     if key not in ALLOWLIST:
         print(
