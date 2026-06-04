@@ -336,7 +336,7 @@ def _build_store(backend_name: str, cfg: AppConfig) -> CredentialStore:
     Logs the active backend NAME only -- never a secret value (T-08-09).
     """
     store_path = (
-        Path(cfg.credentials.data_dir)
+        Path(cfg.credentials.data_dir) / "creds.bin"
         if getattr(cfg.credentials, "data_dir", "")
         else _DEFAULT_STORE_PATH
     )
