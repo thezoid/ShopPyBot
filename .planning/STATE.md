@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: executing
-last_updated: "2026-06-04T17:59:06.534Z"
+status: verifying
+last_updated: "2026-06-04T18:06:42.744Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 39
-  completed_plans: 38
-  percent: 73
+  completed_plans: 39
+  percent: 82
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 09 (CLI Front-End) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
 ## Phase Status
@@ -128,6 +128,7 @@ Last activity: 2026-06-04
 | Phase 09-cli-front-end P01 | 12m | 3 tasks | 15 files |
 | Phase 09-cli-front-end P02 | 8min | 2 tasks | 4 files |
 | Phase 09-cli-front-end P03 | 4min | 2 tasks | 2 files |
+| Phase 09-cli-front-end P04 | 4m | 1 tasks | 1 files |
 
 ## Decisions
 
@@ -176,3 +177,4 @@ Last activity: 2026-06-04
 - [Phase ?]: [Phase 09-02]: handle_config_set raises SystemExit(2) for unknown keys -- consistent with _coerce pattern, required by test scaffold
 - [Phase ?]: [Phase 09-02]: sys.stdin.readline() in _prompt_backend instead of input() -- ASYNC-03 compliance
 - [Phase ?]: [Phase 09-02]: setup._write_backend reads _DEFAULT_YAML_PATH via import core.cli.config_cmd at call-time for monkeypatch testability
+- [Phase ?]: web.py lazy-import seam was correct from 09-01 stub; CLI-04 guard tests unskipped with SystemExit fix for run subcommand dispatch

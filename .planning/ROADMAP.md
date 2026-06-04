@@ -164,7 +164,7 @@ Plans:
 
 - [x] **Phase 7: Modular Core Service** — `BotService` wraps all bot logic behind a stable API; installable package with `shoppybot` entry point; `main.py` becomes a thin shim (completed 2026-06-04)
 - [x] **Phase 8: Credential Store** — `CredentialStore` interface with OS-keyring/encrypted-file/env-var backends; all secret reads routed through it; no scattered `os.environ` reads remain (completed 2026-06-04)
-- [ ] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI
+- [x] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI (completed 2026-06-04)
 - [ ] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server
 - [ ] **Phase 11: Cross-Platform Verification** — Documented and automated verification that import, CLI, and credential-backend selection work correctly on both Ubuntu and Windows
 
@@ -234,7 +234,7 @@ Plans:
 - [x] 09-01-PLAN.md — CLI package scaffold: argparse subparsers + dispatch + run handler + Wave-0 test scaffold (CLI-01)
 - [x] 09-02-PLAN.md — setup (getpass credential store + backend write + --migrate alias) + config show/set allowlist (CLI-02, CLI-03)
 - [x] 09-03-PLAN.md — items list/add/remove over BotService + MOD-02 AST grep guard (CLI-03, MOD-02)
-- [ ] 09-04-PLAN.md — web lazy-import seam + no-fastapi guard tests (CLI-04)
+- [x] 09-04-PLAN.md — web lazy-import seam + no-fastapi guard tests (CLI-04)
 
 **UI hint**: no
 
@@ -284,7 +284,7 @@ Plans:
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
 | 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
-| 9. CLI Front-End | 3/4 | In Progress|  |
+| 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
 | 10. Optional Web UI | 0/TBD | Not started | - |
 | 11. Cross-Platform Verification | 0/TBD | Not started | - |
 

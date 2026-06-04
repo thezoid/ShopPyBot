@@ -98,7 +98,7 @@
 - [x] **CLI-01**: `shoppybot run` (default) starts the bot through `BotService` (keeps `python main.py` working as a shim).
 - [x] **CLI-02**: `shoppybot setup` interactively stores/updates credentials (into `CredentialStore`) and basic config; works on Ubuntu and Windows.
 - [x] **CLI-03**: `shoppybot items` (list/add/remove) and `shoppybot config` manage tracked items + settings via the core API.
-- [ ] **CLI-04**: The CLI is fully functional with NO web UI installed or running.
+- [x] **CLI-04**: The CLI is fully functional with NO web UI installed or running.
 
 ### Optional Web UI
 
@@ -195,7 +195,7 @@
 | CLI-01 | Phase 9 — CLI Front-End | Complete |
 | CLI-02 | Phase 9 — CLI Front-End | Complete |
 | CLI-03 | Phase 9 — CLI Front-End | Complete |
-| CLI-04 | Phase 9 — CLI Front-End | Pending |
+| CLI-04 | Phase 9 — CLI Front-End | Complete |
 | GUI-01 | Phase 10 — Optional Web UI | Pending |
 | GUI-02 | Phase 10 — Optional Web UI | Pending |
 | GUI-03 | Phase 10 — Optional Web UI | Pending |
