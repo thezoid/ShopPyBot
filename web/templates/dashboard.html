@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopPyBot Dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  {% if is_non_local %}
+  <div class="banner-warning">
+    Warning: this dashboard is reachable beyond localhost. Credential management is exposed
+    on a non-local interface. Use only on a trusted private network.
+  </div>
+  {% endif %}
+
+  <div class="container">
+    <h1>ShopPyBot Dashboard</h1>
+
+    <!-- Section 1: Controls / Status -->
+    <section class="card" id="section-controls">
+      <h2>Controls</h2>
+      <div class="status-row">
+        <span id="status-dot" class="status-dot {% if status.running %}running{% else %}stopped{% endif %}"></span>
+        <span id="status-label">{% if status.running %}Running{% else %}Stopped{% endif %}</span>
+      </div>
+      <div class="button-row">
+        <button id="btn-start" class="btn btn-accent" type="button"
+                {% if status.running %}disabled{% endif %}>Start Bot</button>
+        <button id="btn-stop" class="btn btn-destructive" type="button"
+                {% if not status.running %}disabled{% endif %}>Stop Bot</button>
+      </div>
+      <div class="logs-panel">
+        <label class="section-label">Recent Logs</label>
+        <pre id="log-content" class="log-pre"></pre>
+      </div>
+    </section>
+
+    <!-- Section 2: Items -->
+    <section class="card" id="section-items">
+      <h2>Items</h2>
+      <table id="items-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>URL</th>
+            <th>Auto Buy</th>
+            <th>Quantity</th>
+            <th>Remove</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody">
+          {% if items %}
+            {% for item in items %}
+            <tr data-link="{{ item[1] | urlencode }}">
+              <td>{{ item[0] }}</td>
+              <td>{{ item[1] }}</td>
+              <td>{{ "Yes" if item[2] else "No" }}</td>
+              <td>{{ item[3] }}</td>
+              <td>
+                <button class="btn-remove btn-text-destructive" type="button"
+                        data-link="{{ item[1] }}">Remove Item</button>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr id="empty-row">
+              <td colspan="5" class="text-secondary">
+                No items tracked yet. Add one below to start monitoring.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      <form id="add-item-form" class="add-form">
+        <div class="form-group">
+          <label for="item-name">Name</label>
+          <input id="item-name" type="text" placeholder="Item name" required>
+          <span class="field-error" id="item-name-error"></span>
+        </div>
+        <div class="form-group">
+          <label for="item-url">URL</label>
+          <input id="item-url" type="text" placeholder="Product URL" required>
+          <span class="field-error" id="item-url-error"></span>
+        </div>
+        <div class="form-group form-inline">
+          <label for="item-autobuy">
+            <input id="item-autobuy" type="checkbox"> Auto Buy
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="item-qty">Quantity</label>
+          <input id="item-qty" type="number" value="1" min="1">
+        </div>
+        <button type="submit" class="btn btn-accent">Add Item</button>
+        <span class="field-error" id="add-item-error"></span>
+      </form>
+    </section>
+
+    <!-- Section 3: Credentials -->
+    <section class="card" id="section-credentials">
+      <h2>Credentials</h2>
+      <div id="credentials-list">
+        <!-- populated by JS on load -->
+      </div>
+    </section>
+
+    <!-- Section 4: Config -->
+    <section class="card" id="section-config">
+      <h2>Config</h2>
+      <div id="config-form-wrapper">
+        <!-- populated by JS on load -->
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const POLL_MS = 2000;
+    let failCount = 0;
+
+    // --- Status + Logs polling ---
+    async function pollStatus() {
+      try {
+        const resp = await fetch('/api/status');
+        const data = await resp.json();
+        const dot = document.getElementById('status-dot');
+        const label = document.getElementById('status-label');
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        if (data.running) {
+          dot.className = 'status-dot running';
+          label.textContent = 'Running';
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+        } else {
+          dot.className = 'status-dot stopped';
+          label.textContent = 'Stopped';
+          btnStart.disabled = false;
+          btnStop.disabled = true;
+        }
+        failCount = 0;
+      } catch (e) {
+        failCount++;
+        if (failCount >= 3) {
+          document.getElementById('log-content').textContent = 'Connection lost — retrying...';
+        }
+      }
+    }
+
+    async function pollLogs() {
+      try {
+        const resp = await fetch('/api/logs');
+        const data = await resp.json();
+        document.getElementById('log-content').textContent = (data.logs || []).join('\n');
+      } catch (e) { /* silent */ }
+    }
+
+    setInterval(pollStatus, POLL_MS);
+    setInterval(pollLogs, POLL_MS);
+    pollStatus();
+    pollLogs();
+
+    // --- Bot controls ---
+    document.getElementById('btn-start').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-start');
+      btn.disabled = true;
+      try {
+        await fetch('/api/bot/start', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btn-stop').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-stop');
+      btn.disabled = true;
+      try {
+        await fetch('/api/bot/stop', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // --- Add item form ---
+    document.getElementById('add-item-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nameEl = document.getElementById('item-name');
+      const urlEl = document.getElementById('item-url');
+      const nameErr = document.getElementById('item-name-error');
+      const urlErr = document.getElementById('item-url-error');
+      nameErr.textContent = '';
+      urlErr.textContent = '';
+      if (!nameEl.value) { nameErr.textContent = 'Item name is required.'; return; }
+      if (!urlEl.value)  { urlErr.textContent = 'Item URL is required.'; return; }
+      const btn = e.target.querySelector('button[type=submit]');
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/items', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name: nameEl.value,
+            link: urlEl.value,
+            auto_buy: document.getElementById('item-autobuy').checked,
+            quantity: parseInt(document.getElementById('item-qty').value) || 1,
+          }),
+        });
+        if (resp.ok) {
+          nameEl.value = '';
+          urlEl.value = '';
+          document.getElementById('item-autobuy').checked = false;
+          document.getElementById('item-qty').value = '1';
+          loadItems();
+        } else {
+          document.getElementById('add-item-error').textContent = 'Failed to add item.';
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // --- Remove item ---
+    async function removeItem(link) {
+      const b64 = btoa(unescape(encodeURIComponent(link))).replace(/\+/g,'-').replace(/\//g,'_');
+      await fetch('/api/items/' + b64, {method: 'DELETE', headers: {'Content-Type': 'application/json'}});
+      loadItems();
+    }
+
+    // --- Load items ---
+    async function loadItems() {
+      const resp = await fetch('/api/items');
+      const data = await resp.json();
+      const tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-secondary">No items tracked yet. Add one below to start monitoring.</td></tr>';
+        return;
+      }
+      data.items.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${item.name}</td><td>${item.link}</td><td>${item.auto_buy ? 'Yes' : 'No'}</td><td>${item.quantity}</td><td><button class="btn-text-destructive" type="button" onclick="removeItem('${item.link.replace(/'/g, "\\'")}')">Remove Item</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- Credentials ---
+    async function loadCredentials() {
+      const resp = await fetch('/api/credentials');
+      const data = await resp.json();
+      const container = document.getElementById('credentials-list');
+      container.innerHTML = '';
+      (data.credentials || []).forEach(cred => {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `
+          <span class="cred-name">${cred.name}</span>
+          <span class="cred-status ${cred.is_set ? '' : 'text-secondary'}">${cred.is_set ? 'Set' : 'Not set'}</span>
+          <div class="cred-form">
+            <input type="password" placeholder="Enter new value" id="cred-input-${cred.name}" autocomplete="new-password">
+            <button type="button" class="btn btn-accent btn-sm" onclick="saveCredential('${cred.name}')">Save Credential</button>
+            <span class="field-feedback" id="cred-fb-${cred.name}"></span>
+          </div>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function saveCredential(name) {
+      const input = document.getElementById('cred-input-' + name);
+      const fb = document.getElementById('cred-fb-' + name);
+      fb.textContent = '';
+      fb.className = 'field-feedback';
+      const resp = await fetch('/api/credentials', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: name, value: input.value}),
+      });
+      input.value = '';
+      if (resp.ok) {
+        fb.textContent = 'Saved.';
+        fb.className = 'field-feedback success';
+        loadCredentials();
+      } else {
+        fb.textContent = 'Failed to save. Try again.';
+        fb.className = 'field-feedback error';
+      }
+    }
+
+    // --- Config ---
+    async function loadConfig() {
+      const resp = await fetch('/api/config');
+      const data = await resp.json();
+      const wrapper = document.getElementById('config-form-wrapper');
+      wrapper.innerHTML = '';
+      const form = document.createElement('form');
+      form.id = 'config-form';
+
+      const keys = Object.entries(data);
+      keys.forEach(([k, v]) => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        const label = document.createElement('label');
+        label.textContent = k;
+        label.htmlFor = 'cfg-' + k;
+        let input;
+        if (typeof v === 'boolean') {
+          input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = v;
+          input.id = 'cfg-' + k;
+          input.dataset.key = k;
+          input.dataset.isBool = 'true';
+        } else {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.value = String(v);
+          input.id = 'cfg-' + k;
+          input.dataset.key = k;
+        }
+        group.appendChild(label);
+        group.appendChild(input);
+        form.appendChild(group);
+      });
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'submit';
+      saveBtn.className = 'btn btn-accent';
+      saveBtn.textContent = 'Save Config';
+      const cfgFb = document.createElement('span');
+      cfgFb.id = 'config-feedback';
+      cfgFb.className = 'field-feedback';
+      form.appendChild(saveBtn);
+      form.appendChild(cfgFb);
+      wrapper.appendChild(form);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        cfgFb.textContent = '';
+        cfgFb.className = 'field-feedback';
+        const inputs = form.querySelectorAll('[data-key]');
+        const saves = [];
+        inputs.forEach(inp => {
+          const key = inp.dataset.key;
+          const value = inp.dataset.isBool ? String(inp.checked) : inp.value;
+          saves.push(
+            fetch('/api/config', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({key, value}),
+            })
+          );
+        });
+        const results = await Promise.all(saves);
+        const allOk = results.every(r => r.ok);
+        if (allOk) {
+          cfgFb.textContent = 'Saved.';
+          cfgFb.className = 'field-feedback success';
+        } else {
+          cfgFb.textContent = 'Failed to save. Check server logs.';
+          cfgFb.className = 'field-feedback error';
+        }
+      });
+    }
+
+    loadItems();
+    loadCredentials();
+    loadConfig();
+  </script>
+</body>
+</html>
