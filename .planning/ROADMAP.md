@@ -206,7 +206,14 @@ Plans:
   4. When no store is configured and no keyring is available, the env-var fallback activates; startup logs the active backend name (e.g., `CredentialStore: env-var backend active`) without logging any secret value.
   5. Running `shoppybot setup --migrate` imports all secrets currently set as environment variables into the selected backend and confirms each key imported by name (not value).
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+
+- [ ] 08-01-PLAN.md — CredentialStore ABC + EnvVarBackend + SECRET_KEYS + CredentialsConfig + Wave 0 test scaffold (CRED-01, CRED-04)
+- [ ] 08-02-PLAN.md — KeyringBackend + EncryptedFileBackend (Fernet/scrypt) + keyring pin (CRED-02, CRED-03)
+- [ ] 08-03-PLAN.md — Backend selection precedence + backend-name logging + BotService init_store + no-plaintext test (CRED-05, CRED-06)
+- [ ] 08-04-PLAN.md — Migrate 16 os.environ secret reads to get_store + migrate_from_env + --migrate + SC1 grep guard (CRED-01, CRED-07)
+
 **UI hint**: no
 
 ### Phase 9: CLI Front-End
