@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: Defining requirements
-last_updated: "2026-06-04T03:11:28.175Z"
+last_updated: "2026-06-04T03:20:43.171Z"
 last_activity: 2026-06-04 — Milestone v2.0 started
 progress:
   total_phases: 11
   completed_phases: 6
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
   percent: 55
 ---
 
@@ -119,6 +119,7 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 | Phase 06-platform-expansion P04 | 4m | 2 tasks | 4 files |
 | Phase 06-platform-expansion P05 | 5m | 2 tasks | 2 files |
 | Phase 07-modular-core-service P01 | 375s | 2 tasks | 3 files |
+| Phase 07-modular-core-service P02 | 4min | 1 tasks | 3 files |
 
 ## Decisions
 
@@ -152,3 +153,5 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 - [Phase 07-01]: BotService uses daemon thread with its own asyncio event loop for non-blocking start/stop from any sync caller
 - [Phase 07-01]: stop() cancels task via loop.call_soon_threadsafe so async_main's finally block runs teardown_all (no orphaned Chrome)
 - [Phase 07-01]: run() = asyncio.run(async_main(cfg, cvv)) identical to v1 behavior; CVV is a parameter only (never logged)
+- [Phase ?]: parse_known_args() in core.service:main() avoids sys.argv contamination when test calls main() directly
+- [Phase ?]: plugins/__init__.py added to make plugins/ a proper setuptools package; Phase 07-02 shoppybot entry point = core.service:main via pyproject.toml [project.scripts]

@@ -81,7 +81,7 @@
 
 - [ ] **MOD-01**: A stable core service API (e.g. `core/service.py` `BotService`) wraps registry + orchestrator + config + credential store and exposes: start/stop the bot, list/add/remove tracked items, read/update config, get status. Both CLI and GUI consume ONLY this API.
 - [ ] **MOD-02**: No bot logic lives in any front-end (CLI or GUI). Front-ends are thin adapters over `BotService`; a grep shows no orchestrator/registry/DB calls bypassing the service from front-end modules.
-- [ ] **MOD-03**: Installable package: `pyproject.toml` defines the package + a `shoppybot` console entry point; `pip install -e .` succeeds on Ubuntu and Windows; `python main.py` continues to work as a thin shim.
+- [x] **MOD-03**: Installable package: `pyproject.toml` defines the package + a `shoppybot` console entry point; `pip install -e .` succeeds on Ubuntu and Windows; `python main.py` continues to work as a thin shim.
 
 ### Credential Store
 
@@ -184,7 +184,7 @@
 | DOCS-05 | Phase 3 — Community Documentation | Complete |
 | MOD-01 | Phase 7 — Modular Core Service | Pending |
 | MOD-02 | Phase 7 — Modular Core Service | Pending |
-| MOD-03 | Phase 7 — Modular Core Service | Pending |
+| MOD-03 | Phase 7 — Modular Core Service | Complete |
 | CRED-01 | Phase 8 — Credential Store | Pending |
 | CRED-02 | Phase 8 — Credential Store | Pending |
 | CRED-03 | Phase 8 — Credential Store | Pending |
