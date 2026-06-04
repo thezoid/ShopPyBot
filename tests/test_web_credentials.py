@@ -18,7 +18,7 @@ def mock_svc():
 @pytest.fixture
 def client(mock_svc):
     from web import create_app
-    return TestClient(create_app(mock_svc))
+    return TestClient(create_app(mock_svc), base_url="http://127.0.0.1:8000")
 
 
 def test_get_credentials_returns_name_and_is_set_only(client):
@@ -72,3 +72,17 @@ def test_post_credentials_calls_store_set(client):
             headers={"origin": "http://127.0.0.1:8000"},
         )
         mock_store.set.assert_called_once_with("AMZ_EMAIL", "test@example.com")
+
+
+def test_post_credentials_unknown_key_returns_422_no_write(client):
+    """POST /api/credentials with unknown key returns 422 and does not write (CR-01)."""
+    with patch("core.credentials.get_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_get_store.return_value = mock_store
+        resp = client.post(
+            "/api/credentials",
+            json={"key": "ARBITRARY_INJECTED_KEY", "value": "evil"},
+            headers={"origin": "http://127.0.0.1:8000"},
+        )
+    assert resp.status_code == 422
+    mock_store.set.assert_not_called()

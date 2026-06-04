@@ -73,3 +73,66 @@ def test_csrf_rejected():
         headers={"origin": "http://evil.com"},
     )
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# CR-03: non-local bind rejects loopback origins
+# ---------------------------------------------------------------------------
+
+def test_csrf_loopback_origin_rejected_on_non_local_bind():
+    """When server is bound non-locally, a loopback Origin is rejected 403 (CR-03).
+
+    Simulates a server at 192.168.1.10:8000 receiving a request whose Origin
+    is http://127.0.0.1 -- this must NOT be accepted because the server is not
+    loopback-bound and 127.0.0.1 is not the server host.
+    """
+    from fastapi.testclient import TestClient
+    from fastapi import FastAPI, Depends, Request
+    from fastapi.responses import JSONResponse
+    from web.security import check_origin
+
+    # Minimal app that exposes a POST endpoint with check_origin
+    probe_app = FastAPI()
+
+    @probe_app.post("/probe", dependencies=[Depends(check_origin)])
+    async def probe(request: Request):
+        return JSONResponse({"status": "ok"})
+
+    # TestClient sets base_url so request.url.hostname resolves to 192.168.1.10
+    client = TestClient(
+        probe_app,
+        base_url="http://192.168.1.10:8000",
+        raise_server_exceptions=False,
+    )
+    resp = client.post(
+        "/probe",
+        json={},
+        headers={"origin": "http://127.0.0.1"},
+    )
+    assert resp.status_code == 403
+
+
+def test_csrf_same_origin_accepted_on_non_local_bind():
+    """When server is bound non-locally, the exact server origin is accepted (CR-03)."""
+    from fastapi.testclient import TestClient
+    from fastapi import FastAPI, Depends, Request
+    from fastapi.responses import JSONResponse
+    from web.security import check_origin
+
+    probe_app = FastAPI()
+
+    @probe_app.post("/probe", dependencies=[Depends(check_origin)])
+    async def probe(request: Request):
+        return JSONResponse({"status": "ok"})
+
+    client = TestClient(
+        probe_app,
+        base_url="http://192.168.1.10:8000",
+        raise_server_exceptions=False,
+    )
+    resp = client.post(
+        "/probe",
+        json={},
+        headers={"origin": "http://192.168.1.10:8000"},
+    )
+    assert resp.status_code == 200

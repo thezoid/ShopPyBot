@@ -19,7 +19,7 @@ def mock_svc():
 @pytest.fixture
 def client(mock_svc):
     from web import create_app
-    return TestClient(create_app(mock_svc))
+    return TestClient(create_app(mock_svc), base_url="http://127.0.0.1:8000")
 
 
 def test_get_items_returns_list(mock_svc, client):
@@ -57,6 +57,39 @@ def test_delete_item_calls_remove_item(mock_svc, client):
     mock_svc.remove_item.assert_called_once_with(link)
 
 
+def test_post_item_missing_name_returns_422(mock_svc, client):
+    """POST /api/items with missing name returns 422, not 500 (WR-02)."""
+    resp = client.post(
+        "/api/items",
+        json={"link": "https://ex.com/w", "auto_buy": False, "quantity": 1},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 422
+    mock_svc.add_item.assert_not_called()
+
+
+def test_post_item_missing_link_returns_422(mock_svc, client):
+    """POST /api/items with missing link returns 422, not 500 (WR-02)."""
+    resp = client.post(
+        "/api/items",
+        json={"name": "Widget", "auto_buy": False, "quantity": 1},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 422
+    mock_svc.add_item.assert_not_called()
+
+
+def test_post_item_bad_quantity_returns_422(mock_svc, client):
+    """POST /api/items with non-integer quantity returns 422 (WR-02)."""
+    resp = client.post(
+        "/api/items",
+        json={"name": "Widget", "link": "https://ex.com/w", "auto_buy": False, "quantity": "banana"},
+        headers={"origin": "http://127.0.0.1:8000"},
+    )
+    assert resp.status_code == 422
+    mock_svc.add_item.assert_not_called()
+
+
 def test_web_add_item_parity(tmp_data_dir):
     """Web add produces identical DB state to CLI add (SC2)."""
     from models import initialize_db
@@ -64,7 +97,7 @@ def test_web_add_item_parity(tmp_data_dir):
     from web import create_app
     initialize_db(delete=True)
     svc = BotService()
-    client = TestClient(create_app(svc))
+    client = TestClient(create_app(svc), base_url="http://127.0.0.1:8000")
     client.post(
         "/api/items",
         json={"name": "Widget", "link": "https://example.com/w", "auto_buy": False, "quantity": 1},

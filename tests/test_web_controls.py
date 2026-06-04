@@ -18,7 +18,7 @@ def mock_svc():
 @pytest.fixture
 def client(mock_svc):
     from web import create_app
-    return TestClient(create_app(mock_svc))
+    return TestClient(create_app(mock_svc), base_url="http://127.0.0.1:8000")
 
 
 def test_bot_start_calls_svc_start(mock_svc, client):
