@@ -2,15 +2,13 @@
 phase: 08-credential-store
 reviewed: 2026-06-04T00:00:00Z
 depth: standard
-files_reviewed: 19
+iteration: 2
+files_reviewed: 13
 files_reviewed_list:
   - core/credentials.py
-  - core/config_schema.py
   - core/service.py
   - notifications/__init__.py
   - notifications/discord_notifier.py
-  - notifications/email_notifier.py
-  - notifications/sms_notifier.py
   - plugins/shopbot_plugin_amazon.py
   - plugins/shopbot_plugin_bestbuy.py
   - plugins/shopbot_plugin_gamestop.py
@@ -19,193 +17,111 @@ files_reviewed_list:
   - plugins/shopbot_plugin_target.py
   - plugins/shopbot_plugin_walmart.py
   - tests/conftest.py
-  - tests/test_credentials.py
-  - tests/test_no_env_secret_reads.py
-  - tests/test_no_plaintext.py
 findings:
-  critical: 1
-  warning: 7
-  info: 5
-  total: 13
+  critical: 0
+  warning: 2
+  info: 3
+  total: 5
 status: issues_found
 ---
 
-# Phase 8: Code Review Report
+# Phase 8: Code Review Report (Iteration 2 -- Fix Verification)
 
 **Reviewed:** 2026-06-04T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 19
+**Files Reviewed:** 13
 **Status:** issues_found
 
 ## Summary
 
-Phase 8 introduces a credential-store abstraction (`core/credentials.py`) with three backends (env-var, OS keyring, scrypt+Fernet encrypted file) and migrates every consumer (7 plugins, 3 notifiers, dispatcher factory) from direct `os.environ` reads to `get_store().get()`. The core crypto is sound: scrypt parameters are RFC 7914 interactive-login values, salt is per-write random (`os.urandom(16)`), the passphrase is never persisted, decryption failures are caught and re-raised as a clean `ValueError` that names only the env-var, and the atomic write closes the fd before `os.replace`. The no-plaintext and no-env-read guard tests are well-constructed.
+This is a re-review verifying the fixer's iteration-1 changes against the prior 1 Critical + 7 Warning findings, and scanning for regressions introduced by those fixes.
 
-The migration itself is largely faithful and identity-preserving for the env backend. However, the review surfaced one blocker (broad secret-bearing exception messages logged at the plugin boundary), several robustness gaps (keyring chainer/null detection, silent exception swallow in the service loop, fragile thread-start handshake), and a handful of quality issues (file exceeds the 300-line project limit, confusing dead test code).
+**CR-01 (secret leakage) is resolved.** All 21 exception handlers across the 7 reviewed plugins (`check_availability`, `login`, `auto_buy`) now log `f"...: {exc.__class__.__name__}"` and never interpolate the raw exception object. A repo-wide scan for `{exc}` / `str(exc)` / `repr(exc)` returns zero hits inside the seven reviewed plugins. The two secret-bearing call sites that motivated the blocker -- Amazon/BestBuy/etc. `send_keys(password)` in `login()` and `send_keys(self._cvv)` in BestBuy `auto_buy` (line 160) -- are each wrapped by an in-plugin `try/except` that now logs the type only and returns False/True, so no secret-bearing exception can propagate to the orchestrator. The full suite passes: 255 passed, 1 xpassed, 0 failures.
 
-## Critical Issues
+**All 7 warnings (WR-01..WR-07) and 2 info items (IN-02, IN-05) are correctly applied:**
+- WR-01: `_has_real_keyring()` now does a `set/get/delete` round-trip probe after the type checks (credentials.py:159-168), catching a ChainerBackend over fail/null leaves.
+- WR-02: service loop splits `except asyncio.CancelledError: pass` from `except Exception as exc: writeLog(... exc.__class__.__name__ ...)` (service.py:98-104).
+- WR-03: `_running = True` set synchronously before thread start (service.py:85); duplicate-launch guard checks both `_running` and `_thread.is_alive()` (line 82); `ready.wait()` return value is checked and logged on timeout (lines 118-120).
+- WR-04: `isolated_keyring` captures `original = get_keyring()` and restores via `set_keyring(original)` (conftest.py:294-298).
+- WR-05: `EncryptedFileBackend` gets a per-instance `threading.Lock`; `set`/`delete` wrap load-modify-save in `with self._lock` (credentials.py:237, 274-284).
+- WR-06: `migrate_from_env` read-back-verifies via `store.get(key)` before appending the key name, warns (name-only) on no-op, and catches/logs `set` exceptions by type (credentials.py:392-410).
+- WR-07: `build_dispatcher` reads `DISCORD_WEBHOOK_URL` once and passes it to `DiscordNotifier(discord_url)`; the notifier accepts `webhook_url` and no longer re-reads the store (init.py:43-45, discord_notifier.py:63-68).
+- IN-02 / IN-05: dead set/del/set triple removed; unused `import keyring.core` removed from `credentials.py`.
 
-### CR-01: Plugin exception handlers log `str(exc)`, which can leak credential values on `send_keys` failure
-
-**File:** `plugins/shopbot_plugin_amazon.py:176-177`, `plugins/shopbot_plugin_amazon.py:109-111`, and the identical pattern in `shopbot_plugin_bestbuy.py:104-105`, `shopbot_plugin_gamestop.py:124-125`, `shopbot_plugin_newegg.py:135-136`, `shopbot_plugin_squareenix.py:126-127`, `shopbot_plugin_target.py:124-125`, `shopbot_plugin_walmart.py:122-123`
-
-**Issue:** Each `login()` reads the password from the store and immediately passes it to `await <field>.send_keys(password)`. The surrounding handler is `except Exception as exc: writeLog(f"Error during <X> sign-in: {exc}", "ERROR")`. `writeLog` mirrors every message to `logs/YYYYMONTHDD.log` (see `logger.py:46`). nodriver/CDP element-interaction errors frequently embed the element value or the arguments being dispatched in their exception text; any exception raised from inside `send_keys(password)` (or `send_keys(email)`, or `send_keys(self._cvv)` in BestBuy `auto_buy`) can therefore write the secret to the on-disk log in plaintext. This directly contradicts the file-level security contract ("Neither value is ever logged") and the project no-plaintext-on-disk guarantee. The notifier modules correctly avoid this by logging only `exc.__class__.__name__` / HTTP status; the plugins do not apply the same discipline.
-
-**Fix:** Never interpolate raw exception objects in the secret-handling paths. Log the exception type only, matching the notifier pattern:
-```python
-except Exception as exc:
-    writeLog(
-        f"Error during Amazon sign-in: {exc.__class__.__name__}",
-        "ERROR",
-    )
-```
-Apply to every `login()` handler and to BestBuy `auto_buy` (the CVV path at `shopbot_plugin_bestbuy.py:156-160` is inside a handler that logs `{exc}` at line 171). The `check_availability` handlers are lower risk but share the same `{exc}` pattern and should be hardened for consistency.
+The fixes introduced no new Critical issues. Two Warnings remain: one is a latent semantic mismatch in `data_dir` handling (pre-existing, not introduced by the fix but located in a reviewed file and worth flagging), and one is a side effect of the new keyring probe that writes to the live OS keyring. Three Info items cover residual edge cases and minor dead-import cleanup.
 
 ## Warnings
 
-### WR-01: `_has_real_keyring()` does not detect a chainer that wraps only fail/null backends
+### WR-01: `data_dir` config field is treated as a full file path, not a directory, contradicting its name and docstring
 
-**File:** `core/credentials.py:141-157`
+**File:** `core/credentials.py:338-342`, `core/config_schema.py:206-212`
 
-**Issue:** The guard checks `isinstance(backend, fail.Keyring)` and `isinstance(backend, null.Keyring)`. On many systems `keyring.get_keyring()` returns a `ChainerBackend` (priority-ordered chain), not the leaf backend. If the chain contains only fail/null leaves (e.g. headless Linux with no Secret Service, or a CI box), the chainer instance is neither a `fail.Keyring` nor a `null.Keyring`, so `_has_real_keyring()` returns `True`. Auto-detect then selects `KeyringBackend`, and the first `keyring.set_password`/`get_password` either raises `NoKeyringError` at runtime or silently no-ops, depending on the chain. The bot would believe it has a real store and skip the encrypted-file fallback.
-
-**Fix:** Probe functionally instead of (or in addition to) type-checking. A round-trip probe is the reliable signal:
+**Issue:** `CredentialsConfig.data_dir` is documented as "where the encrypted file lives" and named like a directory; the default comment says "empty = data/creds.bin (project-relative default)". But `_build_store` does:
 ```python
-def _has_real_keyring() -> bool:
-    backend = keyring.get_keyring()
-    if isinstance(backend, _keyring_fail.Keyring):
-        return False
-    try:
-        from keyring.backends.null import Keyring as _NullKeyring
-        if isinstance(backend, _NullKeyring):
-            return False
-    except ImportError:
-        pass
-    try:
-        keyring.set_password("shopbot", "__probe__", "1")
-        ok = keyring.get_password("shopbot", "__probe__") == "1"
-        keyring.delete_password("shopbot", "__probe__")
-        return ok
-    except Exception:
-        return False
+store_path = (
+    Path(cfg.credentials.data_dir)
+    if getattr(cfg.credentials, "data_dir", "")
+    else _DEFAULT_STORE_PATH
+)
+```
+and passes `store_path` straight to `EncryptedFileBackend(store_path, passphrase)` as the file path. If an operator sets `data_dir: "data"` (a directory, as the name strongly implies), `EncryptedFileBackend._save` computes `dir_ = self._path.parent` (the parent of `data`), writes a tempfile there, then `os.replace(tmp, Path("data"))`. If `data` already exists as a directory, `os.replace` raises (`IsADirectoryError` / `PermissionError` on Windows); if it does not, the encrypted blob is written as a file literally named `data` in the CWD instead of inside it. The credential store silently lands in the wrong place or fails to save on first `set`. The `_DEFAULT_STORE_PATH` branch correctly points at `data/creds.bin`, so the only-broken case is the explicit-config case the field exists to serve. Not introduced by the iteration-1 fixes, but it sits in a reviewed file and is a real foot-gun.
+
+**Fix:** Treat `data_dir` as a directory and append the filename, or rename the field to `store_path`. Minimal directory-semantics fix:
+```python
+store_path = (
+    Path(cfg.credentials.data_dir) / "creds.bin"
+    if getattr(cfg.credentials, "data_dir", "")
+    else _DEFAULT_STORE_PATH
+)
 ```
 
-### WR-02: Service background loop silently swallows every exception from `async_main`
+### WR-02: `_has_real_keyring()` functional probe writes to the live OS keyring and can leave a stray `__probe__` entry
 
-**File:** `core/service.py:95-96`
+**File:** `core/credentials.py:159-168`
 
-**Issue:** `except (asyncio.CancelledError, Exception): pass` discards all errors, including real failures (config errors, driver crashes, programming bugs). `_running` is then set to `False` and the thread exits cleanly, so the caller has no signal that the bot died abnormally vs. shut down normally. This violates the project rule "never silently swallow exceptions" and makes field debugging effectively impossible (no log line is emitted). It also widens CR-01's blast radius: an exception that carried a secret is swallowed without even a type-only log.
-
-**Fix:** Separate cancellation (expected) from real errors, and log the type on the error path:
+**Issue:** The WR-01-iteration-1 fix added a round-trip probe that runs against the *real* default keyring during auto-detect:
 ```python
+keyring.set_password("shopbot", "__probe__", "1")
+ok = keyring.get_password("shopbot", "__probe__") == "1"
 try:
-    await async_main(self._cfg, cvv)
-except asyncio.CancelledError:
+    keyring.delete_password("shopbot", "__probe__")
+except Exception:
     pass
-except Exception as exc:
-    writeLog(f"Bot loop terminated abnormally: {exc.__class__.__name__}", "ERROR")
-finally:
-    self._running = False
-    self._task = None
+return ok
 ```
+Two consequences: (1) a "read-only" backend-detection step now performs a *write* into the user's OS credential manager under the same `shopbot` service the app uses for real secrets; (2) if `set_password` succeeds but `delete_password` raises (caught and swallowed), a stray `shopbot/__probe__` entry persists in the user's keyring indefinitely. It is not a secret (value `"1"`) and `KeyringBackend.list()` only enumerates `SECRET_KEYS`, so it will not surface in `list()`, but it is residue in the user's credential store from a detection probe. The probe also runs on every `init_store()` call, so the write/delete churn repeats each startup.
 
-### WR-03: `start()` race -- `_running` is set inside the coroutine, after `start()` may have already returned
-
-**File:** `core/service.py:79-110`
-
-**Issue:** `start()` checks `if self._running` at line 79, then launches the thread and waits on `ready` with a 5s timeout (line 110). `_running` is only set to `True` inside the coroutine (line 91). Two problems: (1) `ready.wait(timeout=5.0)` returns whether or not the event fired; if the loop is slow to start, `start()` returns with `_running` still `False` and `_task` still `None`, so a subsequent `stop()` is a silent no-op (line 118) while the thread is in fact starting up. (2) A second `start()` call racing the first sees `_running == False` and can launch a second thread/loop. The handshake is not robust.
-
-**Fix:** Set `self._running = True` synchronously in `start()` before launching the thread (it is the lifecycle owner), or check `ready.wait()`'s return value and raise/log on timeout rather than returning as if started. At minimum, gate the duplicate-launch path on the thread handle, not on `_running`.
-
-### WR-04: `isolated_keyring` fixture teardown does not restore the original OS keyring
-
-**File:** `tests/conftest.py:294-297`
-
-**Issue:** The fixture installs a `_DictKeyring`, yields, then on teardown sets `_keyring_core._keyring_backend = None`. Setting the cached backend to `None` forces keyring to re-run backend auto-detection on next access; it does not restore whatever backend was active before the test. Any test that ran earlier and captured the original via `keyring.get_keyring()` (e.g. `test_has_real_keyring_fail` saves/restores correctly, but other tests relying on a stable backend) can observe a different backend post-teardown. This is order-dependent test pollution.
-
-**Fix:** Capture and restore the original explicitly:
-```python
-original = _keyring_module.get_keyring()
-kb = _DictKeyring()
-_keyring_module.set_keyring(kb)
-yield kb
-_keyring_module.set_keyring(original)
-```
-
-### WR-05: `EncryptedFileBackend.set`/`delete` are read-modify-write with no locking; concurrent writers lose data
-
-**File:** `core/credentials.py:262-270`
-
-**Issue:** `set` and `delete` both call `_load()` (full decrypt), mutate the dict, then `_save()` (full re-encrypt with a fresh salt + `os.replace`). The store singleton is shared process-wide and `BotService` runs a background asyncio thread plus the main thread. If `migrate_from_env` (main thread, multiple sequential `set` calls) overlaps any other writer, the last `os.replace` wins and intervening keys are dropped. The module already uses `_store_lock` for the singleton but the backend instance has no write lock.
-
-**Fix:** Guard the load-modify-save in `set`/`delete` with a per-instance `threading.Lock`, or document that the file backend is single-writer and ensure migration runs before the background thread starts. Given `migrate_from_env` is invoked via the `--migrate` CLI path (which exits before `service.run()`), the practical risk is low today, but the contract is unguarded.
-
-### WR-06: `migrate_from_env` writes through whatever backend `get_store()` returns -- can no-op silently against a non-functional keyring
-
-**File:** `core/service.py:162-167`, `core/credentials.py:369-382`
-
-**Issue:** `main(--migrate)` calls `migrate_from_env(get_store())`. If auto-detect selected `KeyringBackend` due to WR-01 (chainer over fail/null), each `store.set(key, val)` may raise or no-op, yet `migrated.append(key)` still runs and the CLI prints `Migrated: <KEY>` for every env var. The operator is told migration succeeded when nothing was persisted, then deletes their env vars believing the secret is safe in the store.
-
-**Fix:** Verify the write inside `migrate_from_env` (read-back) before appending to the migrated list, or have it raise on a failed `set`. Tie this fix to WR-01 so the selected backend is known-functional.
-
-### WR-07: `notifications/__init__.build_dispatcher` reads `DISCORD_WEBHOOK_URL` twice (TOCTOU window)
-
-**File:** `notifications/__init__.py:43` and `notifications/discord_notifier.py:66-68`
-
-**Issue:** The factory gates on `get_store().get("DISCORD_WEBHOOK_URL")` (line 43), then `DiscordNotifier.__init__` independently re-reads the same key and raises `ValueError` if absent (line 68). Between the two reads the store value could change (env backend: another thread `delenv`s it), so the factory decides to include the notifier and the constructor then raises, taking down `build_dispatcher` entirely instead of skipping the channel. Two reads of one secret also doubles the surface for a future logging mistake.
-
-**Fix:** Read once and pass the value in: `url = get_store().get("DISCORD_WEBHOOK_URL"); if notif.discord.enabled and url: notifiers.append(DiscordNotifier(url))`. Have `DiscordNotifier.__init__(self, webhook_url: str)` accept the value rather than re-reading the store.
+**Fix:** Use a service name distinct from the real store for the probe (e.g. `"shopbot-probe"`) so a leaked entry never collides with real keys, and consider gating the probe behind the existing type checks only when the backend is a chainer (the common false-positive case) rather than always. At minimum, document that auto-detect performs a keyring write.
 
 ## Info
 
-### IN-01: `core/credentials.py` exceeds the 300-line project file limit
+### IN-01: `start()` can return with `_running == True` but `_loop`/`_task` unset on a slow-loop timeout
 
-**File:** `core/credentials.py:1-397`
+**File:** `core/service.py:85, 118-120, 128`
 
-**Issue:** The file is 397 lines; CLAUDE.md sets a 300-line ceiling. The ABC, three backends, KDF helper, selection logic, singleton accessors, and migration all live in one module.
+**Issue:** WR-03's fix sets `_running = True` synchronously (good for the duplicate-launch guard). On the success path the ordering is correct: `_task` is assigned (line 94) before `ready.set()` (line 95), so a returning `start()` sees both `_loop` and `_task` populated. But if the daemon thread is slow and `ready.wait(timeout=5.0)` returns `False`, `start()` returns (after logging the warning) with `_running == True` while `_loop`/`_task` may still be `None`. A `stop()` called in that window passes the `not self._running` guard (line 128) but then finds `self._loop is None` and returns as a silent no-op, even though the thread is in fact starting up. The window is narrow and now logged, so this is Info rather than Warning.
 
-**Fix:** Optional split: move the three backend classes into `core/credential_backends.py` and keep `credentials.py` as the selection/singleton/migration surface. Not load-bearing for correctness; flagged for convention compliance.
+**Fix:** On `ready.wait()` timeout, either reset `self._running = False` and raise/return an explicit failure, or have `stop()` additionally `join()` the thread handle when `_loop is None` so a starting-up thread is not orphaned.
 
-### IN-02: Confusing dead code in `test_auto_select_file` -- set/delenv/set the same env var
+### IN-02: `conftest.py` imports `keyring.core as _keyring_core` but no longer uses it
 
-**File:** `tests/test_credentials.py:253-255`
+**File:** `tests/conftest.py:13`
 
-**Issue:**
-```python
-monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
-monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
-monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
-```
-The first two lines are dead: the value is set, immediately deleted, then set again. Net effect equals a single `setenv`. Reads as a botched edit and obscures intent.
+**Issue:** After the WR-04 fix switched teardown to `_keyring_module.set_keyring(original)`, the `_keyring_core` import is dead -- it now serves only to gate `_KEYRING_AVAILABLE` (which `import keyring as _keyring_module` already establishes). Harmless, but it reads as leftover from the old `_keyring_backend = None` reset approach.
 
-**Fix:** Delete the first two lines; keep one `monkeypatch.setenv(...)`.
+**Fix:** Drop `import keyring.core as _keyring_core`; the bare `import keyring as _keyring_module` inside the same `try` already sets `_KEYRING_AVAILABLE` correctly.
 
-### IN-03: `BestBuy.auto_buy` calls `login()` after navigating to checkout, and the `.a-dropdown-prompt` selector is a known-suspect carry-over
+### IN-03: `core/credentials.py` still exceeds the 300-line project file limit
 
-**File:** `plugins/shopbot_plugin_bestbuy.py:154` and `shopbot_plugin_bestbuy.py:127-130`
+**File:** `core/credentials.py:1-425`
 
-**Issue:** `login()` runs only after add-to-cart and the cart-page navigation, which is an odd ordering (most flows authenticate before cart manipulation). Separately, the `.a-dropdown-prompt` selector carries an Amazon-style `a-` prefix on a BestBuy page and is flagged by the inline TODO as unverified. Both are pre-existing carry-overs, not introduced by Phase 8, but they sit in code touched by this phase's migration.
+**Issue:** The file grew to 425 lines (was 397 at iteration 1) after the lock and probe additions; CLAUDE.md sets a 300-line ceiling. Carried over from IN-01 in the prior review; not load-bearing for correctness.
 
-**Fix:** Out of scope for the credential phase; track separately. Verify selector against live BestBuy and confirm login ordering during the next functional UAT.
-
-### IN-04: `EmailNotifier` / `SmsNotifier` send empty-string credentials when the store returns `None`
-
-**File:** `notifications/email_notifier.py:69`, `notifications/sms_notifier.py:59-61`
-
-**Issue:** `get_store().get("SMTP_PASSWORD") or ""` (and the three Twilio reads) substitute `""` for a missing secret, so the channel attempts an SMTP `login("", "")` / Twilio auth with blank token. The failure is deferred to the remote server and surfaces as an auth exception rather than a clear "credential not configured" message. For SMS this is partially mitigated by `SmsConfig.require_creds_if_enabled`, but Email has no equivalent startup gate.
-
-**Fix:** Optional: short-circuit with a clear `writeLog(..., "ERROR")` and return when the password/token is falsy, mirroring the plugins' "skipping login" guard.
-
-### IN-05: `import keyring.core` is unused in `core/credentials.py`
-
-**File:** `core/credentials.py:28`
-
-**Issue:** `keyring.core` is imported but never referenced (the code uses `keyring.get_keyring`, `keyring.backends.fail`, and the lazily imported `keyring.backends.null`). `tests/conftest.py` does use `keyring.core` for its reset, but the production module does not.
-
-**Fix:** Remove the unused `import keyring.core` line from `core/credentials.py`.
+**Fix:** Optional split: move the three backend classes into `core/credential_backends.py`, leaving `credentials.py` as the selection/singleton/migration surface.
 
 ---
 
 _Reviewed: 2026-06-04T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Iteration: 2_
