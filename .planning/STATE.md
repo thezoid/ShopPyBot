@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-04T21:58:01.099Z"
+last_updated: "2026-06-04T22:03:36.086Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 9
   total_plans: 43
-  completed_plans: 41
-  percent: 82
+  completed_plans: 42
+  percent: 98
 ---
 
 # ShopPyBot — State
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 10 (Optional Web UI) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-04
 
@@ -85,9 +85,9 @@ Last activity: 2026-06-04
 
 ## Session Continuity
 
-**Last action**: Completed plan 07-03 — main.py slimmed to BotService-delegating shim; test_main_wiring.py updated for new delegation seam; 227 tests passing
-**Next action**: Phase 07 plan 04 or next phase
-**Context to carry**: main.py is now a thin shim routing through BotService(cfg).run(cvv). getpass CVV collection stays in main.py front-end. BotService.run() is the blocking convenience wrapping asyncio.run(async_main). test_main_wiring.py has 6 passing tests asserting BotService delegation + CVV gate + ValidationError->SystemExit(1).
+**Last action**: Completed plan 10-03 -- credential GET+POST routes; SC3 no-secret-leak enforced; 320 tests passing
+**Next action**: Phase 10 plan 04 (config routes)
+**Context to carry**: web/routes/credentials.py implements GET /api/credentials (name+is_set only) and POST /api/credentials (store.set, status only). Uses module-level import for get_store so test patches resolve correctly. All SC3/T-10-08/T-10-10/T-10-11 threat mitigations active.
 
 ---
 
@@ -134,6 +134,7 @@ Last activity: 2026-06-04
 | Phase 09-cli-front-end P04 | 4m | 1 tasks | 1 files |
 | Phase 10-optional-web-ui P01 | 15m | 3 tasks | 21 files |
 | Phase 10-optional-web-ui P02 | 6m | 2 tasks | 2 files |
+| Phase 10-optional-web-ui P03 | 3m | 1 tasks | 1 files |
 
 ## Decisions
 
@@ -186,3 +187,4 @@ Last activity: 2026-06-04
 - [Phase ?]: bot_stop uses run_in_executor to dispatch blocking svc.stop() off event loop (T-10-08 mitigation)
 - [Phase ?]: svc.start() called with zero args (no CVV) per locked web-scope decision
 - [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list
+- [Phase 10-03]: import core.credentials as module (not from-import) so patch("core.credentials.get_store") resolves the reference at call time in tests
