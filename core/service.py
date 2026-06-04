@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from core.config_schema import AppConfig
+from core.credentials import init_store
 from core.orchestrator import async_main
 from models import add_items_sync, get_items_sync, remove_item_sync
 
@@ -34,6 +35,9 @@ class BotService:
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._task: Optional[asyncio.Task] = None
+        # Initialize the credential store before the daemon thread launches
+        # so the store is available without a race (RESEARCH thread-safety note).
+        init_store(self._cfg)
 
     # ------------------------------------------------------------------
     # Read-only accessors (callable without start)

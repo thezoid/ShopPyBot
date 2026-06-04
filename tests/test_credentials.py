@@ -331,6 +331,34 @@ def test_startup_log_backend_name(reset_credential_store, monkeypatch, capsys):
 
 
 # ============================================================
+# Task 2: BotService initializes store at construction (plan 08-03)
+# ============================================================
+
+
+def test_botservice_initializes_store(reset_credential_store, monkeypatch):
+    """BotService(cfg) sets the process-wide _store singleton (not just lazy fallback)."""
+    import core.credentials as creds
+    from unittest.mock import patch
+    from core.credentials import EnvVarBackend
+    from core.config_schema import AppConfig
+    from core.service import BotService
+
+    # Ensure _store starts as None so the test is meaningful
+    creds._store = None
+
+    monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
+    cfg = AppConfig()
+    cfg.credentials.backend = "env"
+
+    with patch("core.credentials._has_real_keyring", return_value=False):
+        BotService(cfg)
+
+    # After BotService construction, _store must be set (not None)
+    assert creds._store is not None, "BotService did not call init_store"
+    assert isinstance(creds._store, EnvVarBackend)
+
+
+# ============================================================
 # CRED-06: No-plaintext secrets (stubs -- implemented in plan 08-04)
 # ============================================================
 
