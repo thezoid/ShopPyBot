@@ -1,4 +1,4 @@
-"""handle_config_*: CLI config subcommand stubs (plan 09-02 fills the bodies).
+"""handle_config_*: config subcommand (show/set) implementation.
 
 Provides ALLOWLIST, _coerce, _atomic_yaml_write, handle_config_show, handle_config_set.
 """
@@ -48,6 +48,7 @@ def _atomic_yaml_write(path: Path, data: dict) -> None:
     """
     content = yaml.dump(data, default_flow_style=False, allow_unicode=True)
     dir_ = path.parent
+    dir_.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(dir_), suffix=".yml")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -81,7 +82,17 @@ def handle_config_set(args, svc=None) -> int:
         raise SystemExit(2)
     section, typ = ALLOWLIST[key]
     value = _coerce(args.value, typ)
-    data = yaml.safe_load(_DEFAULT_YAML_PATH.read_text(encoding="utf-8")) or {}
+    if key == "logging_level" and not (0 <= value <= 5):
+        print(
+            f"config set: logging_level must be 0-5, got {value}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    try:
+        raw = _DEFAULT_YAML_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raw = ""
+    data = yaml.safe_load(raw) or {}
     data.setdefault(section, {})[key] = value
     _atomic_yaml_write(_DEFAULT_YAML_PATH, data)
     print(f"Set {key} = {value}")
