@@ -140,13 +140,12 @@ def test_credentials_config_default():
 
 
 # ============================================================
-# CRED-02: KeyringBackend (stub -- implemented in plan 08-02)
+# CRED-02: KeyringBackend (plan 08-02)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="KeyringBackend implemented in plan 08-02", strict=False)
 def test_keyring_backend(isolated_keyring):
-    """KeyringBackend.get/set/delete work with the in-memory backend."""
+    """KeyringBackend.get/set/delete/list work with the in-memory DictKeyring."""
     from core.credentials import KeyringBackend
 
     store = KeyringBackend()
@@ -156,12 +155,36 @@ def test_keyring_backend(isolated_keyring):
     assert store.get("AMZ_EMAIL") is None
 
 
-@pytest.mark.xfail(reason="KeyringBackend._has_real_keyring implemented in plan 08-02", strict=False)
+def test_keyring_list(isolated_keyring):
+    """KeyringBackend.list returns only SECRET_KEYS that have a stored value."""
+    from core.credentials import KeyringBackend, SECRET_KEYS
+
+    store = KeyringBackend()
+    store.set("AMZ_EMAIL", "user@example.com")
+    store.set("BB_EMAIL", "user2@example.com")
+    result = store.list()
+    assert "AMZ_EMAIL" in result
+    assert "BB_EMAIL" in result
+    # Only known SECRET_KEYS may be returned
+    for key in result:
+        assert key in SECRET_KEYS
+    # Keys not set are absent
+    assert "DISCORD_WEBHOOK_URL" not in result
+
+
 def test_has_real_keyring_fail():
-    """_has_real_keyring() returns False when only fail/null backend is available."""
+    """_has_real_keyring() returns False for fail.Keyring and True for DictKeyring."""
+    import keyring
+    from keyring.backends import fail as keyring_fail
     from core.credentials import _has_real_keyring
 
-    assert _has_real_keyring() is False or _has_real_keyring() is True  # type check only
+    # Force fail.Keyring: must return False
+    original = keyring.get_keyring()
+    try:
+        keyring.set_keyring(keyring_fail.Keyring())
+        assert _has_real_keyring() is False
+    finally:
+        keyring.set_keyring(original)
 
 
 # ============================================================
