@@ -15,6 +15,7 @@ Selection logic (auto-detect) -- plan 08-03 (CRED-05).
 from __future__ import annotations
 
 import base64
+import getpass
 import json
 import os
 import tempfile
@@ -28,6 +29,8 @@ import keyring.core
 from keyring.backends import fail as _keyring_fail
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+from logger import writeLog
 
 if TYPE_CHECKING:
     from core.config_schema import AppConfig
@@ -291,14 +294,76 @@ def get_store() -> CredentialStore:
         return _store
 
 
-def _build_store(backend_name: str, cfg: AppConfig) -> CredentialStore:
-    """Select and construct the appropriate backend.
+def _resolve_passphrase() -> bytes | None:
+    """Return the store passphrase as bytes, or None if not available.
 
-    Stub in plan 08-01: always returns EnvVarBackend.
-    Selection logic (auto-detect: keyring -> file -> env) is filled in plan 08-03.
+    Reads SHOPBOT_STORE_PASSPHRASE from the environment.
+    Does NOT call getpass.getpass() here -- getpass is only called in
+    _build_store when the file backend is explicitly required (not during
+    auto-detect probing) to avoid blocking the event loop (RESEARCH Pitfall 3).
     """
-    # plan 08-03 will implement: keyring auto-detect, file backend w/ passphrase
+    val = os.environ.get("SHOPBOT_STORE_PASSPHRASE")
+    if val:
+        return val.encode()
+    return None
+
+
+def _build_store(backend_name: str, cfg: AppConfig) -> CredentialStore:
+    """Select and construct the backend by precedence (CRED-05).
+
+    Precedence:
+      explicit cfg.credentials.backend in {keyring, file, env}
+        -> build that backend directly, ignoring auto-detect
+      'auto':
+        1. KeyringBackend if _has_real_keyring()
+        2. EncryptedFileBackend if SHOPBOT_STORE_PASSPHRASE is set
+        3. EnvVarBackend (fallback)
+
+    Logs the active backend NAME only -- never a secret value (T-08-09).
+    """
+    store_path = (
+        Path(cfg.credentials.data_dir)
+        if getattr(cfg.credentials, "data_dir", "")
+        else _DEFAULT_STORE_PATH
+    )
+
+    if backend_name == "keyring":
+        store = KeyringBackend()
+        _log_backend("keyring")
+        return store
+
+    if backend_name == "env":
+        store = EnvVarBackend()
+        _log_backend("env-var")
+        return store
+
+    if backend_name == "file":
+        passphrase = _resolve_passphrase()
+        if passphrase is None:
+            passphrase = getpass.getpass(
+                "ShopPyBot credential store passphrase: "
+            ).encode()
+        store = EncryptedFileBackend(store_path, passphrase)
+        _log_backend("encrypted-file")
+        return store
+
+    # auto-detect path
+    if _has_real_keyring():
+        _log_backend("keyring")
+        return KeyringBackend()
+
+    passphrase = _resolve_passphrase()
+    if passphrase is not None:
+        _log_backend("encrypted-file")
+        return EncryptedFileBackend(store_path, passphrase)
+
+    _log_backend("env-var")
     return EnvVarBackend()
+
+
+def _log_backend(label: str) -> None:
+    """Emit startup log with active backend label only -- never a secret value."""
+    writeLog(f"CredentialStore: {label} backend active", "INFO")
 
 
 def init_store(cfg: AppConfig) -> CredentialStore:

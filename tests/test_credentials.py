@@ -320,10 +320,9 @@ def test_startup_log_backend_name(reset_credential_store, monkeypatch, capsys):
         init_store(cfg)
     captured = capsys.readouterr()
     assert "backend active" in captured.out
-    # No secret key names (not values) should appear as part of a secret-value leak
+    # No secret values should appear in the log output (T-08-09)
     for env_key in ("AMZ_EMAIL", "AMZ_PASSWORD", "DISCORD_WEBHOOK_URL",
                     "BB_EMAIL", "BB_PASSWORD"):
-        val = monkeypatch.getfixturevalue  # ignore -- check os.environ directly
         secret_val = os.environ.get(env_key, "")
         if secret_val:
             assert secret_val not in captured.out, (
