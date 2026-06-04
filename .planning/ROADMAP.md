@@ -156,6 +156,102 @@ Plans:
 
 ---
 
+## Milestone v2.0 — Modular Core + Cross-Platform UX
+
+**Goal:** Refactor the v1 code into a clean reusable core library, add a dynamic cross-platform secure credential store, and add an optional local web UI, while keeping the CLI the default, running on Ubuntu (desktop + headless) and Windows.
+
+### v2.0 Phase Checklist
+
+- [ ] **Phase 7: Modular Core Service** — `BotService` wraps all bot logic behind a stable API; installable package with `shoppybot` entry point; `main.py` becomes a thin shim
+- [ ] **Phase 8: Credential Store** — `CredentialStore` interface with OS-keyring/encrypted-file/env-var backends; all secret reads routed through it; no scattered `os.environ` reads remain
+- [ ] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI
+- [ ] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server
+- [ ] **Phase 11: Cross-Platform Verification** — Documented and automated verification that import, CLI, and credential-backend selection work correctly on both Ubuntu and Windows
+
+---
+
+## Phase Details (v2.0)
+
+### Phase 7: Modular Core Service
+
+**Goal**: All bot logic lives in a single importable `BotService` API; the CLI, web UI, and `python main.py` shim all call the same service; no logic is duplicated in front-ends; the package is installable via pip.
+**Depends on**: Phase 6
+**Requirements**: MOD-01, MOD-02, MOD-03
+**Success Criteria** (what must be TRUE):
+
+  1. `from core.service import BotService` succeeds after `pip install -e .`; calling `BotService.start()`, `BotService.stop()`, `BotService.list_items()`, `BotService.add_item()`, `BotService.remove_item()`, `BotService.get_status()`, and `BotService.get_config()` covers every operation the bot exposes to front-ends.
+  2. A grep for `PluginRegistry`, `async_main`, direct SQLite model calls, and `AppConfig()` across the `cli/` and any future `web/` directories returns zero matches — all such calls are inside `core/service.py` or below.
+  3. `pip install -e .` succeeds on both Ubuntu and Windows; running `shoppybot --help` shows the entry point; running `python main.py` continues to work and delegates immediately to `BotService`.
+  4. The existing test suite passes without modification after the refactor (no behavior regressions in v1 capabilities).
+
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 8: Credential Store
+
+**Goal**: A `CredentialStore` abstraction with three runtime-selectable backends (OS keyring, encrypted file, env-var) centralizes all secret access; no plaintext secrets exist anywhere on disk; every plugin and notifier reads credentials through the store.
+**Depends on**: Phase 7
+**Requirements**: CRED-01, CRED-02, CRED-03, CRED-04, CRED-05, CRED-06, CRED-07
+**Success Criteria** (what must be TRUE):
+
+  1. A grep for `os.environ.get` and `os.environ[` across `plugins/`, `notifications/`, and `core/` returns zero matches for secret keys (`DISCORD_WEBHOOK_URL`, `SMTP_PASSWORD`, `TWILIO_*`, `AMZ_*`, `BB_*`) — every such read is replaced by a `CredentialStore.get(key)` call.
+  2. On a machine with a functioning OS keyring (Windows Credential Manager or Linux Secret Service), secrets stored via `CredentialStore.set(key, value)` survive a process restart and are retrieved correctly without any env-var set.
+  3. On a headless Ubuntu machine with no keyring daemon, the encrypted-file backend activates automatically; the data-dir file is binary (not readable as plaintext); a test asserts that no secret value appears as plaintext in `config.yml`, any log file, or the SQLite database.
+  4. When no store is configured and no keyring is available, the env-var fallback activates; startup logs the active backend name (e.g., `CredentialStore: env-var backend active`) without logging any secret value.
+  5. Running `shoppybot setup --migrate` imports all secrets currently set as environment variables into the selected backend and confirms each key imported by name (not value).
+
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 9: CLI Front-End
+
+**Goal**: The `shoppybot` command-line tool provides all bot operations (run, setup, item management, config) through `BotService` and `CredentialStore`; it is fully functional with no web UI installed; setup works interactively on both Ubuntu and Windows.
+**Depends on**: Phase 8
+**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04
+**Success Criteria** (what must be TRUE):
+
+  1. `shoppybot run` starts the bot (and `python main.py` still works identically); both paths call `BotService.start()` with no duplicated orchestrator logic.
+  2. `shoppybot setup` prompts for each known credential key by name, stores each value via `CredentialStore.set()` without echoing it to the terminal, and confirms storage by key name only — the flow completes correctly on both Ubuntu (interactive terminal) and Windows (PowerShell).
+  3. `shoppybot items list` prints the current tracked items; `shoppybot items add --name "..." --url "..."` adds an item; `shoppybot items remove --url "..."` removes it; all three call `BotService` and not the DB directly.
+  4. Uninstalling FastAPI (`pip uninstall fastapi`) leaves `shoppybot run`, `shoppybot setup`, and `shoppybot items` fully functional — no import errors, no degraded behavior.
+
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 10: Optional Web UI
+
+**Goal**: An optional FastAPI dashboard reachable at `http://127.0.0.1:PORT` lets users manage items, credentials, and bot state through a browser; it installs as an optional extra; credential secrets never leave the server side; binding to any non-localhost address requires explicit opt-in and prints a security warning.
+**Depends on**: Phase 9
+**Requirements**: GUI-01, GUI-02, GUI-03, GUI-04, GUI-05, GUI-06
+**Success Criteria** (what must be TRUE):
+
+  1. `pip install .[web]` installs FastAPI and its dependencies; `shoppybot web` starts the server on `127.0.0.1` at the configured port; visiting the URL in a browser renders the dashboard without errors.
+  2. Adding, removing, and listing tracked items through the dashboard UI produces the same DB state as the equivalent `shoppybot items` CLI commands — both call `BotService` and the results are identical.
+  3. Submitting a credential update through the dashboard POSTs the value to the server, stores it via `CredentialStore.set()`, and returns only a success/failure status to the browser — the secret value is never included in any HTTP response body, HTML page source, browser localStorage, or server log.
+  4. Clicking Start/Stop in the dashboard calls `BotService.start()` / `BotService.stop()`; the status indicator reflects the current `BotService.get_status()` state; recent log lines are visible without a page refresh.
+  5. With FastAPI not installed (`pip install .` without `[web]`), `shoppybot run`, `shoppybot setup`, and `shoppybot items` all work without errors; `shoppybot web` prints a clear message that the web extra is not installed.
+  6. Launching with a non-localhost bind address (e.g., `--host 0.0.0.0`) prints a prominently visible security warning to stdout before the server starts, stating that credential management is exposed on a non-local interface.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: Cross-Platform Verification
+
+**Goal**: Every front-end command and all three credential backends are verified to work correctly on both Ubuntu (desktop and headless) and Windows; OS-specific path handling is correct; a verification matrix documents the results.
+**Depends on**: Phase 10
+**Requirements**: XPLAT-01, XPLAT-02
+**Success Criteria** (what must be TRUE):
+
+  1. Data directory, config path, and log path resolve to OS-appropriate locations on both Ubuntu and Windows (e.g., `~/.local/share/shoppybot` on Ubuntu, `%APPDATA%\shoppybot` on Windows or equivalent); no hardcoded path separators appear in the codebase.
+  2. `shoppybot --help`, `shoppybot setup`, and `shoppybot run --dry-run` (or equivalent smoke) complete without errors on Ubuntu desktop, Ubuntu headless (no display), and Windows — confirmed by manual run or CI matrix job.
+  3. The credential-backend auto-selection logic chooses the OS keyring backend on Windows and desktop Ubuntu, and the encrypted-file backend on headless Ubuntu with no active Secret Service — verified on each target environment.
+  4. A `docs/PLATFORMS.md` file (or equivalent section in README) documents the verified data/config/log paths per OS, the expected credential backend per environment, and the steps to reproduce the verification matrix.
+
+**Plans**: TBD
+**UI hint**: no
+
+---
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -166,6 +262,11 @@ Plans:
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
 | 5. Notification System | 5/5 | Complete   | 2026-06-03 |
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
+| 7. Modular Core Service | 0/TBD | Not started | - |
+| 8. Credential Store | 0/TBD | Not started | - |
+| 9. CLI Front-End | 0/TBD | Not started | - |
+| 10. Optional Web UI | 0/TBD | Not started | - |
+| 11. Cross-Platform Verification | 0/TBD | Not started | - |
 
 ---
 
@@ -217,9 +318,31 @@ Plans:
 | DOCS-03 | Phase 3 | Pending |
 | DOCS-04 | Phase 3 | Pending |
 | DOCS-05 | Phase 3 | Pending |
+| MOD-01 | Phase 7 | Pending |
+| MOD-02 | Phase 7 | Pending |
+| MOD-03 | Phase 7 | Pending |
+| CRED-01 | Phase 8 | Pending |
+| CRED-02 | Phase 8 | Pending |
+| CRED-03 | Phase 8 | Pending |
+| CRED-04 | Phase 8 | Pending |
+| CRED-05 | Phase 8 | Pending |
+| CRED-06 | Phase 8 | Pending |
+| CRED-07 | Phase 8 | Pending |
+| CLI-01 | Phase 9 | Pending |
+| CLI-02 | Phase 9 | Pending |
+| CLI-03 | Phase 9 | Pending |
+| CLI-04 | Phase 9 | Pending |
+| GUI-01 | Phase 10 | Pending |
+| GUI-02 | Phase 10 | Pending |
+| GUI-03 | Phase 10 | Pending |
+| GUI-04 | Phase 10 | Pending |
+| GUI-05 | Phase 10 | Pending |
+| GUI-06 | Phase 10 | Pending |
+| XPLAT-01 | Phase 11 | Pending |
+| XPLAT-02 | Phase 11 | Pending |
 
-**Total: 44/44 requirements mapped**
+**Total: 66/66 requirements mapped**
 
 ---
 
-*Last updated: 2026-06-03 — Phase 6 planned (5 plans)*
+*Last updated: 2026-06-03 — v2.0 phases 7-11 added*

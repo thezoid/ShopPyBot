@@ -182,3 +182,25 @@
 | DOCS-03 | Phase 3 — Community Documentation | Complete |
 | DOCS-04 | Phase 3 — Community Documentation | Complete |
 | DOCS-05 | Phase 3 — Community Documentation | Complete |
+| MOD-01 | Phase 7 — Modular Core Service | Pending |
+| MOD-02 | Phase 7 — Modular Core Service | Pending |
+| MOD-03 | Phase 7 — Modular Core Service | Pending |
+| CRED-01 | Phase 8 — Credential Store | Pending |
+| CRED-02 | Phase 8 — Credential Store | Pending |
+| CRED-03 | Phase 8 — Credential Store | Pending |
+| CRED-04 | Phase 8 — Credential Store | Pending |
+| CRED-05 | Phase 8 — Credential Store | Pending |
+| CRED-06 | Phase 8 — Credential Store | Pending |
+| CRED-07 | Phase 8 — Credential Store | Pending |
+| CLI-01 | Phase 9 — CLI Front-End | Pending |
+| CLI-02 | Phase 9 — CLI Front-End | Pending |
+| CLI-03 | Phase 9 — CLI Front-End | Pending |
+| CLI-04 | Phase 9 — CLI Front-End | Pending |
+| GUI-01 | Phase 10 — Optional Web UI | Pending |
+| GUI-02 | Phase 10 — Optional Web UI | Pending |
+| GUI-03 | Phase 10 — Optional Web UI | Pending |
+| GUI-04 | Phase 10 — Optional Web UI | Pending |
+| GUI-05 | Phase 10 — Optional Web UI | Pending |
+| GUI-06 | Phase 10 — Optional Web UI | Pending |
+| XPLAT-01 | Phase 11 — Cross-Platform Verification | Pending |
+| XPLAT-02 | Phase 11 — Cross-Platform Verification | Pending |
