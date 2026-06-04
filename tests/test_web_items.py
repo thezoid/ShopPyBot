@@ -59,8 +59,10 @@ def test_delete_item_calls_remove_item(mock_svc, client):
 
 def test_web_add_item_parity(tmp_data_dir):
     """Web add produces identical DB state to CLI add (SC2)."""
+    from models import initialize_db
     from core.service import BotService
     from web import create_app
+    initialize_db(delete=True)
     svc = BotService()
     client = TestClient(create_app(svc))
     client.post(

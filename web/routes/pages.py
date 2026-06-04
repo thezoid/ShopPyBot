@@ -12,8 +12,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 async def dashboard(request: Request):
     """Render the dashboard page with initial data from BotService."""
     svc = request.app.state.svc
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "is_non_local": request.app.state.is_non_local,
         "status": svc.get_status(),
         "items": svc.list_items(),

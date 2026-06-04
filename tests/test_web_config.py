@@ -12,6 +12,15 @@ def mock_svc():
     svc = MagicMock()
     svc.get_status.return_value = {"running": False}
     svc.list_items.return_value = []
+    # Configure get_config() so read_web_config returns JSON-serializable values
+    cfg = MagicMock()
+    cfg.debug.test_mode = True
+    cfg.debug.logging_level = 5
+    cfg.notifications.sound = True
+    cfg.notifications.discord.enabled = False
+    cfg.notifications.email.enabled = False
+    cfg.notifications.sms.enabled = False
+    svc.get_config.return_value = cfg
     return svc
 
 
