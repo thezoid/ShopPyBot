@@ -188,11 +188,10 @@ def test_has_real_keyring_fail():
 
 
 # ============================================================
-# CRED-03: EncryptedFileBackend (stubs -- implemented in plan 08-03)
+# CRED-03: EncryptedFileBackend (plan 08-02)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="EncryptedFileBackend implemented in plan 08-03", strict=False)
 def test_file_backend(tmp_path):
     """EncryptedFileBackend round-trip: set/get/delete/list."""
     from core.credentials import EncryptedFileBackend
@@ -202,9 +201,9 @@ def test_file_backend(tmp_path):
     assert store.get("AMZ_EMAIL") == "file@example.com"
     store.delete("AMZ_EMAIL")
     assert store.get("AMZ_EMAIL") is None
+    assert store.list() == []
 
 
-@pytest.mark.xfail(reason="EncryptedFileBackend implemented in plan 08-03", strict=False)
 def test_encrypted_file_is_not_plaintext(tmp_path):
     """The Fernet-encrypted store file contains no plaintext secret values."""
     from core.credentials import EncryptedFileBackend
@@ -216,7 +215,6 @@ def test_encrypted_file_is_not_plaintext(tmp_path):
     assert b"mytest@example.com" not in raw
 
 
-@pytest.mark.xfail(reason="EncryptedFileBackend implemented in plan 08-03", strict=False)
 def test_file_backend_wrong_passphrase(tmp_path):
     """Wrong passphrase raises a clear ValueError (not a cryptic cryptography error)."""
     from core.credentials import EncryptedFileBackend
