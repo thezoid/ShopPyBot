@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: verifying
-last_updated: "2026-06-04T18:06:42.744Z"
+status: executing
+last_updated: "2026-06-04T21:46:02.439Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 9
-  total_plans: 39
-  completed_plans: 39
+  total_plans: 43
+  completed_plans: 40
   percent: 82
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 09 (CLI Front-End) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-04
+Phase: 10 (Optional Web UI) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 10
+Last activity: 2026-06-04 -- Phase 10 Plan 01 completed (web skeleton + security + tests)
 
 ## Phase Status
 
@@ -58,6 +58,9 @@ Last activity: 2026-06-04
 
 ### Key Decisions Logged
 
+- [Phase 10-01]: create_app() router imports deferred inside factory body to avoid circular import; all fastapi imports confined to web/ package (CLI-04)
+- [Phase 10-01]: WEB_ALLOWLIST extends CLI ALLOWLIST with 4 notifier toggles only (no platform enables -- AppConfig has no enabled field per config-scope-note)
+- [Phase 10-01]: TemplateResponse uses new Starlette API signature: TemplateResponse(request, name, context) to avoid DeprecationWarning
 - Plugin interface: only `check_availability` and `auto_buy` are abstract; `login` and `detect_captcha` get no-op defaults — preserves contributor-friendliness
 - Plugin naming convention enforced: `shopbot_plugin_*.py`; non-matching files get a warning log, not a crash
 - One WebDriver instance per plugin (`self.driver` in `__init__`); no shared global driver — required for async safety
@@ -129,6 +132,7 @@ Last activity: 2026-06-04
 | Phase 09-cli-front-end P02 | 8min | 2 tasks | 4 files |
 | Phase 09-cli-front-end P03 | 4min | 2 tasks | 2 files |
 | Phase 09-cli-front-end P04 | 4m | 1 tasks | 1 files |
+| Phase 10-optional-web-ui P01 | 15m | 3 tasks | 21 files |
 
 ## Decisions
 

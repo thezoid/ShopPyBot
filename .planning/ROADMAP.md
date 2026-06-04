@@ -255,7 +255,7 @@ Plans:
 **Plans**: 4 plans
 Plans:
 
-- [ ] 10-01-PLAN.md — [web] extra + web/ package skeleton (create_app, security, log_reader, config_web) + handle_web body + Wave 0 tests (GUI-05, GUI-06)
+- [x] 10-01-PLAN.md — [web] extra + web/ package skeleton (create_app, security, log_reader, config_web) + handle_web body + Wave 0 tests (GUI-05, GUI-06)
 - [ ] 10-02-PLAN.md — items + bot-control + status/logs routes via BotService; SC2 parity (GUI-02, GUI-04)
 - [ ] 10-03-PLAN.md — credential routes: name+is_set GET, status-only POST via CredentialStore; SC3 no-leak (GUI-03)
 - [ ] 10-04-PLAN.md — config routes + dashboard page/template/CSS per UI-SPEC; non-local banner (GUI-01, GUI-03)
@@ -292,7 +292,7 @@ Plans:
 | 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
 | 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
-| 10. Optional Web UI | 0/4 | Planned | - |
+| 10. Optional Web UI | 1/4 | In Progress|  |
 | 11. Cross-Platform Verification | 0/TBD | Not started | - |
 
 ---
