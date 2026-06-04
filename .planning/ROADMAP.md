@@ -184,7 +184,13 @@ Plans:
   3. `pip install -e .` succeeds on both Ubuntu and Windows; running `shoppybot --help` shows the entry point; running `python main.py` continues to work and delegates immediately to `BotService`.
   4. The existing test suite passes without modification after the refactor (no behavior regressions in v1 capabilities).
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+
+- [ ] 07-01-PLAN.md — BotService API (start/stop/run/list/add/remove/get_status/get_config) + remove_item_sync + new service tests (MOD-01)
+- [ ] 07-02-PLAN.md — pyproject.toml packages + shoppybot console entry point (core.service:main); pip install -e . (MOD-03)
+- [ ] 07-03-PLAN.md — main.py thin shim routes through BotService.run; update test_main_wiring delegation seam (MOD-02, MOD-03)
+
 **UI hint**: no
 
 ### Phase 8: Credential Store
