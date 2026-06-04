@@ -9,6 +9,7 @@ for secrets or interactive input -- secrets are collected by the front-end
 and passed in (T-07-04, ASYNC-03).
 """
 
+import argparse
 import asyncio
 import threading
 from pathlib import Path
@@ -137,6 +138,16 @@ class BotService:
 
 
 def main() -> None:
-    """Minimal entry point: load AppConfig + run the service (blocking)."""
+    """Console entry point for the shoppybot command.
+
+    Parses args first so `shoppybot --help` exits 0 without starting the bot.
+    Phase 9 extends this parser with real subcommands.
+    """
+    parser = argparse.ArgumentParser(
+        prog="shoppybot",
+        description="ShopPyBot: automated availability checker and buyer.",
+    )
+    parser.parse_known_args()
+
     service = BotService()
     service.run()

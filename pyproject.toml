@@ -1,7 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "shoppybot"
 version = "0.1.0"
 requires-python = ">=3.11"
+
+[project.scripts]
+shoppybot = "core.service:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "plugins*", "notifications*"]
+exclude = ["tests*"]
+
+[tool.setuptools]
+py-modules = ["models", "logger", "config", "utils", "main"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
