@@ -1,15 +1,10 @@
-"""CLI-02 tests: setup subcommand (credentials + backend selection).
-
-All tests in this file are skip-marked to plan 09-02 -- the handle_setup
-implementation is a stub in plan 09-01 and will be fleshed out in plan 09-02.
-"""
+"""CLI-02 tests: setup subcommand (credentials + backend selection)."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_setup_writes_credentials(tmp_data_dir, reset_credential_store, monkeypatch):
     """handle_setup prompts for each SECRET_KEY and writes via store.set()."""
     mock_store = MagicMock()
@@ -26,7 +21,6 @@ def test_setup_writes_credentials(tmp_data_dir, reset_credential_store, monkeypa
     mock_store.set.assert_called()
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_setup_no_secret_echo(
     tmp_data_dir, reset_credential_store, capsys, monkeypatch
 ):
@@ -45,7 +39,6 @@ def test_setup_no_secret_echo(
     assert "MY_SECRET" not in out
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_enter_skips_key(tmp_data_dir, reset_credential_store, monkeypatch):
     """Pressing Enter (empty string) skips a key -- store.set() not called for it."""
     mock_store = MagicMock()
@@ -62,7 +55,6 @@ def test_enter_skips_key(tmp_data_dir, reset_credential_store, monkeypatch):
     mock_store.set.assert_not_called()
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_setup_writes_backend(tmp_data_dir, reset_credential_store, tmp_path, monkeypatch):
     """handle_setup writes credentials.backend to config.yml."""
     import yaml
@@ -86,7 +78,6 @@ def test_setup_writes_backend(tmp_data_dir, reset_credential_store, tmp_path, mo
     assert "credentials" in data
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_setup_migrate(tmp_data_dir, reset_credential_store, monkeypatch):
     """handle_setup with --migrate flag calls migrate_from_env and prints key names."""
     mock_store = MagicMock()
