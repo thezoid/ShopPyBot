@@ -1,15 +1,10 @@
-"""CLI-04 tests: CLI works without FastAPI installed.
-
-Tests are skip-marked to plan 09-04 -- handle_web is a stub in plan 09-01
-that will gain its lazy-import body in plan 09-04.
-"""
+"""CLI-04 tests: CLI works without FastAPI installed."""
 
 import sys
 
 import pytest
 
 
-@pytest.mark.skip(reason="plan 09-04")
 def test_web_no_fastapi(monkeypatch, capsys):
     """handle_web returns 1 and prints pip hint when fastapi is absent."""
     monkeypatch.setitem(sys.modules, "fastapi", None)
@@ -22,7 +17,6 @@ def test_web_no_fastapi(monkeypatch, capsys):
     assert "pip install .[web]" in capsys.readouterr().err
 
 
-@pytest.mark.skip(reason="plan 09-04")
 def test_run_works_without_fastapi(monkeypatch, tmp_data_dir):
     """run/setup/items must not import fastapi at top level."""
     monkeypatch.setitem(sys.modules, "fastapi", None)
@@ -36,5 +30,7 @@ def test_run_works_without_fastapi(monkeypatch, tmp_data_dir):
     with patch("core.service.BotService", return_value=mock_svc):
         from core.service import main
 
-        main(["run"])
+        with pytest.raises(SystemExit) as exc_info:
+            main(["run"])
+        assert exc_info.value.code == 0
     mock_svc.run.assert_called_once()
