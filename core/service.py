@@ -18,6 +18,7 @@ from typing import Optional
 from core.config_schema import AppConfig
 from core.credentials import init_store
 from core.orchestrator import async_main
+from logger import writeLog
 from models import add_items_sync, get_items_sync, remove_item_sync
 
 
@@ -74,11 +75,14 @@ class BotService:
     def start(self, cvv: Optional[str] = None) -> None:
         """Launch async_main in a background daemon thread; returns immediately.
 
-        Calling start() when already running is a no-op.
+        Calling start() when already running is a no-op. _running is set
+        synchronously before the thread starts so a concurrent start() call
+        cannot launch a second thread (WR-03).
         """
-        if self._running:
+        if self._running or (self._thread is not None and self._thread.is_alive()):
             return
 
+        self._running = True
         ready = threading.Event()
 
         def _run_loop() -> None:
@@ -88,12 +92,16 @@ class BotService:
 
             async def _main():
                 self._task = asyncio.current_task()
-                self._running = True
                 ready.set()
                 try:
                     await async_main(self._cfg, cvv)
-                except (asyncio.CancelledError, Exception):
+                except asyncio.CancelledError:
                     pass
+                except Exception as exc:
+                    writeLog(
+                        f"Bot loop terminated abnormally: {exc.__class__.__name__}",
+                        "ERROR",
+                    )
                 finally:
                     self._running = False
                     self._task = None
@@ -107,7 +115,9 @@ class BotService:
 
         self._thread = threading.Thread(target=_run_loop, daemon=True, name="BotService-loop")
         self._thread.start()
-        ready.wait(timeout=5.0)
+        started = ready.wait(timeout=5.0)
+        if not started:
+            writeLog("BotService loop did not signal ready within 5s", "WARNING")
 
     def stop(self) -> None:
         """Signal the background run to shut down and wait for the thread to exit.
