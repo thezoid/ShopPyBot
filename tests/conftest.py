@@ -4,6 +4,35 @@ import pytest
 import yaml
 from unittest.mock import AsyncMock, MagicMock
 
+# ---------------------------------------------------------------------------
+# keyring import guard: keyring is installed in plan 08-02; guard here so
+# conftest.py loads cleanly in plan 08-01 before keyring is available.
+# ---------------------------------------------------------------------------
+try:
+    import keyring as _keyring_module
+    import keyring.core as _keyring_core
+
+    class _DictKeyring(_keyring_module.backend.KeyringBackend):
+        """In-memory keyring for testing. No filesystem or OS interaction."""
+
+        priority = 1
+
+        def __init__(self):
+            self._data: dict = {}
+
+        def get_password(self, service, username):
+            return self._data.get((service, username))
+
+        def set_password(self, service, username, password):
+            self._data[(service, username)] = password
+
+        def delete_password(self, service, username):
+            self._data.pop((service, username), None)
+
+    _KEYRING_AVAILABLE = True
+except ImportError:
+    _KEYRING_AVAILABLE = False
+
 
 @pytest.fixture
 def tmp_config_yml(tmp_path):
@@ -231,3 +260,38 @@ def event_shim():
         loop.call_soon_threadsafe(event.set)
 
     return _fire
+
+
+# ---------------------------------------------------------------------------
+# Phase 8: credential store test fixtures (RESEARCH Pitfall 1 + Pattern 8)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=False)
+def reset_credential_store():
+    """Restore the module-level _store singleton between tests.
+
+    Prevents singleton bleed when one test calls init_store() and the next
+    test expects the lazy-fallback EnvVarBackend (RESEARCH Pitfall 1).
+    """
+    from core import credentials
+
+    original = credentials._store
+    yield
+    credentials._store = original
+
+
+@pytest.fixture(autouse=False)
+def isolated_keyring():
+    """Swap the OS keyring with an in-memory _DictKeyring for the test duration.
+
+    Skips if keyring is not yet installed (plan 08-01 pre-condition); will run
+    normally once keyring is installed in plan 08-02.
+    """
+    if not _KEYRING_AVAILABLE:
+        pytest.skip("keyring not installed (available after plan 08-02)")
+
+    kb = _DictKeyring()
+    _keyring_module.set_keyring(kb)
+    yield kb
+    _keyring_core._keyring_backend = None
