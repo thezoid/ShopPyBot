@@ -2,6 +2,7 @@
 
 All state-changing routes (POST/DELETE) carry the check_origin CSRF dependency.
 BotService is accessed only via request.app.state.svc (MOD-02).
+Credential routes live in web/routes/credentials.py (SECRET_KEYS gate).
 """
 
 import asyncio
@@ -39,21 +40,21 @@ async def get_logs(request: Request):
 
 @router.post("/bot/start", dependencies=[Depends(check_origin)])
 async def bot_start(request: Request):
-    """Start the bot (no CVV -- web scope)."""
+    """Start the bot. Offloads blocking start() off the event loop (WR-03)."""
     svc = request.app.state.svc
     if svc.get_status().get("running"):
         return JSONResponse({"status": "error", "detail": "Bot is already running."})
-    svc.start()
+    await asyncio.to_thread(svc.start)
     return JSONResponse({"status": "ok"})
 
 
 @router.post("/bot/stop", dependencies=[Depends(check_origin)])
 async def bot_stop(request: Request):
-    """Stop the bot. Dispatches blocking stop() off the event loop via run_in_executor."""
+    """Stop the bot. Offloads blocking stop() off the event loop (WR-01)."""
     svc = request.app.state.svc
     if not svc.get_status().get("running"):
         return JSONResponse({"status": "error", "detail": "Bot is not running."})
-    await asyncio.get_event_loop().run_in_executor(None, svc.stop)
+    await asyncio.to_thread(svc.stop)
     return JSONResponse({"status": "ok"})
 
 
@@ -80,11 +81,24 @@ async def list_items(request: Request):
 
 @router.post("/items", dependencies=[Depends(check_origin)])
 async def add_item(request: Request):
-    """Add a tracked item via BotService."""
+    """Add a tracked item via BotService. Validates required fields (WR-02)."""
     body = await request.json()
-    request.app.state.svc.add_item(
-        body["name"], body["link"], body["auto_buy"], body["quantity"]
-    )
+    name = (body.get("name") or "").strip()
+    link = (body.get("link") or "").strip()
+    if not name or not link:
+        return JSONResponse(
+            {"status": "error", "detail": "name and link required"},
+            status_code=422,
+        )
+    try:
+        quantity = int(body.get("quantity", 1))
+    except (TypeError, ValueError):
+        return JSONResponse(
+            {"status": "error", "detail": "quantity must be an integer"},
+            status_code=422,
+        )
+    auto_buy = bool(body.get("auto_buy", False))
+    request.app.state.svc.add_item(name, link, auto_buy, quantity)
     return JSONResponse({"status": "ok"})
 
 
@@ -97,31 +111,3 @@ async def remove_item(link_b64: str, request: Request):
         raise HTTPException(status_code=400, detail="Invalid link encoding")
     request.app.state.svc.remove_item(link)
     return JSONResponse({"status": "ok"})
-
-
-# ---------------------------------------------------------------------------
-# Credentials (Plans 04/05 will fill these bodies)
-# ---------------------------------------------------------------------------
-
-@router.get("/credentials")
-async def get_credentials(request: Request):
-    """Return credential key names + set/unset status. Never returns values."""
-    from core.credentials import get_store, SECRET_KEYS
-    store = get_store()
-    creds = [
-        {"name": k, "is_set": store.get(k) is not None}
-        for k in SECRET_KEYS
-    ]
-    return JSONResponse({"credentials": creds})
-
-
-@router.post("/credentials", dependencies=[Depends(check_origin)])
-async def set_credential(request: Request):
-    """Store a credential value. Response never contains the value (SC3)."""
-    from core.credentials import get_store
-    body = await request.json()
-    get_store().set(body["key"], body["value"])
-    return JSONResponse({"status": "ok"})
-
-
-# Config routes live in web/routes/config.py (Plan 10-04).
