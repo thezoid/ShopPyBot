@@ -291,7 +291,8 @@ def isolated_keyring():
     if not _KEYRING_AVAILABLE:
         pytest.skip("keyring not installed (available after plan 08-02)")
 
+    original = _keyring_module.get_keyring()
     kb = _DictKeyring()
     _keyring_module.set_keyring(kb)
     yield kb
-    _keyring_core._keyring_backend = None
+    _keyring_module.set_keyring(original)

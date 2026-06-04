@@ -251,8 +251,6 @@ def test_auto_select_file(reset_credential_store, monkeypatch, tmp_path):
     from core.config_schema import AppConfig
 
     monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
-    monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
-    monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
     cfg = AppConfig()
     with patch("core.credentials._has_real_keyring", return_value=False):
         store = init_store(cfg)
