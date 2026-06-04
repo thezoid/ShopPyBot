@@ -75,6 +75,45 @@
 
 ---
 
+## v2.0 Requirements (Active — Modular Core + Cross-Platform UX)
+
+### Modular Core
+
+- [ ] **MOD-01**: A stable core service API (e.g. `core/service.py` `BotService`) wraps registry + orchestrator + config + credential store and exposes: start/stop the bot, list/add/remove tracked items, read/update config, get status. Both CLI and GUI consume ONLY this API.
+- [ ] **MOD-02**: No bot logic lives in any front-end (CLI or GUI). Front-ends are thin adapters over `BotService`; a grep shows no orchestrator/registry/DB calls bypassing the service from front-end modules.
+- [ ] **MOD-03**: Installable package: `pyproject.toml` defines the package + a `shoppybot` console entry point; `pip install -e .` succeeds on Ubuntu and Windows; `python main.py` continues to work as a thin shim.
+
+### Credential Store
+
+- [ ] **CRED-01**: `CredentialStore` interface (`get`/`set`/`delete`/`list` by key) abstracts secret storage; ALL secret reads (plugin creds, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, Twilio SID/token/from) route through it — no scattered direct `os.environ` secret reads remain in plugins/notifiers.
+- [ ] **CRED-02**: Keyring backend uses the OS secret service via the `keyring` library (Windows Credential Manager / Linux Secret Service) when a backend is available.
+- [ ] **CRED-03**: Encrypted-file fallback for headless/no-keyring environments: a passphrase-derived key (scrypt or PBKDF2) encrypts secrets (AES/Fernet) in a file under the data dir; passphrase via prompt or an env var for unattended runs.
+- [ ] **CRED-04**: Env-var fallback preserves today's behavior when no store is configured; documented precedence (explicit store > keyring > encrypted-file > env).
+- [ ] **CRED-05**: Backend auto-selected at startup (detect OS + available backend) with an explicit config override; the ACTIVE backend name is logged, never the secret values.
+- [ ] **CRED-06**: No plaintext secrets on disk: secrets are never written to config.yml, logs, or SQLite; the encrypted-file store is the only at-rest form and it is encrypted (a test asserts no secret plaintext in those sinks).
+- [ ] **CRED-07**: Migration command imports existing env-var secrets into the selected store.
+
+### CLI Front-End (default)
+
+- [ ] **CLI-01**: `shoppybot run` (default) starts the bot through `BotService` (keeps `python main.py` working as a shim).
+- [ ] **CLI-02**: `shoppybot setup` interactively stores/updates credentials (into `CredentialStore`) and basic config; works on Ubuntu and Windows.
+- [ ] **CLI-03**: `shoppybot items` (list/add/remove) and `shoppybot config` manage tracked items + settings via the core API.
+- [ ] **CLI-04**: The CLI is fully functional with NO web UI installed or running.
+
+### Optional Web UI
+
+- [ ] **GUI-01**: Optional local web UI (FastAPI) launched via `shoppybot web`, served on localhost; provides nothing the CLI cannot do.
+- [ ] **GUI-02**: Manage tracked items (list/add/remove) through the UI via `BotService`.
+- [ ] **GUI-03**: Manage credentials + per-platform config through the UI, persisting secrets via `CredentialStore` (never plaintext to the browser, localStorage, or disk).
+- [ ] **GUI-04**: Start/stop the bot and view live status + recent logs from the UI.
+- [ ] **GUI-05**: The web UI is an optional extra (`pip install .[web]`); core + CLI run without FastAPI installed.
+- [ ] **GUI-06**: Binds to localhost (127.0.0.1) by default; any non-localhost bind requires explicit opt-in and prints a clear security warning (the UI manages credentials).
+
+### Cross-Platform
+
+- [ ] **XPLAT-01**: Runs on Ubuntu (desktop + headless) and Windows; data dir + paths resolved per-OS (no hardcoded separators); the data/config/log locations are documented per OS.
+- [ ] **XPLAT-02**: A documented verification matrix (and/or automated smoke) confirms import + CLI + credential-store backend selection on both Ubuntu and Windows.
+
 ## v2 Requirements (Deferred)
 
 - GitHub wiki plugin registry with per-platform anti-detection difficulty ratings
@@ -82,7 +121,7 @@
 - Automatic CAPTCHA solving integration
 - Browser fingerprint spoofing beyond user agent
 - Price monitoring / price drop alerts
-- Web dashboard or GUI
+- (now ACTIVE in v2.0) Web dashboard or GUI — promoted to an optional local web UI this milestone
 
 ---
 
