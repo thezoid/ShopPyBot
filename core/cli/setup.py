@@ -60,6 +60,9 @@ def handle_setup(args, svc) -> int:
         migrated = migrate_from_env(store)
         for key in migrated:
             print(f"Migrated: {key}")  # key NAME only -- never the value (T-08-14)
+        if not migrated:
+            print("No env-var secrets found to migrate.", file=sys.stderr)
+        print(f"Migrated {len(migrated)} key(s).")
         return 0
 
     store = get_store()

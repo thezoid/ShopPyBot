@@ -78,7 +78,7 @@ def test_setup_writes_backend(tmp_data_dir, reset_credential_store, tmp_path, mo
     assert "credentials" in data
 
 
-def test_setup_migrate(tmp_data_dir, reset_credential_store, monkeypatch):
+def test_setup_migrate(tmp_data_dir, reset_credential_store, capsys, monkeypatch):
     """handle_setup with --migrate flag calls migrate_from_env and prints key names."""
     mock_store = MagicMock()
     with (
@@ -92,3 +92,25 @@ def test_setup_migrate(tmp_data_dir, reset_credential_store, monkeypatch):
         result = handle_setup(args, None)
     assert result == 0
     mock_migrate.assert_called_once_with(mock_store)
+    out = capsys.readouterr().out
+    assert "KEY_A" in out
+    assert "KEY_B" in out
+    assert "2 key(s)" in out
+
+
+def test_setup_migrate_nothing_to_migrate(tmp_data_dir, reset_credential_store, capsys, monkeypatch):
+    """handle_setup --migrate with empty result prints informational message (WR-05)."""
+    mock_store = MagicMock()
+    with (
+        patch("core.cli.setup.get_store", return_value=mock_store),
+        patch("core.cli.setup.migrate_from_env", return_value=[]),
+    ):
+        from core.cli.setup import handle_setup
+
+        args = MagicMock()
+        args.migrate = True
+        result = handle_setup(args, None)
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert "0 key(s)" in out
+    assert "No env-var" in err
