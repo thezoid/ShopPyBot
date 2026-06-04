@@ -35,7 +35,11 @@ def check_origin(request: Request) -> None:
     """FastAPI Depends: rejects cross-origin state-changing requests (CSRF).
 
     Allows: no Origin header (same-origin form/fetch), or Origin hostname
-    matches the server host or is a known local host.
+    equals the server host. When the server is bound to a loopback address,
+    all loopback literals are also accepted (127.0.0.1/localhost/::1 are
+    interchangeable for localhost binds). For a non-local bind, only the
+    exact server host is accepted -- the loopback escape hatch is NOT granted
+    (CR-03).
     Rejects: any other Origin with 403.
     """
     origin = request.headers.get("origin")
@@ -43,5 +47,8 @@ def check_origin(request: Request) -> None:
         return
     hostname = urlparse(origin).hostname or ""
     server_host = request.url.hostname or "127.0.0.1"
-    if hostname != server_host and hostname not in _LOCAL_HOSTS:
+    allowed = {server_host}
+    if is_localhost(server_host):
+        allowed |= _LOCAL_HOSTS
+    if hostname not in allowed:
         raise HTTPException(status_code=403, detail="CSRF: origin rejected")
