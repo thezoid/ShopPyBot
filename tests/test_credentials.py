@@ -461,7 +461,10 @@ def test_main_migrate_flag(monkeypatch, reset_credential_store, tmp_path, capsys
         # Re-import to pick up fresh main with --migrate
         import importlib
         importlib.reload(_svc)
-        _svc.main()
+        # --migrate path now calls sys.exit(0) after printing (CR-01)
+        with pytest.raises(SystemExit) as exc_info:
+            _svc.main()
+        assert exc_info.value.code == 0
 
     captured = capsys.readouterr()
     # Key names appear in output

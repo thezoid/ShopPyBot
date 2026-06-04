@@ -251,7 +251,10 @@ def test_main_constructs_service_and_runs(tmp_path):
             run_called["run"] = True
 
     with patch("core.service.BotService", new=_FakeService):
-        main([])   # explicit argv=[] avoids sys.argv contamination (RESEARCH Pitfall 7)
+        # bare invocation now calls sys.exit(0) after run -- catch it (CR-01)
+        with pytest.raises(SystemExit) as exc_info:
+            main([])   # explicit argv=[] avoids sys.argv contamination (RESEARCH Pitfall 7)
+    assert exc_info.value.code == 0
 
     assert run_called.get("constructed"), "BotService was not constructed"
     assert run_called.get("run"), "BotService.run() was not called"
