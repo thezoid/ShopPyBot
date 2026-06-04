@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: verifying
-last_updated: "2026-06-04T15:21:31.852Z"
+status: executing
+last_updated: "2026-06-04T17:35:31.779Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 8
-  total_plans: 35
-  completed_plans: 35
+  total_plans: 39
+  completed_plans: 36
   percent: 73
 ---
 
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 08 (credential-store) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 09 (CLI Front-End) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-04
 
 ## Phase Status
@@ -125,6 +125,7 @@ Last activity: 2026-06-04
 | Phase 08-credential-store P02 | 7min | 2 tasks | 3 files |
 | Phase 08 P03 | 12min | 3 tasks | 4 files |
 | Phase 08-credential-store P04 | 15min | 3 tasks | 14 files |
+| Phase 09-cli-front-end P01 | 12m | 3 tasks | 15 files |
 
 ## Decisions
 
@@ -167,3 +168,6 @@ Last activity: 2026-06-04
 - [Phase ?]: EncryptedFileBackend: scrypt n=2**14 + fresh 16B salt per write; fdopen-in-with + os.replace-outside for Windows-safe atomic write; InvalidToken -> ValueError(SHOPBOT_STORE_PASSPHRASE) (CRED-03)
 - [Phase ?]: _build_store: explicit config > real keyring > encrypted-file (passphrase in env) > env-var; getpass deferred to explicit 'file' backend path only
 - [Phase ?]: get_store().get(KEY) replaces all os.environ secret reads in consumers; SC1 grep guard enforces no regression
+- [Phase 09-01]: build_parser() in core/cli/__init__.py owns the parser; core/service.py:main() delegates to it via build_parser() + parse_known_args(argv)
+- [Phase 09-01]: parse_known_args(argv) with explicit argv=None param; tests pass argv=[] to avoid sys.argv contamination in Python 3.13 strict subparser choices
+- [Phase 09-01]: handle_setup stub handles --migrate branch for back-compat; full interactive prompt body deferred to plan 09-02
