@@ -124,25 +124,4 @@ async def set_credential(request: Request):
     return JSONResponse({"status": "ok"})
 
 
-# ---------------------------------------------------------------------------
-# Config (Plan 05 will fill these bodies)
-# ---------------------------------------------------------------------------
-
-@router.get("/config")
-async def get_config(request: Request):
-    """Return allowlisted config values."""
-    from web.config_web import read_web_config
-    return JSONResponse(read_web_config(request.app.state.svc))
-
-
-@router.post("/config", dependencies=[Depends(check_origin)])
-async def set_config(request: Request):
-    """Write an allowlisted config key atomically."""
-    from web.config_web import WEB_ALLOWLIST, write_web_config
-    body = await request.json()
-    key = body.get("key", "")
-    value = body.get("value", "")
-    if key not in WEB_ALLOWLIST:
-        raise HTTPException(status_code=422, detail=f"Key not in allowlist: {key!r}")
-    write_web_config(key, str(value))
-    return JSONResponse({"status": "ok"})
+# Config routes live in web/routes/config.py (Plan 10-04).
