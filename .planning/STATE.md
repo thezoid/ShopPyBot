@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-04T17:35:31.779Z"
+last_updated: "2026-06-04T17:48:23.406Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 39
-  completed_plans: 36
+  completed_plans: 37
   percent: 73
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 09 (CLI Front-End) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-04
 
@@ -126,6 +126,7 @@ Last activity: 2026-06-04
 | Phase 08 P03 | 12min | 3 tasks | 4 files |
 | Phase 08-credential-store P04 | 15min | 3 tasks | 14 files |
 | Phase 09-cli-front-end P01 | 12m | 3 tasks | 15 files |
+| Phase 09-cli-front-end P02 | 8min | 2 tasks | 4 files |
 
 ## Decisions
 
@@ -171,3 +172,6 @@ Last activity: 2026-06-04
 - [Phase 09-01]: build_parser() in core/cli/__init__.py owns the parser; core/service.py:main() delegates to it via build_parser() + parse_known_args(argv)
 - [Phase 09-01]: parse_known_args(argv) with explicit argv=None param; tests pass argv=[] to avoid sys.argv contamination in Python 3.13 strict subparser choices
 - [Phase 09-01]: handle_setup stub handles --migrate branch for back-compat; full interactive prompt body deferred to plan 09-02
+- [Phase ?]: [Phase 09-02]: handle_config_set raises SystemExit(2) for unknown keys -- consistent with _coerce pattern, required by test scaffold
+- [Phase ?]: [Phase 09-02]: sys.stdin.readline() in _prompt_backend instead of input() -- ASYNC-03 compliance
+- [Phase ?]: [Phase 09-02]: setup._write_backend reads _DEFAULT_YAML_PATH via import core.cli.config_cmd at call-time for monkeypatch testability
