@@ -32,7 +32,8 @@ def test_bot_start_calls_svc_start(mock_svc, client):
 
 
 def test_bot_stop_calls_svc_stop(mock_svc, client):
-    """POST /api/bot/stop calls svc.stop()."""
+    """POST /api/bot/stop calls svc.stop() when bot is running."""
+    mock_svc.get_status.return_value = {"running": True}
     resp = client.post(
         "/api/bot/stop",
         headers={"origin": "http://127.0.0.1:8000"},
