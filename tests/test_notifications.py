@@ -418,14 +418,14 @@ async def test_discord_send_calls_run_in_executor(monkeypatch, notification_even
     """DiscordNotifier.send must complete without live network (requests.post mocked)."""
     from notifications.discord_notifier import DiscordNotifier
 
-    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://fake.webhook/test")
+    webhook_url = "https://fake.webhook/test"
 
     mock_resp = MagicMock()
     mock_resp.status_code = 204
     mock_resp.raise_for_status = MagicMock()
 
     event = notification_event(action="detected")
-    notifier = DiscordNotifier()
+    notifier = DiscordNotifier(webhook_url)
 
     with patch("notifications.discord_notifier.requests.post", return_value=mock_resp) as mock_post:
         await notifier.send(event)

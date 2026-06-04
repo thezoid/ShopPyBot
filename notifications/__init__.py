@@ -40,8 +40,9 @@ def build_dispatcher(cfg) -> NotificationDispatcher:
     if notif.sound:
         notifiers.append(SoundNotifier())
 
-    if notif.discord.enabled and get_store().get("DISCORD_WEBHOOK_URL"):
-        notifiers.append(DiscordNotifier())
+    discord_url = get_store().get("DISCORD_WEBHOOK_URL")
+    if notif.discord.enabled and discord_url:
+        notifiers.append(DiscordNotifier(discord_url))
 
     if notif.email.enabled:
         notifiers.append(EmailNotifier(notif.email))

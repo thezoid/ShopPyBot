@@ -18,7 +18,6 @@ import asyncio
 
 import requests
 
-from core.credentials import get_store
 from logger import writeLog
 from notifications.base import Notifier, NotificationEvent
 from datetime import timezone
@@ -61,12 +60,12 @@ def _send_discord_blocking(webhook_url: str, payload: dict) -> None:
 class DiscordNotifier(Notifier):
     """Posts a Discord embed for each NotificationEvent."""
 
-    def __init__(self) -> None:
-        # Read once at construction; never stored as a logged attribute name.
-        url = get_store().get("DISCORD_WEBHOOK_URL")
-        if not url:
+    def __init__(self, webhook_url: str) -> None:
+        # Caller (build_dispatcher) reads the URL once and passes it in (WR-07).
+        # Never re-read from the store here to avoid a TOCTOU window.
+        if not webhook_url:
             raise ValueError("DISCORD_WEBHOOK_URL not configured")
-        self._webhook_url = url
+        self._webhook_url = webhook_url
 
     async def send(self, event: NotificationEvent) -> None:
         """Build and POST the embed; run blocking I/O in executor."""
