@@ -156,16 +156,21 @@ def _has_real_keyring() -> bool:
         pass
     # Functional probe: confirm the backend can actually round-trip a value.
     # This catches ChainerBackend composed entirely of fail/null leaves.
+    # Uses "shopbot-probe" service (not "shopbot") so a leaked entry never
+    # collides with real secrets. Cleanup is in finally to guarantee best-effort
+    # deletion even when set/get raises; delete failure does not propagate.
+    ok = False
     try:
-        keyring.set_password("shopbot", "__probe__", "1")
-        ok = keyring.get_password("shopbot", "__probe__") == "1"
-        try:
-            keyring.delete_password("shopbot", "__probe__")
-        except Exception:
-            pass
-        return ok
+        keyring.set_password("shopbot-probe", "__probe__", "1")
+        ok = keyring.get_password("shopbot-probe", "__probe__") == "1"
     except Exception:
         return False
+    finally:
+        try:
+            keyring.delete_password("shopbot-probe", "__probe__")
+        except Exception:
+            pass
+    return ok
 
 
 # ---------------------------------------------------------------------------
