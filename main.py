@@ -1,10 +1,9 @@
 import sys
-import asyncio
 import getpass
 from models import initialize_db, add_items
 from pydantic import ValidationError
 from core.config_schema import AppConfig
-from core.orchestrator import async_main
+from core.service import BotService
 from logger import setup_logger, writeLog
 
 
@@ -38,7 +37,7 @@ def main():
     ]
     add_items(items)
 
-    # SEC-01/02: collect BestBuy CVV from getpass BEFORE asyncio.run() (D-03 / Pitfall 6).
+    # SEC-01/02: collect BestBuy CVV from getpass BEFORE the service run (D-03 / Pitfall 6).
     # Only prompt if not in test_mode AND at least one BestBuy item has auto_buy enabled.
     # In test_mode the purchase step is skipped, so blocking on a getpass prompt would
     # break CI and violate the test_mode contract (WR-02).
@@ -48,7 +47,7 @@ def main():
     )
     cvv = collect_cvv() if needs_bb_autobuy else None
 
-    asyncio.run(async_main(cfg, cvv))
+    BotService(cfg).run(cvv)
 
 
 if __name__ == "__main__":
