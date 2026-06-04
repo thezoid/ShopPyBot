@@ -118,6 +118,17 @@ def build_parser() -> argparse.ArgumentParser:
     web_p = sub.add_parser(
         "web", help="Start the web UI (requires pip install .[web])."
     )
+    web_p.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default 127.0.0.1; non-local prints a security warning).",
+    )
+    web_p.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Bind port (default 8000).",
+    )
     web_p.set_defaults(func=handle_web)
 
     return parser
