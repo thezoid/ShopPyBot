@@ -12,15 +12,36 @@ from core.service import main
 
 
 def test_bare_defaults_to_run(tmp_data_dir):
-    """main([]) -- bare invocation -- must call BotService.run() once."""
+    """main([]) -- bare invocation -- must call BotService.run() once and exit 0."""
     mock_svc = MagicMock()
     mock_svc.get_config.return_value = MagicMock(
         debug=MagicMock(test_mode=True),
         available=MagicMock(items=[]),
     )
     with patch("core.service.BotService", return_value=mock_svc):
-        main([])
+        with pytest.raises(SystemExit) as exc_info:
+            main([])
+    assert exc_info.value.code == 0
     mock_svc.run.assert_called_once()
+
+
+def test_bare_invocation_propagates_nonzero_exit(tmp_data_dir):
+    """main([]) must propagate non-zero exit code from handle_run (CR-01).
+
+    When handle_run returns 1 (e.g. CVV gate failure), bare shoppybot must
+    exit with code 1, not 0.
+    """
+    mock_svc = MagicMock()
+    mock_svc.get_config.return_value = MagicMock(
+        debug=MagicMock(test_mode=True),
+        available=MagicMock(items=[]),
+    )
+    with patch("core.service.BotService", return_value=mock_svc):
+        with patch("core.cli.run.handle_run", return_value=1) as mock_run:
+            with pytest.raises(SystemExit) as exc_info:
+                main([])
+    assert exc_info.value.code == 1
+    mock_run.assert_called_once()
 
 
 def test_run_subcommand_calls_botservice_run(tmp_data_dir):

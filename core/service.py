@@ -172,12 +172,10 @@ def main(argv=None) -> None:
 
     # Back-compat: top-level --migrate with no subcommand -> setup --migrate (T-09-03)
     if getattr(args, "migrate", False) and getattr(args, "command", None) is None:
-        handle_setup(args, BotService())
-        return
+        _sys.exit(handle_setup(args, BotService()) or 0)
 
     # Bare shoppybot = run (RESEARCH Pitfall 1)
     if getattr(args, "func", None) is None:
-        handle_run(args, BotService())
-        return
+        _sys.exit(handle_run(args, BotService()) or 0)
 
     _sys.exit(args.func(args, BotService()) or 0)
