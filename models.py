@@ -87,6 +87,12 @@ def add_items_sync(items):
                 )
 
 
+def remove_item_sync(link):
+    """Delete the item with the given link (parameterized DELETE)."""
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM items WHERE link=?", (link,))
+
+
 def get_item_notification_state_sync(link: str) -> tuple[bool, str | None]:
     """Return (last_seen_available as bool, last_notified) for dedup checks (NOTIF-02)."""
     with get_db_connection() as conn:
