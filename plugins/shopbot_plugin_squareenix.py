@@ -90,7 +90,7 @@ class SquareEnixPlugin(RetailerPlugin):
             writeLog("Add-to-cart button not found on Square Enix store", "INFO")
             return False
         except Exception as exc:
-            writeLog(f"Error checking Square Enix item: {exc}", "ERROR")
+            writeLog(f"Error checking Square Enix item: {exc.__class__.__name__}", "ERROR")
             return False
 
     async def login(self) -> None:
@@ -124,7 +124,7 @@ class SquareEnixPlugin(RetailerPlugin):
 
             writeLog("Signed in to Square Enix store", "INFO")
         except Exception as exc:
-            writeLog(f"Error during Square Enix sign-in: {exc}", "ERROR")
+            writeLog(f"Error during Square Enix sign-in: {exc.__class__.__name__}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -180,5 +180,5 @@ class SquareEnixPlugin(RetailerPlugin):
             # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
             return True
         except Exception as exc:
-            writeLog(f"Error during Square Enix auto-buy: {exc}", "ERROR")
+            writeLog(f"Error during Square Enix auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

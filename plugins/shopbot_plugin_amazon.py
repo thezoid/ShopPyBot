@@ -107,7 +107,7 @@ class AmazonPlugin(RetailerPlugin):
             writeLog("Item is not available on Amazon", "INFO")
             return False
         except Exception as exc:
-            writeLog(f"Error checking Amazon item: {exc}", "ERROR")
+            writeLog(f"Error checking Amazon item: {exc.__class__.__name__}", "ERROR")
             return False
 
     async def login(self) -> None:
@@ -174,7 +174,7 @@ class AmazonPlugin(RetailerPlugin):
 
             writeLog("Signed in to Amazon", "INFO")
         except Exception as exc:
-            writeLog(f"Error during Amazon sign-in: {exc}", "ERROR")
+            writeLog(f"Error during Amazon sign-in: {exc.__class__.__name__}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -246,5 +246,5 @@ class AmazonPlugin(RetailerPlugin):
                 )
                 return False
         except Exception as exc:
-            writeLog(f"Error during Amazon auto-buy: {exc}", "ERROR")
+            writeLog(f"Error during Amazon auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

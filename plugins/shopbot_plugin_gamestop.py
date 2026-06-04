@@ -91,7 +91,7 @@ class GameStopPlugin(RetailerPlugin):
             writeLog("Add-to-cart button not found on GameStop", "INFO")
             return False
         except Exception as exc:
-            writeLog(f"Error checking GameStop item: {exc}", "ERROR")
+            writeLog(f"Error checking GameStop item: {exc.__class__.__name__}", "ERROR")
             return False
 
     async def login(self) -> None:
@@ -122,7 +122,7 @@ class GameStopPlugin(RetailerPlugin):
 
             writeLog("Signed in to GameStop", "INFO")
         except Exception as exc:
-            writeLog(f"Error during GameStop sign-in: {exc}", "ERROR")
+            writeLog(f"Error during GameStop sign-in: {exc.__class__.__name__}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -175,5 +175,5 @@ class GameStopPlugin(RetailerPlugin):
             # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
             return True
         except Exception as exc:
-            writeLog(f"Error during GameStop auto-buy: {exc}", "ERROR")
+            writeLog(f"Error during GameStop auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

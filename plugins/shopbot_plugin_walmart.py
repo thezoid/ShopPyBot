@@ -89,7 +89,7 @@ class WalmartPlugin(RetailerPlugin):
             writeLog("Add-to-cart button not found on Walmart", "INFO")
             return False
         except Exception as exc:
-            writeLog(f"Error checking Walmart item: {exc}", "ERROR")
+            writeLog(f"Error checking Walmart item: {exc.__class__.__name__}", "ERROR")
             return False
 
     async def login(self) -> None:
@@ -120,7 +120,7 @@ class WalmartPlugin(RetailerPlugin):
 
             writeLog("Signed in to Walmart", "INFO")
         except Exception as exc:
-            writeLog(f"Error during Walmart sign-in: {exc}", "ERROR")
+            writeLog(f"Error during Walmart sign-in: {exc.__class__.__name__}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -172,5 +172,5 @@ class WalmartPlugin(RetailerPlugin):
             # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
             return True
         except Exception as exc:
-            writeLog(f"Error during Walmart auto-buy: {exc}", "ERROR")
+            writeLog(f"Error during Walmart auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

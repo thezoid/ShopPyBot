@@ -71,7 +71,7 @@ class BestBuyPlugin(RetailerPlugin):
             writeLog("Item is not available on BestBuy", "INFO")
             return False
         except Exception as exc:
-            writeLog(f"Error checking BestBuy item: {exc}", "ERROR")
+            writeLog(f"Error checking BestBuy item: {exc.__class__.__name__}", "ERROR")
             return False
 
     async def login(self) -> None:
@@ -102,7 +102,7 @@ class BestBuyPlugin(RetailerPlugin):
 
             writeLog("Signed in to BestBuy", "INFO")
         except Exception as exc:
-            writeLog(f"Error during BestBuy sign-in: {exc}", "ERROR")
+            writeLog(f"Error during BestBuy sign-in: {exc.__class__.__name__}", "ERROR")
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -168,5 +168,5 @@ class BestBuyPlugin(RetailerPlugin):
             # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
             return True
         except Exception as exc:
-            writeLog(f"Error during BestBuy auto-buy: {exc}", "ERROR")
+            writeLog(f"Error during BestBuy auto-buy: {exc.__class__.__name__}", "ERROR")
             return False
