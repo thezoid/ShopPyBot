@@ -11,10 +11,9 @@ ASYNC-05: auto_buy returns True on success without calling update_item_purchased
 directly. The orchestrator's write queue owns the sole write path.
 """
 
-import os
-
 import nodriver
 
+from core.credentials import get_store
 from core.plugin_base import RetailerPlugin
 from logger import writeLog
 
@@ -77,9 +76,10 @@ class BestBuyPlugin(RetailerPlugin):
 
     async def login(self) -> None:
         """Sign in to BestBuy using BB_EMAIL / BB_PASSWORD env vars (SEC-01)."""
-        # SEC-01: credentials from env vars only -- never from config.yml or hardcoded.
-        email = os.environ.get("BB_EMAIL", "")
-        password = os.environ.get("BB_PASSWORD", "")
+        # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
+        store = get_store()
+        email = store.get("BB_EMAIL") or ""
+        password = store.get("BB_PASSWORD") or ""
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("BB_EMAIL or BB_PASSWORD not set -- skipping login", "ERROR")

@@ -8,10 +8,10 @@ Neither value is ever logged, stored to disk, or written to config.yml.
 """
 
 import asyncio
-import os
 
 import nodriver
 
+from core.credentials import get_store
 from core.plugin_base import RetailerPlugin
 from logger import writeLog
 from utils import play_notification_sound
@@ -112,9 +112,10 @@ class AmazonPlugin(RetailerPlugin):
 
     async def login(self) -> None:
         """Sign in to Amazon using AMZ_EMAIL / AMZ_PASSWORD env vars (SEC-01)."""
-        # SEC-01: credentials from env vars only -- never from config.yml or hardcoded.
-        email = os.environ.get("AMZ_EMAIL", "")
-        password = os.environ.get("AMZ_PASSWORD", "")
+        # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
+        store = get_store()
+        email = store.get("AMZ_EMAIL") or ""
+        password = store.get("AMZ_PASSWORD") or ""
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("AMZ_EMAIL or AMZ_PASSWORD not set -- skipping login", "ERROR")

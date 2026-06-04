@@ -16,11 +16,11 @@ Transport:
 """
 
 import asyncio
-import os
 import smtplib
 from email.message import EmailMessage
 
 from core.config_schema import EmailConfig
+from core.credentials import get_store
 from notifications.base import Notifier, NotificationEvent
 
 
@@ -66,7 +66,7 @@ class EmailNotifier(Notifier):
     async def send(self, event: NotificationEvent) -> None:
         """Build subject/body and run blocking SMTP send in executor."""
         cfg = self._config
-        password = os.environ.get("SMTP_PASSWORD", "")
+        password = get_store().get("SMTP_PASSWORD") or ""
         subject = f"{event.item_name} {event.action}"
         body = (
             f"Item: {event.item_name}\n"

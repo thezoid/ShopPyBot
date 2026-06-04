@@ -15,10 +15,11 @@ ASYNC-05: auto_buy returns True on success without calling update_item_purchased
 directly. The orchestrator's write queue owns the sole write path.
 """
 
-import os
 import random
 
 import nodriver
+
+from core.credentials import get_store
 
 from core.config_schema import DEFAULT_USER_AGENTS
 from core.plugin_base import RetailerPlugin
@@ -94,9 +95,10 @@ class SquareEnixPlugin(RetailerPlugin):
 
     async def login(self) -> None:
         """Sign in to Square Enix using SQUAREENIX_EMAIL / SQUAREENIX_PASSWORD env vars (SEC-01)."""
-        # SEC-01: credentials from env vars only -- never from config.yml or hardcoded.
-        email = os.environ.get("SQUAREENIX_EMAIL", "")
-        password = os.environ.get("SQUAREENIX_PASSWORD", "")
+        # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
+        store = get_store()
+        email = store.get("SQUAREENIX_EMAIL") or ""
+        password = store.get("SQUAREENIX_PASSWORD") or ""
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog(

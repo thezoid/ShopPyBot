@@ -15,10 +15,10 @@ Transport:
 """
 
 import asyncio
-import os
 
 import requests
 
+from core.credentials import get_store
 from logger import writeLog
 from notifications.base import Notifier, NotificationEvent
 from datetime import timezone
@@ -63,7 +63,10 @@ class DiscordNotifier(Notifier):
 
     def __init__(self) -> None:
         # Read once at construction; never stored as a logged attribute name.
-        self._webhook_url = os.environ["DISCORD_WEBHOOK_URL"]
+        url = get_store().get("DISCORD_WEBHOOK_URL")
+        if not url:
+            raise ValueError("DISCORD_WEBHOOK_URL not configured")
+        self._webhook_url = url
 
     async def send(self, event: NotificationEvent) -> None:
         """Build and POST the embed; run blocking I/O in executor."""

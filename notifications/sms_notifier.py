@@ -18,12 +18,12 @@ Transport:
 """
 
 import asyncio
-import os
 
 import requests
 from requests.auth import HTTPBasicAuth
 
 from core.config_schema import SmsConfig
+from core.credentials import get_store
 from notifications.base import Notifier, NotificationEvent
 
 
@@ -55,9 +55,10 @@ class SmsNotifier(Notifier):
 
     async def send(self, event: NotificationEvent) -> None:
         """Build SMS body and run blocking Twilio POST in executor."""
-        account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-        auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        from_number = os.environ.get("TWILIO_FROM", "")
+        store = get_store()
+        account_sid = store.get("TWILIO_ACCOUNT_SID") or ""
+        auth_token = store.get("TWILIO_AUTH_TOKEN") or ""
+        from_number = store.get("TWILIO_FROM") or ""
         to_number = self._config.to_number
 
         body = (

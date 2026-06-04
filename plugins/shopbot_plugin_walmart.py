@@ -14,10 +14,11 @@ ASYNC-05: auto_buy returns True on success without calling update_item_purchased
 directly. The orchestrator's write queue owns the sole write path.
 """
 
-import os
 import random
 
 import nodriver
+
+from core.credentials import get_store
 
 from core.config_schema import DEFAULT_USER_AGENTS
 from core.plugin_base import RetailerPlugin
@@ -93,9 +94,10 @@ class WalmartPlugin(RetailerPlugin):
 
     async def login(self) -> None:
         """Sign in to Walmart using WALMART_EMAIL / WALMART_PASSWORD env vars (SEC-01)."""
-        # SEC-01: credentials from env vars only -- never from config.yml or hardcoded.
-        email = os.environ.get("WALMART_EMAIL", "")
-        password = os.environ.get("WALMART_PASSWORD", "")
+        # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
+        store = get_store()
+        email = store.get("WALMART_EMAIL") or ""
+        password = store.get("WALMART_PASSWORD") or ""
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("WALMART_EMAIL or WALMART_PASSWORD not set -- skipping login", "ERROR")

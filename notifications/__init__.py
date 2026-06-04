@@ -7,8 +7,7 @@ Exports:
   build_dispatcher        -- factory: build dispatcher from AppConfig
 """
 
-import os
-
+from core.credentials import get_store
 from notifications.base import Notifier, NotificationEvent
 from notifications.dispatcher import NotificationDispatcher
 
@@ -41,7 +40,7 @@ def build_dispatcher(cfg) -> NotificationDispatcher:
     if notif.sound:
         notifiers.append(SoundNotifier())
 
-    if notif.discord.enabled and os.environ.get("DISCORD_WEBHOOK_URL"):
+    if notif.discord.enabled and get_store().get("DISCORD_WEBHOOK_URL"):
         notifiers.append(DiscordNotifier())
 
     if notif.email.enabled:
