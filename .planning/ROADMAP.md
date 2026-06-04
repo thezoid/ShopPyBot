@@ -228,7 +228,14 @@ Plans:
   3. `shoppybot items list` prints the current tracked items; `shoppybot items add --name "..." --url "..."` adds an item; `shoppybot items remove --url "..."` removes it; all three call `BotService` and not the DB directly.
   4. Uninstalling FastAPI (`pip uninstall fastapi`) leaves `shoppybot run`, `shoppybot setup`, and `shoppybot items` fully functional — no import errors, no degraded behavior.
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+
+- [ ] 09-01-PLAN.md — CLI package scaffold: argparse subparsers + dispatch + run handler + Wave-0 test scaffold (CLI-01)
+- [ ] 09-02-PLAN.md — setup (getpass credential store + backend write + --migrate alias) + config show/set allowlist (CLI-02, CLI-03)
+- [ ] 09-03-PLAN.md — items list/add/remove over BotService + MOD-02 AST grep guard (CLI-03, MOD-02)
+- [ ] 09-04-PLAN.md — web lazy-import seam + no-fastapi guard tests (CLI-04)
+
 **UI hint**: no
 
 ### Phase 10: Optional Web UI
@@ -277,7 +284,7 @@ Plans:
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
 | 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
-| 9. CLI Front-End | 0/TBD | Not started | - |
+| 9. CLI Front-End | 0/4 | Planned | - |
 | 10. Optional Web UI | 0/TBD | Not started | - |
 | 11. Cross-Platform Verification | 0/TBD | Not started | - |
 
