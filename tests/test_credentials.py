@@ -383,14 +383,90 @@ def test_no_plaintext_secrets_in_config_yml():
 # ============================================================
 
 
-@pytest.mark.xfail(reason="migrate_from_env implemented in plan 08-04", strict=False)
-def test_migrate_from_env(monkeypatch, reset_credential_store):
-    """migrate_from_env writes to active backend and returns key names only."""
-    from core.credentials import EnvVarBackend, migrate_from_env
+def test_migrate_from_env(monkeypatch, reset_credential_store, tmp_path):
+    """migrate_from_env writes set env secrets into target backend; returns key names."""
+    from core.credentials import EncryptedFileBackend, migrate_from_env, SECRET_KEYS
+
+    # Clear all secret keys to ensure isolation
+    for k in SECRET_KEYS:
+        monkeypatch.delenv(k, raising=False)
 
     monkeypatch.setenv("AMZ_EMAIL", "migrate@example.com")
-    target = EnvVarBackend()
+    monkeypatch.setenv("SMTP_PASSWORD", "smtppass")
+
+    target = EncryptedFileBackend(tmp_path / "creds.bin", b"testpass")
     migrated = migrate_from_env(target)
+
+    # Returns only the set keys
     assert "AMZ_EMAIL" in migrated
-    # Values are never returned -- only key names
+    assert "SMTP_PASSWORD" in migrated
+    # Unset keys are skipped
+    assert "BB_EMAIL" not in migrated
+    # The values were written to the backend
+    assert target.get("AMZ_EMAIL") == "migrate@example.com"
+    # Values are never in the returned list -- only key names
     assert "migrate@example.com" not in migrated
+
+
+def test_migrate_confirms_by_name(monkeypatch, reset_credential_store, tmp_path):
+    """migrate_from_env returned list contains key NAMES only, never values."""
+    from core.credentials import EncryptedFileBackend, migrate_from_env, SECRET_KEYS
+
+    for k in SECRET_KEYS:
+        monkeypatch.delenv(k, raising=False)
+
+    monkeypatch.setenv("AMZ_EMAIL", "supersecret@example.com")
+    monkeypatch.setenv("AMZ_PASSWORD", "hunter2secret")
+
+    target = EncryptedFileBackend(tmp_path / "creds.bin", b"testpass")
+    migrated = migrate_from_env(target)
+
+    # Names in list
+    assert "AMZ_EMAIL" in migrated
+    assert "AMZ_PASSWORD" in migrated
+    # Secret values NOT in list
+    assert "supersecret@example.com" not in migrated
+    assert "hunter2secret" not in migrated
+
+
+def test_main_migrate_flag(monkeypatch, reset_credential_store, tmp_path, capsys):
+    """--migrate flag prints key names only and exits without starting the bot."""
+    import sys
+    from core.credentials import SECRET_KEYS, EnvVarBackend
+
+    for k in SECRET_KEYS:
+        monkeypatch.delenv(k, raising=False)
+
+    monkeypatch.setenv("AMZ_EMAIL", "flagtest@example.com")
+    monkeypatch.setenv("BB_EMAIL", "flagbb@example.com")
+
+    # Patch get_store to return an EnvVarBackend (which reads from monkeypatched env)
+    # and patch migrate_from_env to return the expected key list
+    from unittest.mock import patch
+
+    def _fake_migrate(store):
+        from core.credentials import SECRET_KEYS as _SK
+        import os
+        migrated = []
+        for key in _SK:
+            val = os.environ.get(key)
+            if val:
+                migrated.append(key)
+        return migrated
+
+    monkeypatch.setattr(sys, "argv", ["shoppybot", "--migrate"])
+
+    with patch("core.credentials.migrate_from_env", side_effect=_fake_migrate):
+        from core import service as _svc
+        # Re-import to pick up fresh main with --migrate
+        import importlib
+        importlib.reload(_svc)
+        _svc.main()
+
+    captured = capsys.readouterr()
+    # Key names appear in output
+    assert "AMZ_EMAIL" in captured.out
+    assert "BB_EMAIL" in captured.out
+    # Secret values do NOT appear
+    assert "flagtest@example.com" not in captured.out
+    assert "flagbb@example.com" not in captured.out
