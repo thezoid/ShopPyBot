@@ -40,5 +40,11 @@ async def set_credential(request: Request) -> JSONResponse:
             {"status": "error", "detail": "unknown key"},
             status_code=422,
         )
-    _creds.get_store().set(key, body["value"])
+    value = body.get("value")
+    if not isinstance(value, str) or value == "":
+        return JSONResponse(
+            {"status": "error", "detail": "value required"},
+            status_code=422,
+        )
+    _creds.get_store().set(key, value)
     return JSONResponse({"status": "ok"})

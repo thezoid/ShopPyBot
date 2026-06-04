@@ -86,3 +86,46 @@ def test_post_credentials_unknown_key_returns_422_no_write(client):
         )
     assert resp.status_code == 422
     mock_store.set.assert_not_called()
+
+
+def test_post_credentials_missing_value_returns_422_no_write(client):
+    """POST /api/credentials with valid key but no value returns 422, no store write (CR-01-new)."""
+    with patch("core.credentials.get_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_get_store.return_value = mock_store
+        resp = client.post(
+            "/api/credentials",
+            json={"key": "AMZ_EMAIL"},
+            headers={"origin": "http://127.0.0.1:8000"},
+        )
+    assert resp.status_code == 422
+    assert "value" in resp.json().get("detail", "")
+    mock_store.set.assert_not_called()
+
+
+def test_post_credentials_empty_value_returns_422_no_write(client):
+    """POST /api/credentials with empty string value returns 422, no store write (CR-01-new)."""
+    with patch("core.credentials.get_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_get_store.return_value = mock_store
+        resp = client.post(
+            "/api/credentials",
+            json={"key": "AMZ_EMAIL", "value": ""},
+            headers={"origin": "http://127.0.0.1:8000"},
+        )
+    assert resp.status_code == 422
+    mock_store.set.assert_not_called()
+
+
+def test_post_credentials_value_never_echoed(client):
+    """POST /api/credentials 422 response never echoes the submitted value (SC3)."""
+    secret_value = "secret-probe-value-never-echo"
+    with patch("core.credentials.get_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_get_store.return_value = mock_store
+        resp = client.post(
+            "/api/credentials",
+            json={"key": "AMZ_EMAIL"},
+            headers={"origin": "http://127.0.0.1:8000"},
+        )
+    assert secret_value not in resp.text
