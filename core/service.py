@@ -145,13 +145,26 @@ def main() -> None:
     """Console entry point for the shoppybot command.
 
     Parses args first so `shoppybot --help` exits 0 without starting the bot.
+    --migrate: import any env-var secrets into the active backend and exit.
     Phase 9 extends this parser with real subcommands.
     """
     parser = argparse.ArgumentParser(
         prog="shoppybot",
         description="ShopPyBot: automated availability checker and buyer.",
     )
-    parser.parse_known_args()
+    parser.add_argument(
+        "--migrate",
+        action="store_true",
+        help="Import secrets from environment variables into the active credential backend.",
+    )
+    args, _ = parser.parse_known_args()
+
+    if args.migrate:
+        from core.credentials import migrate_from_env, get_store
+        migrated = migrate_from_env(get_store())
+        for key in migrated:
+            print(f"Migrated: {key}")   # key NAME only -- never the value (T-08-14)
+        return
 
     service = BotService()
     service.run()

@@ -366,6 +366,22 @@ def _log_backend(label: str) -> None:
     writeLog(f"CredentialStore: {label} backend active", "INFO")
 
 
+def migrate_from_env(store: CredentialStore) -> list[str]:
+    """Write each set env-var secret into store. Return list of migrated key NAMES.
+
+    Reads SECRET_KEYS from os.environ; for each that is set, calls store.set(key, val)
+    and appends the key NAME to the returned list. The value is never printed,
+    logged, or included in the return value (T-08-14 / CRED-07).
+    """
+    migrated: list[str] = []
+    for key in SECRET_KEYS:
+        val = os.environ.get(key)
+        if val:
+            store.set(key, val)
+            migrated.append(key)   # name only -- never the value
+    return migrated
+
+
 def init_store(cfg: AppConfig) -> CredentialStore:
     """Initialize the process-wide CredentialStore from AppConfig.
 
