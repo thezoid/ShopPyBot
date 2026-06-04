@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: executing
-last_updated: "2026-06-04T15:08:26.715Z"
+status: verifying
+last_updated: "2026-06-04T15:21:31.852Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 35
-  completed_plans: 34
-  percent: 64
+  completed_plans: 35
+  percent: 73
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 08 (credential-store) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
 ## Phase Status
@@ -124,6 +124,7 @@ Last activity: 2026-06-04
 | Phase 08-credential-store P01 | 8min | 3 tasks | 4 files |
 | Phase 08-credential-store P02 | 7min | 2 tasks | 3 files |
 | Phase 08 P03 | 12min | 3 tasks | 4 files |
+| Phase 08-credential-store P04 | 15min | 3 tasks | 14 files |
 
 ## Decisions
 
@@ -165,3 +166,4 @@ Last activity: 2026-06-04
 - [Phase ?]: KeyringBackend uses SERVICE=shopbot hardcoded; keyring has no enumerate API so list() probes each SECRET_KEY individually (CRED-02)
 - [Phase ?]: EncryptedFileBackend: scrypt n=2**14 + fresh 16B salt per write; fdopen-in-with + os.replace-outside for Windows-safe atomic write; InvalidToken -> ValueError(SHOPBOT_STORE_PASSPHRASE) (CRED-03)
 - [Phase ?]: _build_store: explicit config > real keyring > encrypted-file (passphrase in env) > env-var; getpass deferred to explicit 'file' backend path only
+- [Phase ?]: get_store().get(KEY) replaces all os.environ secret reads in consumers; SC1 grep guard enforces no regression

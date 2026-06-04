@@ -91,7 +91,7 @@
 - [x] **CRED-04**: Env-var fallback preserves today's behavior when no store is configured; documented precedence (explicit store > keyring > encrypted-file > env).
 - [x] **CRED-05**: Backend auto-selected at startup (detect OS + available backend) with an explicit config override; the ACTIVE backend name is logged, never the secret values.
 - [x] **CRED-06**: No plaintext secrets on disk: secrets are never written to config.yml, logs, or SQLite; the encrypted-file store is the only at-rest form and it is encrypted (a test asserts no secret plaintext in those sinks).
-- [ ] **CRED-07**: Migration command imports existing env-var secrets into the selected store.
+- [x] **CRED-07**: Migration command imports existing env-var secrets into the selected store.
 
 ### CLI Front-End (default)
 
@@ -191,7 +191,7 @@
 | CRED-04 | Phase 8 — Credential Store | Complete |
 | CRED-05 | Phase 8 — Credential Store | Complete |
 | CRED-06 | Phase 8 — Credential Store | Complete |
-| CRED-07 | Phase 8 — Credential Store | Pending |
+| CRED-07 | Phase 8 — Credential Store | Complete |
 | CLI-01 | Phase 9 — CLI Front-End | Pending |
 | CLI-02 | Phase 9 — CLI Front-End | Pending |
 | CLI-03 | Phase 9 — CLI Front-End | Pending |
