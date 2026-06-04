@@ -1,10 +1,10 @@
 """web/routes/api.py: JSON API routes for the ShopPyBot dashboard.
 
 All state-changing routes (POST/DELETE) carry the check_origin CSRF dependency.
-Route bodies are implemented in Plans 02-05; this file defines the router and
-the complete route skeleton so include_router succeeds and CSRF tests pass.
+BotService is accessed only via request.app.state.svc (MOD-02).
 """
 
+import asyncio
 import base64
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -40,14 +40,20 @@ async def get_logs(request: Request):
 @router.post("/bot/start", dependencies=[Depends(check_origin)])
 async def bot_start(request: Request):
     """Start the bot (no CVV -- web scope)."""
-    request.app.state.svc.start()
+    svc = request.app.state.svc
+    if svc.get_status().get("running"):
+        return JSONResponse({"status": "error", "detail": "Bot is already running."})
+    svc.start()
     return JSONResponse({"status": "ok"})
 
 
 @router.post("/bot/stop", dependencies=[Depends(check_origin)])
 async def bot_stop(request: Request):
-    """Stop the bot."""
-    request.app.state.svc.stop()
+    """Stop the bot. Dispatches blocking stop() off the event loop via run_in_executor."""
+    svc = request.app.state.svc
+    if not svc.get_status().get("running"):
+        return JSONResponse({"status": "error", "detail": "Bot is not running."})
+    await asyncio.get_event_loop().run_in_executor(None, svc.stop)
     return JSONResponse({"status": "ok"})
 
 
@@ -60,7 +66,13 @@ async def list_items(request: Request):
     """Return all tracked items as a list of dicts."""
     rows = request.app.state.svc.list_items()
     items = [
-        {"name": r[0], "link": r[1], "auto_buy": r[2], "quantity": r[3], "purchased": r[4]}
+        {
+            "name": r[0],
+            "link": r[1],
+            "auto_buy": bool(r[2]),
+            "quantity": r[3],
+            "purchased": bool(r[4]),
+        }
         for r in rows
     ]
     return JSONResponse({"items": items})
