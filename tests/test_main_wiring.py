@@ -1,16 +1,21 @@
-"""Tests for main.py wiring to core.orchestrator.async_main.
+"""Tests for main.py wiring to core.service.BotService.
 
 Covers:
-- main.async_main is core.orchestrator.async_main (not a local definition)
-- main() calls asyncio.run with async_main coroutine
+- main.BotService is core.service.BotService (delegation seam: main -> BotService -> async_main)
+- main() calls BotService(cfg).run(cvv) (not async_main directly)
 - CVV gate: collect_cvv() skipped in test_mode (WR-02)
 - CVV gate: collect_cvv() skipped when test_mode=True even with BestBuy auto_buy item
 - CVV gate: collect_cvv() called when test_mode=False and BestBuy auto_buy item exists
 - AppConfig ValidationError -> SystemExit(1) (CORE-05)
+
+NOTE (GSD-flagged single allowed change): the delegation seam moved from
+main->async_main to main->BotService->async_main in plan 07-03. The two
+delegation tests below assert the new seam. The three CVV-gate tests have
+their run-path patches repointed from main.asyncio.run/main.async_main to
+main.BotService; CVV gate intent is fully preserved.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 import pytest
 
@@ -38,51 +43,46 @@ def _make_fake_cfg(test_mode=True, bb_items=None):
 
 
 # ---------------------------------------------------------------------------
-# Delegation: main.async_main IS core.orchestrator.async_main
+# Delegation: main.BotService IS core.service.BotService
 # ---------------------------------------------------------------------------
 
 
-def test_main_async_main_is_orchestrator():
-    """main.async_main must be the imported core.orchestrator.async_main, not a local fn."""
+def test_main_botservice_is_core_service():
+    """main.BotService must be core.service.BotService (delegation seam: main -> BotService)."""
     import main as main_module
-    import core.orchestrator as orch_module
+    import core.service as svc_module
 
-    assert main_module.async_main is orch_module.async_main, (
-        "main.async_main must be core.orchestrator.async_main (delegation seam)"
+    assert main_module.BotService is svc_module.BotService, (
+        "main.BotService must be core.service.BotService (delegation seam)"
     )
 
 
 # ---------------------------------------------------------------------------
-# Delegation: asyncio.run is called with async_main coroutine
+# Delegation: main() calls BotService(cfg).run(cvv)
 # ---------------------------------------------------------------------------
 
 
-def test_main_calls_asyncio_run():
-    """main() calls asyncio.run(); the argument is a coroutine from async_main."""
+def test_main_delegates_to_botservice_run():
+    """main() must construct BotService(cfg) and call .run(cvv) -- not asyncio.run directly."""
     import importlib
     import main as main_module
     importlib.reload(main_module)
 
     fake_cfg = _make_fake_cfg(test_mode=True)
 
+    mock_service_instance = MagicMock()
+    mock_botservice_cls = MagicMock(return_value=mock_service_instance)
+
     with (
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
-        patch.object(main_module, "async_main", new=AsyncMock()) as mock_am,
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
-        patch("main.asyncio.run") as mock_run,
+        patch.object(main_module, "BotService", mock_botservice_cls),
     ):
-        mock_run.return_value = None
         main_module.main()
 
-    assert mock_run.called, "asyncio.run must be called from main()"
-    # Confirm the passed argument is a coroutine object
-    passed = mock_run.call_args[0][0]
-    assert asyncio.iscoroutine(passed), (
-        f"asyncio.run must receive a coroutine, got {type(passed)}"
-    )
-    # Close it to avoid unawaited-coroutine ResourceWarning
-    passed.close()
+    mock_botservice_cls.assert_called_once_with(fake_cfg)
+    mock_service_instance.run.assert_called_once_with(None)
 
 
 # ---------------------------------------------------------------------------
@@ -98,15 +98,15 @@ def test_cvv_not_collected_in_test_mode():
 
     fake_cfg = _make_fake_cfg(test_mode=True)
 
+    mock_service_instance = MagicMock()
+
     with (
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
-        patch.object(main_module, "async_main", new=AsyncMock()),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
         patch.object(main_module, "collect_cvv") as mock_cvv,
-        patch("main.asyncio.run") as mock_run,
+        patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):
-        mock_run.return_value = None
         main_module.main()
 
     mock_cvv.assert_not_called()
@@ -123,15 +123,15 @@ def test_cvv_none_when_test_mode_true_with_bb_item():
         bb_items=[("https://www.bestbuy.com/p/1", True)],
     )
 
+    mock_service_instance = MagicMock()
+
     with (
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
-        patch.object(main_module, "async_main", new=AsyncMock()),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
         patch.object(main_module, "collect_cvv") as mock_cvv,
-        patch("main.asyncio.run") as mock_run,
+        patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):
-        mock_run.return_value = None
         main_module.main()
 
     mock_cvv.assert_not_called()
@@ -153,18 +153,20 @@ def test_cvv_collected_when_needed():
         bb_items=[("https://www.bestbuy.com/p/1", True)],
     )
 
+    mock_service_instance = MagicMock()
+
     with (
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
-        patch.object(main_module, "async_main", new=AsyncMock()),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
         patch.object(main_module, "collect_cvv", return_value="123") as mock_cvv,
-        patch("main.asyncio.run") as mock_run,
+        patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):
-        mock_run.return_value = None
         main_module.main()
 
     mock_cvv.assert_called_once()
+    # Confirm the collected CVV is forwarded into BotService.run()
+    mock_service_instance.run.assert_called_once_with("123")
 
 
 # ---------------------------------------------------------------------------
