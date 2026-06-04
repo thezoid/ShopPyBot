@@ -1,8 +1,8 @@
 ---
 phase: 10
 slug: optional-web-ui
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-04
 ---
@@ -38,11 +38,10 @@ created: 2026-06-04
 
 | Task ID | Plan | Wave | Requirement | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------------|-----------|-------------------|-------------|--------|
-| 10-01-01 | 01 | 1 | GUI-05 | [web] extra in pyproject; create_app(svc) factory + StaticFiles + Jinja2; handle_web serves it; CLI-04 stays green (fastapi only inside web/) | unit | `pytest tests/test_web_app.py tests/test_cli_no_fastapi.py -q` | ❌ W0 | ⬜ pending |
-| 10-02-01 | 02 | 2 | GUI-06 | is_localhost() loopback detection; non-local --host prints stderr warning before serve + in-page banner; Origin/Host check on POSTs (403 on mismatch) | unit | `pytest tests/test_web_security.py -q` | ❌ W0 | ⬜ pending |
-| 10-03-01 | 03 | 2 | GUI-02, GUI-04 | items list/add/remove + start/stop/status/logs routes via BotService only (MOD-02); web add/remove == CLI DB state (SC2 parity) | unit | `pytest tests/test_web_items.py tests/test_web_controls.py tests/test_web_mod02.py -q` | ❌ W0 | ⬜ pending |
-| 10-04-01 | 04 | 3 | GUI-03 | credential routes show name+set/unset only; POST→CredentialStore.set; secret value absent from any response body, HTML, logs | unit | `pytest tests/test_web_credentials.py -q` | ❌ W0 | ⬜ pending |
-| 10-05-01 | 05 | 3 | GUI-01 | config routes (test_mode, logging_level, notifier enables) mirror CLI allowlist; dashboard renders all 4 sections; UI = thin BotService adapter | unit | `pytest tests/test_web_config.py tests/test_web_dashboard.py -q` | ❌ W0 | ⬜ pending |
+| 10-01 | 01 | 1 | GUI-05, GUI-06 | [web] extra in pyproject; create_app(svc) factory + StaticFiles + Jinja2; handle_web serves it; CLI-04 stays green (fastapi only inside web/); is_localhost() loopback detection; non-local --host stderr warning before serve; Origin/Host check Depends; 8 importorskip-guarded Wave-0 test files | unit | `pytest tests/test_web_app.py tests/test_web_security.py tests/test_cli_no_fastapi.py -q` | ❌ W0 | ⬜ pending |
+| 10-02 | 02 | 2 | GUI-02, GUI-04 | items list/add/remove + start/stop/status/logs routes via BotService only (MOD-02); start(cvv=None); stop via run_in_executor; web add/remove == CLI DB state (SC2 parity) | unit | `pytest tests/test_web_items.py tests/test_web_controls.py tests/test_web_mod02.py -q` | ❌ W0 | ⬜ pending |
+| 10-03 | 03 | 2 | GUI-03 | credential routes show name+is_set only; POST→CredentialStore.set; secret value absent from any response body, HTML, log | unit | `pytest tests/test_web_credentials.py -q` | ❌ W0 | ⬜ pending |
+| 10-04 | 04 | 3 | GUI-01, GUI-03 | config routes (test_mode, logging_level, notifier enables) mirror CLI allowlist; dashboard renders 4 sections + non-local banner; no platform-enable checkboxes; no secret value in GET / HTML | unit | `pytest tests/test_web_config.py tests/test_web_dashboard.py -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 *Task IDs indicative — planner finalizes exact plan/task numbering.*
@@ -76,11 +75,11 @@ created: 2026-06-04
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 35s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 35s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-06-04
