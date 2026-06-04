@@ -60,3 +60,16 @@ def test_items_remove_not_found(tmp_data_dir):
         with pytest.raises(SystemExit) as exc_info:
             main(["items", "remove", "--url", "https://missing.com"])
     assert exc_info.value.code == 1
+
+
+def test_items_no_leaf_exits_2_and_does_not_start_bot(tmp_data_dir, capsys):
+    """main(["items"]) with no leaf subcommand must exit 2 and never start the bot (WR-06)."""
+    from core.service import main
+
+    mock_svc = MagicMock()
+    with patch("core.service.BotService", return_value=mock_svc):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["items"])
+    assert exc_info.value.code == 2
+    mock_svc.run.assert_not_called()
+    mock_svc.start.assert_not_called()

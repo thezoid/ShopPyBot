@@ -129,3 +129,16 @@ def test_config_set_creates_parent_dir(tmp_path):
     assert config_file.exists()
     data = yaml.safe_load(config_file.read_text())
     assert data["debug"]["test_mode"] is True
+
+
+def test_config_no_leaf_exits_2_and_does_not_start_bot(tmp_data_dir, capsys):
+    """main(["config"]) with no leaf subcommand must exit 2 and never start the bot (WR-06)."""
+    from core.service import main
+
+    mock_svc = MagicMock()
+    with patch("core.service.BotService", return_value=mock_svc):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["config"])
+    assert exc_info.value.code == 2
+    mock_svc.run.assert_not_called()
+    mock_svc.start.assert_not_called()

@@ -5,6 +5,7 @@ calls build_parser() + parse_known_args() then dispatches via args.func.
 """
 
 import argparse
+import sys
 
 from core.cli.run import handle_run
 from core.cli.setup import handle_setup
@@ -47,6 +48,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     setup_p.set_defaults(func=handle_setup)
 
+    def _require_subcommand(parent_parser):
+        """Return a func handler that prints parent usage and exits 2.
+
+        Used as the set_defaults(func=...) value on group parsers (items, config)
+        so that invoking the group name without a leaf subcommand exits with a
+        usage error instead of falling through to the bare-run default (WR-06).
+        """
+        def _handler(args, svc):  # noqa: ARG001
+            parent_parser.print_help(sys.stderr)
+            return 2
+        return _handler
+
     # --- items ---
     items_p = sub.add_parser("items", help="Manage tracked items.")
     items_sub = items_p.add_subparsers(dest="items_command")
@@ -75,6 +88,9 @@ def build_parser() -> argparse.ArgumentParser:
     remove_p.add_argument("--url", required=True, help="Product URL to remove.")
     remove_p.set_defaults(func=handle_items_remove)
 
+    # Bare `shoppybot items` (no leaf) must print usage and exit 2, not start the bot.
+    items_p.set_defaults(func=_require_subcommand(items_p))
+
     # --- config ---
     config_p = sub.add_parser("config", help="View or update bot settings.")
     config_sub = config_p.add_subparsers(dest="config_command")
@@ -94,6 +110,9 @@ def build_parser() -> argparse.ArgumentParser:
     set_p.add_argument("key", help="Config key (test_mode, logging_level).")
     set_p.add_argument("value", help="New value.")
     set_p.set_defaults(func=handle_config_set)
+
+    # Bare `shoppybot config` (no leaf) must print usage and exit 2, not start the bot.
+    config_p.set_defaults(func=_require_subcommand(config_p))
 
     # --- web ---
     web_p = sub.add_parser(
