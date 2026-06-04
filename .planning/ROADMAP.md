@@ -162,7 +162,7 @@ Plans:
 
 ### v2.0 Phase Checklist
 
-- [ ] **Phase 7: Modular Core Service** — `BotService` wraps all bot logic behind a stable API; installable package with `shoppybot` entry point; `main.py` becomes a thin shim
+- [x] **Phase 7: Modular Core Service** — `BotService` wraps all bot logic behind a stable API; installable package with `shoppybot` entry point; `main.py` becomes a thin shim (completed 2026-06-04)
 - [ ] **Phase 8: Credential Store** — `CredentialStore` interface with OS-keyring/encrypted-file/env-var backends; all secret reads routed through it; no scattered `os.environ` reads remain
 - [ ] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI
 - [ ] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server
@@ -189,7 +189,7 @@ Plans:
 
 - [x] 07-01-PLAN.md — BotService API (start/stop/run/list/add/remove/get_status/get_config) + remove_item_sync + new service tests (MOD-01)
 - [x] 07-02-PLAN.md — pyproject.toml packages + shoppybot console entry point (core.service:main); pip install -e . (MOD-03)
-- [ ] 07-03-PLAN.md — main.py thin shim routes through BotService.run; update test_main_wiring delegation seam (MOD-02, MOD-03)
+- [x] 07-03-PLAN.md — main.py thin shim routes through BotService.run; update test_main_wiring delegation seam (MOD-02, MOD-03)
 
 **UI hint**: no
 
@@ -268,7 +268,7 @@ Plans:
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
 | 5. Notification System | 5/5 | Complete   | 2026-06-03 |
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
-| 7. Modular Core Service | 2/3 | In Progress|  |
+| 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
 | 8. Credential Store | 0/TBD | Not started | - |
 | 9. CLI Front-End | 0/TBD | Not started | - |
 | 10. Optional Web UI | 0/TBD | Not started | - |

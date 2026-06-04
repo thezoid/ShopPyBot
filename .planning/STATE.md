@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: Defining requirements
-last_updated: "2026-06-04T03:20:43.171Z"
+last_updated: "2026-06-04T03:26:35.733Z"
 last_activity: 2026-06-04 — Milestone v2.0 started
 progress:
   total_phases: 11
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 31
-  completed_plans: 30
-  percent: 55
+  completed_plans: 31
+  percent: 64
 ---
 
 # ShopPyBot — State
@@ -82,9 +82,9 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 
 ## Session Continuity
 
-**Last action**: Completed plan 01-04 — requirements.txt pinned/deduped (INFRA-01) and logger.py caches level at import (INFRA-02); 15 tests passing
-**Next action**: Execute plan 01-05 (security hardening patches to main.py: AppConfig instantiation with ValidationError catch, selenium Service log_output)
-**Context to carry**: requirements.txt now exact-pinned; nodriver==0.50.3 and pydantic-settings[yaml]==2.14.0 locked and human-verified. logger._LOGGING_LEVEL caches the level at import; do not re-add per-call config reads. AppConfig uses yaml_file= kwarg for injection (not _yaml_file=). core/config_schema.py is complete; main.py (plan 05) should instantiate AppConfig() with ValidationError catch. selenium pinned at 4.43.0 for Service log_output in plan 05.
+**Last action**: Completed plan 07-03 — main.py slimmed to BotService-delegating shim; test_main_wiring.py updated for new delegation seam; 227 tests passing
+**Next action**: Phase 07 plan 04 or next phase
+**Context to carry**: main.py is now a thin shim routing through BotService(cfg).run(cvv). getpass CVV collection stays in main.py front-end. BotService.run() is the blocking convenience wrapping asyncio.run(async_main). test_main_wiring.py has 6 passing tests asserting BotService delegation + CVV gate + ValidationError->SystemExit(1).
 
 ---
 
@@ -120,6 +120,7 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 | Phase 06-platform-expansion P05 | 5m | 2 tasks | 2 files |
 | Phase 07-modular-core-service P01 | 375s | 2 tasks | 3 files |
 | Phase 07-modular-core-service P02 | 4min | 1 tasks | 3 files |
+| Phase 07-modular-core-service P03 | 5m | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -155,3 +156,4 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 - [Phase 07-01]: run() = asyncio.run(async_main(cfg, cvv)) identical to v1 behavior; CVV is a parameter only (never logged)
 - [Phase ?]: parse_known_args() in core.service:main() avoids sys.argv contamination when test calls main() directly
 - [Phase ?]: plugins/__init__.py added to make plugins/ a proper setuptools package; Phase 07-02 shoppybot entry point = core.service:main via pyproject.toml [project.scripts]
+- [Phase 07-03]: main.py is now a thin shim: validate+seed+getpass CVV gate then BotService(cfg).run(cvv); asyncio.run and async_main imports removed from main.py (now internal to core/service.py)
