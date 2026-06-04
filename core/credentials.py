@@ -234,6 +234,7 @@ class EncryptedFileBackend(CredentialStore):
     def __init__(self, path: Path, passphrase: bytes) -> None:
         self._path = path
         self._passphrase = passphrase
+        self._lock: threading.Lock = threading.Lock()
 
     def _load(self) -> dict[str, str]:
         if not self._path.exists():
@@ -271,14 +272,16 @@ class EncryptedFileBackend(CredentialStore):
         return self._load().get(key)
 
     def set(self, key: str, value: str) -> None:
-        secrets = self._load()
-        secrets[key] = value
-        self._save(secrets)
+        with self._lock:
+            secrets = self._load()
+            secrets[key] = value
+            self._save(secrets)
 
     def delete(self, key: str) -> None:
-        secrets = self._load()
-        secrets.pop(key, None)
-        self._save(secrets)
+        with self._lock:
+            secrets = self._load()
+            secrets.pop(key, None)
+            self._save(secrets)
 
     def list(self) -> list[str]:
         return list(self._load().keys())
