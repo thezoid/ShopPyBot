@@ -1,0 +1,71 @@
+"""handle_config_*: CLI config subcommand stubs (plan 09-02 fills the bodies).
+
+Provides ALLOWLIST, _coerce, _atomic_yaml_write, handle_config_show, handle_config_set.
+"""
+
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+import yaml
+
+from core.config_schema import _DEFAULT_YAML_PATH
+
+# Allowlist of scalar config keys that `config set` may update (RESEARCH Pattern 5).
+# Maps key_name -> (yaml_section, python_type).
+ALLOWLIST: dict[str, tuple[str, type]] = {
+    "test_mode": ("debug", bool),
+    "logging_level": ("debug", int),
+}
+
+
+def _coerce(raw: str, typ: type):
+    """Coerce a CLI string value to the target Python type.
+
+    Raises SystemExit(2) on invalid input (usage error convention).
+    """
+    if typ is bool:
+        if raw.lower() in ("true", "1", "yes"):
+            return True
+        if raw.lower() in ("false", "0", "no"):
+            return False
+        print(f"Expected true/false, got: {raw!r}", file=sys.stderr)
+        raise SystemExit(2)
+    if typ is int:
+        try:
+            return int(raw)
+        except ValueError:
+            print(f"Expected integer, got: {raw!r}", file=sys.stderr)
+            raise SystemExit(2)
+    return raw
+
+
+def _atomic_yaml_write(path: Path, data: dict) -> None:
+    """Write data as YAML to path atomically via tempfile + os.replace.
+
+    Mirrors EncryptedFileBackend._save() pattern (PATTERNS analog).
+    """
+    content = yaml.dump(data, default_flow_style=False, allow_unicode=True)
+    dir_ = path.parent
+    fd, tmp = tempfile.mkstemp(dir=str(dir_), suffix=".yml")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def handle_config_show(args, svc=None) -> int:
+    """Print the current effective config as YAML. Stub -- plan 09-02 implements."""
+    return 0
+
+
+def handle_config_set(args, svc=None) -> int:
+    """Update an allowlisted config key in config.yml. Stub -- plan 09-02 implements."""
+    return 0
