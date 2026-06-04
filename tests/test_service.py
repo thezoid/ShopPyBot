@@ -178,10 +178,15 @@ async def test_stop_triggers_teardown(service, minimal_cfg):
 
 def test_run_calls_asyncio_run_with_async_main(service, minimal_cfg):
     """run() wraps asyncio.run(async_main(cfg, cvv)) (blocking convenience)."""
-    with patch("core.service.async_main", new=AsyncMock()) as mock_main:
+    sentinel = object()
+
+    def _fake_async_main(cfg, cvv):
+        return sentinel  # return a non-coroutine so asyncio.run receives a plain value
+
+    with patch("core.service.async_main", new=_fake_async_main):
         with patch("core.service.asyncio.run") as mock_run:
             service.run(cvv="test-cvv")
-            assert mock_run.called
+            mock_run.assert_called_once_with(sentinel)
 
 
 # ---------------------------------------------------------------------------
