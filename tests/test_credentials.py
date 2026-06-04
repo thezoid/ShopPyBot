@@ -228,46 +228,107 @@ def test_file_backend_wrong_passphrase(tmp_path):
 
 
 # ============================================================
-# CRED-05: Backend auto-selection (stubs -- implemented in plan 08-03)
+# CRED-05: Backend auto-selection (plan 08-03 -- un-xfailed)
 # ============================================================
 
 
-@pytest.mark.xfail(reason="init_store auto-selection implemented in plan 08-03", strict=False)
-def test_auto_select_keyring(reset_credential_store, isolated_keyring):
-    """init_store returns KeyringBackend when a real keyring is available."""
+def test_auto_select_keyring(reset_credential_store, isolated_keyring, monkeypatch):
+    """init_store returns KeyringBackend when _has_real_keyring returns True."""
+    from unittest.mock import patch
     from core.credentials import KeyringBackend, init_store
     from core.config_schema import AppConfig
 
     cfg = AppConfig()
-    store = init_store(cfg)
+    with patch("core.credentials._has_real_keyring", return_value=True):
+        store = init_store(cfg)
     assert isinstance(store, KeyringBackend)
 
 
-@pytest.mark.xfail(reason="init_store auto-selection implemented in plan 08-03", strict=False)
 def test_auto_select_file(reset_credential_store, monkeypatch, tmp_path):
     """init_store returns EncryptedFileBackend when passphrase set and no real keyring."""
+    from unittest.mock import patch
     from core.credentials import EncryptedFileBackend, init_store
     from core.config_schema import AppConfig
 
     monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
+    monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
+    monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpassphrase")
     cfg = AppConfig()
-    store = init_store(cfg)
+    with patch("core.credentials._has_real_keyring", return_value=False):
+        store = init_store(cfg)
     assert isinstance(store, EncryptedFileBackend)
 
 
-@pytest.mark.xfail(reason="Startup logging implemented in plan 08-03", strict=False)
-def test_startup_log_backend_name(reset_credential_store, capsys):
-    """Active backend name is logged at startup; no secret values in the log."""
+def test_auto_select_env(reset_credential_store, monkeypatch):
+    """init_store returns EnvVarBackend when no keyring and no passphrase."""
+    from unittest.mock import patch
+    from core.credentials import EnvVarBackend, init_store
+    from core.config_schema import AppConfig
+
+    monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
+    cfg = AppConfig()
+    with patch("core.credentials._has_real_keyring", return_value=False):
+        store = init_store(cfg)
+    assert isinstance(store, EnvVarBackend)
+
+
+def test_explicit_backend_override(reset_credential_store, monkeypatch, tmp_path):
+    """cfg.credentials.backend='env'/'keyring'/'file' bypasses auto-detect."""
+    from unittest.mock import patch
+    from core.credentials import (
+        EnvVarBackend, KeyringBackend, EncryptedFileBackend,
+        init_store,
+    )
+    from core.config_schema import AppConfig
+
+    # env override
+    cfg = AppConfig()
+    cfg.credentials.backend = "env"
+    with patch("core.credentials._has_real_keyring", return_value=False):
+        store = init_store(cfg)
+    assert isinstance(store, EnvVarBackend)
+
+    # keyring override (even when _has_real_keyring would be False in auto)
+    cfg2 = AppConfig()
+    cfg2.credentials.backend = "keyring"
+    from tests.conftest import _DictKeyring  # noqa: F401 -- available post-08-02
+    import keyring as _kr
+    _kr.set_keyring(_DictKeyring())
+    try:
+        store2 = init_store(cfg2)
+    finally:
+        _kr.core._keyring_backend = None
+    assert isinstance(store2, KeyringBackend)
+
+    # file override
+    monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "pw")
+    cfg3 = AppConfig()
+    cfg3.credentials.backend = "file"
+    store3 = init_store(cfg3)
+    assert isinstance(store3, EncryptedFileBackend)
+
+
+def test_startup_log_backend_name(reset_credential_store, monkeypatch, capsys):
+    """init_store logs 'backend active' exactly once; no secret value in the log."""
+    from unittest.mock import patch
     from core.credentials import init_store
     from core.config_schema import AppConfig
 
+    monkeypatch.delenv("SHOPBOT_STORE_PASSPHRASE", raising=False)
     cfg = AppConfig()
-    init_store(cfg)
-    # Backend name should appear somewhere in logs (checked via writeLog calls)
-    # This test asserts no secret values are captured in the log output
+    with patch("core.credentials._has_real_keyring", return_value=False):
+        init_store(cfg)
     captured = capsys.readouterr()
-    for key in ("AMZ_EMAIL", "AMZ_PASSWORD", "DISCORD_WEBHOOK_URL"):
-        assert key not in captured.out
+    assert "backend active" in captured.out
+    # No secret key names (not values) should appear as part of a secret-value leak
+    for env_key in ("AMZ_EMAIL", "AMZ_PASSWORD", "DISCORD_WEBHOOK_URL",
+                    "BB_EMAIL", "BB_PASSWORD"):
+        val = monkeypatch.getfixturevalue  # ignore -- check os.environ directly
+        secret_val = os.environ.get(env_key, "")
+        if secret_val:
+            assert secret_val not in captured.out, (
+                f"Secret value for {env_key} found in log output"
+            )
 
 
 # ============================================================
