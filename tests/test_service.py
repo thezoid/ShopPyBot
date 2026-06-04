@@ -239,11 +239,19 @@ def test_main_constructs_service_and_runs(tmp_path):
         def __init__(self, cfg=None):
             run_called["constructed"] = True
 
+        def get_config(self):
+            # Return a minimal mock config so handle_run's CVV gate works
+            from unittest.mock import MagicMock
+            return MagicMock(
+                debug=MagicMock(test_mode=True),
+                available=MagicMock(items=[]),
+            )
+
         def run(self, cvv=None):
             run_called["run"] = True
 
     with patch("core.service.BotService", new=_FakeService):
-        main()
+        main([])   # explicit argv=[] avoids sys.argv contamination (RESEARCH Pitfall 7)
 
     assert run_called.get("constructed"), "BotService was not constructed"
     assert run_called.get("run"), "BotService.run() was not called"

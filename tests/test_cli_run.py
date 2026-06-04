@@ -24,14 +24,20 @@ def test_bare_defaults_to_run(tmp_data_dir):
 
 
 def test_run_subcommand_calls_botservice_run(tmp_data_dir):
-    """main(["run"]) must call BotService.run() once."""
+    """main(["run"]) must call BotService.run() once.
+
+    The explicit 'run' subcommand dispatches through sys.exit(0) on success,
+    so we catch SystemExit(0) and verify run was still called.
+    """
     mock_svc = MagicMock()
     mock_svc.get_config.return_value = MagicMock(
         debug=MagicMock(test_mode=True),
         available=MagicMock(items=[]),
     )
     with patch("core.service.BotService", return_value=mock_svc):
-        main(["run"])
+        with pytest.raises(SystemExit) as exc_info:
+            main(["run"])
+    assert exc_info.value.code == 0
     mock_svc.run.assert_called_once()
 
 

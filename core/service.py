@@ -9,7 +9,6 @@ for secrets or interactive input -- secrets are collected by the front-end
 and passed in (T-07-04, ASYNC-03).
 """
 
-import argparse
 import asyncio
 import threading
 from pathlib import Path
@@ -151,30 +150,34 @@ class BotService:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Console entry point for the shoppybot command.
 
-    Parses args first so `shoppybot --help` exits 0 without starting the bot.
-    --migrate: import any env-var secrets into the active backend and exit.
-    Phase 9 extends this parser with real subcommands.
-    """
-    parser = argparse.ArgumentParser(
-        prog="shoppybot",
-        description="ShopPyBot: automated availability checker and buyer.",
-    )
-    parser.add_argument(
-        "--migrate",
-        action="store_true",
-        help="Import secrets from environment variables into the active credential backend.",
-    )
-    args, _ = parser.parse_known_args()
+    Delegates parsing to core.cli.build_parser() and dispatches via
+    set_defaults(func=...) on each subcommand. Uses parse_known_args(argv)
+    to avoid sys.argv contamination in tests (RESEARCH Pitfall 7).
 
-    if args.migrate:
-        from core.credentials import migrate_from_env, get_store
-        migrated = migrate_from_env(get_store())
-        for key in migrated:
-            print(f"Migrated: {key}")   # key NAME only -- never the value (T-08-14)
+    Dispatch rules:
+    - top-level --migrate with no subcommand: back-compat alias for setup --migrate
+    - bare invocation (func is None): default to handle_run
+    - all other subcommands: sys.exit(args.func(args, BotService()) or 0)
+    """
+    import sys as _sys
+    from core.cli import build_parser
+    from core.cli.run import handle_run
+    from core.cli.setup import handle_setup
+
+    parser = build_parser()
+    args, _ = parser.parse_known_args(argv)
+
+    # Back-compat: top-level --migrate with no subcommand -> setup --migrate (T-09-03)
+    if getattr(args, "migrate", False) and getattr(args, "command", None) is None:
+        handle_setup(args, BotService())
         return
 
-    service = BotService()
-    service.run()
+    # Bare shoppybot = run (RESEARCH Pitfall 1)
+    if getattr(args, "func", None) is None:
+        handle_run(args, BotService())
+        return
+
+    _sys.exit(args.func(args, BotService()) or 0)

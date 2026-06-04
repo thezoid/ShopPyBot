@@ -454,7 +454,9 @@ def test_main_migrate_flag(monkeypatch, reset_credential_store, tmp_path, capsys
 
     monkeypatch.setattr(sys, "argv", ["shoppybot", "--migrate"])
 
-    with patch("core.credentials.migrate_from_env", side_effect=_fake_migrate):
+    # Patch at the module where migrate_from_env is used after the Phase-9
+    # refactor: handle_setup in core.cli.setup now owns the --migrate path.
+    with patch("core.cli.setup.migrate_from_env", side_effect=_fake_migrate):
         from core import service as _svc
         # Re-import to pick up fresh main with --migrate
         import importlib

@@ -23,7 +23,17 @@ def _prompt_secret(prompt: str) -> str | None:
 
 
 def handle_setup(args, svc) -> int:
-    """Credential setup wizard. Stub -- plan 09-02 implements the full body."""
-    # Stub: return 0 so the CLI dispatch wiring tests pass.
-    # plan 09-02 will implement: migrate branch, secret prompts, backend write.
+    """Credential setup wizard.
+
+    The --migrate branch is implemented here to preserve back-compat
+    (shoppybot --migrate and shoppybot setup --migrate must both work).
+    The interactive prompts + backend-write body is filled in plan 09-02.
+    """
+    if getattr(args, "migrate", False):
+        store = get_store()
+        migrated = migrate_from_env(store)
+        for key in migrated:
+            print(f"Migrated: {key}")   # key NAME only -- never the value (T-08-14)
+        return 0
+    # Stub: interactive prompt body is filled in plan 09-02.
     return 0
