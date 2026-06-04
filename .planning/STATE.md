@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: Modular Core + Cross-Platform UX
-status: planning
-last_updated: "2026-06-04T02:09:38.090Z"
-last_activity: 2026-06-04
+milestone_name: — Modular Core + Cross-Platform UX
+status: Defining requirements
+last_updated: "2026-06-04T03:11:28.175Z"
+last_activity: 2026-06-04 — Milestone v2.0 started
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 11
+  completed_phases: 6
+  total_plans: 31
+  completed_plans: 29
+  percent: 55
 ---
 
 # ShopPyBot — State
@@ -118,6 +118,7 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 | Phase 06 P03 | 12 | 3 tasks | 9 files |
 | Phase 06-platform-expansion P04 | 4m | 2 tasks | 4 files |
 | Phase 06-platform-expansion P05 | 5m | 2 tasks | 2 files |
+| Phase 07-modular-core-service P01 | 375s | 2 tasks | 3 files |
 
 ## Decisions
 
@@ -148,3 +149,6 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 - [Phase ?]: getattr-chain platform_key lookup: no hardcoded class-name string munging for jitter config
 - [Phase ?]: ANTI-02 UA always active -- falls back to DEFAULT_USER_AGENTS when platform user_agents empty
 - [Phase ?]: SC1 registry gate
+- [Phase 07-01]: BotService uses daemon thread with its own asyncio event loop for non-blocking start/stop from any sync caller
+- [Phase 07-01]: stop() cancels task via loop.call_soon_threadsafe so async_main's finally block runs teardown_all (no orphaned Chrome)
+- [Phase 07-01]: run() = asyncio.run(async_main(cfg, cvv)) identical to v1 behavior; CVV is a parameter only (never logged)

@@ -187,7 +187,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 
-- [ ] 07-01-PLAN.md — BotService API (start/stop/run/list/add/remove/get_status/get_config) + remove_item_sync + new service tests (MOD-01)
+- [x] 07-01-PLAN.md — BotService API (start/stop/run/list/add/remove/get_status/get_config) + remove_item_sync + new service tests (MOD-01)
 - [ ] 07-02-PLAN.md — pyproject.toml packages + shoppybot console entry point (core.service:main); pip install -e . (MOD-03)
 - [ ] 07-03-PLAN.md — main.py thin shim routes through BotService.run; update test_main_wiring delegation seam (MOD-02, MOD-03)
 
@@ -268,7 +268,7 @@ Plans:
 | 4. Async Orchestrator | 5/5 | Complete   | 2026-06-03 |
 | 5. Notification System | 5/5 | Complete   | 2026-06-03 |
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
-| 7. Modular Core Service | 0/TBD | Not started | - |
+| 7. Modular Core Service | 1/3 | In progress | - |
 | 8. Credential Store | 0/TBD | Not started | - |
 | 9. CLI Front-End | 0/TBD | Not started | - |
 | 10. Optional Web UI | 0/TBD | Not started | - |
@@ -324,7 +324,7 @@ Plans:
 | DOCS-03 | Phase 3 | Pending |
 | DOCS-04 | Phase 3 | Pending |
 | DOCS-05 | Phase 3 | Pending |
-| MOD-01 | Phase 7 | Pending |
+| MOD-01 | Phase 7 | Complete |
 | MOD-02 | Phase 7 | Pending |
 | MOD-03 | Phase 7 | Pending |
 | CRED-01 | Phase 8 | Pending |
