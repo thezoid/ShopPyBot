@@ -1,14 +1,10 @@
-"""CLI-03 tests: config subcommand (show/set).
-
-All tests are skip-marked to plan 09-02 -- handle_config_* are stubs in plan 09-01.
-"""
+"""CLI-03 tests: config subcommand (show/set)."""
 
 import pytest
 import yaml
 from unittest.mock import MagicMock, patch
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_config_show(capsys, tmp_data_dir):
     """config show prints the effective config as YAML."""
     from core.service import main
@@ -18,12 +14,13 @@ def test_config_show(capsys, tmp_data_dir):
         "debug": {"test_mode": True, "logging_level": 5}
     }
     with patch("core.service.BotService", return_value=mock_svc):
-        main(["config", "show"])
+        with pytest.raises(SystemExit) as exc_info:
+            main(["config", "show"])
+    assert exc_info.value.code == 0
     out = capsys.readouterr().out
     assert "test_mode" in out or "debug" in out
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_config_set_test_mode(tmp_path):
     """config set test_mode false writes False to config.yml."""
     cfg = {"debug": {"logging_level": 5, "test_mode": True}}
@@ -41,7 +38,6 @@ def test_config_set_test_mode(tmp_path):
     assert result == 0
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_config_set_logging_level(tmp_path):
     """config set logging_level 3 writes integer 3 to config.yml."""
     cfg = {"debug": {"logging_level": 5, "test_mode": True}}
@@ -59,7 +55,6 @@ def test_config_set_logging_level(tmp_path):
     assert result == 0
 
 
-@pytest.mark.skip(reason="plan 09-02")
 def test_config_set_invalid_key(tmp_path):
     """config set unknown_key exits with code 2."""
     from core.cli.config_cmd import handle_config_set

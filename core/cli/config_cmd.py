@@ -62,10 +62,27 @@ def _atomic_yaml_write(path: Path, data: dict) -> None:
 
 
 def handle_config_show(args, svc=None) -> int:
-    """Print the current effective config as YAML. Stub -- plan 09-02 implements."""
+    """Print the current effective config as YAML."""
+    from core.service import BotService  # lazy import -- avoid construction at import time
+
+    cfg = (svc or BotService()).get_config()
+    print(yaml.dump(cfg.model_dump(), default_flow_style=False, allow_unicode=True))
     return 0
 
 
 def handle_config_set(args, svc=None) -> int:
-    """Update an allowlisted config key in config.yml. Stub -- plan 09-02 implements."""
+    """Update an allowlisted config key in config.yml atomically."""
+    key = args.key
+    if key not in ALLOWLIST:
+        print(
+            f"config set: '{key}' not in allowlist {list(ALLOWLIST)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    section, typ = ALLOWLIST[key]
+    value = _coerce(args.value, typ)
+    data = yaml.safe_load(_DEFAULT_YAML_PATH.read_text(encoding="utf-8")) or {}
+    data.setdefault(section, {})[key] = value
+    _atomic_yaml_write(_DEFAULT_YAML_PATH, data)
+    print(f"Set {key} = {value}")
     return 0
