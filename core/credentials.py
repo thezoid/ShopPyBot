@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import keyring
-import keyring.core
 from keyring.backends import fail as _keyring_fail
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -139,11 +138,12 @@ class EnvVarBackend(CredentialStore):
 
 
 def _has_real_keyring() -> bool:
-    """Return True only when a non-null, non-fail OS keyring is available.
+    """Return True only when a functional OS keyring is available.
 
-    keyring.backends.fail.Keyring is the default when no OS backend is found.
-    keyring.backends.null.Keyring is the explicit no-op backend.
-    Both are treated as absent (RESEARCH Pattern 2 / Pitfall 5).
+    Type-checks against fail.Keyring and null.Keyring first (fast path).
+    Then performs a functional round-trip probe to handle ChainerBackend
+    wrapping only fail/null leaves (e.g. headless Linux, CI boxes) where
+    the chain is neither type but still no-ops on set/get (WR-01).
     """
     backend = keyring.get_keyring()
     if isinstance(backend, _keyring_fail.Keyring):
@@ -154,7 +154,18 @@ def _has_real_keyring() -> bool:
             return False
     except ImportError:
         pass
-    return True
+    # Functional probe: confirm the backend can actually round-trip a value.
+    # This catches ChainerBackend composed entirely of fail/null leaves.
+    try:
+        keyring.set_password("shopbot", "__probe__", "1")
+        ok = keyring.get_password("shopbot", "__probe__") == "1"
+        try:
+            keyring.delete_password("shopbot", "__probe__")
+        except Exception:
+            pass
+        return ok
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -370,15 +381,29 @@ def migrate_from_env(store: CredentialStore) -> list[str]:
     """Write each set env-var secret into store. Return list of migrated key NAMES.
 
     Reads SECRET_KEYS from os.environ; for each that is set, calls store.set(key, val)
-    and appends the key NAME to the returned list. The value is never printed,
-    logged, or included in the return value (T-08-14 / CRED-07).
+    then verifies the write via store.get(key) before appending the key NAME to the
+    returned list. If the read-back fails (no-op backend), the key is skipped and a
+    warning is logged (WR-06). The value is never printed, logged, or included in
+    the return value (T-08-14 / CRED-07).
     """
     migrated: list[str] = []
     for key in SECRET_KEYS:
         val = os.environ.get(key)
         if val:
-            store.set(key, val)
-            migrated.append(key)   # name only -- never the value
+            try:
+                store.set(key, val)
+                if store.get(key) is not None:
+                    migrated.append(key)   # name only -- never the value
+                else:
+                    writeLog(
+                        f"migrate_from_env: {key} set failed (backend returned None on read-back)",
+                        "WARNING",
+                    )
+            except Exception as exc:
+                writeLog(
+                    f"migrate_from_env: {key} set raised {exc.__class__.__name__}",
+                    "WARNING",
+                )
     return migrated
 
 
