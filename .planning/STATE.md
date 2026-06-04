@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: Defining requirements
-last_updated: "2026-06-04T03:26:35.733Z"
-last_activity: 2026-06-04 — Milestone v2.0 started
+status: executing
+last_updated: "2026-06-04T13:53:13.339Z"
+last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 7
-  total_plans: 31
-  completed_plans: 31
+  total_plans: 35
+  completed_plans: 32
   percent: 64
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-04 — Milestone v2.0 started
+Phase: 08 (credential-store) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-06-04
 
 ## Phase Status
 
@@ -121,6 +121,7 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 | Phase 07-modular-core-service P01 | 375s | 2 tasks | 3 files |
 | Phase 07-modular-core-service P02 | 4min | 1 tasks | 3 files |
 | Phase 07-modular-core-service P03 | 5m | 2 tasks | 2 files |
+| Phase 08-credential-store P01 | 8min | 3 tasks | 4 files |
 
 ## Decisions
 
@@ -157,3 +158,5 @@ Last activity: 2026-06-04 — Milestone v2.0 started
 - [Phase ?]: parse_known_args() in core.service:main() avoids sys.argv contamination when test calls main() directly
 - [Phase ?]: plugins/__init__.py added to make plugins/ a proper setuptools package; Phase 07-02 shoppybot entry point = core.service:main via pyproject.toml [project.scripts]
 - [Phase 07-03]: main.py is now a thin shim: validate+seed+getpass CVV gate then BotService(cfg).run(cvv); asyncio.run and async_main imports removed from main.py (now internal to core/service.py)
+- [Phase ?]: get_store lazy-fallback to EnvVarBackend keeps monkeypatch.setenv tests green (CRED-04)
+- [Phase ?]: _build_store stub returns EnvVarBackend in plan 08-01; auto-detection keyring->file->env deferred to plan 08-03

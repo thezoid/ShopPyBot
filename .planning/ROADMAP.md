@@ -209,7 +209,7 @@ Plans:
 **Plans**: 4 plans
 Plans:
 
-- [ ] 08-01-PLAN.md — CredentialStore ABC + EnvVarBackend + SECRET_KEYS + CredentialsConfig + Wave 0 test scaffold (CRED-01, CRED-04)
+- [x] 08-01-PLAN.md — CredentialStore ABC + EnvVarBackend + SECRET_KEYS + CredentialsConfig + Wave 0 test scaffold (CRED-01, CRED-04)
 - [ ] 08-02-PLAN.md — KeyringBackend + EncryptedFileBackend (Fernet/scrypt) + keyring pin (CRED-02, CRED-03)
 - [ ] 08-03-PLAN.md — Backend selection precedence + backend-name logging + BotService init_store + no-plaintext test (CRED-05, CRED-06)
 - [ ] 08-04-PLAN.md — Migrate 16 os.environ secret reads to get_store + migrate_from_env + --migrate + SC1 grep guard (CRED-01, CRED-07)
@@ -276,7 +276,7 @@ Plans:
 | 5. Notification System | 5/5 | Complete   | 2026-06-03 |
 | 6. Platform Expansion | 5/5 | Complete   | 2026-06-03 |
 | 7. Modular Core Service | 3/3 | Complete   | 2026-06-04 |
-| 8. Credential Store | 0/TBD | Not started | - |
+| 8. Credential Store | 1/4 | In Progress|  |
 | 9. CLI Front-End | 0/TBD | Not started | - |
 | 10. Optional Web UI | 0/TBD | Not started | - |
 | 11. Cross-Platform Verification | 0/TBD | Not started | - |

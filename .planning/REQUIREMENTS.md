@@ -85,10 +85,10 @@
 
 ### Credential Store
 
-- [ ] **CRED-01**: `CredentialStore` interface (`get`/`set`/`delete`/`list` by key) abstracts secret storage; ALL secret reads (plugin creds, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, Twilio SID/token/from) route through it — no scattered direct `os.environ` secret reads remain in plugins/notifiers.
+- [x] **CRED-01**: `CredentialStore` interface (`get`/`set`/`delete`/`list` by key) abstracts secret storage; ALL secret reads (plugin creds, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, Twilio SID/token/from) route through it — no scattered direct `os.environ` secret reads remain in plugins/notifiers.
 - [ ] **CRED-02**: Keyring backend uses the OS secret service via the `keyring` library (Windows Credential Manager / Linux Secret Service) when a backend is available.
 - [ ] **CRED-03**: Encrypted-file fallback for headless/no-keyring environments: a passphrase-derived key (scrypt or PBKDF2) encrypts secrets (AES/Fernet) in a file under the data dir; passphrase via prompt or an env var for unattended runs.
-- [ ] **CRED-04**: Env-var fallback preserves today's behavior when no store is configured; documented precedence (explicit store > keyring > encrypted-file > env).
+- [x] **CRED-04**: Env-var fallback preserves today's behavior when no store is configured; documented precedence (explicit store > keyring > encrypted-file > env).
 - [ ] **CRED-05**: Backend auto-selected at startup (detect OS + available backend) with an explicit config override; the ACTIVE backend name is logged, never the secret values.
 - [ ] **CRED-06**: No plaintext secrets on disk: secrets are never written to config.yml, logs, or SQLite; the encrypted-file store is the only at-rest form and it is encrypted (a test asserts no secret plaintext in those sinks).
 - [ ] **CRED-07**: Migration command imports existing env-var secrets into the selected store.
@@ -185,10 +185,10 @@
 | MOD-01 | Phase 7 — Modular Core Service | Pending |
 | MOD-02 | Phase 7 — Modular Core Service | Complete |
 | MOD-03 | Phase 7 — Modular Core Service | Complete |
-| CRED-01 | Phase 8 — Credential Store | Pending |
+| CRED-01 | Phase 8 — Credential Store | Complete |
 | CRED-02 | Phase 8 — Credential Store | Pending |
 | CRED-03 | Phase 8 — Credential Store | Pending |
-| CRED-04 | Phase 8 — Credential Store | Pending |
+| CRED-04 | Phase 8 — Credential Store | Complete |
 | CRED-05 | Phase 8 — Credential Store | Pending |
 | CRED-06 | Phase 8 — Credential Store | Pending |
 | CRED-07 | Phase 8 — Credential Store | Pending |
