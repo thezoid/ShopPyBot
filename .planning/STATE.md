@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-04T21:46:02.439Z"
+last_updated: "2026-06-04T21:58:01.099Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 11
   completed_phases: 9
   total_plans: 43
-  completed_plans: 40
+  completed_plans: 41
   percent: 82
 ---
 
@@ -29,9 +29,9 @@ progress:
 ## Current Position
 
 Phase: 10 (Optional Web UI) — EXECUTING
-Plan: 2 of 4
-Status: Executing Phase 10
-Last activity: 2026-06-04 -- Phase 10 Plan 01 completed (web skeleton + security + tests)
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-06-04
 
 ## Phase Status
 
@@ -133,6 +133,7 @@ Last activity: 2026-06-04 -- Phase 10 Plan 01 completed (web skeleton + security
 | Phase 09-cli-front-end P03 | 4min | 2 tasks | 2 files |
 | Phase 09-cli-front-end P04 | 4m | 1 tasks | 1 files |
 | Phase 10-optional-web-ui P01 | 15m | 3 tasks | 21 files |
+| Phase 10-optional-web-ui P02 | 6m | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -182,3 +183,6 @@ Last activity: 2026-06-04 -- Phase 10 Plan 01 completed (web skeleton + security
 - [Phase ?]: [Phase 09-02]: sys.stdin.readline() in _prompt_backend instead of input() -- ASYNC-03 compliance
 - [Phase ?]: [Phase 09-02]: setup._write_backend reads _DEFAULT_YAML_PATH via import core.cli.config_cmd at call-time for monkeypatch testability
 - [Phase ?]: web.py lazy-import seam was correct from 09-01 stub; CLI-04 guard tests unskipped with SystemExit fix for run subcommand dispatch
+- [Phase ?]: bot_stop uses run_in_executor to dispatch blocking svc.stop() off event loop (T-10-08 mitigation)
+- [Phase ?]: svc.start() called with zero args (no CVV) per locked web-scope decision
+- [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list

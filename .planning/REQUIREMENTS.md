@@ -103,9 +103,9 @@
 ### Optional Web UI
 
 - [ ] **GUI-01**: Optional local web UI (FastAPI) launched via `shoppybot web`, served on localhost; provides nothing the CLI cannot do.
-- [ ] **GUI-02**: Manage tracked items (list/add/remove) through the UI via `BotService`.
+- [x] **GUI-02**: Manage tracked items (list/add/remove) through the UI via `BotService`.
 - [ ] **GUI-03**: Manage credentials + per-platform config through the UI, persisting secrets via `CredentialStore` (never plaintext to the browser, localStorage, or disk).
-- [ ] **GUI-04**: Start/stop the bot and view live status + recent logs from the UI.
+- [x] **GUI-04**: Start/stop the bot and view live status + recent logs from the UI.
 - [x] **GUI-05**: The web UI is an optional extra (`pip install .[web]`); core + CLI run without FastAPI installed.
 - [x] **GUI-06**: Binds to localhost (127.0.0.1) by default; any non-localhost bind requires explicit opt-in and prints a clear security warning (the UI manages credentials).
 
@@ -197,9 +197,9 @@
 | CLI-03 | Phase 9 — CLI Front-End | Complete |
 | CLI-04 | Phase 9 — CLI Front-End | Complete |
 | GUI-01 | Phase 10 — Optional Web UI | Pending |
-| GUI-02 | Phase 10 — Optional Web UI | Pending |
+| GUI-02 | Phase 10 — Optional Web UI | Complete |
 | GUI-03 | Phase 10 — Optional Web UI | Pending |
-| GUI-04 | Phase 10 — Optional Web UI | Pending |
+| GUI-04 | Phase 10 — Optional Web UI | Complete |
 | GUI-05 | Phase 10 — Optional Web UI | Complete |
 | GUI-06 | Phase 10 — Optional Web UI | Complete |
 | XPLAT-01 | Phase 11 — Cross-Platform Verification | Pending |
