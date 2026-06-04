@@ -11,10 +11,13 @@ from core.config_schema import _DEFAULT_YAML_PATH
 
 # Extended allowlist: CLI scalar keys + per-notifier enable toggles.
 # Platforms have no 'enabled' field in AppConfig -- notifiers only (config-scope note).
-# Notifier toggle entries use a 3-tuple: (section, nested_key, type).
+#
+# notifications.sound is a scalar bool on NotificationsConfig, NOT a nested section.
+# It uses a 2-tuple (section, type) so the write path emits {"sound": true/false}.
+# The nested notifier toggles (discord/email/sms) use 3-tuples (section, sub_key, type).
 WEB_ALLOWLIST: dict = {
     **ALLOWLIST,  # "test_mode" and "logging_level"
-    "notifications.sound": ("notifications", "sound", bool),
+    "notifications.sound": ("notifications", bool),
     "notifications.discord.enabled": ("notifications", "discord", bool),
     "notifications.email.enabled": ("notifications", "email", bool),
     "notifications.sms.enabled": ("notifications", "sms", bool),
@@ -53,15 +56,17 @@ def _coerce_web(value: str, typ: type):
 def write_web_config(key: str, value: str) -> None:
     """Write a single WEB_ALLOWLIST key to config.yml atomically.
 
+    2-tuple entries (section, type): write data[section][leaf] = coerced.
+    3-tuple entries (section, sub_key, type): write data[section][sub_key][leaf] = coerced.
+    Leaf is always key.split('.')[-1] for both branches (WR-05).
+
     Raises KeyError if the key is not in WEB_ALLOWLIST.
     Raises ValueError on type coercion failure.
     """
     entry = WEB_ALLOWLIST[key]  # KeyError if unknown
-    _, *path_parts, typ = entry if len(entry) == 3 else (*entry, str)
-    # Rebuild full entry: ALLOWLIST entries are 2-tuples (section, type),
-    # WEB_ALLOWLIST notifier entries are 3-tuples (section, sub_key, type).
     section = entry[0]
     coerced = _coerce_web(value, entry[-1])
+    leaf = key.split(".")[-1]
 
     try:
         raw = _DEFAULT_YAML_PATH.read_text(encoding="utf-8")
@@ -70,11 +75,11 @@ def write_web_config(key: str, value: str) -> None:
     data = yaml.safe_load(raw) or {}
 
     if len(entry) == 2:
-        # CLI-style: section.key (e.g. debug.test_mode)
-        data.setdefault(section, {})[key] = coerced
+        # CLI-style scalar: section.leaf (e.g. debug.test_mode, notifications.sound)
+        data.setdefault(section, {})[leaf] = coerced
     else:
-        # Notifier-style: section.sub_key.enabled (e.g. notifications.discord)
+        # Nested notifier toggle: section.sub_key.leaf (e.g. notifications.discord.enabled)
         sub_key = entry[1]
-        data.setdefault(section, {}).setdefault(sub_key, {})[key.split(".")[-1]] = coerced
+        data.setdefault(section, {}).setdefault(sub_key, {})[leaf] = coerced
 
     _atomic_yaml_write(_DEFAULT_YAML_PATH, data)
