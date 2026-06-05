@@ -38,10 +38,9 @@ def writeLog(message: str, type: str, writeTofile: bool = True) -> None:
     if loggingLevel >= level:
         print(f"{color}[{type.upper()}][{datetime.now().strftime('%Y%B%d@%H:%M:%S')}] {message}{Style.RESET_ALL}")
         if writeTofile:
-            _scriptdir = os.path.dirname(os.path.realpath(__file__))
-            log_dir = os.path.join(_scriptdir, "logs")
-            if not os.path.exists(log_dir):
-                os.makedirs(log_dir)
-            log_file_path = os.path.join(log_dir, f"{datetime.now().strftime('%Y%B%d')}.log")
+            from core.paths import log_dir as _paths_log_dir  # lazy: avoids circular import with core/paths.py
+            _log_dir = _paths_log_dir()
+            _log_dir.mkdir(parents=True, exist_ok=True)
+            log_file_path = _log_dir / f"{datetime.now().strftime('%Y%B%d')}.log"
             with open(log_file_path, "a", encoding="utf-8") as logFile:
                 logFile.write(f"[{type.upper()}][{datetime.now().strftime('%Y%B%d@%H:%M:%S')}] {message}\n")
