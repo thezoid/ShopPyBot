@@ -163,9 +163,12 @@ def main(argv=None) -> None:
     - all other subcommands: sys.exit(args.func(args, BotService()) or 0)
     """
     import sys as _sys
+    from core.paths import migrate_legacy_paths
     from core.cli import build_parser
     from core.cli.run import handle_run
     from core.cli.setup import handle_setup
+
+    migrate_legacy_paths()  # idempotent; must run before any DB/store/config access
 
     parser = build_parser()
     args, _ = parser.parse_known_args(argv)
