@@ -3,6 +3,7 @@ colorama==0.4.6
 cryptography==44.0.2
 keyring==25.7.0
 nodriver==0.50.3
+platformdirs==4.10.0
 pydantic==2.13.3
 pydantic-settings[yaml]==2.14.0
 pygame==2.6.1
