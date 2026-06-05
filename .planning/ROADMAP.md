@@ -277,7 +277,7 @@ Plans:
 **Plans**: 5 plans
 Plans:
 
-- [ ] 11-01-PLAN.md — core/paths.py (platformdirs data/config/log accessors + SHOPBOT_DATA_DIR override) + platformdirs pin + test_paths.py (XPLAT-01)
+- [x] 11-01-PLAN.md — core/paths.py (platformdirs data/config/log accessors + SHOPBOT_DATA_DIR override) + platformdirs pin + test_paths.py (XPLAT-01)
 - [ ] 11-02-PLAN.md — Re-anchor models/config_schema/credentials/logger through core/paths.py; fix CWD-relative DB bug; lazy log-dir import; extend tmp_data_dir (XPLAT-01)
 - [ ] 11-03-PLAN.md — Idempotent first-run migration (copy2/unlink legacy DB/creds/config/logs) in core/paths.py + service.py wiring + test_migration.py (XPLAT-01)
 - [ ] 11-04-PLAN.md — Env-independent smoke (import + --help/items/config show) + backend-selection tests via mocked _has_real_keyring (XPLAT-02)
@@ -301,7 +301,7 @@ Plans:
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
 | 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
 | 10. Optional Web UI | 4/4 | Complete   | 2026-06-04 |
-| 11. Cross-Platform Verification | 0/5 | Not started | - |
+| 11. Cross-Platform Verification | 1/5 | In Progress|  |
 
 ---
 

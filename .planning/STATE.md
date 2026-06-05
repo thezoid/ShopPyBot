@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: verifying
-last_updated: "2026-06-04T22:15:50.523Z"
-last_activity: 2026-06-04
+status: executing
+last_updated: "2026-06-05T02:56:23.746Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 11
   completed_phases: 10
-  total_plans: 43
-  completed_plans: 43
+  total_plans: 48
+  completed_plans: 44
   percent: 91
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 10 (Optional Web UI) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-04
+Phase: 11 (Cross-Platform Verification) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-05
 
 ## Phase Status
 
@@ -136,6 +136,7 @@ Last activity: 2026-06-04
 | Phase 10-optional-web-ui P02 | 6m | 2 tasks | 2 files |
 | Phase 10-optional-web-ui P03 | 3m | 1 tasks | 1 files |
 | Phase 10-optional-web-ui P04 | 8min | 2 tasks | 3 files |
+| Phase 11 P01 | 5m | 3 tasks | 4 files |
 
 ## Decisions
 
@@ -190,3 +191,6 @@ Last activity: 2026-06-04
 - [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list
 - [Phase 10-03]: import core.credentials as module (not from-import) so patch("core.credentials.get_store") resolves the reference at call time in tests
 - [Phase ?]: [Phase 10-04]: Config routes in web/routes/config.py; WEB_ALLOWLIST gate (notifier toggles only, no platform enabled fields); SC3 HTML-leak guard test green
+- [Phase ?]: [Phase 11-01]: appauthor=False suppresses redundant vendor subdir on Windows for platformdirs
+- [Phase ?]: [Phase 11-01]: data_dir/config_path/log_dir re-read SHOPBOT_DATA_DIR on every call; env override seam keeps 341 tests green
+- [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted

@@ -111,7 +111,7 @@
 
 ### Cross-Platform
 
-- [ ] **XPLAT-01**: Runs on Ubuntu (desktop + headless) and Windows; data dir + paths resolved per-OS (no hardcoded separators); the data/config/log locations are documented per OS.
+- [x] **XPLAT-01**: Runs on Ubuntu (desktop + headless) and Windows; data dir + paths resolved per-OS (no hardcoded separators); the data/config/log locations are documented per OS.
 - [ ] **XPLAT-02**: A documented verification matrix (and/or automated smoke) confirms import + CLI + credential-store backend selection on both Ubuntu and Windows.
 
 ## v2 Requirements (Deferred)
@@ -202,5 +202,5 @@
 | GUI-04 | Phase 10 — Optional Web UI | Complete |
 | GUI-05 | Phase 10 — Optional Web UI | Complete |
 | GUI-06 | Phase 10 — Optional Web UI | Complete |
-| XPLAT-01 | Phase 11 — Cross-Platform Verification | Pending |
+| XPLAT-01 | Phase 11 — Cross-Platform Verification | Complete |
 | XPLAT-02 | Phase 11 — Cross-Platform Verification | Pending |
