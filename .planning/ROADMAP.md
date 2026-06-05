@@ -274,7 +274,15 @@ Plans:
   3. The credential-backend auto-selection logic chooses the OS keyring backend on Windows and desktop Ubuntu, and the encrypted-file backend on headless Ubuntu with no active Secret Service — verified on each target environment.
   4. A `docs/PLATFORMS.md` file (or equivalent section in README) documents the verified data/config/log paths per OS, the expected credential backend per environment, and the steps to reproduce the verification matrix.
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+
+- [ ] 11-01-PLAN.md — core/paths.py (platformdirs data/config/log accessors + SHOPBOT_DATA_DIR override) + platformdirs pin + test_paths.py (XPLAT-01)
+- [ ] 11-02-PLAN.md — Re-anchor models/config_schema/credentials/logger through core/paths.py; fix CWD-relative DB bug; lazy log-dir import; extend tmp_data_dir (XPLAT-01)
+- [ ] 11-03-PLAN.md — Idempotent first-run migration (copy2/unlink legacy DB/creds/config/logs) in core/paths.py + service.py wiring + test_migration.py (XPLAT-01)
+- [ ] 11-04-PLAN.md — Env-independent smoke (import + --help/items/config show) + backend-selection tests via mocked _has_real_keyring (XPLAT-02)
+- [ ] 11-05-PLAN.md — ci.yml ubuntu+windows matrix + docs/PLATFORMS.md path table/backend map/manual matrix + gated legacy-workflow deletion (XPLAT-02, XPLAT-01)
+
 **UI hint**: no
 
 ---
@@ -293,7 +301,7 @@ Plans:
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
 | 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
 | 10. Optional Web UI | 4/4 | Complete   | 2026-06-04 |
-| 11. Cross-Platform Verification | 0/TBD | Not started | - |
+| 11. Cross-Platform Verification | 0/5 | Not started | - |
 
 ---
 
