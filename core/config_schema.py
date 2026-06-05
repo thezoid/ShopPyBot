@@ -13,8 +13,10 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-# Absolute path to config.yml — avoids CWD-relative default (RESEARCH Pitfall 2)
-_DEFAULT_YAML_PATH: Path = Path(__file__).parent.parent / "config.yml"
+from core.paths import config_path as _paths_config_path
+
+# Absolute path to config.yml via core/paths.py (XPLAT-01)
+_DEFAULT_YAML_PATH: Path = _paths_config_path()
 
 # Global default UA pool (ANTI-02): plugins fall back to this when platform
 # user_agents list is empty.  Non-secret cosmetic config; update freely.

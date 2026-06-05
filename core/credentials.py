@@ -34,10 +34,12 @@ from logger import writeLog
 if TYPE_CHECKING:
     from core.config_schema import AppConfig
 
+from core.paths import data_dir as _paths_data_dir
+
 # ---------------------------------------------------------------------------
-# Default data directory (project-relative, consistent with data/shop_py_bot.db)
+# Default data directory anchored via core/paths.py (XPLAT-01)
 # ---------------------------------------------------------------------------
-_DEFAULT_STORE_PATH: Path = Path(__file__).parent.parent / "data" / "creds.bin"
+_DEFAULT_STORE_PATH: Path = _paths_data_dir() / "creds.bin"
 
 # ---------------------------------------------------------------------------
 # 19 canonical secret key names (CRED-01 -- mirrors existing os.environ call sites)

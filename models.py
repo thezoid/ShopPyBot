@@ -2,7 +2,9 @@ import contextlib
 import os
 import sqlite3
 
-DB_PATH = os.path.join('data', 'shop_py_bot.db')
+from core.paths import data_dir as _paths_data_dir
+
+DB_PATH = str(_paths_data_dir() / "shop_py_bot.db")
 
 
 @contextlib.contextmanager
