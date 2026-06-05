@@ -166,7 +166,7 @@ Plans:
 - [x] **Phase 8: Credential Store** — `CredentialStore` interface with OS-keyring/encrypted-file/env-var backends; all secret reads routed through it; no scattered `os.environ` reads remain (completed 2026-06-04)
 - [x] **Phase 9: CLI Front-End** — `shoppybot` CLI commands (run/setup/items/config) over `BotService`; setup command stores/manages credentials cross-platform; fully functional without any web UI (completed 2026-06-04)
 - [x] **Phase 10: Optional Web UI** — FastAPI local dashboard (localhost-bound) for items/config/credentials/bot control; optional install extra; credential secrets never leave the server (completed 2026-06-04)
-- [ ] **Phase 11: Cross-Platform Verification** — Documented and automated verification that import, CLI, and credential-backend selection work correctly on both Ubuntu and Windows
+- [x] **Phase 11: Cross-Platform Verification** — Documented and automated verification that import, CLI, and credential-backend selection work correctly on both Ubuntu and Windows (completed 2026-06-05)
 
 ---
 
@@ -281,7 +281,7 @@ Plans:
 - [x] 11-02-PLAN.md — Re-anchor models/config_schema/credentials/logger through core/paths.py; fix CWD-relative DB bug; lazy log-dir import; extend tmp_data_dir (XPLAT-01)
 - [x] 11-03-PLAN.md — Idempotent first-run migration (copy2/unlink legacy DB/creds/config/logs) in core/paths.py + service.py wiring + test_migration.py (XPLAT-01)
 - [x] 11-04-PLAN.md — Env-independent smoke (import + --help/items/config show) + backend-selection tests via mocked _has_real_keyring (XPLAT-02)
-- [ ] 11-05-PLAN.md — ci.yml ubuntu+windows matrix + docs/PLATFORMS.md path table/backend map/manual matrix + gated legacy-workflow deletion (XPLAT-02, XPLAT-01)
+- [x] 11-05-PLAN.md — ci.yml ubuntu+windows matrix + docs/PLATFORMS.md path table/backend map/manual matrix + gated legacy-workflow deletion (XPLAT-02, XPLAT-01)
 
 **UI hint**: no
 
@@ -301,7 +301,7 @@ Plans:
 | 8. Credential Store | 4/4 | Complete   | 2026-06-04 |
 | 9. CLI Front-End | 4/4 | Complete   | 2026-06-04 |
 | 10. Optional Web UI | 4/4 | Complete   | 2026-06-04 |
-| 11. Cross-Platform Verification | 4/5 | In Progress|  |
+| 11. Cross-Platform Verification | 5/5 | Complete   | 2026-06-05 |
 
 ---
 
