@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-05T02:56:23.746Z"
+last_updated: "2026-06-05T03:06:37.711Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 48
-  completed_plans: 44
+  completed_plans: 45
   percent: 91
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 11 (Cross-Platform Verification) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -137,6 +137,7 @@ Last activity: 2026-06-05
 | Phase 10-optional-web-ui P03 | 3m | 1 tasks | 1 files |
 | Phase 10-optional-web-ui P04 | 8min | 2 tasks | 3 files |
 | Phase 11 P01 | 5m | 3 tasks | 4 files |
+| Phase 11 P02 | 8min | 3 tasks | 5 files |
 
 ## Decisions
 
@@ -194,3 +195,4 @@ Last activity: 2026-06-05
 - [Phase ?]: [Phase 11-01]: appauthor=False suppresses redundant vendor subdir on Windows for platformdirs
 - [Phase ?]: [Phase 11-01]: data_dir/config_path/log_dir re-read SHOPBOT_DATA_DIR on every call; env override seam keeps 341 tests green
 - [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
+- [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
