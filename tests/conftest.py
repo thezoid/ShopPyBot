@@ -52,7 +52,13 @@ def tmp_config_yml(tmp_path):
 
 @pytest.fixture
 def tmp_data_dir(tmp_path, monkeypatch):
-    """Redirect models.DB_PATH to a temp directory so tests don't need data/."""
+    """Redirect models.DB_PATH and SHOPBOT_DATA_DIR to a temp directory.
+
+    Sets both the raw attribute seam (models.DB_PATH) and the env override seam
+    (SHOPBOT_DATA_DIR) so tests that go through core/paths.data_dir() and tests
+    that go through models.DB_PATH both resolve to the same temp directory.
+    """
+    monkeypatch.setenv("SHOPBOT_DATA_DIR", str(tmp_path))
     import models
     monkeypatch.setattr(models, "DB_PATH", str(tmp_path / "shop_py_bot.db"))
     return tmp_path
