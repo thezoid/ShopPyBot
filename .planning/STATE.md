@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
 status: executing
-last_updated: "2026-06-05T03:16:58.043Z"
+last_updated: "2026-06-05T03:27:17.666Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 48
-  completed_plans: 46
+  completed_plans: 47
   percent: 91
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 11 (Cross-Platform Verification) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -139,6 +139,7 @@ Last activity: 2026-06-05
 | Phase 11 P01 | 5m | 3 tasks | 4 files |
 | Phase 11 P02 | 8min | 3 tasks | 5 files |
 | Phase 11 P03 | 7m | 3 tasks | 3 files |
+| Phase 11 P04 | 8m | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -197,3 +198,4 @@ Last activity: 2026-06-05
 - [Phase ?]: [Phase 11-01]: data_dir/config_path/log_dir re-read SHOPBOT_DATA_DIR on every call; env override seam keeps 341 tests green
 - [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
 - [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
+- [Phase ?]: [Phase 11-04]: items list smoke pre-initializes DB via initialize_db() -- BotService.__init__ only calls init_store(), not initialize_db()
