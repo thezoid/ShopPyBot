@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    env:
+      # Prevents pygame.mixer.init() failure on headless CI runners (no audio device)
+      SDL_AUDIODRIVER: dummy
+      SDL_VIDEODRIVER: dummy
+      # Prevents keyring from probing D-Bus / SecretService on headless Ubuntu
+      PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring
+      # Redirect all path resolution to a writable temp dir (avoids writing to runner home)
+      SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: pip install -e .[web]
+      - name: Test
+        run: pytest --tb=short
