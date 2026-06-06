@@ -167,8 +167,12 @@ def main(argv=None) -> None:
     from core.cli import build_parser
     from core.cli.run import handle_run
     from core.cli.setup import handle_setup
+    from models import initialize_db
 
     migrate_legacy_paths()  # idempotent; must run before any DB/store/config access
+    initialize_db()  # idempotent (CREATE TABLE IF NOT EXISTS); the console entry
+    # point must create the items table itself so shoppybot run/items work on a
+    # fresh install without ever running the main.py shim (MOD-01/MOD-03/CLI-01/CLI-03)
 
     parser = build_parser()
     args, _ = parser.parse_known_args(argv)
