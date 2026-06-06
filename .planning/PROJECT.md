@@ -14,18 +14,17 @@ Target user: technically capable individuals who want automated stock monitoring
 
 **The plugin framework.** Without it, this is just another private bot. With it, community contributors can extend coverage to any retail platform without touching core bot logic.
 
-## Current Milestone: v2.0 Modular Core + Cross-Platform UX
+## Current State
 
-**Goal:** Refactor the v1 code into a clean reusable core library, add a dynamic cross-platform secure credential store, and add an optional local web UI, while keeping the CLI the default, all running on Ubuntu (desktop + headless) and Windows.
+**Shipped v2.0 Modular Core + Cross-Platform UX (2026-06-06).** The v1 code is refactored into a reusable core library: all bot logic lives behind a single `BotService` API consumed by both the CLI (default) and an optional FastAPI web UI. A runtime-selected `CredentialStore` (OS keyring → encrypted-file → env-var) centralizes secret access with no plaintext on disk. The package installs via pip with a `shoppybot` console entry point; `python main.py` remains a thin shim. Paths resolve per-OS through `core/paths.py`; a CI matrix (ubuntu-latest + windows-latest, Python 3.13) plus `docs/PLATFORMS.md` document the cross-platform verification.
 
-**Target features:**
-- Modular core library: orchestrator/registry/config/plugins/notifications behind a stable API that both CLI and GUI consume (no logic duplicated in front-ends); installable package with a `shoppybot` entry point.
-- Dynamic CredentialStore: one interface, runtime-selected backend (OS keyring → encrypted-file fallback for headless Ubuntu → env-var last resort); all secret reads routed through it; no plaintext secrets on disk.
-- CLI front-end (default): thinned to call the core; a `setup` command to store/manage credentials + config cross-platform.
-- Optional local web UI (FastAPI on localhost): manage items/config/credentials, start/stop the bot, view status/logs; an optional extra, CLI runs without it.
-- Cross-platform: verified on Ubuntu and Windows.
+11 phases / 48 plans, all complete. 66/66 requirements satisfied (44 v1 + 22 v2.0). Full suite: 354 passed, 2 skipped.
 
-**Key constraints:** preserve the v1 security posture (secrets never in config.yml/logs/SQLite plaintext); GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
+**Deferred:** live cross-OS/UI manual checks (keyring restart, masked-TTY, dashboard render, 0.0.0.0 warning) documented in `docs/PLATFORMS.md` and tracked in STATE.md → Deferred Items; run `/gsd:verify-work` on real Ubuntu/Windows to close.
+
+**Next milestone goals:** TBD (run `/gsd:new-milestone`). Candidates from the deferred v2 backlog: GitHub wiki plugin registry, proxy rotation, CAPTCHA solving, price-drop alerts.
+
+**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
 
 ## Requirements
 
@@ -42,24 +41,31 @@ Target user: technically capable individuals who want automated stock monitoring
 - ✓ Test mode (skips final purchase click)
 - ✓ ChromeDriver auto-download (webdriver_manager)
 
+### Validated (shipped v1 + v2.0)
+
+- ✓ Plugin interface ABC + auto-discovery from `plugins/` — v1 (Phases 1-2)
+- ✓ Amazon + BestBuy migrated to plugin interface — v1 (Phase 2)
+- ✓ New platforms: Walmart, Target, GameStop, Square Enix, NewEgg — v1 (Phase 6)
+- ✓ Async/parallel item checking (concurrent platform checks) — v1 (Phase 4)
+- ✓ Per-platform flat config sections + moderate anti-detection (delays, UA rotation, headless toggle) — v1 (Phases 1, 6)
+- ✓ Discord / Email-SMTP / SMS-Twilio notifications, fan-out dispatcher with dedup — v1 (Phase 5)
+- ✓ Plugin contributor docs (CONTRIBUTING.md, PLUGIN_DEV.md, SECURITY.md, templates) — v1 (Phase 3)
+- ✓ Modular `BotService` core + installable package + `shoppybot` entry point — v2.0 (Phase 7)
+- ✓ Dynamic `CredentialStore` (keyring / encrypted-file / env-var), no plaintext on disk — v2.0 (Phase 8)
+- ✓ CLI front-end (run/setup/items/config) over the core — v2.0 (Phase 9)
+- ✓ Optional FastAPI local web UI (items/config/credentials/control) — v2.0 (Phase 10)
+- ✓ Cross-platform per-OS paths + CI matrix + PLATFORMS.md — v2.0 (Phase 11)
+
 ### Active
 
-- [ ] Plugin interface ABC: `check_availability`, `auto_buy`, `login`, `detect_captcha`
-- [ ] Auto-discover plugins from `plugins/` directory at startup
-- [ ] Refactor Amazon module to implement plugin interface
-- [ ] Refactor BestBuy module to implement plugin interface
-- [ ] New platform: Walmart
-- [ ] New platform: Target
-- [ ] New platform: GameStop
-- [ ] New platform: Square Enix Store
-- [ ] New platform: NewEgg
-- [ ] Async/parallel item checking (concurrent platform checks)
-- [ ] Per-platform flat config sections (credentials, delays)
-- [ ] Discord webhook notifications
-- [ ] Email/SMTP notifications
-- [ ] SMS/Twilio notifications
-- [ ] Moderate anti-detection: per-platform configurable delays, rotating user agents, headless mode toggle
-- [ ] Plugin contributor docs + GitHub wiki listing
+- (None — awaiting next milestone. Run `/gsd:new-milestone`.)
+
+### Deferred (v2 backlog)
+
+- [ ] GitHub wiki plugin registry with anti-detection difficulty ratings
+- [ ] Proxy rotation support
+- [ ] Automatic CAPTCHA solving integration
+- [ ] Price monitoring / price-drop alerts
 
 ### Out of Scope
 
@@ -101,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-19 after initialization*
+*Last updated: 2026-06-06 after v2.0 milestone*

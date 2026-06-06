@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Modular Core + Cross-Platform UX
-status: executing
-last_updated: "2026-06-05T23:58:56.269Z"
-last_activity: 2026-06-05
+status: Awaiting next milestone
+last_updated: "2026-06-06T02:55:57.915Z"
+last_activity: 2026-06-06 — Milestone v2.0 completed and archived
 progress:
   total_phases: 11
   completed_phases: 11
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-05
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-06 — Milestone v2.0 completed and archived
 
 ## Phase Status
 
@@ -80,6 +80,21 @@ Last activity: 2026-06-05
 ### Blockers
 
 - None
+
+---
+
+## Deferred Items
+
+Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Run `/gsd:verify-work` on real Ubuntu/Windows to close.
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 08 — keyring/encrypted-file live backend selection + restart persistence | human_needed |
+| verification | Phase 09 — masked-TTY setup entry (Windows PowerShell + Ubuntu) | human_needed |
+| verification | Phase 10 — web dashboard live render / Start-Stop / log poll / 0.0.0.0 warning | human_needed |
+| verification | Phase 11 — live cross-OS path + backend matrix | human_needed |
+| uat | Phase 11 — 11-HUMAN-UAT.md (6 live cross-OS scenarios) | partial (6 pending) |
+| uat | Phase 01 — 01-UAT.md | partial (0 pending) |
 
 ---
 
@@ -199,3 +214,7 @@ Last activity: 2026-06-05
 - [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
 - [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
 - [Phase ?]: [Phase 11-04]: items list smoke pre-initializes DB via initialize_db() -- BotService.__init__ only calls init_store(), not initialize_db()
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd:new-milestone
