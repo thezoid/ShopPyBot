@@ -71,25 +71,23 @@ Prior milestone requirements (v1 44 + v2.0 22 = 66, all satisfied) are archived 
 
 ## Traceability
 
-Phase mapping is filled by the roadmapper when ROADMAP.md is created.
-
 | Requirement | Phase |
 |-------------|-------|
-| ANTI-04 | TBD |
-| ANTI-05 | TBD |
-| ANTI-06 | TBD |
-| ANTI-07 | TBD |
-| ANTI-08 | TBD |
-| REG-01 | TBD |
-| REG-02 | TBD |
-| REG-03 | TBD |
-| REG-04 | TBD |
-| PRICE-01 | TBD |
-| PRICE-02 | TBD |
-| PRICE-03 | TBD |
-| PRICE-04 | TBD |
-| PRICE-05 | TBD |
-| PRICE-06 | TBD |
-| STAB-01 | TBD |
-| STAB-02 | TBD |
-| STAB-03 | TBD |
+| ANTI-04 | Phase 13 |
+| ANTI-05 | Phase 13 |
+| ANTI-06 | Phase 14 |
+| ANTI-07 | Phase 14 |
+| ANTI-08 | Phase 13 |
+| REG-01 | Phase 15 |
+| REG-02 | Phase 15 |
+| REG-03 | Phase 15 |
+| REG-04 | Phase 15 |
+| PRICE-01 | Phase 16 |
+| PRICE-02 | Phase 16 |
+| PRICE-03 | Phase 16 |
+| PRICE-04 | Phase 16 |
+| PRICE-05 | Phase 16 |
+| PRICE-06 | Phase 16 |
+| STAB-01 | Phase 12 |
+| STAB-02 | Phase 12 |
+| STAB-03 | Phase 17 |

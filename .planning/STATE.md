@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: planning
-last_updated: "2026-06-07T02:51:59.614Z"
+last_updated: "2026-06-07T00:00:00.000Z"
 last_activity: 2026-06-07
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,28 +20,29 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v1 Open Source Launch
-**Total Phases**: 6
-**Total Requirements**: 44
+**Milestone**: v3.0 Resilience + Ecosystem
+**Total Phases**: 6 (Phases 12-17)
+**Total Requirements**: 18
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-07 — Milestone v3.0 started
+Status: Roadmap created; ready for Phase 12 planning
+Last activity: 2026-06-07 — v3.0 roadmap created
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 1 — Foundations + Security | Plugin ABC locked, Pydantic config, all security hardened | Not started | 14 |
-| 2 — Plugin Migration | Amazon/BestBuy on ABC, registry operational, contributor docs | Not started | 6 |
-| 3 — Async Orchestrator | Concurrent plugins, WAL SQLite, no blocking I/O | Not started | 5 |
-| 4 — Notification System | Fan-out dispatcher, deduplication, all channels | Not started | 6 |
-| 5 — Platform Expansion | 5 new plugins, anti-detection config per platform | Not started | 8 |
+| 12 — Stability Foundation | Close v2.0 deferred OS checks + 4 audit tech-debt items | Not started | 2 |
+| 13 — Anti-Detection Layer 1 (Fingerprint + Proxy) | JS stealth patch + proxy rotation with ban detection | Not started | 3 |
+| 14 — Anti-Detection Layer 2 (CAPTCHA Solving) | 2captcha opt-in with balance check, async executor, spend cap | Not started | 2 |
+| 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Not started | 4 |
+| 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Not started | 6 |
+| 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Not started | 1 |
 
 ---
 
@@ -70,12 +71,21 @@ Last activity: 2026-06-07 — Milestone v3.0 started
 
 ### Research Flags (carry into planning)
 
-- Phase 3: nodriver async session lifecycle needs validation against plugin interface before Phase 3 planning
-- Phase 5 (Walmart): PerimeterX/HUMAN bypass viability with nodriver needs targeted research before committing to auto-buy
+- Phase 13 (proxy): Authenticated proxy support is broken in nodriver via `--proxy-server`; must use CDP `Fetch.continueWithAuth` or IP-allowlisted proxies only — fail loudly, never silently fall back to direct connection (PITFALLS 1.1)
+- Phase 13 (proxy): WebRTC leaks real IP through proxied sessions; inject three Chrome prefs at browser launch to disable non-proxied UDP (PITFALLS 1.2)
+- Phase 13 (proxy): Proxy selection must be per plugin instance (`self._proxy`), never a module-level singleton (PITFALLS 1.6)
+- Phase 13 (fingerprint): Apply fingerprint overrides in `setup()` before first navigation only; test against CreepJS before merging; Chrome-only UAs in rotation pool (PITFALLS 3.2, 3.3)
+- Phase 14 (CAPTCHA): Add `CAPTCHA_API_KEY` to `SECRET_KEYS` before writing any CAPTCHA code; no `captcha.api_key` field in Pydantic schema (PITFALLS 2.2)
+- Phase 14 (CAPTCHA): Wrap solve call with `run_in_executor` + `asyncio.timeout(120)` mandatory — sync SDK blocks event loop (PITFALLS 2.3)
+- Phase 16 (price): Use JSON-LD > OG > CSS extraction cascade; store raw price text alongside parsed float to enable debugging (PITFALLS 4.1)
+- Phase 16 (price): Price alert state uses dedicated columns (`price_alert_armed`, `price_last_notified`) — do not reuse `last_notified` which tracks stock dedup (PITFALLS 7.2)
+- Phase 16 (price): Idempotent `ALTER TABLE` with `PRAGMA table_info` check for every new column; CI migration fixture test against v2.0 DB (PITFALLS 4.4)
+- Phase 15 (registry): GitHub wiki is directory listing only; all API contract docs live in `PLUGIN_DEV.md` in-repo (PITFALLS 5.1)
+- All phases: Log only `exc.__class__.__name__` on proxy/CAPTCHA exception paths — never `str(exc)` which may contain credential strings in URLs (PITFALLS 6.4)
 
 ### Active Todos
 
-- None yet — roadmap just initialized
+- Run `/gsd:plan-phase 12` to begin Phase 12 planning
 
 ### Blockers
 
@@ -85,7 +95,7 @@ Last activity: 2026-06-07 — Milestone v3.0 started
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Run `/gsd:verify-work` on real Ubuntu/Windows to close.
+Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Phase 12 closes all of these.
 
 | Category | Item | Status |
 |----------|------|--------|
@@ -100,15 +110,15 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Session Continuity
 
-**Last action**: Completed plan 10-03 -- credential GET+POST routes; SC3 no-secret-leak enforced; 320 tests passing
-**Next action**: Phase 10 plan 04 (config routes)
-**Context to carry**: web/routes/credentials.py implements GET /api/credentials (name+is_set only) and POST /api/credentials (store.set, status only). Uses module-level import for get_store so test patches resolve correctly. All SC3/T-10-08/T-10-10/T-10-11 threat mitigations active.
+**Last action**: v3.0 roadmap created (Phases 12-17, 18 requirements mapped)
+**Next action**: `/gsd:plan-phase 12` — Stability Foundation
+**Context to carry**: Phases 12-17 start at 12 (continuing from v2.0 Phase 11). Phase 12 must complete before any new feature phases begin — it establishes the clean test baseline. Phase 13 depends on Phase 12. Phases 14, 15, 16 depend on Phase 12 and can run in any order relative to each other. Phase 17 depends on Phases 13-16.
 
 ---
 
-*Last updated: 2026-06-02 — Phase 1 planned by gsd-plan-phase*
+*Last updated: 2026-06-07 — v3.0 roadmap created by gsd-roadmapper*
 
-## Performance Metrics
+## Performance Metrics (v1 + v2.0 history)
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
@@ -217,4 +227,4 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd:new-milestone
+- Run `/gsd:plan-phase 12` to begin Stability Foundation planning
