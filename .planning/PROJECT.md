@@ -26,6 +26,18 @@ Target user: technically capable individuals who want automated stock monitoring
 
 **Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
 
+## Current Milestone: v3.0 Resilience + Ecosystem
+
+**Goal:** Raise real-world buy success on bot-protected platforms, grow the contributor ecosystem, add price-aware tracking, and pay down v2.0 deferred debt.
+
+**Target features:**
+- Anti-detection hardening — proxy rotation, CAPTCHA-solving integration, stronger fingerprint resilience.
+- Plugin ecosystem — GitHub wiki plugin registry with anti-detection difficulty ratings, plugin discovery/listing, contributor onboarding.
+- Price monitoring — per-item target price, price-drop alerts, and price history alongside existing stock alerts.
+- Stability / polish — close v2.0 deferred manual cross-OS/UI checks, resolve the 4 audit tech-debt items, harden tests.
+
+**Key constraints:** preserve the v2.0 security posture (no plaintext secrets, CLI default, web optional/localhost); new deps (proxy lib, CAPTCHA SDK) require package-legitimacy review; continues phase numbering from 11.
+
 ## Requirements
 
 ### Validated (existing, working)
@@ -56,16 +68,20 @@ Target user: technically capable individuals who want automated stock monitoring
 - ✓ Optional FastAPI local web UI (items/config/credentials/control) — v2.0 (Phase 10)
 - ✓ Cross-platform per-OS paths + CI matrix + PLATFORMS.md — v2.0 (Phase 11)
 
-### Active
+### Active (v3.0 Resilience + Ecosystem)
 
-- (None — awaiting next milestone. Run `/gsd:new-milestone`.)
+- [ ] Anti-detection: proxy rotation
+- [ ] Anti-detection: CAPTCHA-solving integration
+- [ ] Anti-detection: stronger fingerprint resilience
+- [ ] Plugin ecosystem: GitHub wiki plugin registry + difficulty ratings
+- [ ] Plugin ecosystem: plugin discovery/listing + contributor onboarding
+- [ ] Price monitoring: per-item target price + price-drop alerts + price history
+- [ ] Stability: close v2.0 deferred cross-OS/UI manual checks
+- [ ] Stability: resolve v2.0 audit tech-debt + test hardening
 
-### Deferred (v2 backlog)
+### Deferred
 
-- [ ] GitHub wiki plugin registry with anti-detection difficulty ratings
-- [ ] Proxy rotation support
-- [ ] Automatic CAPTCHA solving integration
-- [ ] Price monitoring / price-drop alerts
+- (Refined into v3.0 Active above.)
 
 ### Out of Scope
 
@@ -107,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-06 after v2.0 milestone*
+*Last updated: 2026-06-06 — v3.0 Resilience + Ecosystem milestone started*
