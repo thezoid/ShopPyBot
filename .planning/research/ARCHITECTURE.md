@@ -1,527 +1,673 @@
 # Architecture Patterns
 
 **Domain:** Python shopping bot — plugin framework + async browser automation
-**Researched:** 2026-04-19
-**Confidence:** HIGH (plugin patterns, config), MEDIUM (async/driver strategy)
+**Researched:** 2026-06-06 (v3.0 integration analysis, supersedes prior v1 research)
+**Confidence:** HIGH (existing codebase fully read; all integration points derived from source)
 
 ---
 
-## Recommended Architecture
+## v3.0 Scope
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                          main.py                            │
-│  asyncio event loop — orchestrates per-platform workers     │
-└────────────┬───────────────────────────────────────────────-┘
-             │ discovers & loads
-             ▼
-┌─────────────────────────┐      ┌────────────────────────────┐
-│   plugin_registry.py    │      │        config.py           │
-│  importlib scan of      │      │  Pydantic AppConfig model  │
-│  plugins/*.py           │      │  loaded once at startup    │
-│  validates ABC contract │      └────────────────────────────┘
-└────────────┬────────────┘
-             │ one instance per platform
-             ▼
-┌──────────────────────────────────────────────────────────────┐
-│                     RetailerPlugin (ABC)                     │
-│  check_availability(url) → bool                             │
-│  auto_buy(driver, url, config) → bool                       │
-│  login(driver, config) → None                               │
-│  detect_captcha(driver) → bool                              │
-│  domain_pattern: str  (class attribute, e.g. "amazon.com")  │
-└──────────────┬───────────────────────────────────────────────┘
-               │ implemented by
-     ┌─────────┼─────────────┐
-     ▼         ▼             ▼
- AmazonPlugin BestBuyPlugin WalmartPlugin …
- (plugins/amazon.py) …     (community drops)
+Three feature clusters need to integrate with the shipped v2.0 architecture:
 
-     Each plugin owns its own WebDriver instance
-     (created by the orchestrator, passed in at call time)
+1. **Anti-detection hardening** — proxy rotation, CAPTCHA-solving service, fingerprint resilience
+2. **Plugin ecosystem** — GitHub wiki registry generated from plugin metadata
+3. **Price monitoring** — per-item target price, price history, price-drop alerts
 
-┌──────────────────────────────────────────────────────────────┐
-│                   notification/                              │
-│   dispatcher.py  ← NotifierABC                              │
-│   discord.py     ← DiscordNotifier                          │
-│   email.py       ← EmailNotifier                            │
-│   sms.py         ← SmsNotifier                              │
-└──────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────┐
-│                      models.py                               │
-│   (unchanged — sqlite3 CRUD, already proven)                │
-└──────────────────────────────────────────────────────────────┘
-```
+The analysis below covers each cluster: what touches the existing system, what is new, and a
+dependency-ordered build sequence.
 
 ---
 
-## Question 1: Plugin Interface — ABC vs Protocol
+## Existing Architecture (v2.0 Baseline)
 
-**Recommendation: Abstract Base Class (ABC), not Protocol.**
+```
+BotService (core/service.py)
+  └─ async_main (core/orchestrator.py)
+       ├─ PluginRegistry (core/registry.py)
+       │    └─ RetailerPlugin ABC (core/plugin_base.py)
+       │         └─ plugins/shopbot_plugin_*.py  (7 concrete plugins)
+       ├─ write_queue drain  →  models.py (SQLite WAL CRUD)
+       └─ NotificationDispatcher (notifications/dispatcher.py)
+            └─ Notifier ABC (notifications/base.py)
+                 ├─ SoundNotifier
+                 ├─ DiscordNotifier
+                 ├─ EmailNotifier
+                 └─ SmsNotifier
 
-Rationale for this specific project:
+core/config_schema.py   — Pydantic AppConfig + per-platform submodels
+core/credentials.py     — CredentialStore (get/set/list/delete), SECRET_KEYS list
+core/paths.py           — per-OS data/config/log dirs
+```
 
-- Community contributors need *runtime enforcement*. If a plugin author forgets to implement `auto_buy`, the bot must fail loudly at load time with a clear `TypeError: Can't instantiate abstract class ...` message, not silently at 2 AM when an item goes live.
-- ABC prevents partial implementations from being registered. Protocol only catches errors at static analysis time (mypy), which contributors likely won't run.
-- ABC supports shared concrete helper methods (e.g., a default `detect_captcha` implementation that subclasses can override). Protocol has no mechanism for shared base behavior.
-- The interface is narrow (4 methods) so the verbosity cost of `@abstractmethod` decorators is negligible.
+Key facts that constrain integration:
+
+- `RetailerPlugin.setup()` is where each plugin creates its `nodriver` browser. That is the
+  correct hook point for proxy/fingerprint configuration because the browser args are set
+  exactly once, before any navigation.
+- `CredentialStore.SECRET_KEYS` is the authoritative list of all secrets the system knows
+  about. New secrets (CAPTCHA API keys, proxy credentials) must be added here.
+- `models.py` items table has: `id, name, link, auto_buy, quantity, purchased,
+  last_seen_available, last_notified`. Price columns do not exist yet.
+- `NotificationEvent` carries `item_name, item_url, platform, timestamp, action`. Price-drop
+  alerts need a new action value and optionally a price payload.
+- The orchestrator write queue handles typed tuples `("purchased"|"set_available"|"clear_available", ...)`.
+  Price writes need a new tag.
+- `AppConfig.platforms.*` has per-platform submodels. Proxy and CAPTCHA solver config
+  belong there (per-platform opt-in) alongside a global fallback.
+
+---
+
+## Cluster 1: Anti-Detection Hardening
+
+### 1a. Where Proxy/CAPTCHA/Fingerprint Hooks Live
+
+**Decision: shared `BrowserFactory` callable, injected into `RetailerPlugin.setup()`.**
+
+Each plugin currently calls `nodriver.start(headless=headless)` in its own `setup()`.
+Across 7 plugins that is 7 identical copies of browser-launch logic. If proxy config,
+fingerprint args, or CAPTCHA extension paths must be wired into the browser, every plugin
+is modified separately — which defeats the plugin framework's goal.
+
+The correct approach is a `core/browser_factory.py` module that encapsulates all
+anti-detection browser launch concerns and is called by the ABC's default `setup()`.
+
+```
+core/browser_factory.py   (NEW)
+  build_browser(platform_cfg, global_cfg) -> nodriver.Browser
+    - reads proxy from platform_cfg.proxy (or global_cfg.proxy as fallback)
+    - reads fingerprint seed from platform_cfg or global_cfg
+    - loads CAPTCHA solver extension if configured
+    - calls nodriver.start(...) with assembled args
+    - returns browser instance
+```
+
+`RetailerPlugin.setup()` in `core/plugin_base.py` becomes a concrete default that calls
+`build_browser(...)`. Plugins that need custom setup override it and call `super().setup()`
+or call `build_browser()` directly.
+
+**Backward compat:** The ABC's `setup()` is currently `async def setup(self) -> None: ...`
+(a no-op ellipsis). Making it a concrete default that calls `build_browser()` is
+backward-compatible: existing plugins that override `setup()` completely are unaffected;
+existing plugins that call `await self.driver = nodriver.start(...)` directly keep working
+until they are updated to delegate to `build_browser()`. The migration can be done
+plugin-by-plugin. Zero forced rewrites at integration time.
+
+### 1b. Config Schema for Proxy and Fingerprint
+
+Per-platform proxy opt-in with a global fallback follows the existing pattern for
+`user_agents` and `headless`. Add to each `*PlatformConfig` in `core/config_schema.py`:
 
 ```python
-# core/plugin_base.py
-from abc import ABC, abstractmethod
-from selenium.webdriver.remote.webdriver import WebDriver
+class BasePlatformConfig(BaseModel):      # NEW shared base, extract from existing duplication
+    min_delay: float = Field(default=5.0, ge=0.0)
+    max_delay: float = Field(default=15.0, ge=0.0)
+    headless: bool = True
+    user_agents: list[str] = Field(default_factory=list)
+    proxy: str = ""            # NEW: "http://host:port" or "" = disabled
+    fingerprint_seed: int = 0  # NEW: 0 = random per session
+    captcha_solver: str = ""   # NEW: "" | "2captcha" | "capsolver" | "manual"
+```
 
+All 7 platform submodels currently duplicate `min_delay/max_delay/headless/user_agents`.
+Consolidating into `BasePlatformConfig` reduces schema duplication. This is a refactor
+contained entirely within `config_schema.py` and is backward-compatible (field names unchanged).
+
+A global anti-detection config block handles defaults:
+
+```python
+class AntiDetectionConfig(BaseModel):   # NEW
+    proxy: str = ""                     # global fallback when per-platform proxy is ""
+    fingerprint_seed: int = 0
+    captcha_solver: str = ""            # global default solver
+    captcha_timeout: int = 120          # seconds to wait for CAPTCHA solve
+```
+
+`AppConfig` gains `anti_detection: AntiDetectionConfig = AntiDetectionConfig()`.
+
+**Config resolution in `browser_factory.py`:** per-platform value takes precedence over
+global when non-empty/non-zero.
+
+### 1c. CAPTCHA Secrets Through CredentialStore
+
+`core/credentials.py` SECRET_KEYS list must be extended:
+
+```python
+# ADD to SECRET_KEYS:
+"TWOCAPTCHA_API_KEY",    # 2captcha service
+"CAPSOLVER_API_KEY",     # capsolver.com service
+"PROXY_USERNAME",        # authenticated proxy credential
+"PROXY_PASSWORD",
+```
+
+The CAPTCHA solver integration in `browser_factory.py` calls `get_store().get("TWOCAPTCHA_API_KEY")`
+(or whichever solver is configured). Keys never appear in config.yml. The `shoppybot setup`
+interactive flow and web UI credential routes already handle arbitrary SECRET_KEYS entries,
+so adding 4 new keys requires only updating the SECRET_KEYS list — the store, CLI, and web
+UI pick them up automatically.
+
+### 1d. CAPTCHA Solve Flow
+
+The existing pattern (amazon plugin's `_wait_user_action` with `asyncio.Event`) handles
+manual CAPTCHA already. Automated solving adds a middle path:
+
+```
+detect_captcha() returns True
+  -> captcha_solver configured?
+       YES: call solver API, wait for solution token (up to captcha_timeout)
+            inject solution into page
+            if inject fails: fall back to manual event flow
+       NO:  existing manual asyncio.Event flow (unchanged)
+```
+
+This lives in a new `core/captcha.py` helper that plugins call. The `detect_captcha()`
+ABC method signature does not change — it remains `async def detect_captcha(self) -> bool`.
+A new `async def solve_captcha(self, tab) -> bool` method is added to the ABC as a
+concrete (non-abstract) default that calls `core/captcha.py`. Plugins can override.
+
+### 1e. Modified vs New Components — Cluster 1
+
+| Component | Status | Change |
+|-----------|--------|--------|
+| `core/plugin_base.py` | MODIFIED | `setup()` becomes concrete default calling `build_browser()`; add `solve_captcha()` concrete method |
+| `core/config_schema.py` | MODIFIED | Extract `BasePlatformConfig`; add `proxy/fingerprint_seed/captcha_solver` fields; add `AntiDetectionConfig`; add to `AppConfig` |
+| `core/credentials.py` | MODIFIED | Add 4 new keys to `SECRET_KEYS` |
+| `core/browser_factory.py` | NEW | `build_browser(platform_cfg, global_cfg) -> Browser`; assembles nodriver args for proxy, UA, fingerprint, CAPTCHA extension |
+| `core/captcha.py` | NEW | `solve_captcha(tab, solver_name, api_key, timeout) -> bool`; wraps 2captcha/capsolver HTTP APIs |
+| `plugins/shopbot_plugin_*.py` (7 files) | MODIFIED (optional) | Each plugin's `setup()` can be simplified to delegate to `super().setup()` — this is a quality improvement, not a hard requirement |
+
+---
+
+## Cluster 2: Plugin Ecosystem Registry
+
+### 2a. Plugin Metadata — New ABC Attributes
+
+The GitHub wiki registry needs structured data per plugin. Add class attributes to
+`RetailerPlugin`:
+
+```python
 class RetailerPlugin(ABC):
-    """Drop-in interface for retail platform integrations.
+    domain_patterns: list[str]      # EXISTING
+    platform_key: str               # EXISTING (used by orchestrator for config lookup)
 
-    Subclass this, implement all four methods, and place the .py file
-    in the plugins/ directory. The bot discovers and registers it automatically.
+    # NEW — wiki registry metadata:
+    display_name: str = ""          # human name, e.g. "Amazon US"
+    maintainer: str = ""            # GitHub handle or email
+    risk_level: str = "unknown"     # "low" | "medium" | "high" | "unknown"
+    captcha_notes: str = ""         # short free-text, e.g. "reCAPTCHA v2 on checkout"
+    auto_buy_supported: bool = True # False = check-only plugin
+    plugin_version: str = "1.0.0"
+```
+
+These are class attributes with defaults, not abstract. Existing plugins that do not define
+them get the defaults (backward-compatible). The registry already reads `domain_patterns`
+as a class attribute before `__init__` — same pattern applies here.
+
+**No ABC change breaks existing plugins.** All new attributes have defaults. The ABC
+`PLUGIN_API_VERSION` stays at 2.
+
+### 2b. Registry Generation
+
+A new `core/wiki_registry.py` module (or a CLI command) iterates `PluginRegistry._all_plugins`,
+reads the class attributes above, and renders a Markdown table. This output is either
+committed to the GitHub wiki manually or pushed via GitHub API.
+
+```
+core/wiki_registry.py   (NEW)
+  generate_registry_markdown(registry: PluginRegistry) -> str
+    - iterates plugins
+    - reads metadata class attributes
+    - formats Markdown table: Plugin | Platforms | Maintainer | Risk | Auto-Buy | Notes
+    - returns Markdown string
+
+CLI command: shoppybot registry generate  -> prints or writes to file
+```
+
+The wiki push itself (GitHub API) is out-of-scope for the bot process; the CI workflow
+or a maintainer runs `shoppybot registry generate > wiki/Plugin-Registry.md` and commits.
+
+### 2c. Modified vs New Components — Cluster 2
+
+| Component | Status | Change |
+|-----------|--------|--------|
+| `core/plugin_base.py` | MODIFIED | Add 6 class-attribute metadata fields with defaults |
+| `core/registry.py` | UNCHANGED | `_discover_plugins` already reads class attributes; no change needed |
+| `core/wiki_registry.py` | NEW | `generate_registry_markdown()` function |
+| `core/cli/` | MODIFIED | Add `registry` subcommand that calls `wiki_registry.generate_registry_markdown` |
+| `plugins/shopbot_plugin_*.py` (7 files) | MODIFIED | Add metadata attributes (display_name, maintainer, risk_level, etc.) to each plugin class |
+| `plugins/PLUGIN_DEV.md` | MODIFIED | Document new metadata attributes; update example_plugin.py |
+
+---
+
+## Cluster 3: Price Monitoring
+
+### 3a. Data Model Changes
+
+**Decision: new columns on the existing `items` table, not a separate table.**
+
+Rationale: price is a property of the item being tracked, not a separate entity. A separate
+table only makes sense if price history needs indefinite retention with per-timestamp rows.
+For the v3.0 scope (current price, target price, price history as a lightweight JSON log),
+new columns on `items` plus an optional `price_history` table is the right split.
+
+Items table additions:
+```sql
+ALTER TABLE items ADD COLUMN current_price REAL;       -- NULL if not fetched yet
+ALTER TABLE items ADD COLUMN target_price REAL;        -- NULL = monitor regardless of price
+ALTER TABLE items ADD COLUMN currency TEXT DEFAULT 'USD';
+ALTER TABLE items ADD COLUMN price_last_checked TEXT;  -- ISO-8601 UTC timestamp
+```
+
+Price history table (new, separate — price is time-series data):
+```sql
+CREATE TABLE IF NOT EXISTS price_history (
+    id INTEGER PRIMARY KEY,
+    item_link TEXT NOT NULL,
+    price REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    checked_at TEXT NOT NULL,            -- ISO-8601 UTC
+    FOREIGN KEY (item_link) REFERENCES items(link)
+);
+```
+
+`models.py` additions (all `_sync` pattern, WAL-safe):
+```python
+set_item_price_sync(link, price, currency, checked_at)   # updates current_price + logs history
+get_item_price_sync(link) -> tuple[float|None, float|None, str|None]  # current, target, checked_at
+add_price_history_sync(link, price, currency, checked_at)
+get_price_history_sync(link, limit=90) -> list[...]      # for display; default 90 days
+```
+
+`initialize_db()` in `models.py` already uses idempotent `ALTER TABLE ... IF NOT EXISTS`
+pattern for `last_seen_available` and `last_notified`. Same pattern applies.
+
+Config item schema (`ItemConfig` in `config_schema.py`) gains an optional field:
+```python
+class ItemConfig(BaseModel):
+    name: str
+    link: str
+    auto_buy: bool = False
+    quantity: int = 1
+    target_price: float | None = None   # NEW: None = no price gate
+```
+
+### 3b. Where Price Parsing Lives
+
+**Decision: optional `get_price()` method on the RetailerPlugin ABC, not a separate parser module.**
+
+Each retailer exposes price differently (DOM selector, JSON-LD, API). The plugin already
+owns the browser and knows the page structure. A shared parser would need to handle
+7+ different DOM layouts — that is abstraction without value.
+
+```python
+# ADD to RetailerPlugin (non-abstract, returns None by default):
+async def get_price(self, url: str) -> float | None:
+    """Return the current item price as a float, or None if not parseable.
+
+    Default implementation returns None. Plugins that support price monitoring
+    override this method. Price is in the currency defined by the item config.
     """
-
-    # Required class attribute — used for URL routing
-    domain_pattern: str  # e.g. "amazon.com", "bestbuy.com"
-
-    @abstractmethod
-    def check_availability(self, url: str) -> bool:
-        """Return True if the item at url is in stock and purchasable."""
-
-    @abstractmethod
-    def auto_buy(self, driver: WebDriver, url: str, config: dict) -> bool:
-        """Attempt purchase. Return True if order confirmed. No-op stub is valid."""
-
-    @abstractmethod
-    def login(self, driver: WebDriver, config: dict) -> None:
-        """Authenticate the session. Called before auto_buy if needed."""
-
-    @abstractmethod
-    def detect_captcha(self, driver: WebDriver) -> bool:
-        """Return True if a CAPTCHA challenge is present on the current page."""
+    return None
 ```
 
-The `domain_pattern` class attribute is intentionally *not* abstract — ABCs cannot enforce class attributes, so validation happens in the registry at load time (see plugin discovery below). This is the established pattern from frameworks like mkdocs plugins.
+This is additive and backward-compatible. Existing plugins get `None` (no price data).
+Plugins that implement it start feeding price history automatically.
 
----
-
-## Question 2: Async + Selenium — One Driver Per Platform
-
-**Recommendation: asyncio event loop + `loop.run_in_executor` + one dedicated WebDriver per platform plugin instance.**
-
-Selenium is fundamentally synchronous and not thread-safe across a shared instance. The correct concurrency model is:
-
-- One `ThreadPoolExecutor` thread per active platform plugin
-- Each thread owns its own WebDriver for its entire lifetime (created at startup, not per-check)
-- asyncio orchestrates the threads via `loop.run_in_executor`, allowing the main loop to remain async while Selenium calls block their own threads
-
-```
-asyncio event loop
-    │
-    ├─ run_in_executor(thread_amazon)  → AmazonPlugin.check_availability(url)
-    ├─ run_in_executor(thread_bestbuy) → BestBuyPlugin.check_availability(url)
-    └─ run_in_executor(thread_walmart) → WalmartPlugin.check_availability(url)
-```
-
-**Do not share a WebDriver across threads.** The current codebase uses one shared `driver` instance and passes it into every bot function. This must be inverted: each plugin instance holds its own `self.driver` created during plugin initialization.
-
-**Why not Playwright?** Playwright has native async support and is strictly better for new projects. However, the existing Amazon and BestBuy automation is proven Selenium code. Rewriting both platform automations to Playwright while simultaneously adding the plugin framework is two risky changes at once. Recommend: keep Selenium for phase 1 (plugin framework + async), defer Playwright migration to a later phase if performance becomes a concern.
-
-**Driver lifecycle:**
+The orchestrator calls `get_price()` alongside `check_availability()` in `_check_and_buy()`:
 
 ```python
-# core/orchestrator.py (simplified)
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
-class Orchestrator:
-    def __init__(self, plugins: list[RetailerPlugin]):
-        self._plugins = plugins
-        self._executor = ThreadPoolExecutor(max_workers=len(plugins))
-
-    async def check_all(self, items: list[Item]) -> list[AvailabilityResult]:
-        loop = asyncio.get_event_loop()
-        tasks = [
-            loop.run_in_executor(self._executor, plugin.check_availability, item.url)
-            for item in items
-            for plugin in self._plugins
-            if plugin.domain_pattern in item.url
-        ]
-        return await asyncio.gather(*tasks)
+# MODIFIED: core/orchestrator.py _check_and_buy()
+price = await plugin.get_price(link)
+if price is not None:
+    await write_queue.put(("set_price", link, price, "USD", now_iso))
 ```
 
-Each plugin's `__init__` creates and stores its own `WebDriver`. The orchestrator never touches individual drivers — it only calls the plugin interface methods.
+A new write-queue tag `"set_price"` is dispatched by `_dispatch_write()`.
 
----
+### 3c. Price-Drop Alert Through Existing Dispatcher
 
-## Question 3: Notification Dispatcher
-
-**Recommendation: Strategy pattern with a `NotifierABC` base and a `NotificationDispatcher` that holds a list of registered notifiers.**
+The `NotificationEvent` dataclass gains two optional fields:
 
 ```python
-# notification/base.py
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
 @dataclass
 class NotificationEvent:
     item_name: str
-    url: str
+    item_url: str
     platform: str
-    event_type: str  # "available" | "purchased" | "captcha"
-
-class NotifierABC(ABC):
-    @abstractmethod
-    def send(self, event: NotificationEvent) -> None:
-        """Deliver notification. Raise on unrecoverable failure."""
+    timestamp: datetime
+    action: str    # EXISTING: "detected" | "purchased" | NEW: "price_drop"
+    current_price: float | None = None   # NEW
+    target_price: float | None = None    # NEW
 ```
+
+This is a backward-compatible dataclass extension (keyword args with defaults). All existing
+notifiers that don't read these fields continue working without modification.
+
+The orchestrator emits a price-drop event when:
+```
+current_price is not None
+AND target_price is not None
+AND current_price <= target_price
+AND the price was not already at-or-below target on the last check
+```
+
+The dedup guard uses the same edge-trigger pattern as stock availability: the event fires
+once when price crosses the target, not on every poll cycle while it remains below target.
+A new `price_below_target` boolean column on `items` (or a derived check from `current_price`
+vs `target_price`) tracks the edge state. Simpler: compare current vs previous price from
+the write queue, store `price_alert_sent` timestamp in `items` alongside `last_notified`.
+
+Existing `NotificationDispatcher.notify()` requires no change — it fans out to all
+registered notifiers. Each notifier's `send()` method checks `event.action == "price_drop"`
+to render the right message. The Discord notifier already formats embeds from event fields;
+it needs only a new embed template branch for `price_drop`.
+
+### 3d. BotService and CLI/Web Surface
+
+`BotService` gains price-related item management methods:
 
 ```python
-# notification/dispatcher.py
-class NotificationDispatcher:
-    def __init__(self, notifiers: list[NotifierABC]):
-        self._notifiers = notifiers
-
-    def notify(self, event: NotificationEvent) -> None:
-        for notifier in self._notifiers:
-            try:
-                notifier.send(event)
-            except Exception as e:
-                # Log failure, continue to next channel — one bad notifier
-                # must not suppress the others
-                writeLog(f"Notifier {type(notifier).__name__} failed: {e}", "ERROR")
+def set_item_target_price(self, link: str, price: float | None) -> None: ...
+def get_price_history(self, link: str, limit: int = 90) -> list: ...
 ```
 
-Concrete implementations:
+CLI: `shoppybot items set-price --url "..." --target 299.99`
+Web UI: items list row gains current price display + target price input field.
 
-```
-notification/
-    base.py          — NotifierABC, NotificationEvent dataclass
-    dispatcher.py    — NotificationDispatcher
-    discord.py       — DiscordNotifier (HTTP POST to webhook URL)
-    email_notifier.py — EmailNotifier (smtplib, no third-party dep needed)
-    sms.py           — SmsNotifier (Twilio REST API)
-    sound.py         — SoundNotifier (wraps existing utils.play_available_sound)
-```
+### 3e. Modified vs New Components — Cluster 3
 
-The `SoundNotifier` wraps the existing `play_available_sound()` so the current audio behavior is preserved as just another notifier channel, not special-cased logic in the orchestrator.
-
-Dispatcher is built from config at startup:
-
-```python
-notifiers = []
-if config.notifications.discord.enabled:
-    notifiers.append(DiscordNotifier(config.notifications.discord.webhook_url))
-if config.notifications.email.enabled:
-    notifiers.append(EmailNotifier(config.notifications.email))
-notifiers.append(SoundNotifier())  # always enabled
-dispatcher = NotificationDispatcher(notifiers)
-```
-
-This decouples the orchestrator from any knowledge of channels. Adding SMS later is one new file + one config key.
+| Component | Status | Change |
+|-----------|--------|--------|
+| `models.py` | MODIFIED | Add 4 columns to items; add price_history table; add price CRUD functions |
+| `core/config_schema.py` | MODIFIED | Add `target_price: float | None` to `ItemConfig` |
+| `core/plugin_base.py` | MODIFIED | Add `get_price()` non-abstract method returning `None` |
+| `core/orchestrator.py` | MODIFIED | Call `get_price()` in `_check_and_buy`; emit `price_drop` events; add `"set_price"` write-queue tag in `_dispatch_write` |
+| `notifications/base.py` | MODIFIED | Add `current_price` and `target_price` optional fields to `NotificationEvent` |
+| `notifications/discord_notifier.py` | MODIFIED | Add embed branch for `action == "price_drop"` |
+| `notifications/email_notifier.py` | MODIFIED | Add message branch for price_drop |
+| `core/service.py` | MODIFIED | Add `set_item_target_price()` and `get_price_history()` |
+| `core/cli/` | MODIFIED | Add `items set-price` subcommand |
+| `web/` | MODIFIED | Extend items routes and template for price display |
+| `plugins/shopbot_plugin_*.py` | OPTIONAL | Each can implement `get_price()` incrementally; default is None |
 
 ---
 
-## Question 4: Config Schema Evolution
+## Consolidated Component Map
 
-**Recommendation: Pydantic v2 models as the schema layer, loading from the existing YAML file, with additive-only field additions to avoid breaking existing user configs.**
+### New Components
 
-Current flat config:
-```yaml
-app:
-  amz_email: ...
-  bb_email: ...
-```
+| File | Purpose |
+|------|---------|
+| `core/browser_factory.py` | `build_browser()` — assembles nodriver args for proxy, UA, fingerprint, CAPTCHA extension |
+| `core/captcha.py` | `solve_captcha()` — wraps 2captcha/capsolver APIs; falls back to manual event |
+| `core/wiki_registry.py` | `generate_registry_markdown()` — renders plugin metadata to Markdown table |
 
-Target per-platform config:
-```yaml
-platforms:
-  amazon:
-    email: ...
-    password: ...
-    delays:
-      check_interval_seconds: 5
-  bestbuy:
-    email: ...
-    password: ...
-    cvv: ...
-notifications:
-  discord:
-    enabled: true
-    webhook_url: "https://discord.com/api/webhooks/..."
-  email:
-    enabled: false
-```
+### Modified Components
 
-**Migration strategy:**
-
-1. Define Pydantic v2 `BaseModel` classes for the full target schema with `model_config = ConfigDict(extra='ignore')` — this silently drops unknown old keys rather than erroring.
-2. Add a `load_config()` that reads YAML and validates with the Pydantic model, printing actionable errors on schema violations.
-3. At phase start, provide both `sample.config.yml` (new format) and a one-time migration note in the README. There are only a handful of personal users, so no automated migrator is needed.
-4. Never remove a top-level key between minor versions — deprecate by keeping it with `model_config` ignoring or aliasing it.
-
-```python
-# core/config_schema.py
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
-
-class AmazonConfig(BaseModel):
-    email: str
-    password: str
-    delays: DelayConfig = DelayConfig()
-
-class PlatformsConfig(BaseModel):
-    amazon: Optional[AmazonConfig] = None
-    bestbuy: Optional[BestBuyConfig] = None
-
-class AppConfig(BaseModel):
-    model_config = ConfigDict(extra='ignore')  # survive old keys
-    platforms: PlatformsConfig
-    notifications: NotificationsConfig = NotificationsConfig()
-    debug: DebugConfig = DebugConfig()
-    available: AvailableConfig
-```
-
-Pydantic's error messages ("field required", "value is not a valid email") are the user-visible validation layer. No custom validation framework needed.
+| File | What Changes |
+|------|-------------|
+| `core/plugin_base.py` | `setup()` default calls `build_browser()`; add `solve_captcha()`, `get_price()`, metadata class attributes |
+| `core/config_schema.py` | `BasePlatformConfig` extraction; proxy/fingerprint/captcha fields; `AntiDetectionConfig`; `ItemConfig.target_price` |
+| `core/credentials.py` | 4 new entries in `SECRET_KEYS` |
+| `core/orchestrator.py` | `_check_and_buy` calls `get_price()`; `_dispatch_write` handles `"set_price"` tag; price-drop edge-trigger event |
+| `core/service.py` | `set_item_target_price()`, `get_price_history()` |
+| `core/cli/` | `registry generate` subcommand; `items set-price` subcommand |
+| `core/registry.py` | UNCHANGED |
+| `models.py` | 4 new columns on items; price_history table; price CRUD functions |
+| `notifications/base.py` | `NotificationEvent` gains `current_price`, `target_price` optional fields; `action` gains `"price_drop"` |
+| `notifications/dispatcher.py` | UNCHANGED |
+| `notifications/discord_notifier.py` | Price-drop embed branch |
+| `notifications/email_notifier.py` | Price-drop message branch |
+| `web/` routes + templates | Price display and target-price input |
+| `plugins/shopbot_plugin_*.py` | Metadata attributes (required for wiki registry); `setup()` delegation (optional refactor); `get_price()` (optional per plugin) |
 
 ---
 
-## Question 5: Plugin Discovery
+## Data Flow Changes
 
-**Recommendation: `importlib` + directory scan + ABC subclass check. No entry_points, no naming conventions.**
+### Stock Check (existing + price added)
 
-The PyPA entry_points pattern (used by pytest, mkdocs) requires the plugin to be an installed package. That's wrong for this project — contributors drop a `.py` file directly. Use `importlib.util.spec_from_file_location` instead:
-
-```python
-# core/plugin_registry.py
-import importlib.util
-import inspect
-from pathlib import Path
-from core.plugin_base import RetailerPlugin
-
-def discover_plugins(plugins_dir: Path) -> dict[str, RetailerPlugin]:
-    """Scan plugins/ directory, load modules, register valid RetailerPlugin subclasses."""
-    registry: dict[str, RetailerPlugin] = {}
-
-    for path in plugins_dir.glob("*.py"):
-        if path.name.startswith("_"):
-            continue  # skip __init__.py, _helpers.py
-        spec = importlib.util.spec_from_file_location(path.stem, path)
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except Exception as e:
-            writeLog(f"Failed to load plugin {path.name}: {e}", "ERROR")
-            continue
-
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if (issubclass(obj, RetailerPlugin)
-                    and obj is not RetailerPlugin
-                    and hasattr(obj, "domain_pattern")):
-                instance = obj()
-                registry[obj.domain_pattern] = instance
-                writeLog(f"Registered plugin: {name} -> {obj.domain_pattern}", "INFO")
-
-    return registry
+```
+orchestrator._check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher)
+  ├── plugin.check_availability(link)         # UNCHANGED
+  ├── plugin.get_price(link)                  # NEW (returns None if not implemented)
+  │     -> write_queue.put(("set_price", link, price, currency, ts))  # NEW tag
+  ├── price_drop edge check                   # NEW
+  │     -> dispatcher.notify(price_drop event)  # NEW action
+  └── ... (existing availability/purchase flow unchanged)
 ```
 
-Routing in the orchestrator then replaces the current `if "amazon.com" in link / elif "bestbuy.com" in link` chain with:
+### Browser Launch (per plugin setup)
 
-```python
-plugin = next((p for pattern, p in registry.items() if pattern in item.url), None)
-if plugin is None:
-    writeLog(f"No plugin for URL: {item.url}", "WARNING")
-    continue
+```
+RetailerPlugin.setup()  [default impl, NEW]
+  -> browser_factory.build_browser(platform_cfg, global_anti_detection_cfg)
+       ├── resolve proxy (per-platform or global)
+       ├── resolve fingerprint seed
+       ├── load CAPTCHA extension path if configured
+       └── nodriver.start(**assembled_args) -> Browser
+  -> self.driver = browser
 ```
 
-This is O(n plugins) per item check — acceptable for the scale (7-10 platforms). No need for a trie or regex router at this stage.
+### CAPTCHA Solve (new path alongside existing manual path)
+
+```
+plugin.check_availability(link)
+  -> plugin.detect_captcha()  returns True
+       -> plugin.solve_captcha(tab)  [NEW default impl]
+            -> captcha_solver configured?
+                 YES: core/captcha.py: call API, inject token, return True/False
+                 NO:  _wait_user_action(captcha_event, ...)  [EXISTING unchanged]
+```
+
+### Price-Drop Notification
+
+```
+models.price_history  <-  set_item_price_sync()
+items.current_price   <-  set_item_price_sync()
+  |
+  v
+orchestrator: current_price <= target_price AND was_above_target?
+  YES -> dispatcher.notify(NotificationEvent(action="price_drop", current_price=X, target_price=Y))
+         -> DiscordNotifier: embed with price fields
+         -> EmailNotifier: price-drop subject/body
+         -> SoundNotifier: notification sound (existing, unchanged)
+```
 
 ---
 
-## Component Boundaries
+## Backward Compatibility
 
-| Component | Responsibility | Communicates With | Location |
-|-----------|---------------|-------------------|----------|
-| `main.py` | Process entry, bootstrap, asyncio loop start | Orchestrator, config loader | `main.py` |
-| `core/orchestrator.py` | Async task dispatch, item-to-plugin routing, result handling | PluginRegistry, NotificationDispatcher, models | `core/` |
-| `core/plugin_base.py` | RetailerPlugin ABC definition only | Nothing (no imports from project) | `core/` |
-| `core/plugin_registry.py` | Scan plugins/, validate, instantiate, register | plugin_base, all plugins/ | `core/` |
-| `core/config_schema.py` | Pydantic AppConfig model, load_config() | yaml, pydantic | `core/` |
-| `plugins/amazon.py` | Amazon availability + purchase automation | selenium, plugin_base | `plugins/` |
-| `plugins/bestbuy.py` | BestBuy availability + purchase automation | selenium, plugin_base | `plugins/` |
-| `notification/base.py` | NotifierABC, NotificationEvent dataclass | Nothing | `notification/` |
-| `notification/dispatcher.py` | Fan-out to registered notifiers, swallow per-channel errors | NotifierABC | `notification/` |
-| `notification/discord.py` | HTTP POST to Discord webhook | requests, notification/base | `notification/` |
-| `notification/email_notifier.py` | SMTP send | smtplib, notification/base | `notification/` |
-| `notification/sms.py` | Twilio REST call | twilio, notification/base | `notification/` |
-| `notification/sound.py` | Wrap existing pygame audio | pygame, notification/base | `notification/` |
-| `models.py` | SQLite CRUD — unchanged | sqlite3 | root (move to `core/` later) |
-| `logger.py` | Colorized logging — keep, fix re-read bug | colorama | root (move to `core/` later) |
+All 7 existing plugins remain valid without modification. Specifically:
 
-**Strict rule: plugins/ files import only from `core/plugin_base` and stdlib/selenium.** They must not import from `notification/`, `models`, or `core/orchestrator`. The orchestrator calls them; they don't call back.
+- New ABC class attributes (`display_name`, `risk_level`, etc.) have defaults.
+- `setup()` default is now concrete but plugins that override it entirely are unaffected.
+- `get_price()` default returns `None` — plugins without price support produce no price events.
+- `solve_captcha()` default uses the existing manual event flow if no solver is configured.
+- `NotificationEvent` new fields are keyword-only with `None` defaults — existing notifiers
+  that ignore them continue working.
+- `SECRET_KEYS` additions are additive — existing stored secrets are unaffected.
 
----
-
-## Data Flow (Target)
-
-**Startup sequence:**
-
-```
-main()
-  → load_config() → AppConfig (Pydantic-validated)
-  → discover_plugins(Path("plugins/")) → registry dict
-  → for each plugin: plugin.__init__() creates its own WebDriver
-  → build NotificationDispatcher from config.notifications
-  → initialize_db()
-  → add_items() seeds SQLite from config.available.items
-  → Orchestrator(registry, dispatcher, db)
-  → asyncio.run(orchestrator.run_loop())
-```
-
-**Per-cycle check (async):**
-
-```
-orchestrator.run_loop()
-  → get_items() from SQLite
-  → filter out purchased items
-  → for each unpurchased item, find matching plugin
-  → asyncio.gather(run_in_executor(plugin.check_availability, url) for each)
-  → for available results:
-      → dispatcher.notify(NotificationEvent(available))
-      → if item.auto_buy: run_in_executor(plugin.auto_buy, driver, url, config)
-          → plugin.login() if not authenticated
-          → complete purchase flow
-          → update_item_purchased(url)
-          → dispatcher.notify(NotificationEvent(purchased))
-  → await asyncio.sleep(config.available.check_interval_seconds)
-```
-
-**CAPTCHA handling (changed):** The current `input()` blocking call inside Selenium code must be replaced. In the async model, blocking the thread pool thread with `input()` blocks that platform's worker for an unknown duration but does not block other platforms — an improvement over the current all-or-nothing block. However, the preferred approach is to emit a `NotificationEvent(captcha)` and log a prominent warning, then skip that item on the current cycle. Human-in-the-loop CAPTCHA solving can be a later feature if needed.
+The only forced change across all 7 plugins is adding the metadata class attributes for the
+wiki registry. That is 6 lines per plugin file and does not touch any logic.
 
 ---
 
 ## Suggested Build Order
 
-Dependencies drive the order. Nothing can be built in parallel until its dependencies exist.
+Dependencies drive the order. Each step's deliverable must exist before the next begins.
 
-### Phase 1: Foundations (no parallelism)
+### Step 1: Config schema extensions (no code dependencies)
 
-1. **`core/plugin_base.py`** — RetailerPlugin ABC. Zero dependencies on anything else in the project. Every other component depends on this. Build first.
+Target: `core/config_schema.py`
 
-2. **`core/config_schema.py`** — Pydantic AppConfig with new per-platform structure. Must exist before plugins can be initialized (they need config). No dependency on plugin_base.
+- Extract `BasePlatformConfig`; add `proxy`, `fingerprint_seed`, `captcha_solver` fields
+- Add `AntiDetectionConfig`; wire into `AppConfig`
+- Add `target_price` to `ItemConfig`
 
-3. **`core/plugin_registry.py`** — Depends on plugin_base. Needs to exist before orchestrator.
+This step has no upstream dependencies and unblocks all other steps.
 
-### Phase 2: Plugin Migrations (can proceed once Phase 1 done)
+### Step 2: CredentialStore expansion (depends on Step 1 only for testing context)
 
-4. **`plugins/amazon.py`** — Refactor existing `amazon_bot.py` to implement RetailerPlugin. Depends on plugin_base. Self-contained Selenium code.
+Target: `core/credentials.py`
 
-5. **`plugins/bestbuy.py`** — Same refactor for `bestbuy_bot.py`. Parallel with amazon.py refactor.
+- Add `TWOCAPTCHA_API_KEY`, `CAPSOLVER_API_KEY`, `PROXY_USERNAME`, `PROXY_PASSWORD` to SECRET_KEYS
+- Update `shoppybot setup` prompts if they enumerate SECRET_KEYS (verify in cli/setup.py)
 
-6. **Fix the BestBuy `update_item_purchased` gap** — Must happen during step 5. Currently BestBuy never marks items purchased after a buy.
+### Step 3: Browser factory (depends on Steps 1 and 2)
 
-### Phase 3: Async Orchestrator
+Target: `core/browser_factory.py` (NEW)
 
-7. **`core/orchestrator.py`** — Depends on plugin_registry (to receive registry), models (for get_items/add_items), notification/dispatcher. This is where asyncio + ThreadPoolExecutor lives.
+- `build_browser(platform_cfg, global_cfg)` reads proxy, fingerprint, headless, user_agents
+- Calls `get_store()` for proxy credentials if `PROXY_USERNAME` is set
+- Returns `nodriver` browser instance
+- Unit-testable by mocking `nodriver.start`
 
-8. **`main.py` rewrite** — Slim bootstrap that wires everything together. Depends on orchestrator, config, registry.
+### Step 4: CAPTCHA solver helper (depends on Steps 2 and 3)
 
-### Phase 4: Notification System
+Target: `core/captcha.py` (NEW)
 
-9. **`notification/base.py` + `notification/dispatcher.py`** — No project dependencies. Can be built any time after Phase 1 but must exist before orchestrator wires it in.
+- `solve_captcha(tab, solver_name, api_key, timeout)` wraps 2captcha/capsolver HTTP calls
+- Returns bool; raises on API error (caller decides fallback)
 
-10. **`notification/sound.py`** — Wrap existing `utils.play_available_sound`. Build first as smoke test of the notifier pattern.
+### Step 5: ABC updates (depends on Steps 3 and 4)
 
-11. **`notification/discord.py`** — HTTP POST. Simplest new channel, use as the template for email/SMS.
+Target: `core/plugin_base.py`
 
-12. **`notification/email_notifier.py`** and **`notification/sms.py`** — Build after discord.py pattern is established.
+- `setup()` default: calls `build_browser()` and assigns `self.driver`
+- Add `solve_captcha()` concrete method delegating to `core/captcha.py`
+- Add `get_price()` returning `None`
+- Add metadata class attributes with defaults
 
-### Phase 5: New Plugins
+At this point all infrastructure is in place. Steps 6-8 can proceed in any order.
 
-13. **`plugins/walmart.py`**, `plugins/target.py`, etc. — Each is independent. Contributors can work in parallel. The registry discovers them automatically.
+### Step 6: Price data layer (depends on Step 1)
 
-### Dependency Graph Summary
+Target: `models.py`
+
+- Idempotent `ALTER TABLE` for 4 new items columns
+- `CREATE TABLE IF NOT EXISTS price_history`
+- Add price CRUD sync functions
+- Extend `initialize_db()`
+
+### Step 7: Orchestrator price wiring (depends on Steps 5 and 6)
+
+Target: `core/orchestrator.py`
+
+- `_check_and_buy` calls `plugin.get_price(link)` after availability check
+- Add `"set_price"` tuple tag to `_dispatch_write`
+- Price-drop edge-trigger check and `dispatcher.notify` call
+
+### Step 8: Notification event and notifier updates (depends on Step 7)
+
+Targets: `notifications/base.py`, `notifications/discord_notifier.py`, `notifications/email_notifier.py`
+
+- Add optional price fields to `NotificationEvent`
+- Add `price_drop` branches to Discord embed and email body
+
+### Step 9: Plugin metadata (depends on Step 5)
+
+Targets: `plugins/shopbot_plugin_*.py` (7 files)
+
+- Add metadata class attributes to each plugin
+- Optionally simplify each plugin's `setup()` to call `super().setup()`
+- Optionally implement `get_price()` for platforms where price DOM is stable
+
+### Step 10: Wiki registry (depends on Step 9)
+
+Target: `core/wiki_registry.py` (NEW)
+
+- `generate_registry_markdown(registry)` reads metadata, renders table
+
+### Step 11: BotService and front-ends (depends on Steps 6, 8, 10)
+
+Targets: `core/service.py`, `core/cli/`, `web/`
+
+- `BotService.set_item_target_price()`, `get_price_history()`
+- CLI `items set-price` subcommand
+- CLI `registry generate` subcommand
+- Web UI price display and target-price input
+
+### Dependency Graph
 
 ```
-plugin_base
-    ├── plugin_registry
-    │       └── orchestrator
-    │               └── main (rewrite)
-    ├── plugins/amazon
-    ├── plugins/bestbuy
-    └── plugins/walmart …
+Step 1: config_schema
+  └─ Step 2: credentials
+       └─ Step 3: browser_factory
+            └─ Step 4: captcha.py
+                 └─ Step 5: plugin_base (ABC updates)
+                      └─ Step 9: plugin metadata
+                           └─ Step 10: wiki_registry
 
-config_schema
-    └── orchestrator
-            └── main (rewrite)
+Step 1: config_schema
+  └─ Step 6: models (price data layer)
+       └─ Step 7: orchestrator (price wiring)
+            └─ Step 8: notifications (price_drop event/notifiers)
+                 └─ Step 11: BotService + CLI + web
 
-notification/base
-    ├── notification/dispatcher
-    │       └── orchestrator
-    ├── notification/sound
-    ├── notification/discord
-    ├── notification/email
-    └── notification/sms
-
-models (unchanged)
-    └── orchestrator
+All steps must complete before Step 11.
+Steps 6-8 and Steps 3-5 can proceed in parallel after Step 1.
 ```
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Shared WebDriver Across Plugins
+### Each Plugin Reimplements Browser Launch
 
-**What:** Passing a single `driver` into plugin methods, as the current code does.
-**Why bad:** Selenium WebDriver is not thread-safe. Concurrent plugin checks will race on `driver.get()`, corrupting each other's page state.
-**Instead:** Each plugin instance owns `self.driver`, created in `plugin.__init__()` using the same options currently in `main.py`.
+**What:** Continuing the current pattern where every plugin calls `nodriver.start(headless=...)` directly.
+**Why bad:** Proxy/fingerprint/CAPTCHA extension wiring must then be duplicated in 7+ files. A new
+contributor's plugin naturally skips it.
+**Instead:** `browser_factory.build_browser()` is the single launch point. ABC's default `setup()`
+calls it.
 
-### Anti-Pattern 2: Plugin Importing From Orchestrator or Models
+### Storing CAPTCHA API Keys in config.yml
 
-**What:** A plugin calling `update_item_purchased()` directly (as `amazon_bot.py` currently does).
-**Why bad:** Creates a circular dependency (orchestrator → plugin → orchestrator-owned model). Also leaks the purchase-tracking concern into the plugin.
-**Instead:** Plugins return `bool` from `auto_buy`. The orchestrator owns the `update_item_purchased` call.
+**What:** Adding `twocaptcha_api_key: "..."` to a config.yml section.
+**Why bad:** Violates the established v2.0 security posture (CRED-06): secrets never plaintext on disk.
+**Instead:** Route through `CredentialStore.get("TWOCAPTCHA_API_KEY")` — already the pattern for all
+other secrets.
 
-### Anti-Pattern 3: Re-reading Config on Every Logger Call
+### Separate Price Table as the Primary Store
 
-**What:** `logger.py` currently re-reads `config.yml` on every `writeLog()` call to get the log level.
-**Why bad:** Disk I/O on every log statement; also breaks when config is Pydantic-validated (file may not match schema at import time).
-**Instead:** Pass log level once to `setup_logger()` at startup. Module-level singleton is fine.
+**What:** Putting `current_price` and `target_price` in a `prices` table joined to `items`.
+**Why bad:** Every orchestrator poll cycle requires a join. The item and its price target are 1:1.
+**Instead:** 4 columns on `items` (current_price, target_price, currency, price_last_checked).
+Only the time-series history goes in a separate `price_history` table.
 
-### Anti-Pattern 4: sys.stdout Suppression in main()
+### Making `get_price` Abstract
 
-**What:** Lines 68-75 in current `main.py` redirect stdout/stderr to `/dev/null` to suppress ChromeDriver console noise, then restore them.
-**Why bad:** If an exception occurs between suppress and restore, stdout stays dead for the process. Also incompatible with the async orchestrator where driver creation moves into plugin `__init__`.
-**Instead:** Suppress ChromeDriver noise via `Service(log_output=subprocess.DEVNULL)` in the Selenium Service constructor.
+**What:** `@abstractmethod async def get_price(self, url: str) -> float | None`
+**Why bad:** Breaks all 7 existing plugins immediately; price monitoring is opt-in.
+**Instead:** Concrete default returning `None`. Plugins opt in by overriding.
 
-### Anti-Pattern 5: Config Loaded Twice at Import Time
+### Embedding Price in NotificationEvent as a Formatted String
 
-**What:** `config.py` calls `load_config()` at module import (line 4), and `main()` calls it again independently.
-**Why bad:** Two reads of the same file; any mismatch (e.g., file changes between reads) goes undetected. The module-level `config` is a global that can be mutated.
-**Instead:** `load_config()` is called once in `main()`, returns a validated `AppConfig` object, and is passed explicitly to every component that needs it (dependency injection, not global import).
+**What:** `action: str = "price_drop: $299.99 -> $249.99"`
+**Why bad:** Parsers downstream (web UI, future integrations) must string-split. Impossible to
+localize currency.
+**Instead:** Separate `current_price: float | None` and `target_price: float | None` fields on
+`NotificationEvent`. Notifiers format them per-channel.
 
 ---
 
 ## Scalability Considerations
 
-| Concern | At 5 platforms (target) | At 20 platforms | At 50 platforms |
-|---------|------------------------|-----------------|-----------------|
-| Browser memory | 5 Chrome instances (~500MB total) — fine | 20 instances (~2GB) — acceptable | 50 instances — needs driver pooling or Playwright |
-| Thread count | 5 threads in executor — trivial | 20 threads — fine | 50 threads — consider asyncio-native browser lib |
-| SQLite contention | Single-writer, multi-reader — fine | Fine (read-heavy workload) | Fine |
-| Plugin discovery time | ~50ms at startup — negligible | ~100ms — negligible | Still negligible |
-| Config complexity | Flat per-platform sections — readable | Still readable | May want per-platform config files |
-
-For the stated scope (7-10 platforms), the ThreadPoolExecutor-per-plugin model with one driver per plugin is correct and does not need a driver pool.
+| Concern | v3.0 scope | Future concern |
+|---------|-----------|----------------|
+| CAPTCHA API cost | Per-solve billing; rate-limit with exponential backoff in `core/captcha.py` | Monitor spend; add per-platform on/off toggle |
+| Proxy rotation pool | Single proxy string per platform for now | Proxy pool list + round-robin if single proxy gets blocked |
+| Price history retention | 90-day default; no auto-purge yet | Add `VACUUM` + periodic delete of rows older than N days |
+| Browser fingerprint | Seed per session; static during session | Rotate seed per N requests if platforms learn session patterns |
+| Plugin registry wiki | Generated locally, manually pushed | Automate via GitHub Actions on plugin PR merge |
 
 ---
 
 ## Sources
 
-- Python Packaging User Guide — Creating and Discovering Plugins: https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/
-- ABC vs Protocol analysis: https://sinavski.com/post/1_abc_vs_protocols/ | https://levelup.gitconnected.com/python-interfaces-choose-protocols-over-abc-3982e112342e
-- Concurrent Selenium with ThreadPoolExecutor: https://testdriven.io/blog/building-a-concurrent-web-scraper-with-python-and-selenium/
-- asyncio + run_in_executor for blocking calls: https://superfastpython.com/threadpoolexecutor-vs-asyncio/
-- Playwright vs Selenium 2025: https://www.browserless.io/blog/playwright-vs-selenium-2025-browser-automation-comparison
-- Pydantic YAML config validation: https://betterprogramming.pub/validating-yaml-configs-made-easy-with-pydantic-594522612db5
-- Notification dispatcher / strategy pattern: https://medium.com/interview-simplified/designing-a-beautifully-extensible-notification-service-in-python-c58e4ea49dc7
-- pytest pluggy hook architecture: https://medium.com/@garzia.luke/developing-plugin-architecture-with-pluggy-8eb7bdba3303
+- Codebase read directly: `core/plugin_base.py`, `core/credentials.py`, `core/config_schema.py`,
+  `core/orchestrator.py`, `core/registry.py`, `core/service.py`, `models.py`,
+  `notifications/base.py`, `notifications/dispatcher.py`, `plugins/shopbot_plugin_amazon.py`
+- Existing architecture doc: `.planning/research/ARCHITECTURE.md` (v1 research, superseded)
+- Project state: `.planning/PROJECT.md`, `.planning/milestones/v2.0-ROADMAP.md`
+- Confidence: HIGH — all integration points derived from reading the actual source, not assumptions

@@ -1,59 +1,42 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-05T03:37:14.451Z",
-  "phase": "11",
-  "phase_name": "Cross-Platform Verification",
-  "phase_dir": ".planning/phases/11-cross-platform-verification",
-  "plan": 5,
-  "task": 1,
-  "total_tasks": 3,
+  "timestamp": "2026-06-07T08:13:27.961Z",
+  "context": "research",
+  "milestone": "v3.0",
+  "milestone_name": "Resilience + Ecosystem",
+  "workflow": "new-milestone",
+  "stage": "research-synthesis-incomplete",
   "status": "paused",
-  "milestone": "v2.0 — Modular Core + Cross-Platform UX",
-  "run": "gsd-autonomous (phases 8-11)",
-  "completed_this_run": [
-    {"phase": "08", "name": "Credential Store", "status": "done", "tests": 255, "note": "verify human_needed (live keyring/headless deferred to P11); CR-01 secret-leak fix; pushed"},
-    {"phase": "09", "name": "CLI Front-End", "status": "done", "tests": 282, "note": "verify human_needed (live TTY deferred to P11); CR-01 exit-code + WR-06 footgun fixed; pushed"},
-    {"phase": "10", "name": "Optional Web UI", "status": "done", "tests": 335, "note": "verify human_needed (live browser deferred to P11); 5 security/data fixes; pushed"},
-    {"phase": "11-01", "name": "core/paths.py + platformdirs pin", "status": "done", "tests": 341, "commit": "f2d67f1"},
-    {"phase": "11-02", "name": "re-anchor 4 consumers + fix CWD DB bug + lazy log import", "status": "done", "tests": 341, "commit": "37424d9"},
-    {"phase": "11-03", "name": "idempotent migration + service.py wiring", "status": "done", "tests": 345, "commit": "e0066a1"},
-    {"phase": "11-04", "name": "env-independent smoke + backend-selection tests", "status": "done", "tests": 352, "commit": "f4c503f"}
+  "completed_steps": [
+    {"step": "gather goals + version", "detail": "v3.0, all four areas FULL (anti-detection hardening, plugin ecosystem, price monitoring, stability/polish)"},
+    {"step": "PROJECT.md updated", "detail": "Current Milestone v3.0 section + Active reqs + footer", "commit": "e159f24"},
+    {"step": "STATE.md switched", "detail": "state.milestone-switch v3.0; status=planning", "commit": "e159f24"},
+    {"step": "research spawned", "detail": "4 gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls) completed; files written but UNCOMMITTED until this WIP commit"}
   ],
-  "remaining_tasks": [
-    {"id": 1, "name": "11-05 T1: .github/workflows/ci.yml (ubuntu+windows matrix, py3.13, pip install .[web], pytest; env SDL_AUDIODRIVER=dummy + PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring)", "status": "not_started"},
-    {"id": 2, "name": "11-05 T2: docs/PLATFORMS.md (per-OS path table + backend-per-env + repro + manual matrix folding deferred P8/P9/P10 live checks)", "status": "not_started"},
-    {"id": 3, "name": "11-05 T3: delete 3 legacy workflows (app_linuxBuild.yml, app_macBuild.yml, app_windowsBuild.yml) — USER APPROVED; keep codeql-analysis.yml", "status": "not_started"}
+  "remaining_steps": [
+    {"step": "synthesize SUMMARY.md", "status": "not_done", "detail": "gsd-research-synthesizer errored (tool result missing) then was stopped. .planning/research/SUMMARY.md on disk is STALE v1 content (Selenium->nodriver) — must regenerate for v3.0."},
+    {"step": "define requirements", "status": "not_started", "detail": "scope per area via AskUserQuestion multiselect; new REQ-IDs continuing existing (ANTI-04+, new PRICE-/ECO-/STAB- categories); write .planning/REQUIREMENTS.md (does not exist yet)"},
+    {"step": "create roadmap", "status": "not_started", "detail": "spawn gsd-roadmapper, START PHASE NUMBERING AT 12 (continue from 11). Researchers converged on build order: 12 anti-detect infra -> 13 price (parallelizable) -> 14 ecosystem/metadata -> 15 BotService+front-ends -> 16 stability"},
+    {"step": "link pending todos", "status": "not_started"}
   ],
-  "after_11_05": [
-    "gsd-verifier phase 11 (VERIFICATION.md; live cross-platform rows are human_needed -> docs/PLATFORMS.md manual matrix)",
-    "gsd-code-review 11 + --fix --auto (watch the items-list fresh-install DB gap below)",
-    "Milestone lifecycle: gsd-audit-milestone -> gsd-complete-milestone v2.0 -> gsd-cleanup",
-    "Push master (21+ commits unpushed)"
+  "blockers": [
+    {"description": "v3.0 research SUMMARY.md was never generated; the file on disk is the OLD v1 summary. Do NOT consume it as v3.0 research.", "type": "technical", "workaround": "Re-spawn gsd-research-synthesizer (sonnet) reading the 4 fresh v3.0 files to overwrite SUMMARY.md."}
   ],
-  "blockers": [],
-  "human_actions_pending": [
-    {"action": "Run docs/PLATFORMS.md manual verification matrix on real Ubuntu desktop + Ubuntu headless + Windows", "context": "Closes deferred Phase 8 (keyring restart, headless file backend), Phase 9 (setup masked TTY), Phase 10 (dashboard render/polling/non-local banner) live checks; this Windows box covers the Windows column + all automated/mocked checks", "blocking": false}
-  ],
-  "standing_approvals_this_run": [
-    "Auto-commit all GSD doc+code commits for this gsd-autonomous run (no pushes without separate approval)",
-    "keyring==25.7.0 (P8)",
-    "[web] extra: fastapi==0.115.8 uvicorn[standard]==0.30.6 jinja2==3.1.4 python-multipart==0.0.32 (P10)",
-    "platformdirs==4.10.0 (P11)",
-    "Delete 3 legacy EOL workflow files; keep codeql-analysis.yml (P11-05)"
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "OS-standard user dirs via platformdirs (appauthor=False) + first-run copy2-then-unlink migration; SHOPBOT_DATA_DIR env override is the test seam", "rationale": "correct for pip-installed use; SC1 phase 11; keeps tests green", "phase": "11"},
-    {"decision": "logger.py lazy-imports core.paths.log_dir inside writeLog", "rationale": "breaks circular import (core/paths imports writeLog for migration logging)", "phase": "11"},
-    {"decision": "CLI/web config UI scoped to test_mode, logging_level, notifier enables only", "rationale": "AppConfig has no per-platform enabled field; no schema change (YAGNI)", "phase": "09/10"}
+    {"decision": "v3.0 = all four areas, FULL scope (major release)", "rationale": "user selected all four + full framing", "phase": "v3.0"},
+    {"decision": "research-first before requirements", "rationale": "new domains (proxy/CAPTCHA/fingerprint) move fast", "phase": "v3.0"},
+    {"decision": "Only one new dep: 2captcha-python 2.0.7 (AsyncTwoCaptcha, MIT)", "rationale": "STACK research; proxy/fingerprint/price/wiki need zero new deps", "phase": "v3.0"},
+    {"decision": "Walmart/Target use behavioral managers (HUMAN/Akamai) NOT CAPTCHA-solvable -- keep manual-pause", "rationale": "FEATURES+PITFALLS research", "phase": "v3.0"},
+    {"decision": "core/browser_factory.py is the shared hook for proxy/fingerprint/CAPTCHA; ABC setup() default calls it; per-plugin migration, zero forced rewrites of the 7 existing plugins", "rationale": "ARCHITECTURE research", "phase": "v3.0"},
+    {"decision": "CAPTCHA/proxy secrets via CredentialStore SECRET_KEYS (TWOCAPTCHA_API_KEY, CAPSOLVER_API_KEY, PROXY_USERNAME, PROXY_PASSWORD); CAPTCHA opt-in default false like SMS gate; price-drop dedup uses SEPARATE columns from stock dedup", "rationale": "ARCHITECTURE+PITFALLS research", "phase": "v3.0"}
   ],
-  "watch_items": [
-    {"item": "shoppybot items list fresh-install DB gap", "detail": "11-04 smoke found BotService.__init__ calls init_store() but NOT initialize_db(); items list on a fresh machine (no DB) may crash. Smoke worked around it by calling models.initialize_db() in the subprocess. Assess in phase-11 code review whether CLI items / web item routes should ensure the DB exists.", "severity": "advisory"}
+  "uncommitted_files": [
+    ".planning/research/STACK.md",
+    ".planning/research/FEATURES.md",
+    ".planning/research/ARCHITECTURE.md",
+    ".planning/research/PITFALLS.md"
   ],
-  "env_state": {
-    "installed_for_tests": ["platformdirs==4.10.0", "python-multipart==0.0.32", "fastapi", "uvicorn", "jinja2"],
-    "test_baseline": "352 passed, 2 skipped, 0 failures — run pytest from repo root E:\\repos\\ShopPyBot, NOT a phase subdir (CWD drift breaks collection)"
-  },
-  "uncommitted_files": [".claude/ (untracked)", ".planning/phases/08-credential-store/08-VERIFICATION.md (untracked stray)"],
-  "next_action": "Execute plan 11-05 (gsd-executor, sequential, autonomous-commit, NO Claude trailer): ci.yml + docs/PLATFORMS.md + delete the 3 user-approved legacy workflows. The 11-05 human-verify checkpoint is PRE-CLEARED. Then verify -> code-review --fix --auto -> milestone lifecycle (audit/complete/cleanup) -> push.",
-  "context_notes": "Final phase of the milestone. Per-phase pattern: smart-discuss(grey-area tables) -> [UI-SPEC if frontend] -> research -> VALIDATION.md -> pattern-map -> planner(opus) -> plan-checker(sonnet, fix blockers) -> commit -> execute waves sequentially (use_worktrees=false, branching=none on master) -> independent suite/security spot-check -> verifier -> code-review + --fix --auto (cap 3) -> commit -> push at phase boundary. Commit via gsd-sdk query commit. Executor/planner subagents stall on the commit gate, so each subagent prompt carries an <autonomous_commit_authorization> block. NO Claude co-author trailer (user global CLAUDE.md overrides harness default). Bash tool is bash (use /dev/null not $null)."
+  "next_action": "Re-spawn gsd-research-synthesizer (model sonnet) to OVERWRITE .planning/research/SUMMARY.md from the 4 v3.0 research files, then resume new-milestone.md at step 9 (Define Requirements) -> step 10 (roadmap, start phase 12).",
+  "context_notes": "Mid /gsd:new-milestone for v3.0. Phases dir empty (cleared at switch). REQUIREMENTS.md does not exist yet (removed at v2.0 close; new-milestone recreates it). 4 research files are solid and converge on a clean build order. ONLY broken thing = SUMMARY synthesis. Resume = synthesize -> requirements -> roadmap(start 12). Bash tool is bash. Commit via gsd-sdk query commit. No Claude co-author trailer per user CLAUDE.md."
 }
