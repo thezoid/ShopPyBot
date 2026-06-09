@@ -88,7 +88,11 @@ class BotService:
         return [
             {
                 "name": type(plugin).__name__,
-                "domain_patterns": plugin.domain_patterns,
+                "domain_patterns": (
+                    [plugin.domain_patterns]
+                    if isinstance(plugin.domain_patterns, str)
+                    else list(getattr(plugin, "domain_patterns", []))
+                ),
                 "difficulty": getattr(plugin, "difficulty", "medium"),
                 "requires_proxy": getattr(plugin, "requires_proxy", False),
                 "requires_captcha": getattr(plugin, "requires_captcha", False),

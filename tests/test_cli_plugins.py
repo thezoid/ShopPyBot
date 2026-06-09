@@ -74,6 +74,28 @@ def test_plugins_list_empty(capsys, tmp_data_dir):
     assert "No plugins loaded." in out
 
 
+def test_plugins_list_string_domain_patterns_not_char_split(capsys, tmp_data_dir):
+    """A plugin with domain_patterns as a bare string renders as one entry, not char-split."""
+    from core.service import main
+
+    row_with_string = {
+        "name": "StringDomainPlugin",
+        "domain_patterns": "amazon.com",
+        "difficulty": "medium",
+        "requires_proxy": False,
+        "requires_captcha": False,
+    }
+    mock_svc = MagicMock()
+    mock_svc.list_plugins.return_value = [row_with_string]
+    with patch("core.service.BotService", return_value=mock_svc):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["plugins", "list"])
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "amazon.com" in out
+    assert "a, m, a, z, o, n" not in out
+
+
 def test_plugins_list_no_network(capsys, tmp_data_dir):
     """main(["plugins","list"]) makes no socket connections (no network call)."""
     from core.service import main

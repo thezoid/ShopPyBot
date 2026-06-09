@@ -1,10 +1,9 @@
 """handle_plugins_list: CLI plugins subcommand handler.
 
-Imports only json, sys, and BotService -- never core.registry (MOD-02).
+Imports only json and BotService -- never core.registry (MOD-02).
 """
 
 import json
-import sys
 
 from core.service import BotService
 
@@ -23,7 +22,11 @@ def _format_plugins_table(rows: list) -> str:
     data = [
         (
             r["name"],
-            ", ".join(r["domain_patterns"]),
+            ", ".join(
+                [r["domain_patterns"]]
+                if isinstance(r["domain_patterns"], str)
+                else list(r["domain_patterns"] or [])
+            ),
             r["difficulty"],
             str(r["requires_proxy"]),
             str(r["requires_captcha"]),
