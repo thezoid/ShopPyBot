@@ -48,7 +48,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 - [x] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping
  (completed 2026-06-09)
 
-- [ ] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap
+- [x] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap (completed 2026-06-09)
 - [ ] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs
 - [ ] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command
 - [ ] **Phase 17: Test Hardening** — Unit and integration coverage for all v3.0 features (proxy config, CAPTCHA flow, price monitoring schema and threshold logic, plugin ABC additions)
@@ -118,7 +118,7 @@ Plans:
 
 - [x] 14-01-PLAN.md — Foundation: TWOCAPTCHA_API_KEY in SECRET_KEYS, CaptchaConfig, CaptchaSolver 2captcha v1 client (submit/poll/balance/cap)
 - [x] 14-02-PLAN.md — Wiring: solver constructed fresh in async_main + startup balance check + registry.assign_solver (mirrors ProxyPool)
-- [ ] 14-03-PLAN.md — Plugin solve path: Amazon + BestBuy reCAPTCHA solve under run_in_executor+timeout(120) with manual-pause fallback; WAF deferred
+- [x] 14-03-PLAN.md — Plugin solve path: Amazon + BestBuy reCAPTCHA solve under run_in_executor+timeout(120) with manual-pause fallback; WAF deferred
 
 ### Phase 15: Plugin Ecosystem Registry
 
@@ -183,7 +183,7 @@ Plans:
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 2/3 | In Progress|  |
+| 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete   | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
