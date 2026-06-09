@@ -73,6 +73,29 @@ class BotService:
         """Return all DB rows as plain tuples (no bot start required)."""
         return get_items_sync()
 
+    def list_plugins(self) -> list[dict]:
+        """Return one dict per discovered plugin from _all_plugins.
+
+        Reads registry._all_plugins (eager, no browser, no network).
+        Never reads _active_plugins (empty until setup_for_items runs).
+        Returns dicts with keys: name, domain_patterns, difficulty,
+        requires_proxy, requires_captcha.
+        """
+        from core.registry import PluginRegistry
+
+        plugins_dir = Path(__file__).parent.parent / "plugins"
+        registry = PluginRegistry(self._cfg, plugins_dir)
+        return [
+            {
+                "name": type(plugin).__name__,
+                "domain_patterns": plugin.domain_patterns,
+                "difficulty": getattr(plugin, "difficulty", "medium"),
+                "requires_proxy": getattr(plugin, "requires_proxy", False),
+                "requires_captcha": getattr(plugin, "requires_captcha", False),
+            }
+            for plugin in registry._all_plugins
+        ]
+
     # ------------------------------------------------------------------
     # Item CRUD -- delegate to models single source of truth
     # ------------------------------------------------------------------
