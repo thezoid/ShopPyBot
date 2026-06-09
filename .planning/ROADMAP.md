@@ -44,7 +44,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 
 ### v3.0 Resilience + Ecosystem (Phases 12-17)
 
-- [ ] **Phase 12: Stability Foundation** — Close v2.0 deferred cross-OS checks and resolve 4 audit tech-debt items to establish a clean test baseline before adding new features
+- [x] **Phase 12: Stability Foundation** — Close v2.0 deferred cross-OS checks and resolve 4 audit tech-debt items to establish a clean test baseline before adding new features (completed 2026-06-09)
 - [ ] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping
 - [ ] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap
 - [ ] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs
@@ -73,7 +73,7 @@ Plans:
 - [x] 12-01-PLAN.md — TD-1: re-anchor logger logging_level read to core.paths.config_path() + regression test
 - [x] 12-02-PLAN.md — TD-2/TD-3: harden SC1 secret-read guard (rglob) and separator guard (__file__-anchored)
 - [x] 12-03-PLAN.md — TD-4 config write-seam regression test + accepted MOD-02 gap doc; MC-4 0.0.0.0 banner assertion
-- [ ] 12-04-PLAN.md — Execute and document MC-1..MC-4 deferred manual checks in docs/PLATFORMS.md
+- [x] 12-04-PLAN.md — Execute and document MC-1..MC-4 deferred manual checks in docs/PLATFORMS.md
 
 ### Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy
 
@@ -166,7 +166,7 @@ Plans:
 | 9. CLI Front-End | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
-| 12. Stability Foundation | v3.0 | 3/4 | In Progress|  |
+| 12. Stability Foundation | v3.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/TBD | Not started | - |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |

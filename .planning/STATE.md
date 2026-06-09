@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: executing
-last_updated: "2026-06-09T05:20:12.669Z"
+status: verifying
+last_updated: "2026-06-09T05:26:57.792Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 17
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 12 (stability-foundation) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-09
 
 ## Phase Status
@@ -110,6 +110,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
 | Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
 | Phase 12 P03 | 4min | - tasks | - files |
+| Phase 12 P04 | 5min | 2 tasks | 1 files |
 
 ## Session Continuity
 
@@ -233,6 +234,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: TD-3 closed: Separator guard anchored to Path(__file__).parent.parent with len(src_files)>0 guard; silent empty-list false-pass eliminated
 - [Phase ?]: [Phase 12-03]: TD-4 config seam accepted under MOD-02 -- write_web_config writes directly to _DEFAULT_YAML_PATH; BotService scope covers DB/registry/orchestrator only; WEB_ALLOWLIST is the safety boundary
 - [Phase ?]: [Phase 12-03]: MC-4 is_non_local banner gate proven both ways -- banner present when is_non_local=True, absent when is_non_local=False (Jinja2 conditional enforced in CI)
+- [Phase 12-04]: MC-1..MC-4 Windows variants recorded PENDING in docs/PLATFORMS.md (non-interactive agent env, no real TTY/restart cycle); MC-4 CI-asserted by tests/test_web_dashboard.py Plan 12-03; Ubuntu variants pending Ubuntu access
 
 ## Operator Next Steps
 
