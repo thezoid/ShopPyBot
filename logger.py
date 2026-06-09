@@ -5,13 +5,14 @@ from pathlib import Path
 from colorama import Fore, Style
 import yaml
 
-# Resolve config.yml relative to this file's location (repo root), not CWD.
-# Prevents divergence when logger is imported from a test that changes CWD (WR-04).
+# Retained for tooling inspection only.  The live read now uses core.paths.config_path()
+# (re-anchored in Phase 12-01 to honour the migrated config location).
 _CONFIG_PATH: Path = Path(__file__).parent / "config.yml"
 
 def _load_logging_level() -> int:
+    from core.paths import config_path as _config_path  # lazy: avoids circular import
     try:
-        with open(_CONFIG_PATH, 'r') as file:
+        with open(_config_path(), 'r') as file:
             settings = yaml.safe_load(file)
         return int(settings.get('debug', {}).get('logging_level', 5))
     except (FileNotFoundError, KeyError, TypeError, ValueError):
