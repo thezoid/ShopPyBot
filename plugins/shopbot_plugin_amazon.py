@@ -65,7 +65,7 @@ class AmazonPlugin(RetailerPlugin):
                 headless = getattr(platform_cfg, "headless", True)
 
         proxy = getattr(self, "_proxy", None)
-        browser_args = build_proxy_browser_args(proxy) or None
+        browser_args = build_proxy_browser_args(proxy)   # WR-02: returns [] or [...]; never None
         self.driver = await nodriver.start(headless=headless, browser_args=browser_args)
 
         # ANTI-08: apply stealth BEFORE first navigation (Pitfall 8).
@@ -111,11 +111,7 @@ class AmazonPlugin(RetailerPlugin):
                 body_text = await tab.evaluate("document.body.innerText") or ""
             except Exception:
                 pass
-            if _is_ban_response(0, body_text):
-                proxy = getattr(self, "_proxy", None)
-                pool = getattr(self, "_pool", None)
-                if proxy and pool:
-                    pool.record_failure(proxy)
+            if self._handle_ban(body_text):
                 return False
 
             writeLog("Waiting for add-to-cart or buy-now button", "DEBUG")

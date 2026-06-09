@@ -85,6 +85,8 @@ def fake_browser():
     fake_tab.select = AsyncMock(return_value=fake_element)
     fake_tab.select_all = AsyncMock(return_value=[fake_element])
     fake_tab.find = AsyncMock(return_value=fake_element)
+    # CR-02: ban detection calls tab.evaluate; return benign text so existing tests pass.
+    fake_tab.evaluate = AsyncMock(return_value="normal page content")
     fake_tab.main_tab = fake_tab
 
     browser = MagicMock()

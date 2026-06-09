@@ -90,6 +90,14 @@ class NeweggPlugin(RetailerPlugin):
         writeLog(f"Checking NewEgg availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             # TODO: verify selectors against live newegg.com
             # NewEgg known "Add to Cart" button (ASSUMED -- no authoritative selector source):
             add_to_cart = await tab.select(".btn-primary.btn-wide", timeout=10)

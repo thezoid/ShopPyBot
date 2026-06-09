@@ -92,6 +92,14 @@ class SquareEnixPlugin(RetailerPlugin):
         writeLog(f"Checking Square Enix availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             # TODO: verify selectors against live na.store.square-enix-games.com
             # Generic e-commerce add-to-cart pattern (ASSUMED -- no authoritative source):
             add_to_cart = await tab.select('[name="add-to-cart"]', timeout=10)

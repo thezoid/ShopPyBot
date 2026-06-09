@@ -89,6 +89,14 @@ class WalmartPlugin(RetailerPlugin):
         writeLog(f"Checking Walmart availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             # TODO: verify selectors against live walmart.com
             # Reported "Add to Cart" button on Walmart product pages (ASSUMED):
             add_to_cart = await tab.select('[data-testid="add-to-cart-btn"]', timeout=10)

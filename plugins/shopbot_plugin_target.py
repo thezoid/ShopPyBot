@@ -91,6 +91,14 @@ class TargetPlugin(RetailerPlugin):
         writeLog(f"Checking Target availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             # TODO: verify selectors against live target.com
             # Reported "Add to Cart" button on Target product pages (ASSUMED):
             add_to_cart = await tab.select('[data-test="shipItButton"]', timeout=10)

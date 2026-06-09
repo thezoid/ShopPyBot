@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from core.stealth import _is_ban_response
+
 PLUGIN_API_VERSION = 2  # bumped from 1; v1 subclasses are not compatible
 
 class RetailerPlugin(ABC):
@@ -15,6 +17,20 @@ class RetailerPlugin(ABC):
         self.config = config   # typed AppConfig passed by registry
         self.driver = None     # set by setup(); never in __init__ (nodriver constraint:
                                # Browser.__init__ raises RuntimeError with no running loop)
+
+    def _handle_ban(self, body_text: str) -> bool:
+        """Check body_text for ban signals and record proxy failure if banned (CR-02).
+
+        Returns True if the response is a ban page so the caller can return False early.
+        Reads self._proxy and self._pool if set; safe to call when proxy is disabled.
+        """
+        if not _is_ban_response(0, body_text):
+            return False
+        proxy = getattr(self, "_proxy", None)
+        pool = getattr(self, "_pool", None)
+        if proxy and pool:
+            pool.record_failure(proxy)
+        return True
 
     async def setup(self) -> None:
         """Build the nodriver Browser. Registry awaits this after construction."""

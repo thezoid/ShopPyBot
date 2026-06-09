@@ -50,7 +50,7 @@ class BestBuyPlugin(RetailerPlugin):
                 headless = getattr(platform_cfg, "headless", True)
 
         proxy = getattr(self, "_proxy", None)
-        browser_args = build_proxy_browser_args(proxy) or None
+        browser_args = build_proxy_browser_args(proxy)   # WR-02: returns [] or [...]; never None
         self.driver = await nodriver.start(headless=headless, browser_args=browser_args)
 
         # ANTI-08: apply stealth BEFORE first navigation (Pitfall 8).
@@ -72,6 +72,14 @@ class BestBuyPlugin(RetailerPlugin):
         writeLog(f"Checking BestBuy availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             writeLog("Waiting for add-to-cart button", "DEBUG")
             add_to_cart = await tab.select(".add-to-cart-button", timeout=10)
             if add_to_cart:

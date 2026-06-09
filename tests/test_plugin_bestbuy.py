@@ -163,6 +163,39 @@ async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
 
 
 # ---------------------------------------------------------------------------
+# CR-02 regression: ban page triggers record_failure on proxy pool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_check_availability_ban_page_triggers_record_failure(fake_browser):
+    """CR-02 regression: a ban-phrase body causes check_availability to return False
+    and call pool.record_failure(proxy) so the proxy rotates away.
+
+    Pre-fix, BestBuy had no ban scan and silently returned False without
+    rotating the proxy; a banned proxy would be used indefinitely.
+    """
+    from unittest.mock import MagicMock
+
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+
+    # Attach a mock proxy and pool so record_failure can be asserted.
+    mock_proxy = MagicMock()
+    mock_pool = MagicMock()
+    plugin._proxy = mock_proxy
+    plugin._pool = mock_pool
+
+    # Fake tab returns a ban-phrase body.
+    fake_browser.get.return_value.evaluate = AsyncMock(return_value="Access Denied")
+
+    result = await plugin.check_availability("https://www.bestbuy.com/site/test/9999.p")
+
+    assert result is False, "Ban page must return False"
+    mock_pool.record_failure.assert_called_once_with(mock_proxy)
+
+
+# ---------------------------------------------------------------------------
 # SC3: setup() reads config.platforms.bestbuy.headless (Task 3)
 # ---------------------------------------------------------------------------
 

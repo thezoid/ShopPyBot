@@ -91,6 +91,14 @@ class GameStopPlugin(RetailerPlugin):
         writeLog(f"Checking GameStop availability: {url}", "DEBUG")
         try:
             tab = await self.driver.get(url)
+            # ANTI-05 / CR-02: scan for ban page before checking availability selectors.
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if self._handle_ban(body_text):
+                return False
             # TODO: verify selectors against live gamestop.com
             # GameStop uses "Add to Cart", "Pre-Order" button states (ASSUMED):
             add_to_cart = await tab.select('[value="Add to Cart"]', timeout=10)
