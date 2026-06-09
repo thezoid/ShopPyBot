@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-09T19:45:01.589Z"
+last_updated: "2026-06-09T19:59:20.263Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 33
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 14 (anti-detection-layer-2-captcha-solving) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-09
 
@@ -115,6 +115,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 12 P04 | 5min | 2 tasks | 1 files |
 | Phase 13 P03 | 13min | 3 tasks | 11 files |
 | Phase 14 P01 | 10min | 2 tasks | 7 files |
+| Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
 
 ## Session Continuity
 
@@ -248,6 +249,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 13-03]: Per-instance proxy scoping via registry.assign_proxy; conftest mock_nodriver_start gets AsyncMock on main_tab.send for apply_stealth compatibility
 - [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
 - [Phase 14-01]: TWOCAPTCHA_API_KEY is 20th SECRET_KEY; solve_count increments before network calls so cap is respected even when call raises
+- [Phase ?]: _build_captcha_solver helper extracted; assign_solver mirrors assign_proxy; BotService logging.getLogger for caplog-testable CAPTCHA startup log
 
 ## Operator Next Steps
 

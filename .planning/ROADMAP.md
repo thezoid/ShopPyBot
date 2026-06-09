@@ -117,7 +117,7 @@ Plans:
 Plans:
 
 - [x] 14-01-PLAN.md — Foundation: TWOCAPTCHA_API_KEY in SECRET_KEYS, CaptchaConfig, CaptchaSolver 2captcha v1 client (submit/poll/balance/cap)
-- [ ] 14-02-PLAN.md — Wiring: solver constructed fresh in async_main + startup balance check + registry.assign_solver (mirrors ProxyPool)
+- [x] 14-02-PLAN.md — Wiring: solver constructed fresh in async_main + startup balance check + registry.assign_solver (mirrors ProxyPool)
 - [ ] 14-03-PLAN.md — Plugin solve path: Amazon + BestBuy reCAPTCHA solve under run_in_executor+timeout(120) with manual-pause fallback; WAF deferred
 
 ### Phase 15: Plugin Ecosystem Registry
@@ -183,7 +183,7 @@ Plans:
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 1/3 | In Progress|  |
+| 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 2/3 | In Progress|  |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
