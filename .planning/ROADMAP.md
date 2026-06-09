@@ -88,7 +88,12 @@ Plans:
   4. WebRTC Chrome preferences are set at browser launch to prevent real-IP leaks through the proxy tunnel
   5. Each proxy is scoped to its plugin instance (`self._proxy`) and rotated only at browser restart, not mid-session
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — core/stealth.py: STEALTH_JS + apply_stealth, ProxyPool (round-robin/retire/cooldown), proxy launch args + WebRTC flag, CDP Fetch auth, ban-signal detector (+ unit tests)
+- [ ] 13-02-PLAN.md — ProxyConfig schema (opt-in, disabled by default) + documented sample.config.yml proxy section
+- [ ] 13-03-PLAN.md — Wire stealth + proxy into BotService/orchestrator/registry and all 8 plugins; per-instance scoping, exact startup log, fail-loud on pool exhaustion, ban-detect recording
 **UI hint**: no
 
 ### Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving
@@ -167,7 +172,7 @@ Plans:
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
-| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/TBD | Not started | - |
+| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/3 | Planned | - |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
@@ -177,4 +182,4 @@ All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phase
 
 ---
 
-*Last updated: 2026-06-09 — Phase 12 planned (4 plans)*
+*Last updated: 2026-06-09 — Phase 13 planned (3 plans)*
