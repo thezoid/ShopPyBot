@@ -5,7 +5,7 @@ Exposes:
     EnvVarBackend        -- identity fallback; reads os.environ (CRED-04)
     KeyringBackend       -- OS secret service via keyring lib (CRED-02)
     EncryptedFileBackend -- Fernet + scrypt encrypted file (CRED-03)
-    SECRET_KEYS          -- 19 canonical secret key names (CRED-01)
+    SECRET_KEYS          -- 20 canonical secret key names (CRED-01)
     get_store()          -- returns process-wide store; lazy-falls-back to EnvVarBackend
     init_store(cfg)      -- called once at startup to set the process-wide store
 
@@ -42,7 +42,7 @@ from core.paths import data_dir as _paths_data_dir
 _DEFAULT_STORE_PATH: Path = _paths_data_dir() / "creds.bin"
 
 # ---------------------------------------------------------------------------
-# 19 canonical secret key names (CRED-01 -- mirrors existing os.environ call sites)
+# 20 canonical secret key names (CRED-01 -- mirrors existing os.environ call sites)
 # ---------------------------------------------------------------------------
 SECRET_KEYS: list[str] = [
     # Notifications

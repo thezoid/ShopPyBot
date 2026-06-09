@@ -93,10 +93,10 @@ def test_get_store_lazy_fallback(reset_credential_store):
 
 
 def test_secret_keys_canonical():
-    """SECRET_KEYS contains all 19 canonical names with no duplicates."""
+    """SECRET_KEYS contains all 20 canonical names with no duplicates."""
     from core.credentials import SECRET_KEYS
 
-    assert len(SECRET_KEYS) == 19
+    assert len(SECRET_KEYS) == 20
     assert len(SECRET_KEYS) == len(set(SECRET_KEYS)), "Duplicate keys in SECRET_KEYS"
     # Spot-check boundaries
     assert "DISCORD_WEBHOOK_URL" in SECRET_KEYS
