@@ -62,6 +62,13 @@ def write_web_config(key: str, value: str) -> None:
 
     Raises KeyError if the key is not in WEB_ALLOWLIST.
     Raises ValueError on type coercion failure.
+
+    MOD-02 accepted design gap (TD-4, v2.0 audit):
+    This function writes config directly to _DEFAULT_YAML_PATH rather than routing through
+    a BotService write API. This is an accepted gap within the letter of MOD-02 (BotService
+    is scoped to DB/registry/orchestrator operations, not arbitrary config file writes).
+    The WEB_ALLOWLIST key gate provides the safety boundary. A regression test in
+    tests/test_web_config.py documents and enforces this direct write seam (TD-4 config).
     """
     entry = WEB_ALLOWLIST[key]  # KeyError if unknown
     section = entry[0]

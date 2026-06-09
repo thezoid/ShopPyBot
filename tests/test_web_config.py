@@ -65,6 +65,27 @@ def test_post_config_unknown_key_returns_422(client):
     assert resp.status_code == 422
 
 
+def test_write_web_config_config_seam_direct_write_accepted_mod02_gap(tmp_path):
+    """TD-4 regression: write_web_config writes directly to _DEFAULT_YAML_PATH (accepted MOD-02 gap).
+
+    Documents the accepted design decision that config writes bypass BotService and write
+    atomically to _DEFAULT_YAML_PATH. The WEB_ALLOWLIST key gate is the safety boundary.
+    This test enforces the direct write seam so any future refactor that silently breaks
+    it is caught. (v2.0 audit TD-4, config seam.)
+    """
+    import yaml
+    from web.config_web import write_web_config
+
+    cfg_path = tmp_path / "config.yml"
+    cfg_path.write_text("debug:\n  logging_level: 5\n", encoding="utf-8")
+
+    with patch("web.config_web._DEFAULT_YAML_PATH", cfg_path):
+        write_web_config("logging_level", "3")
+
+    data = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert data["debug"]["logging_level"] == 3
+
+
 def test_sound_write_produces_scalar_bool_yaml(tmp_path):
     """write_web_config('notifications.sound', 'false') writes a scalar bool (CR-02).
 
