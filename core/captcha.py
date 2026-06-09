@@ -9,6 +9,7 @@ Security invariant: self._api_key is NEVER logged or embedded in str(exc).
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -67,7 +68,7 @@ def _poll_result(api_key: str, captcha_id: str) -> str:
         result = str(body.get("request", ""))
         if status == 1:
             return result
-        if result != "CAPCHA_NOT_READY":
+        if result != "CAPTCHA_NOT_READY":   # two T's; matches 2captcha API response
             raise RuntimeError(f"2captcha poll error: {result}")
         time.sleep(_POLL_INTERVAL_SECS)
     raise TimeoutError("2captcha: exceeded max polls")
@@ -173,6 +174,8 @@ class CaptchaSolver:
         NOTE: Amazon WAF auto-injection is deferred (CONTEXT.md); this method
         is the future API contract. Call only behind a manual-pause fallback.
         """
+        if not self.can_solve():
+            raise RuntimeError("solve_amazon_waf called when can_solve() is False")
         self._solve_count += 1
         resp = requests.post(
             _SUBMIT_URL,
@@ -194,8 +197,7 @@ class CaptchaSolver:
         captcha_id = str(body["request"])
         token_str = _poll_result(self._api_key, captcha_id)
         # 2captcha returns JSON string for AmazonTask; decode defensively
-        import json as _json
         try:
-            return _json.loads(token_str)
+            return json.loads(token_str)
         except Exception:
             return {"captcha_voucher": token_str, "existing_token": ""}

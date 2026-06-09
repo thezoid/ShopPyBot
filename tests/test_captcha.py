@@ -66,7 +66,7 @@ def test_solve_recaptcha_success():
     submit_resp.json.return_value = {"status": 1, "request": "captcha-id-99"}
 
     not_ready_resp = MagicMock()
-    not_ready_resp.json.return_value = {"status": 0, "request": "CAPCHA_NOT_READY"}
+    not_ready_resp.json.return_value = {"status": 0, "request": "CAPTCHA_NOT_READY"}
 
     ready_resp = MagicMock()
     ready_resp.json.return_value = {"status": 1, "request": "solved-token-abc"}
@@ -243,3 +243,82 @@ def test_exception_logs_class_name_only(caplog):
         )
     # Class name must appear
     assert any("ConnectionError" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# CR-01 regression: CAPTCHA_NOT_READY (correct spelling) continues polling
+# ---------------------------------------------------------------------------
+
+def test_captcha_not_ready_continues_polling():
+    """CAPTCHA_NOT_READY response is treated as keep-polling; eventual OK returns token."""
+    from core.captcha import CaptchaSolver
+
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "captcha-id-cr01"}
+
+    not_ready_resp = MagicMock()
+    not_ready_resp.json.return_value = {"status": 0, "request": "CAPTCHA_NOT_READY"}
+
+    ready_resp = MagicMock()
+    ready_resp.json.return_value = {"status": 1, "request": "token-cr01-success"}
+
+    solver = CaptchaSolver("key", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        # First two polls return not-ready; third returns token
+        mock_req.get.side_effect = [not_ready_resp, not_ready_resp, ready_resp]
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            token = solver.solve_recaptcha("site-key", "https://example.com")
+
+    assert token == "token-cr01-success"
+    assert solver._solve_count == 1
+
+
+def test_captcha_not_ready_no_runtime_error():
+    """CAPTCHA_NOT_READY must never raise RuntimeError (regression for CR-01 typo)."""
+    from core.captcha import CaptchaSolver
+
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "captcha-id-guard"}
+
+    not_ready_resp = MagicMock()
+    not_ready_resp.json.return_value = {"status": 0, "request": "CAPTCHA_NOT_READY"}
+
+    ready_resp = MagicMock()
+    ready_resp.json.return_value = {"status": 1, "request": "token-guard-ok"}
+
+    solver = CaptchaSolver("key", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        mock_req.get.side_effect = [not_ready_resp, ready_resp]
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            # Must not raise -- if CR-01 typo were present this would RuntimeError
+            token = solver.solve_recaptcha("site-key", "https://example.com")
+
+    assert token == "token-guard-ok"
+
+
+# ---------------------------------------------------------------------------
+# WR-02 regression: solve_amazon_waf respects can_solve() guard
+# ---------------------------------------------------------------------------
+
+def test_solve_amazon_waf_blocked_when_cannot_solve():
+    """solve_amazon_waf raises RuntimeError when can_solve() is False (WR-02)."""
+    from core.captcha import CaptchaSolver
+    solver = CaptchaSolver("key", max_solves=1, low_threshold=1.0)
+    solver._solve_count = 1  # cap reached
+    with pytest.raises(RuntimeError, match="can_solve"):
+        solver.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
+
+
+def test_solve_amazon_waf_blocked_when_balance_not_ok():
+    """solve_amazon_waf raises RuntimeError when balance_ok is False (WR-02)."""
+    from core.captcha import CaptchaSolver
+    solver = CaptchaSolver("key", max_solves=10, low_threshold=1.0)
+    solver.balance_ok = False
+    with pytest.raises(RuntimeError, match="can_solve"):
+        solver.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
