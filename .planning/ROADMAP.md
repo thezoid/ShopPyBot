@@ -174,7 +174,7 @@ Plans:
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
-| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete   | 2026-06-09 |
+| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
