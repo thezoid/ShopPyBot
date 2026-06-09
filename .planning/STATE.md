@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: planning
-last_updated: "2026-06-07T00:00:00.000Z"
-last_activity: 2026-06-07
+status: executing
+last_updated: "2026-06-09T04:59:15.056Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
   percent: 0
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap defined)
-Plan: —
-Status: Roadmap created; ready for Phase 12 planning
-Last activity: 2026-06-07 — v3.0 roadmap created
+Phase: 12 (stability-foundation) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-06-09
 
 ## Phase Status
 
@@ -107,6 +107,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | uat | Phase 01 — 01-UAT.md | partial (0 pending) |
 
 ---
+| Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
 
 ## Session Continuity
 
@@ -224,6 +225,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
 - [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
 - [Phase ?]: [Phase 11-04]: items list smoke pre-initializes DB via initialize_db() -- BotService.__init__ only calls init_store(), not initialize_db()
+- [Phase ?]: Option A (lazy import inside _load_logging_level) chosen over Option B (delete _CONFIG_PATH) to retain the constant for tooling inspection
+- [Phase ?]: [Phase 12-01]: TD-1 test isolation via finally-block reload: both tests restore logger to original import-time state to prevent _LOGGING_LEVEL bleed
 
 ## Operator Next Steps
 

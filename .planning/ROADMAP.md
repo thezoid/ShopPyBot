@@ -56,78 +56,97 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 ## Phase Details
 
 ### Phase 12: Stability Foundation
+
 **Goal**: The v2.0 deferred debt and audit tech-debt are paid down before new features land, so the test suite is a reliable baseline
 **Depends on**: Nothing — do first
 **Requirements**: STAB-01, STAB-02
 **Success Criteria** (what must be TRUE):
+
   1. All 4 deferred v2.0 cross-OS/UI manual checks (keyring restart survival, masked-TTY passphrase prompt, web dashboard render on Ubuntu, `0.0.0.0` bind warning) are executed and documented pass or fail, with any failures fixed
   2. Each of the 4 v2.0 audit tech-debt items has a targeted regression test that passes in CI
   3. No broad refactors occur: only the specific items in scope are changed
+
 **Plans**: 4 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — TD-1: re-anchor logger logging_level read to core.paths.config_path() + regression test
+
+- [x] 12-01-PLAN.md — TD-1: re-anchor logger logging_level read to core.paths.config_path() + regression test
 - [ ] 12-02-PLAN.md — TD-2/TD-3: harden SC1 secret-read guard (rglob) and separator guard (__file__-anchored)
 - [ ] 12-03-PLAN.md — TD-4 config write-seam regression test + accepted MOD-02 gap doc; MC-4 0.0.0.0 banner assertion
 - [ ] 12-04-PLAN.md — Execute and document MC-1..MC-4 deferred manual checks in docs/PLATFORMS.md
 
 ### Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy
+
 **Goal**: Users can enable proxy rotation and the bot applies a JS fingerprint stealth patch at browser startup, measurably reducing Layer 2 bot signals
 **Depends on**: Phase 12
 **Requirements**: ANTI-08, ANTI-04, ANTI-05
 **Success Criteria** (what must be TRUE):
+
   1. Bot applies `window.chrome`, `navigator.plugins`, `navigator.languages`, and screen-dimension patches via `core/stealth.py` at every browser startup with no plugin ABC version bump
   2. User can enable proxy rotation via an opt-in `proxy:` config section (disabled by default) listing `scheme://host:port` URLs; bot logs "Proxy rotation: enabled, pool_size=N" at startup
   3. Bot detects ban signals (HTTP 403/429/503, challenge-redirect, block-phrase body) and rotates to the next proxy, retiring a proxy after N consecutive failures for a configurable cooldown period
   4. WebRTC Chrome preferences are set at browser launch to prevent real-IP leaks through the proxy tunnel
   5. Each proxy is scoped to its plugin instance (`self._proxy`) and rotated only at browser restart, not mid-session
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving
+
 **Goal**: Users who encounter reCAPTCHA v2 or Amazon WAF CAPTCHAs can opt into automated solving via 2captcha with full cost visibility and no credential plaintext exposure
 **Depends on**: Phase 13 (fingerprint + proxy layer in place before adding CAPTCHA layer)
 **Requirements**: ANTI-06, ANTI-07
 **Success Criteria** (what must be TRUE):
+
   1. User can enable CAPTCHA solving via `captcha_solver.enabled: true` in config; the 2captcha API key is stored exclusively in CredentialStore (`TWOCAPTCHA_API_KEY`), never in config.yml
   2. Bot checks 2captcha account balance at startup, logs a WARNING when balance is low, and skips solver use (falling back to manual pause) when balance is zero
   3. CAPTCHA solve calls use `run_in_executor` + `asyncio.timeout(120)` so other plugin poll tasks are not blocked during a solve
   4. A configurable `captcha.max_solves_per_run` limit prevents unbounded API charges; default config disables CAPTCHA solving
+
 **Plans**: TBD
 
 ### Phase 15: Plugin Ecosystem Registry
+
 **Goal**: Community contributors have a discoverable registry with clear difficulty ratings, and users can inspect loaded plugins locally without a network call
 **Depends on**: Phase 12
 **Requirements**: REG-01, REG-02, REG-03, REG-04
 **Success Criteria** (what must be TRUE):
+
   1. Plugin authors can declare `difficulty`, `requires_proxy`, and `requires_captcha` as class attributes on any plugin; existing plugins without these attrs continue to load with sensible defaults (non-breaking)
   2. The GitHub wiki registry table contains required fields for each community plugin: name, platform, domain patterns, maintainer, anti-detection difficulty, methods implemented, last-verified date, proxy-required, captcha-required
   3. Running `shoppybot plugins list` displays all locally loaded plugins with their declared domain patterns, difficulty, and proxy/captcha flags without making a network call
   4. CONTRIBUTING.md and the PR template require contributors to supply `difficulty`, `requires_proxy`, and `requires_captcha` for new plugin submissions
+
 **Plans**: TBD
 
 ### Phase 16: Price Monitoring
+
 **Goal**: Users can track per-item prices, receive fan-out alerts when prices drop to target or by a configured percentage, and inspect price history from the CLI
 **Depends on**: Phase 12
 **Requirements**: PRICE-01, PRICE-02, PRICE-03, PRICE-04, PRICE-05, PRICE-06
 **Success Criteria** (what must be TRUE):
+
   1. User can set `target_price` (absolute) and `price_drop_pct` (percentage) per item in config; NULL/absent means price monitoring is off for that item
   2. Bot records scraped prices in an append-only `price_history` SQLite table each poll cycle via an optional `get_price()` plugin ABC hook (default returns `None`); the DB migration is idempotent on existing installs
   3. Price-drop alerts are dispatched through the existing fan-out notification dispatcher using a distinct `price_drop` notification_type with dedup columns separate from stock alert columns
   4. Price alert payloads include the current price, target price, and percentage from target
   5. Running `shoppybot items price-history <name>` displays the last N recorded prices for that item
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 17: Test Hardening
+
 **Goal**: Every new v3.0 feature has unit and integration coverage so regressions are caught by CI before they reach users
 **Depends on**: Phases 13, 14, 15, 16 (tests validate the implemented features)
 **Requirements**: STAB-03
 **Success Criteria** (what must be TRUE):
+
   1. Unit tests cover proxy config parsing, ban-signal detection logic, per-instance proxy scoping, and cooldown/retire logic
   2. Unit tests cover CAPTCHA config parsing, balance-check behavior, executor wrapping, and spend-cap enforcement
   3. Unit tests cover price comparison threshold logic, `price_history` DB schema (including idempotent migration against a v2.0 DB fixture), and price-drop dedup separation from stock-alert dedup
   4. Integration tests cover the plugin ABC additions (`difficulty`, `requires_proxy`, `requires_captcha` defaults and overrides) and the `get_price()` hook being called alongside `check_availability`
+
 **Plans**: TBD
 
 ---
@@ -147,7 +166,7 @@ Plans:
 | 9. CLI Front-End | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
-| 12. Stability Foundation | v3.0 | 0/4 | Not started | - |
+| 12. Stability Foundation | v3.0 | 1/4 | In Progress|  |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/TBD | Not started | - |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
