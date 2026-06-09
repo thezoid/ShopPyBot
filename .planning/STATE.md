@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: completed
-last_updated: "2026-06-09T22:21:03.273Z"
+status: executing
+last_updated: "2026-06-09T23:28:40.476Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 17
+  completed_plans: 14
   percent: 67
 ---
 
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
-Status: Phase 15 complete
+Phase: 16 (price-monitoring) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-09
 
 ## Phase Status
@@ -120,6 +120,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
 | Phase 15-plugin-ecosystem-registry P02 | 12min | 3 tasks | 4 files |
 | Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
+| Phase 16-price-monitoring P01 | 5min | 2 tasks | 3 files |
 
 ## Session Continuity
 
@@ -263,6 +264,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 15-03]: PR template Risk Declaration section replaced with Plugin Metadata section (difficulty/requires_proxy/requires_captcha); no duplicate risk section
 - [Phase 15-03]: PLUGIN_DEV.md ABC table column header updated to "Method / Attribute" to accommodate class-attr rows alongside method rows
 - [Phase 15-03]: tests/test_docs.py added with 4 doc-presence tests using Path(__file__).parent.parent as repo root; pattern available for future doc locking
+- [Phase ?]: Separate-update strategy: update_item_price_config_sync is standalone; add_items_sync 5-tuple unchanged
+- [Phase ?]: price_alert_armed/price_last_notified dedup columns strictly isolated from last_seen_available/last_notified (Pitfall 1 mitigated)
+- [Phase ?]: get_last_price_sync reads price_history newest-first; orchestrator must read BEFORE append to get previous price for drop trigger
 
 ## Operator Next Steps
 
