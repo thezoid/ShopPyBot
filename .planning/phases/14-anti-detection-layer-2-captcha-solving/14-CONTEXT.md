@@ -15,7 +15,7 @@ Add opt-in automated CAPTCHA solving (reCAPTCHA v2 and Amazon WAF) via the 2capt
 
 ### 2captcha Integration
 - Hand-rolled client using the already-pinned `requests==2.33.1` (NO new dependency). The 2captcha submit/poll protocol runs inside `run_in_executor` with `asyncio.timeout(120)` so other plugin poll tasks are not blocked during a solve (success criterion 3).
-- Supports reCAPTCHA v2 and Amazon WAF CAPTCHA solving.
+- **Automated solve scope (user decision 2026-06-09): reCAPTCHA v2 only this phase.** Amazon WAF auto-solve is DEFERRED to a tracked follow-up because its token-injection path is site-specific and unverified (research LOW-confidence). The WAF path gracefully falls back to the existing manual pause (never a silent skip). A `solve_amazon_waf()` API stub is created as the future contract. ANTI-06 is narrowed accordingly for Phase 14; see `.planning/todos/pending/waf-auto-solve-followup.md`.
 
 ### Credentials & Config
 - The 2captcha API key lives EXCLUSIVELY in CredentialStore under `TWOCAPTCHA_API_KEY` — never in config.yml, never logged.

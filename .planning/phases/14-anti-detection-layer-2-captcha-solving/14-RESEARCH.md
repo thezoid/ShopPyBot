@@ -494,19 +494,22 @@ class CaptchaConfig(BaseModel):
 - `captcha_solver:` config key (from roadmap v3.0 rough notes): replaced by `captcha:` per CONTEXT.md locked decision.
 - `CAPTCHA_API_KEY` name (mentioned in STATE.md Phase 14 research flags): confirmed final name is `TWOCAPTCHA_API_KEY` (more specific; avoids ambiguity with other services).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Amazon WAF CAPTCHA token application path on Amazon.com**
+   - **RESOLVED:** Per user decision (2026-06-09), Amazon WAF auto-solve is DEFERRED to a tracked follow-up. Phase 14 ships reCAPTCHA v2 automated solving; the WAF path (`window.gokuProps` present) gracefully falls back to manual pause. The `solve_amazon_waf()` API stub remains as the future contract. See `.planning/todos/pending/waf-auto-solve-followup.md`.
    - What we know: 2captcha returns `captcha_voucher` and `existing_token`; they may be sent as cookie, header, or POST body depending on the site's WAF integration.
    - What's unclear: Amazon.com's specific injection path for the WAF token is not publicly documented; it requires monitoring the Network tab during a manual solve.
    - Recommendation: Scope Phase 14 to use manual-pause fallback for the Amazon WAF type (window.gokuProps present) and add a `# TODO: Phase 14 WAF token injection` comment. The simpler text CAPTCHA (existing `detect_captcha` path) is the primary solve target. This bounds scope and avoids a fragile injection that will break with WAF updates.
 
 2. **Does BestBuy show reCAPTCHA v2 or another type?**
+   - **RESOLVED:** Wire reCAPTCHA v2 best-effort; empty sitekey → manual pause (covers non-reCAPTCHA challenges). No live BestBuy investigation required.
    - What we know: BestBuy has a `detect_captcha()` no-op default (inherits from ABC); Phase 13 wired proxy but not CAPTCHA for BestBuy.
    - What's unclear: BestBuy may show Akamai or Cloudflare challenge rather than standard reCAPTCHA v2.
    - Recommendation: Wire the reCAPTCHA v2 solve path into BestBuy as a best-effort (sitekey extraction will return empty string if no reCAPTCHA widget present); fall back to manual pause if sitekey is empty. This satisfies ANTI-06 without requiring live BestBuy investigation.
 
 3. **asyncio.timeout availability**
+   - **RESOLVED:** Python 3.13.13 confirmed; `asyncio.timeout(120)` available natively, no shim.
    - What we know: `asyncio.timeout()` is Python 3.11+; the project runs Python 3.13.13 [VERIFIED: python --version].
    - What's unclear: Nothing — 3.13 fully supports it.
    - Recommendation: Use `asyncio.timeout(120)` directly; no `asyncio.wait_for` shim needed.
