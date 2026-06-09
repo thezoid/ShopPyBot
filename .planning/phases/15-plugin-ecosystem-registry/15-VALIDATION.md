@@ -1,9 +1,9 @@
 ---
 phase: 15
 slug: plugin-ecosystem-registry
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-09
 ---
 
@@ -38,17 +38,22 @@ created: 2026-06-09
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 15-01-01 | 01 | 1 | REG-02 | — | additive ABC attrs; existing plugins still load | unit | `python -m pytest tests/test_plugin_attrs.py -q` | ❌ W0 | ⬜ pending |
+| 15-01-01 | 01 | 1 | REG-02 | — | additive ABC attrs; existing plugins load | unit | `python -m pytest tests/test_plugin_base.py -q` | ✅ | ⬜ pending |
+| 15-01-02 | 01 | 1 | REG-02 | — | difficulty validated via __init_subclass__ | unit | `python -m pytest tests/test_plugin_base.py -q` | ✅ | ⬜ pending |
+| 15-03-01 | 03 | 1 | REG-01, REG-04 | — | wiki SPEC doc has all 9 fields | doc-check | `python -c "...docs/PLUGIN_REGISTRY.md field check..."` | ✅ | ⬜ pending |
+| 15-03-02 | 03 | 1 | REG-01, REG-04 | — | CONTRIBUTING/PR/PLUGIN_DEV require new fields | doc-check | `python -c "...token check in 3 docs..."` | ✅ | ⬜ pending |
+| 15-03-03 | 03 | 1 | REG-01, REG-04 | — | docs presence asserted | unit | `python -m pytest tests/test_docs.py -q` | ✅ | ⬜ pending |
+| 15-02-01 | 02 | 2 | REG-03 | — | RED stub (CLI tests) | unit | `python -m pytest tests/test_cli_plugins.py -q \|\| true` | ✅ | ⬜ pending |
+| 15-02-02 | 02 | 2 | REG-03 | — | list_plugins() reads _all_plugins, no network | unit | `python -c "...BotService().list_plugins() assertions..."` | ✅ | ⬜ pending |
+| 15-02-03 | 02 | 2 | REG-03 | — | plugins list table + --json, no network | unit | `python -m pytest tests/test_cli_plugins.py -q` | ✅ | ⬜ pending |
 
-*Planner refines this map. The ABC default attributes, difficulty validation, and the `plugins list` CLI (stdout capture, table + --json, no network) are all unit-testable. Docs tasks verify via file-presence/content grep.*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_plugin_attrs.py` / `tests/test_cli_plugins.py` — ABC default + CLI stdout tests (mirror `tests/test_cli_items.py`)
-
-*No new deps; pytest-asyncio already installed.*
+*Test files (`test_plugin_base.py`, `test_cli_plugins.py`, `test_docs.py`) created as each plan's first task; `tests/test_cli_items.py` is the CLI mirror. No new deps; pytest-asyncio installed.*
 
 ---
 
@@ -58,17 +63,17 @@ created: 2026-06-09
 |----------|-------------|------------|-------------------|
 | GitHub wiki registry table populated | REG-01 | The wiki is an external GitHub surface, not in-repo | After merge, create/populate the wiki table per docs/PLUGIN_REGISTRY.md spec |
 
-*The in-repo registry SPEC doc, CLI, ABC attrs, CONTRIBUTING.md, and PR template are all automatable; only the live wiki population is manual/external.*
+*The in-repo SPEC doc, CLI, ABC attrs, CONTRIBUTING.md, PR template, and PLUGIN_DEV.md are all automated; only the live wiki population is manual/external.*
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-06-09
