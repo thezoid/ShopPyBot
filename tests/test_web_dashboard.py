@@ -84,6 +84,33 @@ def test_dashboard_no_credential_value_in_html():
     assert KNOWN_SECRET not in resp.text
 
 
+def test_banner_renders_when_non_local(mock_svc):
+    """MC-4 regression: banner HTML renders when is_non_local=True.
+
+    Proves that 'reachable beyond localhost' text and 'banner-warning' class appear in
+    the dashboard response when the app is bound to a non-local interface.
+    """
+    from web import create_app
+    non_local_client = TestClient(create_app(mock_svc, is_non_local=True))
+    resp = non_local_client.get("/")
+    assert resp.status_code == 200
+    assert "reachable beyond localhost" in resp.text
+    assert "banner-warning" in resp.text
+
+
+def test_banner_absent_when_local(mock_svc):
+    """MC-4 regression: banner HTML is absent when is_non_local=False (default).
+
+    Proves the {% if is_non_local %} conditional actually gates the banner -- the
+    warning must NOT appear for local-only binds (Pitfall 5).
+    """
+    from web import create_app
+    local_client = TestClient(create_app(mock_svc, is_non_local=False))
+    resp = local_client.get("/")
+    assert resp.status_code == 200
+    assert "reachable beyond localhost" not in resp.text
+
+
 def test_dashboard_no_platform_config_toggles(client):
     """GET / must NOT render per-platform enable checkboxes in the Config section.
 
