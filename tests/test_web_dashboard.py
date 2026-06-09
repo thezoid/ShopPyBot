@@ -129,4 +129,6 @@ def test_dashboard_no_platform_config_toggles(client):
     assert 'id="cfg-amazon"' not in html
     assert 'id="cfg-bestbuy"' not in html
     for platform in platform_names:
-        assert f'name="{platform}"' not in html or f'data-key="{platform}"' not in html
+        assert f'name="{platform}"' not in html and f'data-key="{platform}"' not in html, (
+            f"Platform config toggle for {platform!r} leaked into SSR HTML"
+        )
