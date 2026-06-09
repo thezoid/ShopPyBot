@@ -31,15 +31,15 @@ plugin-specific items **N/A** with a brief note.
   python -m pytest tests/ -q
   ```
 
-- [ ] **Anti-detection risk declared:** The PR description (see Risk Declaration
-  below) and the plugin module's top-level docstring both include:
+- [ ] **Anti-detection metadata declared:** The plugin class sets all three
+  required class attributes (see `plugins/PLUGIN_DEV.md` section 2):
 
-  ```
-  Anti-detection risk: <low | medium | high>
-  Rationale: <one sentence explaining why>
-  ```
+  - `difficulty = "easy"` | `"medium"` | `"hard"`
+  - `requires_proxy = True` | `False`
+  - `requires_captcha = True` | `False`
 
-  PRs without a risk declaration will not be merged.
+  Provide the values below in the Plugin Metadata section so the maintainer
+  can update the wiki registry when this PR is merged.
 
 - [ ] **No secrets or credentials committed:** All credentials (email, password,
   API keys, tokens) are read from environment variables at runtime. Nothing
@@ -50,9 +50,10 @@ plugin-specific items **N/A** with a brief note.
   `type(scope): description` (types: `feat`, `fix`, `docs`, `refactor`, `test`,
   `chore`). See [CONTRIBUTING.md](../CONTRIBUTING.md) for details.
 
-## Risk Declaration
+## Plugin Metadata
 
-For plugin PRs, fill in both fields. For non-plugin PRs, write "N/A".
+For plugin PRs, fill in all three fields. For non-plugin PRs, write "N/A" on each line.
 
-Anti-detection risk: <!-- low / medium / high -->
-Rationale: <!-- one sentence explaining the risk level -->
+difficulty: <!-- easy / medium / hard -->
+requires_proxy: <!-- true / false -->
+requires_captcha: <!-- true / false -->

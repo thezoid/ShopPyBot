@@ -83,13 +83,20 @@ Before opening a plugin PR, verify each item:
       ```sh
       python -m pytest tests/ -q
       ```
-- [ ] **Anti-detection risk declaration:** The PR description and the plugin
-      module's top-level docstring both include a risk declaration:
-      ```
-      Anti-detection risk: <low | medium | high>
-      Rationale: <one sentence explaining why>
-      ```
-      This is mandatory. PRs without a risk declaration will not be merged.
+- [ ] **Anti-detection metadata declared:** The plugin class declares all three
+      required class attributes (see [plugins/PLUGIN_DEV.md](plugins/PLUGIN_DEV.md)
+      section 2 for the full ABC contract):
+      - `difficulty`: one of `"easy"`, `"medium"`, or `"hard"` — reflects the
+        anti-detection effort required to operate reliably on this retailer.
+      - `requires_proxy`: `True` or `False` — set `True` if the plugin will not
+        function correctly without a proxy configured in `config.yml`.
+      - `requires_captcha`: `True` or `False` — set `True` if the plugin relies
+        on the CAPTCHA solver integration to complete purchases.
+
+      These three values are also used to populate the plugin's row in the wiki
+      registry (see [docs/PLUGIN_REGISTRY.md](docs/PLUGIN_REGISTRY.md)). Ensure
+      the PR description includes the row values so the maintainer can update the
+      wiki when the PR is merged.
 - [ ] **No secrets or credentials committed:** All credentials (email,
       password, API keys, tokens) are read from environment variables at
       runtime. Nothing sensitive is hardcoded in the plugin file, in

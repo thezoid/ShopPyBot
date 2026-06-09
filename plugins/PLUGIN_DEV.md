@@ -48,14 +48,23 @@ class MyShopPlugin(RetailerPlugin):
 All methods are `async`. The two abstract methods are required. All other methods
 have working defaults and are optional to override.
 
-| Method | Required | Signature | Default |
-|--------|----------|-----------|---------|
+| Method / Attribute | Required | Signature / Type | Default |
+|--------------------|----------|------------------|---------|
 | `check_availability` | yes | `async (self, url: str) -> bool` | none (abstract) |
 | `auto_buy` | yes | `async (self, url: str) -> bool` | none (abstract) |
 | `setup` | no | `async (self) -> None` | no-op |
 | `teardown` | no | `async (self) -> None` | no-op |
 | `login` | no | `async (self) -> None` | returns None |
 | `detect_captcha` | no | `async (self) -> bool` | returns False |
+| `difficulty` | no | class attr `Literal["easy", "medium", "hard"]` | `"medium"` |
+| `requires_proxy` | no | class attr `bool` | `False` |
+| `requires_captcha` | no | class attr `bool` | `False` |
+
+`difficulty`, `requires_proxy`, and `requires_captcha` are registry metadata
+attributes. Declare them as class-level assignments on your plugin class. An invalid
+`difficulty` value (anything other than `"easy"`, `"medium"`, or `"hard"`) raises a
+`ValueError` at import time via the ABC's `__init_subclass__` hook, so typos are
+caught before the plugin can be loaded.
 
 Override `setup` to start your browser and `teardown` to close it:
 
