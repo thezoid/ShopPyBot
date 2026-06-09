@@ -216,6 +216,17 @@ class CredentialsConfig(BaseModel):
     data_dir: str = ""     # empty = data/creds.bin (project-relative default)
 
 
+class CaptchaConfig(BaseModel):
+    """Opt-in CAPTCHA solving config (ANTI-06/07). Disabled by default.
+
+    API key lives EXCLUSIVELY in CredentialStore (TWOCAPTCHA_API_KEY), never here.
+    """
+
+    enabled: bool = False
+    max_solves_per_run: int = 10
+    low_balance_threshold: float = 1.00
+
+
 class ProxyConfig(BaseModel):
     """Opt-in proxy rotation config (ANTI-04). Disabled by default.
 
@@ -264,6 +275,7 @@ class AppConfig(BaseSettings):
     notifications: NotificationsConfig = NotificationsConfig()
     credentials: CredentialsConfig = CredentialsConfig()
     proxy: ProxyConfig = ProxyConfig()
+    captcha: CaptchaConfig = CaptchaConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)

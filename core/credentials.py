@@ -72,6 +72,8 @@ SECRET_KEYS: list[str] = [
     # Newegg
     "NEWEGG_EMAIL",
     "NEWEGG_PASSWORD",
+    # 2captcha
+    "TWOCAPTCHA_API_KEY",
 ]
 
 

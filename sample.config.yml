@@ -18,6 +18,16 @@ proxy:
   max_failures: 3     # consecutive failures before a proxy enters cooldown
   cooldown_secs: 300  # seconds a failed proxy waits before re-entering the pool
 
+# CAPTCHA solving (ANTI-06/07): opt-in, disabled by default.
+# The 2captcha API key is stored EXCLUSIVELY in the credential store as
+# TWOCAPTCHA_API_KEY and is never written in this file.
+# To set the key: use `shopbot secret set TWOCAPTCHA_API_KEY` or set the
+# TWOCAPTCHA_API_KEY environment variable before starting the bot.
+#captcha:
+#  enabled: false
+#  max_solves_per_run: 10      # hard cap on automated solves per run
+#  low_balance_threshold: 1.00 # USD -- WARNING logged when balance falls below this
+
 # Credentials are NOT stored here. Set AMZ_EMAIL, AMZ_PWD, BB_EMAIL, BB_PASSWORD
 # as environment variables (see .env.example); the CVV is collected at runtime
 # via a hidden prompt and never written to disk.
