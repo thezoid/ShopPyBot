@@ -31,7 +31,7 @@ progress:
 Phase: 15 (plugin-ecosystem-registry) — COMPLETE
 Plan: 3 of 3
 Status: Phase 15 complete
-Last activity: 2026-06-09 -- Phase 15 Plan 03 complete (REG-01, REG-04 closed)
+Last activity: 2026-06-09 -- Phase 15 Plan 02 executed (REG-03 closed); Plan 03 complete (REG-01, REG-04 closed)
 
 ## Phase Status
 
@@ -118,11 +118,12 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
 | Phase 14-anti-detection-layer-2-captcha-solving P03 | 18min | 2 tasks | 4 files |
 | Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
+| Phase 15-plugin-ecosystem-registry P02 | 12min | 3 tasks | 4 files |
 | Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
 
 ## Session Continuity
 
-**Last action**: Phase 15 Plan 03 complete -- docs/PLUGIN_REGISTRY.md SPEC created (9-field wiki table, in-repo vs external distinction); CONTRIBUTING.md + PR template + PLUGIN_DEV.md updated to require difficulty/requires_proxy/requires_captcha; tests/test_docs.py 4 tests green; 487 passed, 2 skipped.
+**Last action**: Phase 15 Plan 02 complete -- BotService.list_plugins() + core/cli/plugins.py + shoppybot plugins list [--json]; REG-03 closed; 492 passed, 2 skipped. (Plan 03 previously closed REG-01, REG-04.)
 **Next action**: Execute Phase 16 (Price Monitoring) -- run /gsd:plan-phase 16
 **Context to carry**: Phase 15 fully closed (REG-01 through REG-04). RetailerPlugin ABC has difficulty/requires_proxy/requires_captcha class attrs with defaults. plugins list CLI (shoppybot plugins list [--json]) via BotService.list_plugins() + core/cli/plugins.py. PLUGIN_REGISTRY.md is in-repo SPEC only; live wiki page must be created manually by a maintainer on first plugin PR merge.
 
