@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: planning
-last_updated: "2026-06-09T07:45:42.866Z"
+status: executing
+last_updated: "2026-06-09T19:45:01.589Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 33
 ---
 
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: Phase 13 complete -- all 3 plans done; ready for Phase 14 planning
+Phase: 14 (anti-detection-layer-2-captcha-solving) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-09
 
 ## Phase Status
@@ -114,12 +114,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 12 P03 | 4min | - tasks | - files |
 | Phase 12 P04 | 5min | 2 tasks | 1 files |
 | Phase 13 P03 | 13min | 3 tasks | 11 files |
+| Phase 14 P01 | 10min | 2 tasks | 7 files |
 
 ## Session Continuity
 
-**Last action**: Phase 13 Plan 03 complete -- stealth+proxy wired end-to-end: service startup log, orchestrator ProxyPool construction, registry.assign_proxy, all 8 plugins (ANTI-04/ANTI-05/ANTI-08)
-**Next action**: Run /gsd:plan-phase 14 to begin CAPTCHA Solving planning
-**Context to carry**: Phase 13 fully complete. 414 tests passing. PLUGIN_API_VERSION=2 (no bump). Proxy rotation disabled by default; opt-in via cfg.proxy.enabled. Each plugin receives self._proxy from registry.assign_proxy before setup(). Fail-loud on pool exhaustion. apply_stealth called before first nav in all 8 plugins.
+**Last action**: Phase 14 Plan 01 complete -- TWOCAPTCHA_API_KEY registered in SECRET_KEYS, CaptchaConfig added to AppConfig, CaptchaSolver 2captcha v1 client implemented (TDD). 436 tests passing.
+**Next action**: Execute Phase 14 Plan 02 (async wiring + service startup + registry.assign_solver)
+**Context to carry**: core/captcha.py CaptchaSolver is a blocking client; must be called via run_in_executor + asyncio.timeout(120). from_config returns None when disabled or key missing. solve_amazon_waf is a stub (WAF deferred). Uses Python logging module (not writeLog) for caplog-testable security assertions.
 
 ---
 
@@ -245,6 +246,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern; no model_validator or os.environ reads in ProxyConfig (credentials live in config.yml per RESEARCH Open Question 3)
 - [Phase 13-02]: sample.config.yml proxy example uses proxy.example.com placeholder only; real URLs in user's gitignored config.yml
 - [Phase ?]: [Phase 13-03]: Per-instance proxy scoping via registry.assign_proxy; conftest mock_nodriver_start gets AsyncMock on main_tab.send for apply_stealth compatibility
+- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
+- [Phase 14-01]: TWOCAPTCHA_API_KEY is 20th SECRET_KEY; solve_count increments before network calls so cap is respected even when call raises
 
 ## Operator Next Steps
 
