@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-09T23:28:40.476Z"
+last_updated: "2026-06-09T23:46:51.184Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 16 (price-monitoring) — EXECUTING
-Plan: 2 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-09
 
@@ -121,6 +121,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 15-plugin-ecosystem-registry P02 | 12min | 3 tasks | 4 files |
 | Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
 | Phase 16-price-monitoring P01 | 5min | 2 tasks | 3 files |
+| Phase 16 P02 | 8min | 4 tasks | 6 files |
 
 ## Session Continuity
 
@@ -267,7 +268,11 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: Separate-update strategy: update_item_price_config_sync is standalone; add_items_sync 5-tuple unchanged
 - [Phase ?]: price_alert_armed/price_last_notified dedup columns strictly isolated from last_seen_available/last_notified (Pitfall 1 mitigated)
 - [Phase ?]: get_last_price_sync reads price_history newest-first; orchestrator must read BEFORE append to get previous price for drop trigger
+- [Phase 16-02]: _cents_to_display defined inline per notifier file; no shared helper module (single use-case per file, no abstraction needed)
+- [Phase 16-02]: get_price() is concrete non-abstract default on RetailerPlugin; PLUGIN_API_VERSION stays 2 (additive non-breaking, PRICE-02)
+- [Phase 16-02]: Amazon price selector list is site-specific and maintenance-required; documented in SUMMARY
+- [Phase 16-02]: _build_email_body() and _build_sms_body() extracted as testable module-level helpers; send() delegates to them
 
 ## Operator Next Steps
 
-- Run `/gsd:plan-phase 12` to begin Stability Foundation planning
+- Execute Phase 16 Plan 03 (orchestrator wiring: get_price() call + price trigger evaluation)
