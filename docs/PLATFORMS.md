@@ -132,11 +132,16 @@ Legend: [x] = verified, [ ] = not yet verified, N/A = not applicable for this en
 
 These checks were deferred from Phase 8 (credential store). Verify on real hardware.
 
+Phase 12 execution note (2026-06-09, Windows dev machine, non-interactive agent environment):
+MC-1 (keyring restart survival) and the encrypted-file restart variant require an interactive terminal
+and a real process restart cycle, neither of which are available in the agent environment. Windows
+variants are recorded as PENDING; Ubuntu variants require a second machine and are also pending.
+
 | Check | Ubuntu desktop | Ubuntu headless | Windows |
 |-------|---------------|-----------------|---------|
-| Keyring secret survives process restart: run `shoppybot setup`, exit, restart, confirm retrieval with no env var | [ ] | N/A | [ ] |
-| Headless Ubuntu auto-selects `encrypted-file` when no Secret Service is active | N/A | [ ] | N/A |
-| Encrypted-file secret survives process restart: set `SHOPBOT_STORE_PASSPHRASE`, restart, confirm retrieval | [ ] | [ ] | [ ] |
+| Keyring secret survives process restart: run `shoppybot setup`, exit, restart, confirm retrieval with no env var | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| Headless Ubuntu auto-selects `encrypted-file` when no Secret Service is active | N/A | pending Ubuntu access | N/A |
+| Encrypted-file secret survives process restart: set `SHOPBOT_STORE_PASSPHRASE`, restart, confirm retrieval | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
 
 Repro steps for keyring restart check:
 1. Run `shoppybot setup` and complete credential entry with keyring backend.
@@ -148,11 +153,16 @@ Repro steps for keyring restart check:
 
 These checks were deferred from Phase 9 (CLI front end). Verify on real hardware.
 
+Phase 12 execution note (2026-06-09, Windows dev machine, non-interactive agent environment):
+MC-2 (masked-TTY credential prompt) requires an interactive terminal session with a human observer
+to confirm no-echo behavior. The agent environment has no real TTY available. Windows variants are
+PENDING; Ubuntu variants require a separate machine.
+
 | Check | Ubuntu desktop | Ubuntu headless | Windows |
 |-------|---------------|-----------------|---------|
-| `shoppybot setup` prompts for credentials with no echo (masked TTY) | [ ] | [ ] | [ ] |
-| Credential input does not appear in terminal history | [ ] | [ ] | [ ] |
-| Name-only confirm prompt shows item name only (no secret values) | [ ] | [ ] | [ ] |
+| `shoppybot setup` prompts for credentials with no echo (masked TTY) | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
+| Credential input does not appear in terminal history | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
+| Name-only confirm prompt shows item name only (no secret values) | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
 
 Repro steps:
 1. Open a fresh terminal (PowerShell on Windows; bash/zsh on Ubuntu).
@@ -164,15 +174,26 @@ Repro steps:
 
 These checks were deferred from Phase 10 (optional web UI). Verify on real hardware.
 
+Phase 12 execution note (2026-06-09, Windows dev machine, non-interactive agent environment):
+MC-3 (live dashboard render, Start/Stop, log polling) and MC-4 (0.0.0.0 banner live render) require
+an interactive browser session that cannot be automated in this agent environment. Windows variants
+are PENDING. Ubuntu browser variants require a separate machine. Headless Ubuntu for `shoppybot web`
+startup-only (no browser) could be checked but requires Ubuntu access.
+
+MC-4 automated note: The `is_non_local` banner Jinja2 conditional is CI-asserted by
+`tests/test_web_dashboard.py` (Plan 12-03, committed 2026-06-09). Both directions proven:
+banner present when `is_non_local=True`, absent when `is_non_local=False`. The live browser
+render is still PENDING human verification.
+
 | Check | Ubuntu desktop | Ubuntu headless | Windows |
 |-------|---------------|-----------------|---------|
-| `shoppybot web` starts without error | [ ] | [ ] | [ ] |
-| Dashboard renders in browser at `http://localhost:8000` | [ ] | N/A | [ ] |
-| Dashboard shows items list section | [ ] | N/A | [ ] |
-| Dashboard shows config section | [ ] | N/A | [ ] |
-| Start/Stop bot button triggers live state change | [ ] | N/A | [ ] |
-| Log panel updates via live polling (no full-page reload) | [ ] | N/A | [ ] |
-| `shoppybot web --host 0.0.0.0` shows non-local binding warning banner | [ ] | [ ] | [ ] |
+| `shoppybot web` starts without error | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
+| Dashboard renders in browser at `http://localhost:8000` | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| Dashboard shows items list section | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| Dashboard shows config section | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| Start/Stop bot button triggers live state change | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| Log panel updates via live polling (no full-page reload) | pending Ubuntu access | N/A | PENDING -- pending interactive manual run on a real Windows TTY |
+| `shoppybot web --host 0.0.0.0` shows non-local binding warning banner (MC-4; CI-asserted by tests/test_web_dashboard.py Plan 12-03) | pending Ubuntu access | pending Ubuntu access | PENDING -- pending interactive manual run on a real Windows TTY |
 
 Repro steps for non-local banner:
 1. Run `shoppybot web --host 0.0.0.0`.
