@@ -7,13 +7,19 @@ import yaml
 
 
 def _load_logging_level() -> int:
+    # Try the migrated AppData path first; fall back to the legacy repo-root path on
+    # first boot before migrate_legacy_paths() has run (WR-03: migration runs after
+    # imports, so the migrated file may not exist yet on the very first boot).
     from core.paths import config_path as _config_path  # lazy: avoids circular import
-    try:
-        with open(_config_path(), 'r') as file:
-            settings = yaml.safe_load(file)
-        return int(settings.get('debug', {}).get('logging_level', 5))
-    except (FileNotFoundError, KeyError, TypeError, ValueError):
-        return 5
+    candidates = [_config_path(), Path(__file__).parent / "config.yml"]
+    for path in candidates:
+        try:
+            with open(path, 'r') as f:
+                settings = yaml.safe_load(f)
+            return int(settings.get('debug', {}).get('logging_level', 5))
+        except (FileNotFoundError, KeyError, TypeError, ValueError):
+            continue
+    return 5
 
 _LOGGING_LEVEL: int = _load_logging_level()
 
