@@ -71,7 +71,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 Plans:
 
 - [x] 12-01-PLAN.md — TD-1: re-anchor logger logging_level read to core.paths.config_path() + regression test
-- [ ] 12-02-PLAN.md — TD-2/TD-3: harden SC1 secret-read guard (rglob) and separator guard (__file__-anchored)
+- [x] 12-02-PLAN.md — TD-2/TD-3: harden SC1 secret-read guard (rglob) and separator guard (__file__-anchored)
 - [ ] 12-03-PLAN.md — TD-4 config write-seam regression test + accepted MOD-02 gap doc; MC-4 0.0.0.0 banner assertion
 - [ ] 12-04-PLAN.md — Execute and document MC-1..MC-4 deferred manual checks in docs/PLATFORMS.md
 
@@ -166,7 +166,7 @@ Plans:
 | 9. CLI Front-End | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
-| 12. Stability Foundation | v3.0 | 1/4 | In Progress|  |
+| 12. Stability Foundation | v3.0 | 2/4 | In Progress|  |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/TBD | Not started | - |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
