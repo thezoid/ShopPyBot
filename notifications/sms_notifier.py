@@ -27,6 +27,28 @@ from core.credentials import get_store
 from notifications.base import Notifier, NotificationEvent
 
 
+def _cents_to_display(cents: int | None) -> str:
+    """Format integer cents as $X.XX; return 'n/a' for None."""
+    if cents is None:
+        return "n/a"
+    return f"${cents / 100:.2f}"
+
+
+def _build_sms_body(event: NotificationEvent) -> str:
+    """Construct the SMS message body from a NotificationEvent."""
+    base = (
+        f"{event.item_name} {event.action}: "
+        f"{event.item_url} ({event.platform})"
+    )
+    if event.action == "price_drop":
+        price_str = _cents_to_display(event.price_cents)
+        target_str = _cents_to_display(event.target_price_cents)
+        base += f" | Price: {price_str}, Target: {target_str}"
+        if event.pct_from_target is not None:
+            base += f", {event.pct_from_target}% below target"
+    return base
+
+
 def _send_sms_blocking(
     account_sid: str,
     auth_token: str,
@@ -61,10 +83,7 @@ class SmsNotifier(Notifier):
         from_number = store.get("TWILIO_FROM") or ""
         to_number = self._config.to_number
 
-        body = (
-            f"{event.item_name} {event.action}: "
-            f"{event.item_url} ({event.platform})"
-        )
+        body = _build_sms_body(event)
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(

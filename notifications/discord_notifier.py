@@ -23,12 +23,40 @@ from notifications.base import Notifier, NotificationEvent
 from datetime import timezone
 
 
+def _cents_to_display(cents: int | None) -> str:
+    """Format integer cents as $X.XX; return 'n/a' for None."""
+    if cents is None:
+        return "n/a"
+    return f"${cents / 100:.2f}"
+
+
 def _build_discord_payload(event: NotificationEvent) -> dict:
     """Construct the Discord embed payload from a NotificationEvent."""
     color = 0x57F287 if event.action == "detected" else 0xFEE75C
     timestamp = event.timestamp.astimezone(timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%S.000Z"
     )
+    fields = [
+        {"name": "Platform", "value": event.platform, "inline": True},
+        {"name": "Action", "value": event.action, "inline": True},
+    ]
+    if event.action == "price_drop":
+        fields.append({
+            "name": "Current Price",
+            "value": _cents_to_display(event.price_cents),
+            "inline": True,
+        })
+        fields.append({
+            "name": "Target Price",
+            "value": _cents_to_display(event.target_price_cents),
+            "inline": True,
+        })
+        if event.pct_from_target is not None:
+            fields.append({
+                "name": "Below Target",
+                "value": f"{event.pct_from_target}%",
+                "inline": True,
+            })
     return {
         "embeds": [
             {
@@ -36,10 +64,7 @@ def _build_discord_payload(event: NotificationEvent) -> dict:
                 "url": event.item_url,
                 "color": color,
                 "timestamp": timestamp,
-                "fields": [
-                    {"name": "Platform", "value": event.platform, "inline": True},
-                    {"name": "Action", "value": event.action, "inline": True},
-                ],
+                "fields": fields,
             }
         ]
     }

@@ -24,6 +24,29 @@ from core.credentials import get_store
 from notifications.base import Notifier, NotificationEvent
 
 
+def _cents_to_display(cents: int | None) -> str:
+    """Format integer cents as $X.XX; return 'n/a' for None."""
+    if cents is None:
+        return "n/a"
+    return f"${cents / 100:.2f}"
+
+
+def _build_email_body(event: NotificationEvent) -> str:
+    """Construct the plain-text email body from a NotificationEvent."""
+    lines = [
+        f"Item: {event.item_name}",
+        f"URL: {event.item_url}",
+        f"Platform: {event.platform}",
+        f"Action: {event.action}",
+    ]
+    if event.action == "price_drop":
+        lines.append(f"Current Price: {_cents_to_display(event.price_cents)}")
+        lines.append(f"Target Price: {_cents_to_display(event.target_price_cents)}")
+        if event.pct_from_target is not None:
+            lines.append(f"Below Target: {event.pct_from_target}%")
+    return "\n".join(lines) + "\n"
+
+
 def _send_email_blocking(
     host: str,
     port: int,
@@ -68,12 +91,7 @@ class EmailNotifier(Notifier):
         cfg = self._config
         password = get_store().get("SMTP_PASSWORD") or ""
         subject = f"{event.item_name} {event.action}"
-        body = (
-            f"Item: {event.item_name}\n"
-            f"URL: {event.item_url}\n"
-            f"Platform: {event.platform}\n"
-            f"Action: {event.action}\n"
-        )
+        body = _build_email_body(event)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
