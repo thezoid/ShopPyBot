@@ -15,18 +15,31 @@ class NotificationEvent:
     """Carries context for a single stock alert or purchase confirmation.
 
     Fields:
-        item_name: Human-readable item name from config.
-        item_url:  Canonical item URL (used for dedup and embed linking).
-        platform:  Retailer name, e.g. "Amazon" or "BestBuy".
-        timestamp: UTC datetime of the event; formatters convert to ISO-8601.
-        action:    "detected" (stock found) or "purchased" (auto-buy success).
+        item_name:           Human-readable item name from config.
+        item_url:            Canonical item URL (used for dedup and embed linking).
+        platform:            Retailer name, e.g. "Amazon" or "BestBuy".
+        timestamp:           UTC datetime of the event; formatters convert to ISO-8601.
+        action:              "detected" (stock found), "purchased" (auto-buy success),
+                             or "price_drop" (price fell to/below target).
+        price_cents:         Current item price in integer cents. Populated only for
+                             action == "price_drop". None for all other actions.
+        target_price_cents:  Configured target price in integer cents. None when no
+                             absolute target is set or action != "price_drop".
+        pct_from_target:     Percentage the current price is below the target
+                             (positive float, e.g. 10.0 = 10% below). None when
+                             no target is set or action != "price_drop".
     """
 
     item_name: str
     item_url: str
     platform: str
     timestamp: datetime
-    action: str  # "detected" | "purchased"
+    action: str  # "detected" | "purchased" | "price_drop"
+    # PRICE-04: optional price context; None for non-price events (Pitfall 6: must
+    # come after all required fields; all three carry = None defaults).
+    price_cents: int | None = None
+    target_price_cents: int | None = None
+    pct_from_target: float | None = None
 
 
 class Notifier(ABC):

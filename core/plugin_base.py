@@ -68,6 +68,15 @@ class RetailerPlugin(ABC):
         """Attempt to purchase the item at url. Return True on success."""
         ...
 
+    async def get_price(self, url: str) -> int | None:
+        """Return the current item price as integer cents, or None if unsupported.
+
+        Default returns None (price monitoring unsupported for this plugin).
+        PLUGIN_API_VERSION stays 2 -- additive non-abstract method (PRICE-02).
+        Override in platform plugins that can scrape a live price.
+        """
+        return None
+
     async def login(self) -> None:
         """Authenticate with the retail platform. No-op default."""
         return None
