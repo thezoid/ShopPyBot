@@ -22,7 +22,7 @@ Prior milestone requirements (v1 44 + v2.0 22 = 66, all satisfied) are archived 
 ### Plugin Ecosystem
 
 - [ ] **REG-01**: Maintainers can list community plugins in a GitHub wiki registry table with required fields: name, platform, domain patterns, maintainer, anti-detection difficulty, methods implemented, last-verified date, proxy-required, captcha-required.
-- [ ] **REG-02**: Plugin authors can declare `difficulty`, `requires_proxy`, and `requires_captcha` as class attributes on a plugin (non-breaking additions to the ABC with sensible defaults).
+- [x] **REG-02**: Plugin authors can declare `difficulty`, `requires_proxy`, and `requires_captcha` as class attributes on a plugin (non-breaking additions to the ABC with sensible defaults).
 - [ ] **REG-03**: User can run `shoppybot plugins list` to see all locally loaded plugins with their declared domain patterns, difficulty, and proxy/captcha requirements (no network call).
 - [ ] **REG-04**: Contributors are guided to supply the new registry fields via updated CONTRIBUTING.md and the PR template (difficulty, requires_proxy, requires_captcha).
 

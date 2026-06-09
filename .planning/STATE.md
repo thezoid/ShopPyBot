@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: verifying
-last_updated: "2026-06-09T20:47:15.004Z"
-last_activity: 2026-06-09
+status: executing
+last_updated: "2026-06-09T21:40:00.000Z"
+last_activity: 2026-06-09 -- Phase 15 Plan 01 complete
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
-  percent: 50
+  total_plans: 13
+  completed_plans: 11
+  percent: 54
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-09
+Phase: 15 (plugin-ecosystem-registry) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 15
+Last activity: 2026-06-09 -- Phase 15 Plan 01 complete (REG-02 closed)
 
 ## Phase Status
 
@@ -117,12 +117,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 14 P01 | 10min | 2 tasks | 7 files |
 | Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
 | Phase 14-anti-detection-layer-2-captcha-solving P03 | 18min | 2 tasks | 4 files |
+| Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 14 Plan 01 complete -- TWOCAPTCHA_API_KEY registered in SECRET_KEYS, CaptchaConfig added to AppConfig, CaptchaSolver 2captcha v1 client implemented (TDD). 436 tests passing.
-**Next action**: Execute Phase 14 Plan 02 (async wiring + service startup + registry.assign_solver)
-**Context to carry**: core/captcha.py CaptchaSolver is a blocking client; must be called via run_in_executor + asyncio.timeout(120). from_config returns None when disabled or key missing. solve_amazon_waf is a stub (WAF deferred). Uses Python logging module (not writeLog) for caplog-testable security assertions.
+**Last action**: Phase 15 Plan 01 complete -- difficulty/requires_proxy/requires_captcha added to RetailerPlugin ABC with __init_subclass__ validation; 4 new tests; 483 passed, 2 skipped.
+**Next action**: Execute Phase 15 Plan 02 (plugins list CLI: BotService.list_plugins() + core/cli/plugins.py + subparser registration)
+**Context to carry**: RetailerPlugin now has difficulty="medium"/requires_proxy=False/requires_captcha=False defaults. __init_subclass__ rejects invalid difficulty at import time. PLUGIN_API_VERSION=2. Use getattr(plugin, "difficulty", "medium") in list_plugins() for belt-and-suspenders resilience against external plugins built against older ABC.
 
 ---
 
@@ -254,6 +255,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: _solve_or_pause helper; _wait_user_action always reused on fallback
 - [Phase ?]: Amazon WAF deferred; gokuProps -> manual pause; solve_amazon_waf not called this phase
 - [Phase ?]: PLUGIN_API_VERSION stays 2; no ABC changes; _captcha_solver injected as attribute
+- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
+- [Phase 15-01]: PLUGIN_API_VERSION stays 2; additive class attrs (difficulty/requires_proxy/requires_captcha) are non-breaking per RESEARCH Pattern 1
 
 ## Operator Next Steps
 
