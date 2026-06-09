@@ -85,3 +85,16 @@ async def test_detect_captcha_noop():
 def test_init_sets_driver_none():
     p = MinimalPlugin(config=None)
     assert p.driver is None
+
+
+# ---------------------------------------------------------------------------
+# REG-02: registry metadata class attributes (difficulty, requires_proxy, requires_captcha)
+# ---------------------------------------------------------------------------
+
+
+def test_defaults():
+    """MinimalPlugin inherits difficulty='medium', requires_proxy=False, requires_captcha=False."""
+    p = MinimalPlugin(config=None)
+    assert p.difficulty == "medium"
+    assert p.requires_proxy is False
+    assert p.requires_captcha is False

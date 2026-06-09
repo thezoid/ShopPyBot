@@ -1,8 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import Literal
 
 from core.stealth import _is_ban_response
 
 PLUGIN_API_VERSION = 2  # bumped from 1; v1 subclasses are not compatible
+
+_VALID_DIFFICULTY = frozenset({"easy", "medium", "hard"})
+
 
 class RetailerPlugin(ABC):
     """Base class for all retail platform plugins.
@@ -12,6 +16,24 @@ class RetailerPlugin(ABC):
     """
 
     domain_patterns: list[str]  # class attribute; registry reads before __init__
+
+    # REG-02: additive registry metadata -- existing plugins inherit these defaults
+    # (no PLUGIN_API_VERSION bump required; additive class attributes are non-breaking)
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
+    requires_proxy: bool = False
+    requires_captcha: bool = False
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        # Import-time validation is intentional: an invalid difficulty value is a
+        # plugin author error that should fail loudly at discovery, not silently at
+        # runtime.  Plugins that omit `difficulty` inherit "medium" and are never
+        # invalidated by this hook.
+        super().__init_subclass__(**kwargs)
+        if cls.difficulty not in _VALID_DIFFICULTY:
+            raise ValueError(
+                f"{cls.__name__}.difficulty={cls.difficulty!r} is not one of "
+                f"{sorted(_VALID_DIFFICULTY)}"
+            )
 
     def __init__(self, config) -> None:
         self.config = config   # typed AppConfig passed by registry
