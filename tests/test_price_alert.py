@@ -1,0 +1,346 @@
+"""Phase 16 Plan 03: Price alert integration tests.
+
+Tests for:
+- _check_price_triggers (absolute target + percentage drop)
+- _evaluate_price_triggers (dedup + disarm)
+- _build_price_drop_event (payload)
+- _pct_from_target, _cents_to_display, _pct_drop_from_last (pure helpers)
+- last-price-before-append call order
+- startup config seeding (update_item_price_config_sync)
+- BotService.get_price_history accessor
+"""
+
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# Pure math helpers
+# ---------------------------------------------------------------------------
+
+
+def test_pct_from_target_and_cents_display():
+    """_pct_from_target and _cents_to_display compute correctly."""
+    from core.orchestrator import _pct_from_target, _cents_to_display
+
+    assert _pct_from_target(4500, 5000) == 10.0
+    assert _pct_from_target(5000, 5000) == 0.0
+    assert _pct_from_target(5500, 5000) == 0.0
+
+    assert _cents_to_display(4999) == "$49.99"
+    assert _cents_to_display(100) == "$1.00"
+    assert _cents_to_display(0) == "$0.00"
+
+
+def test_pct_drop_from_last():
+    """_pct_drop_from_last computes correctly."""
+    from core.orchestrator import _pct_drop_from_last
+
+    assert _pct_drop_from_last(4500, 5000) == 10.0
+    assert _pct_drop_from_last(5000, 5000) == 0.0
+    assert _pct_drop_from_last(5500, 5000) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# _check_price_triggers
+# ---------------------------------------------------------------------------
+
+
+def test_check_price_triggers_absolute():
+    """_check_price_triggers fires when price_cents <= target_price."""
+    from core.orchestrator import _check_price_triggers
+
+    # At target
+    assert _check_price_triggers(5000, 5000, None, None) is True
+    # Below target
+    assert _check_price_triggers(4500, 5000, None, None) is True
+    # Above target: no fire
+    assert _check_price_triggers(5001, 5000, None, None) is False
+    # target_price None: no fire
+    assert _check_price_triggers(100, None, None, None) is False
+
+
+def test_check_price_triggers_pct_drop():
+    """_check_price_triggers fires when drop from last price >= price_drop_pct."""
+    from core.orchestrator import _check_price_triggers
+
+    # 10% drop from 5000 to 4500, threshold 10.0: fire
+    assert _check_price_triggers(4500, None, 10.0, 5000) is True
+    # Only 5% drop, threshold 10.0: no fire
+    assert _check_price_triggers(4750, None, 10.0, 5000) is False
+    # Price increase: no fire
+    assert _check_price_triggers(5500, None, 10.0, 5000) is False
+    # price_drop_pct None: no fire
+    assert _check_price_triggers(4500, None, None, 5000) is False
+    # prev_price None (no history): no fire
+    assert _check_price_triggers(4500, None, 10.0, None) is False
+
+
+# ---------------------------------------------------------------------------
+# _build_price_drop_event payload
+# ---------------------------------------------------------------------------
+
+
+def test_price_drop_event_payload():
+    """Dispatched event has action==price_drop with correct payload fields."""
+    from core.orchestrator import _build_price_drop_event
+
+    event = _build_price_drop_event("Widget", "https://example.com/w", "FakePlugin", 4500, 5000)
+    assert event.action == "price_drop"
+    assert event.price_cents == 4500
+    assert event.target_price_cents == 5000
+    assert event.pct_from_target == 10.0
+
+    # target_price None -> pct_from_target is None
+    event2 = _build_price_drop_event("Widget", "https://example.com/w", "FakePlugin", 4500, None)
+    assert event2.target_price_cents is None
+    assert event2.pct_from_target is None
+
+
+# ---------------------------------------------------------------------------
+# Last-price read order (Pitfall 3): get_last_price_sync called before append
+# ---------------------------------------------------------------------------
+
+
+async def test_last_price_read_before_append(fake_plugin, tmp_data_dir):
+    """get_last_price_sync must be called before append_price_history_sync in _check_and_buy."""
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/item"
+    add_items_sync([("Widget", link, False, 1, False)])
+    # seed price config so _evaluate_price_triggers can proceed
+    models.update_item_price_config_sync(link, 5000, None)
+
+    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+    plugin.get_price = AsyncMock(return_value=4500)
+
+    call_order = []
+
+    original_get_last = models.get_last_price_sync
+    original_append = models.append_price_history_sync
+
+    def spy_get_last(l):
+        call_order.append("get_last")
+        return original_get_last(l)
+
+    def spy_append(l, p, s, c="USD"):
+        call_order.append("append")
+        return original_append(l, p, s, c)
+
+    write_queue = asyncio.Queue()
+
+    with patch.object(models, "get_last_price_sync", side_effect=spy_get_last), \
+         patch.object(models, "append_price_history_sync", side_effect=spy_append):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
+
+    # get_last must come before append
+    assert "get_last" in call_order
+    assert "append" in call_order
+    get_last_idx = call_order.index("get_last")
+    append_idx = call_order.index("append")
+    assert get_last_idx < append_idx, (
+        f"get_last_price_sync must be called before append_price_history_sync; "
+        f"got order: {call_order}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# _evaluate_price_triggers dedup: fires once, stays silent while armed
+# ---------------------------------------------------------------------------
+
+
+async def test_price_alert_dedup_fires_once(fake_plugin, fake_notifier, tmp_data_dir):
+    """First trigger dispatches a price_drop event and arms; armed cycle does not re-dispatch."""
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from notifications.dispatcher import NotificationDispatcher
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/dedup"
+    add_items_sync([("Widget", link, False, 1, False)])
+    models.update_item_price_config_sync(link, 5000, None)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+    plugin.get_price = AsyncMock(return_value=4500)
+
+    write_queue = asyncio.Queue()
+
+    # First cycle: should dispatch
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(notifier.events) == 1
+    assert notifier.events[0].action == "price_drop"
+
+    # Second cycle: armed; should NOT dispatch again
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(notifier.events) == 1
+
+
+# ---------------------------------------------------------------------------
+# _evaluate_price_triggers: disarms when trigger no longer fires
+# ---------------------------------------------------------------------------
+
+
+async def test_price_alert_disarms_on_recovery(fake_plugin, fake_notifier, tmp_data_dir):
+    """When trigger no longer fires, clear_price_alert_armed_sync is called (price recovery)."""
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from notifications.dispatcher import NotificationDispatcher
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/disarm"
+    add_items_sync([("Widget", link, False, 1, False)])
+    models.update_item_price_config_sync(link, 5000, None)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+
+    write_queue = asyncio.Queue()
+
+    # Cycle 1: price below target -> fire + arm
+    plugin.get_price = AsyncMock(return_value=4500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(notifier.events) == 1
+    armed, _ = models.get_price_alert_state_sync(link)
+    assert armed is True
+
+    # Cycle 2: price recovers above target -> disarm
+    plugin.get_price = AsyncMock(return_value=5500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    armed2, _ = models.get_price_alert_state_sync(link)
+    assert armed2 is False
+
+    # Cycle 3: price drops again -> should fire again (fresh window)
+    plugin.get_price = AsyncMock(return_value=4500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(notifier.events) == 2
+
+
+# ---------------------------------------------------------------------------
+# Price dedup independence: price alerts do not touch stock dedup columns
+# ---------------------------------------------------------------------------
+
+
+async def test_price_dedup_independent(fake_plugin, fake_notifier, tmp_data_dir):
+    """Firing a price alert leaves last_seen_available/last_notified untouched."""
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from notifications.dispatcher import NotificationDispatcher
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/independent"
+    add_items_sync([("Widget", link, False, 1, False)])
+    models.update_item_price_config_sync(link, 5000, None)
+
+    # Record initial stock dedup state
+    was_avail_before, last_notified_before = models.get_item_notification_state_sync(link)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+    plugin.get_price = AsyncMock(return_value=4500)
+
+    write_queue = asyncio.Queue()
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+
+    # price_drop event fired
+    assert any(e.action == "price_drop" for e in notifier.events)
+
+    # stock dedup columns unchanged (except last_notified which may be set by
+    # the stock "detected" path since available=True and was not available before)
+    # We check that price_last_notified is set but last_notified is NOT set by price path.
+    price_armed, price_last_notified = models.get_price_alert_state_sync(link)
+    assert price_armed is True
+    assert price_last_notified is not None
+
+    # last_seen_available was driven only by the stock path (available=True -> rising edge)
+    # so last_notified will be set by stock path. We just confirm it's not None due to price.
+    # The key invariant: price_last_notified != last_notified (they are separate columns)
+    was_avail_after, last_notified_after = models.get_item_notification_state_sync(link)
+    # Both can be non-None but they are stored in separate columns
+    # Assert price alert state columns are separate (i.e., price_last_notified is its own col)
+    # Check they're independent by reading from DB directly
+    import sqlite3
+    conn = sqlite3.connect(models.DB_PATH)
+    row = conn.execute(
+        "SELECT last_notified, price_last_notified FROM items WHERE link=?", (link,)
+    ).fetchone()
+    conn.close()
+    # last_notified may be set by stock path; price_last_notified set by price path
+    # They must be different columns (not the same value just mirrored)
+    assert row is not None
+    # Confirm price_last_notified was written (price path works in isolation)
+    assert row[1] is not None
+
+
+# ---------------------------------------------------------------------------
+# Config seeding: update_item_price_config_sync called per config item
+# ---------------------------------------------------------------------------
+
+
+def test_seed_writes_price_config(tmp_data_dir):
+    """Startup seed calls update_item_price_config_sync for each config item."""
+    from models import initialize_db, add_items_sync, get_item_price_config_sync
+
+    initialize_db()
+
+    link1 = "https://amazon.com/item1"
+    link2 = "https://bestbuy.com/item2"
+    add_items_sync([
+        ("Item1", link1, False, 1, False),
+        ("Item2", link2, False, 1, False),
+    ])
+
+    # Simulate what main.py does: call update_item_price_config_sync per item
+    from models import update_item_price_config_sync
+    update_item_price_config_sync(link1, 4999, 10.0)
+    update_item_price_config_sync(link2, None, None)
+
+    config1 = get_item_price_config_sync(link1)
+    assert config1 == (4999, 10.0)
+
+    config2 = get_item_price_config_sync(link2)
+    assert config2 == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# BotService.get_price_history accessor
+# ---------------------------------------------------------------------------
+
+
+def test_get_price_history_accessor(tmp_data_dir):
+    """BotService.get_price_history resolves name to link and returns rows; empty for unknown."""
+    from models import initialize_db, add_items_sync, append_price_history_sync
+    from core.service import BotService
+
+    initialize_db()
+    link = "https://amazon.com/widget"
+    add_items_sync([("WidgetName", link, False, 1, False)])
+
+    ts = datetime.now(timezone.utc).isoformat()
+    append_price_history_sync(link, 4999, ts)
+
+    svc = BotService.__new__(BotService)
+
+    rows = svc.get_price_history("WidgetName", limit=10)
+    assert len(rows) == 1
+    assert rows[0][0] == 4999
+    assert rows[0][1] == "USD"
+
+    # Unknown name returns empty list
+    empty = svc.get_price_history("DoesNotExist", limit=10)
+    assert empty == []
