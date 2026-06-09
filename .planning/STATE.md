@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: verifying
-last_updated: "2026-06-09T05:55:29.541Z"
-last_activity: 2026-06-09
+status: executing
+last_updated: "2026-06-09T06:59:00.000Z"
+last_activity: 2026-06-09 -- Phase 13 Plan 01 completed (core/stealth.py)
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 17
+  total_plans: 7
+  completed_plans: 5
+  percent: 20
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-09
+Phase: 13 (anti-detection-layer-1-fingerprint-proxy) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 13
+Last activity: 2026-06-09 -- Phase 13 Plan 01 completed (core/stealth.py)
 
 ## Phase Status
 
@@ -48,8 +48,8 @@ Last activity: 2026-06-09
 
 ## Performance Metrics
 
-**Plans completed**: 0
-**Requirements completed**: 0
+**Plans completed**: 1 (Phase 13 Plan 01)
+**Requirements completed**: 3 (ANTI-08, ANTI-04, ANTI-05 core logic)
 **Phases completed**: 0
 **Blockers resolved**: 0
 
@@ -107,6 +107,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | uat | Phase 01 — 01-UAT.md | partial (0 pending) |
 
 ---
+| Phase 13 P01 | 7min | 2 tasks | 2 files |
 | Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
 | Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
 | Phase 12 P03 | 4min | - tasks | - files |
@@ -114,9 +115,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Session Continuity
 
-**Last action**: v3.0 roadmap created (Phases 12-17, 18 requirements mapped)
-**Next action**: `/gsd:plan-phase 12` — Stability Foundation
-**Context to carry**: Phases 12-17 start at 12 (continuing from v2.0 Phase 11). Phase 12 must complete before any new feature phases begin — it establishes the clean test baseline. Phase 13 depends on Phase 12. Phases 14, 15, 16 depend on Phase 12 and can run in any order relative to each other. Phase 17 depends on Phases 13-16.
+**Last action**: Phase 13 Plan 01 complete -- core/stealth.py created with all 8 symbols (ANTI-08, ANTI-04, ANTI-05 core logic)
+**Next action**: Execute Phase 13 Plan 02 (config schema + sample config) and Plan 03 (plugin wiring)
+**Context to carry**: core/stealth.py exports: STEALTH_JS, apply_stealth, _ProxyEntry, ProxyPool, _parse_proxy_url, _is_ban_response, build_proxy_browser_args, setup_proxy_auth. ProxyPool.size() returns total entry count for the startup log line "Proxy rotation: enabled, pool_size=N". No ABC version bump. 376 tests passing.
 
 ---
 
@@ -235,6 +236,10 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 12-03]: TD-4 config seam accepted under MOD-02 -- write_web_config writes directly to _DEFAULT_YAML_PATH; BotService scope covers DB/registry/orchestrator only; WEB_ALLOWLIST is the safety boundary
 - [Phase ?]: [Phase 12-03]: MC-4 is_non_local banner gate proven both ways -- banner present when is_non_local=True, absent when is_non_local=False (Jinja2 conditional enforced in CI)
 - [Phase 12-04]: MC-1..MC-4 Windows variants recorded PENDING in docs/PLATFORMS.md (non-interactive agent env, no real TTY/restart cycle); MC-4 CI-asserted by tests/test_web_dashboard.py Plan 12-03; Ubuntu variants pending Ubuntu access
+- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
+- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
+- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
+- [Phase 13-01]: time.monotonic used for cooldown retired_until timestamps; module-level time attribute patched in tests (not global monotonic) for testability
 
 ## Operator Next Steps
 
