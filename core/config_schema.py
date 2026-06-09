@@ -214,6 +214,20 @@ class CredentialsConfig(BaseModel):
     data_dir: str = ""     # empty = data/creds.bin (project-relative default)
 
 
+class ProxyConfig(BaseModel):
+    """Opt-in proxy rotation config (ANTI-04). Disabled by default.
+
+    Proxy URLs use scheme://[user:pass@]host:port format. Credential-bearing
+    URLs are stored locally in config.yml (gitignored) and are never logged;
+    only host:port appears in log output.
+    """
+
+    enabled: bool = False
+    urls: list[str] = Field(default_factory=list)
+    max_failures: int = 3
+    cooldown_secs: float = 300.0
+
+
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
@@ -231,6 +245,7 @@ class AppConfig(BaseSettings):
     app: AppSettingsConfig = AppSettingsConfig()
     notifications: NotificationsConfig = NotificationsConfig()
     credentials: CredentialsConfig = CredentialsConfig()
+    proxy: ProxyConfig = ProxyConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)
