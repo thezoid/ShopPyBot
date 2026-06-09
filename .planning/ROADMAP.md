@@ -153,7 +153,15 @@ Plans:
   4. Price alert payloads include the current price, target price, and percentage from target
   5. Running `shoppybot items price-history <name>` displays the last N recorded prices for that item
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+
+- [ ] 16-01-PLAN.md — Data layer: idempotent price_history table + 4 items columns + 8 parameterized price _sync functions + ItemConfig target_price/price_drop_pct (PRICE-01/02/05)
+- [ ] 16-02-PLAN.md — Plugin + notification contract: NotificationEvent price fields, default-None get_price() ABC hook, real Amazon get_price() + text→cents parser, price_drop notifier branches (PRICE-02/04)
+- [ ] 16-03-PLAN.md — Orchestrator wiring: _check_and_buy price path, both triggers with separate dedup, single price_drop dispatch, startup config seeding + BotService.get_price_history (PRICE-02/03/04/05)
+- [ ] 16-04-PLAN.md — CLI: shoppybot items price-history <name> leaf with --limit (default 10), $X.XX table, no network (PRICE-06)
+
 **UI hint**: yes
 
 ### Phase 17: Test Hardening
@@ -191,11 +199,11 @@ Plans:
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
+| 16. Price Monitoring | v3.0 | 0/4 | Not started | - |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.
 
 ---
 
-*Last updated: 2026-06-09 — Phase 15 Plan 01 complete (REG-02 closed)*
+*Last updated: 2026-06-09 — Phase 16 planned (4 plans, PRICE-01 through PRICE-06)*
