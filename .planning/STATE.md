@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-09T21:40:00.000Z"
-last_activity: 2026-06-09 -- Phase 15 Plan 01 complete
+last_updated: "2026-06-09T21:56:39.823Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
-  percent: 54
+  completed_plans: 12
+  percent: 92
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 15 (plugin-ecosystem-registry) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 15
-Last activity: 2026-06-09 -- Phase 15 Plan 01 complete (REG-02 closed)
+Phase: 15 (plugin-ecosystem-registry) — COMPLETE
+Plan: 3 of 3
+Status: Phase 15 complete
+Last activity: 2026-06-09 -- Phase 15 Plan 03 complete (REG-01, REG-04 closed)
 
 ## Phase Status
 
@@ -40,7 +40,7 @@ Last activity: 2026-06-09 -- Phase 15 Plan 01 complete (REG-02 closed)
 | 12 — Stability Foundation | Close v2.0 deferred OS checks + 4 audit tech-debt items | Not started | 2 |
 | 13 — Anti-Detection Layer 1 (Fingerprint + Proxy) | JS stealth patch + proxy rotation with ban detection | Not started | 3 |
 | 14 — Anti-Detection Layer 2 (CAPTCHA Solving) | 2captcha opt-in with balance check, async executor, spend cap | Not started | 2 |
-| 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Not started | 4 |
+| 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Complete | 4 |
 | 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Not started | 6 |
 | 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Not started | 1 |
 
@@ -48,9 +48,9 @@ Last activity: 2026-06-09 -- Phase 15 Plan 01 complete (REG-02 closed)
 
 ## Performance Metrics
 
-**Plans completed**: 2 (Phase 13 Plans 01-02)
-**Requirements completed**: 4 (ANTI-08, ANTI-04 core logic, ANTI-04 config surface, ANTI-05 core logic)
-**Phases completed**: 0
+**Plans completed**: 12 of 13
+**Requirements completed**: REG-01, REG-02, REG-03, REG-04 (Phase 15 all closed)
+**Phases completed**: Phase 15 complete
 **Blockers resolved**: 0
 
 ---
@@ -118,12 +118,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
 | Phase 14-anti-detection-layer-2-captcha-solving P03 | 18min | 2 tasks | 4 files |
 | Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
+| Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
 
 ## Session Continuity
 
-**Last action**: Phase 15 Plan 01 complete -- difficulty/requires_proxy/requires_captcha added to RetailerPlugin ABC with __init_subclass__ validation; 4 new tests; 483 passed, 2 skipped.
-**Next action**: Execute Phase 15 Plan 02 (plugins list CLI: BotService.list_plugins() + core/cli/plugins.py + subparser registration)
-**Context to carry**: RetailerPlugin now has difficulty="medium"/requires_proxy=False/requires_captcha=False defaults. __init_subclass__ rejects invalid difficulty at import time. PLUGIN_API_VERSION=2. Use getattr(plugin, "difficulty", "medium") in list_plugins() for belt-and-suspenders resilience against external plugins built against older ABC.
+**Last action**: Phase 15 Plan 03 complete -- docs/PLUGIN_REGISTRY.md SPEC created (9-field wiki table, in-repo vs external distinction); CONTRIBUTING.md + PR template + PLUGIN_DEV.md updated to require difficulty/requires_proxy/requires_captcha; tests/test_docs.py 4 tests green; 487 passed, 2 skipped.
+**Next action**: Execute Phase 16 (Price Monitoring) -- run /gsd:plan-phase 16
+**Context to carry**: Phase 15 fully closed (REG-01 through REG-04). RetailerPlugin ABC has difficulty/requires_proxy/requires_captcha class attrs with defaults. plugins list CLI (shoppybot plugins list [--json]) via BotService.list_plugins() + core/cli/plugins.py. PLUGIN_REGISTRY.md is in-repo SPEC only; live wiki page must be created manually by a maintainer on first plugin PR merge.
 
 ---
 
@@ -257,6 +258,10 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: PLUGIN_API_VERSION stays 2; no ABC changes; _captcha_solver injected as attribute
 - [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
 - [Phase 15-01]: PLUGIN_API_VERSION stays 2; additive class attrs (difficulty/requires_proxy/requires_captcha) are non-breaking per RESEARCH Pattern 1
+- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
+- [Phase 15-03]: PR template Risk Declaration section replaced with Plugin Metadata section (difficulty/requires_proxy/requires_captcha); no duplicate risk section
+- [Phase 15-03]: PLUGIN_DEV.md ABC table column header updated to "Method / Attribute" to accommodate class-attr rows alongside method rows
+- [Phase 15-03]: tests/test_docs.py added with 4 doc-presence tests using Path(__file__).parent.parent as repo root; pattern available for future doc locking
 
 ## Operator Next Steps
 

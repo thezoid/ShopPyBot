@@ -138,7 +138,7 @@ Plans:
 
 - [x] 15-01-PLAN.md — REG-02: add difficulty/requires_proxy/requires_captcha class attrs + __init_subclass__ difficulty validation to RetailerPlugin ABC (non-breaking, PLUGIN_API_VERSION stays 2) + test_plugin_base.py assertions
 - [ ] 15-02-PLAN.md — REG-03: BotService.list_plugins() over registry._all_plugins + core/cli/plugins.py handler + plugins-list subparser with --json + no-network CLI tests
-- [ ] 15-03-PLAN.md — REG-01/REG-04: docs/PLUGIN_REGISTRY.md 9-field wiki SPEC + CONTRIBUTING.md/PR-template/PLUGIN_DEV.md attr requirements + tests/test_docs.py
+- [x] 15-03-PLAN.md — REG-01/REG-04: docs/PLUGIN_REGISTRY.md 9-field wiki SPEC + CONTRIBUTING.md/PR-template/PLUGIN_DEV.md attr requirements + tests/test_docs.py
 
 ### Phase 16: Price Monitoring
 
@@ -190,7 +190,7 @@ Plans:
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 15. Plugin Ecosystem Registry | v3.0 | 1/3 | In progress | - |
+| 15. Plugin Ecosystem Registry | v3.0 | 2/3 | In Progress|  |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
 
