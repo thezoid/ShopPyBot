@@ -8,6 +8,7 @@ Neither value is ever logged, stored to disk, or written to config.yml.
 """
 
 import asyncio
+import logging
 
 import nodriver
 
@@ -16,6 +17,15 @@ from core.plugin_base import RetailerPlugin
 from core.stealth import apply_stealth, build_proxy_browser_args, setup_proxy_auth, _is_ban_response
 from logger import writeLog
 from utils import play_notification_sound
+
+_log = logging.getLogger(__name__)
+
+_WAF_PROBE_JS = (
+    "(function(){var p=window.gokuProps;"
+    "if(p)return JSON.stringify({key:p.key,iv:p.iv,context:p.context});"
+    "return null;})();"
+)
+_SITEKEY_JS = "document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey')||''"
 
 
 class AmazonPlugin(RetailerPlugin):
@@ -31,6 +41,8 @@ class AmazonPlugin(RetailerPlugin):
         self.passkey_event: asyncio.Event = asyncio.Event()
         self.otp_event: asyncio.Event = asyncio.Event()
         self.test_pause_event: asyncio.Event = asyncio.Event()
+        # Injected by PluginRegistry.assign_solver (Plan 02); None when disabled.
+        self._captcha_solver = None
 
     async def _wait_user_action(self, event: asyncio.Event, message: str) -> None:
         """Notify user, await their Enter, clear the event for reuse (ASYNC-03).
@@ -51,6 +63,92 @@ class AmazonPlugin(RetailerPlugin):
             )
         finally:
             event.clear()
+
+    async def _extract_sitekey(self, tab) -> str:
+        """Return reCAPTCHA v2 sitekey from data-sitekey attribute, or empty string."""
+        try:
+            return await tab.evaluate(_SITEKEY_JS) or ""
+        except Exception:
+            return ""
+
+    async def _inject_token(self, tab, token: str) -> None:
+        """Inject a validated reCAPTCHA token into the page via JS callbacks."""
+        inject_js = (
+            f"(function(){{"
+            f"var el=document.getElementById('g-recaptcha-response');"
+            f"if(el){{el.value='{token}';}}"
+            f"var c=window.___grecaptcha_cfg&&window.___grecaptcha_cfg.clients;"
+            f"if(c){{Object.values(c).forEach(function(x){{"
+            f"if(x&&x.callback){{try{{x.callback('{token}');}}catch(e){{}}}}"
+            f"}});}}}})();"
+        )
+        await tab.evaluate(inject_js)
+
+    async def _solve_or_pause(self, tab, pageurl: str) -> None:
+        """Attempt automated reCAPTCHA v2 solve; fall back to manual pause on any failure.
+
+        Decision tree (ANTI-06, T-14-inject, T-14-block2, T-14-silent, T-14-waf):
+          1. No solver or can_solve() False -> manual pause
+          2. window.gokuProps present (WAF) -> INFO log + manual pause (deferred)
+          3. Empty sitekey -> manual pause
+          4. Solve raises / times out -> manual pause
+          5. Token empty or contains quote/newline -> manual pause
+          6. All OK -> inject token; no manual pause
+        """
+        solver = self._captcha_solver
+        if solver is None or not solver.can_solve():
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA detected on Amazon. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        # WAF detection: window.gokuProps present means Amazon WAF CAPTCHA (deferred).
+        try:
+            waf_raw = await tab.evaluate(_WAF_PROBE_JS)
+        except Exception:
+            waf_raw = None
+        if waf_raw:
+            _log.info("Amazon WAF CAPTCHA detected -- auto-solve deferred; falling back to manual pause")
+            await self._wait_user_action(
+                self.captcha_event,
+                "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        sitekey = await self._extract_sitekey(tab)
+        if not sitekey:
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA detected on Amazon (no sitekey). Solve it in the browser, then press Enter.",
+            )
+            return
+
+        # Solve via run_in_executor; timeout wraps ONLY the executor call (Pitfall 3).
+        loop = asyncio.get_running_loop()
+        try:
+            async with asyncio.timeout(120):
+                token = await loop.run_in_executor(
+                    None, solver.solve_recaptcha, sitekey, pageurl
+                )
+        except (asyncio.TimeoutError, Exception) as exc:
+            _log.warning("CAPTCHA solve failed: %s", exc.__class__.__name__)
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA solve failed on Amazon. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        # V5 input validation: reject token containing quote or newline (T-14-inject).
+        if not token or "'" in token or "\n" in token:
+            _log.warning("CAPTCHA token failed validation -- falling back to manual pause")
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA token invalid on Amazon. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        await self._inject_token(tab, token)
 
     async def setup(self) -> None:
         # Fail loudly if proxy required but pool is exhausted (T-13-10, Pitfall 2).
@@ -100,10 +198,7 @@ class AmazonPlugin(RetailerPlugin):
 
             captcha_present = await self.detect_captcha()
             if captcha_present:
-                await self._wait_user_action(
-                    self.captcha_event,
-                    "CAPTCHA detected on Amazon. Solve it in the browser, then press Enter.",
-                )
+                await self._solve_or_pause(tab, url)
 
             # ANTI-05: scan body for ban phrases; record failure on proxy (restart-only).
             body_text = ""
