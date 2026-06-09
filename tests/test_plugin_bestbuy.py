@@ -90,7 +90,9 @@ async def test_check_availability_returns_true_when_button_found(fake_browser):
     plugin = BestBuyPlugin(config=_make_config())
     plugin.driver = fake_browser
 
-    result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
+    # Patch detect_captcha to skip the CAPTCHA branch (no CAPTCHA on normal pages).
+    with patch.object(plugin, "detect_captcha", new=AsyncMock(return_value=False)):
+        result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
 
     assert result is True
 
@@ -103,7 +105,8 @@ async def test_check_availability_returns_false_when_no_button(fake_browser):
 
     fake_browser.get.return_value.select = AsyncMock(return_value=None)
 
-    result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
+    with patch.object(plugin, "detect_captcha", new=AsyncMock(return_value=False)):
+        result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
 
     assert result is False
 
@@ -114,7 +117,8 @@ async def test_check_availability_returns_bool_type(fake_browser):
     plugin = BestBuyPlugin(config=_make_config())
     plugin.driver = fake_browser
 
-    result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
+    with patch.object(plugin, "detect_captcha", new=AsyncMock(return_value=False)):
+        result = await plugin.check_availability("https://www.bestbuy.com/site/test/1234.p")
 
     assert isinstance(result, bool)
 
@@ -186,10 +190,11 @@ async def test_check_availability_ban_page_triggers_record_failure(fake_browser)
     plugin._proxy = mock_proxy
     plugin._pool = mock_pool
 
-    # Fake tab returns a ban-phrase body.
+    # Fake tab returns a ban-phrase body; ban scan fires before CAPTCHA detection.
     fake_browser.get.return_value.evaluate = AsyncMock(return_value="Access Denied")
 
-    result = await plugin.check_availability("https://www.bestbuy.com/site/test/9999.p")
+    with patch.object(plugin, "detect_captcha", new=AsyncMock(return_value=False)):
+        result = await plugin.check_availability("https://www.bestbuy.com/site/test/9999.p")
 
     assert result is False, "Ban page must return False"
     mock_pool.record_failure.assert_called_once_with(mock_proxy)

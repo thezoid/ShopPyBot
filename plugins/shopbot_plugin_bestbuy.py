@@ -11,12 +11,19 @@ ASYNC-05: auto_buy returns True on success without calling update_item_purchased
 directly. The orchestrator's write queue owns the sole write path.
 """
 
+import asyncio
+import logging
+
 import nodriver
 
 from core.credentials import get_store
 from core.plugin_base import RetailerPlugin
 from core.stealth import apply_stealth, build_proxy_browser_args, setup_proxy_auth, _is_ban_response
 from logger import writeLog
+
+_log = logging.getLogger(__name__)
+
+_SITEKEY_JS = "document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey')||''"
 
 
 class BestBuyPlugin(RetailerPlugin):
@@ -36,6 +43,112 @@ class BestBuyPlugin(RetailerPlugin):
         # SEC-02: CVV sourced at runtime via getpass in main.py; threaded here.
         # main.py sets plugin._cvv = cvv after setup_for_items(). Never logged.
         self._cvv = None
+        # ANTI-06: captcha event + solver injected by PluginRegistry.assign_solver.
+        self.captcha_event: asyncio.Event = asyncio.Event()
+        self._captcha_solver = None
+
+    async def _wait_user_action(self, event: asyncio.Event, message: str) -> None:
+        """Notify user, await their Enter, clear the event for reuse (ASYNC-03).
+
+        Mirrors AmazonPlugin._wait_user_action. 5-minute unattended guard;
+        logs on timeout and continues. Always clears the event in finally.
+        """
+        writeLog(message, "WARNING")
+        try:
+            await asyncio.wait_for(event.wait(), timeout=300)
+        except asyncio.TimeoutError:
+            writeLog(
+                "User action timed out (300s) -- continuing without intervention",
+                "WARNING",
+            )
+        finally:
+            event.clear()
+
+    async def _extract_sitekey(self, tab) -> str:
+        """Return reCAPTCHA v2 sitekey from data-sitekey attribute, or empty string."""
+        try:
+            return await tab.evaluate(_SITEKEY_JS) or ""
+        except Exception:
+            return ""
+
+    async def _inject_token(self, tab, token: str) -> None:
+        """Inject a validated reCAPTCHA token into the page via JS callbacks."""
+        inject_js = (
+            f"(function(){{"
+            f"var el=document.getElementById('g-recaptcha-response');"
+            f"if(el){{el.value='{token}';}}"
+            f"var c=window.___grecaptcha_cfg&&window.___grecaptcha_cfg.clients;"
+            f"if(c){{Object.values(c).forEach(function(x){{"
+            f"if(x&&x.callback){{try{{x.callback('{token}');}}catch(e){{}}}}"
+            f"}});}}}})();"
+        )
+        await tab.evaluate(inject_js)
+
+    async def _solve_or_pause(self, tab, pageurl: str) -> None:
+        """Best-effort reCAPTCHA v2 solve; fall back to manual pause on any failure.
+
+        BestBuy may not show reCAPTCHA v2 (Open Question 2) -- empty sitekey
+        falls gracefully to manual pause (no silent skip). Same executor +
+        asyncio.timeout(120) pattern as AmazonPlugin (T-14-block2, T-14-silent).
+        """
+        solver = self._captcha_solver
+        if solver is None or not solver.can_solve():
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA detected on BestBuy. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        sitekey = await self._extract_sitekey(tab)
+        if not sitekey:
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA detected on BestBuy (no sitekey). Solve it in the browser, then press Enter.",
+            )
+            return
+
+        loop = asyncio.get_running_loop()
+        try:
+            async with asyncio.timeout(120):
+                token = await loop.run_in_executor(
+                    None, solver.solve_recaptcha, sitekey, pageurl
+                )
+        except (asyncio.TimeoutError, Exception) as exc:
+            _log.warning("BestBuy CAPTCHA solve failed: %s", exc.__class__.__name__)
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA solve failed on BestBuy. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        if not token or "'" in token or "\n" in token:
+            _log.warning("BestBuy CAPTCHA token failed validation -- falling back to manual pause")
+            await self._wait_user_action(
+                self.captcha_event,
+                "CAPTCHA token invalid on BestBuy. Solve it in the browser, then press Enter.",
+            )
+            return
+
+        await self._inject_token(tab, token)
+
+    async def detect_captcha(self) -> bool:
+        """Return True if a reCAPTCHA widget or BestBuy challenge page is present."""
+        tab = self.driver.main_tab
+        # reCAPTCHA widget presence (data-sitekey)
+        try:
+            sitekey = await tab.evaluate(_SITEKEY_JS) or ""
+            if sitekey:
+                return True
+        except Exception:
+            pass
+        # BestBuy challenge page marker (common challenge phrase)
+        try:
+            element = await tab.find("robot", best_match=False, timeout=2)
+            if element is not None:
+                return True
+        except Exception:
+            pass
+        return False
 
     async def setup(self) -> None:
         # Fail loudly if proxy required but pool is exhausted (T-13-10, Pitfall 2).
@@ -80,6 +193,11 @@ class BestBuyPlugin(RetailerPlugin):
                 pass
             if self._handle_ban(body_text):
                 return False
+
+            # ANTI-06: detect CAPTCHA and attempt automated solve with manual fallback.
+            captcha_present = await self.detect_captcha()
+            if captcha_present:
+                await self._solve_or_pause(tab, url)
             writeLog("Waiting for add-to-cart button", "DEBUG")
             add_to_cart = await tab.select(".add-to-cart-button", timeout=10)
             if add_to_cart:
