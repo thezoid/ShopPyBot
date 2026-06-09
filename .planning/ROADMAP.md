@@ -63,7 +63,13 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
   1. All 4 deferred v2.0 cross-OS/UI manual checks (keyring restart survival, masked-TTY passphrase prompt, web dashboard render on Ubuntu, `0.0.0.0` bind warning) are executed and documented pass or fail, with any failures fixed
   2. Each of the 4 v2.0 audit tech-debt items has a targeted regression test that passes in CI
   3. No broad refactors occur: only the specific items in scope are changed
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — TD-1: re-anchor logger logging_level read to core.paths.config_path() + regression test
+- [ ] 12-02-PLAN.md — TD-2/TD-3: harden SC1 secret-read guard (rglob) and separator guard (__file__-anchored)
+- [ ] 12-03-PLAN.md — TD-4 config write-seam regression test + accepted MOD-02 gap doc; MC-4 0.0.0.0 banner assertion
+- [ ] 12-04-PLAN.md — Execute and document MC-1..MC-4 deferred manual checks in docs/PLATFORMS.md
 
 ### Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy
 **Goal**: Users can enable proxy rotation and the bot applies a JS fingerprint stealth patch at browser startup, measurably reducing Layer 2 bot signals
@@ -141,7 +147,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 | 9. CLI Front-End | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
-| 12. Stability Foundation | v3.0 | 0/TBD | Not started | - |
+| 12. Stability Foundation | v3.0 | 0/4 | Not started | - |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/TBD | Not started | - |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
@@ -152,4 +158,4 @@ All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phase
 
 ---
 
-*Last updated: 2026-06-07 — v3.0 Resilience + Ecosystem roadmap created*
+*Last updated: 2026-06-09 — Phase 12 planned (4 plans)*
