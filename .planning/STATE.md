@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-09T06:59:00.000Z"
-last_activity: 2026-06-09 -- Phase 13 Plan 01 completed (core/stealth.py)
+last_updated: "2026-06-09T07:05:41Z"
+last_activity: 2026-06-09 -- Phase 13 Plan 02 completed (ProxyConfig schema + sample.config.yml)
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
-  percent: 20
+  completed_plans: 6
+  percent: 22
 ---
 
 # ShopPyBot — State
@@ -29,9 +29,9 @@ progress:
 ## Current Position
 
 Phase: 13 (anti-detection-layer-1-fingerprint-proxy) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Phase 13
-Last activity: 2026-06-09 -- Phase 13 Plan 01 completed (core/stealth.py)
+Last activity: 2026-06-09 -- Phase 13 Plan 02 completed (ProxyConfig schema + sample.config.yml)
 
 ## Phase Status
 
@@ -48,8 +48,8 @@ Last activity: 2026-06-09 -- Phase 13 Plan 01 completed (core/stealth.py)
 
 ## Performance Metrics
 
-**Plans completed**: 1 (Phase 13 Plan 01)
-**Requirements completed**: 3 (ANTI-08, ANTI-04, ANTI-05 core logic)
+**Plans completed**: 2 (Phase 13 Plans 01-02)
+**Requirements completed**: 4 (ANTI-08, ANTI-04 core logic, ANTI-04 config surface, ANTI-05 core logic)
 **Phases completed**: 0
 **Blockers resolved**: 0
 
@@ -108,6 +108,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ---
 | Phase 13 P01 | 7min | 2 tasks | 2 files |
+| Phase 13 P02 | 5min | 2 tasks | 3 files |
 | Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
 | Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
 | Phase 12 P03 | 4min | - tasks | - files |
@@ -115,9 +116,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Session Continuity
 
-**Last action**: Phase 13 Plan 01 complete -- core/stealth.py created with all 8 symbols (ANTI-08, ANTI-04, ANTI-05 core logic)
-**Next action**: Execute Phase 13 Plan 02 (config schema + sample config) and Plan 03 (plugin wiring)
-**Context to carry**: core/stealth.py exports: STEALTH_JS, apply_stealth, _ProxyEntry, ProxyPool, _parse_proxy_url, _is_ban_response, build_proxy_browser_args, setup_proxy_auth. ProxyPool.size() returns total entry count for the startup log line "Proxy rotation: enabled, pool_size=N". No ABC version bump. 376 tests passing.
+**Last action**: Phase 13 Plan 02 complete -- ProxyConfig Pydantic model + AppConfig.proxy field + sample.config.yml proxy section (ANTI-04 config surface)
+**Next action**: Execute Phase 13 Plan 03 (plugin wiring: stealth apply + proxy rotation in plugin_base.py)
+**Context to carry**: AppConfig.proxy: ProxyConfig with enabled/urls/max_failures/cooldown_secs. core/stealth.py exports: STEALTH_JS, apply_stealth, _ProxyEntry, ProxyPool, _parse_proxy_url, _is_ban_response, build_proxy_browser_args, setup_proxy_auth. ProxyPool.size() returns total entry count for startup log "Proxy rotation: enabled, pool_size=N". No ABC version bump. 380 tests passing.
 
 ---
 
@@ -240,6 +241,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
 - [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
 - [Phase 13-01]: time.monotonic used for cooldown retired_until timestamps; module-level time attribute patched in tests (not global monotonic) for testability
+- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern; no model_validator or os.environ reads in ProxyConfig (credentials live in config.yml per RESEARCH Open Question 3)
+- [Phase 13-02]: sample.config.yml proxy example uses proxy.example.com placeholder only; real URLs in user's gitignored config.yml
 
 ## Operator Next Steps
 

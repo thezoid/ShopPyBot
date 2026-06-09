@@ -92,7 +92,7 @@ Plans:
 
 Plans:
 - [x] 13-01-PLAN.md — core/stealth.py: STEALTH_JS + apply_stealth, ProxyPool (round-robin/retire/cooldown), proxy launch args + WebRTC flag, CDP Fetch auth, ban-signal detector (+ unit tests)
-- [ ] 13-02-PLAN.md — ProxyConfig schema (opt-in, disabled by default) + documented sample.config.yml proxy section
+- [x] 13-02-PLAN.md — ProxyConfig schema (opt-in, disabled by default) + documented sample.config.yml proxy section
 - [ ] 13-03-PLAN.md — Wire stealth + proxy into BotService/orchestrator/registry and all 8 plugins; per-instance scoping, exact startup log, fail-loud on pool exhaustion, ban-detect recording
 **UI hint**: no
 
