@@ -12,6 +12,7 @@ from core.cli.setup import handle_setup
 from core.cli.items import handle_items_list, handle_items_add, handle_items_remove
 from core.cli.config_cmd import handle_config_show, handle_config_set
 from core.cli.web import handle_web
+from core.cli.plugins import handle_plugins_list
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -113,6 +114,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Bare `shoppybot config` (no leaf) must print usage and exit 2, not start the bot.
     config_p.set_defaults(func=_require_subcommand(config_p))
+
+    # --- plugins ---
+    plugins_p = sub.add_parser("plugins", help="Inspect locally loaded plugins.")
+    plugins_sub = plugins_p.add_subparsers(dest="plugins_command")
+
+    plugins_list_p = plugins_sub.add_parser("list", help="List all loaded plugins.")
+    plugins_list_p.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit output as JSON instead of a text table.",
+    )
+    plugins_list_p.set_defaults(func=handle_plugins_list)
+
+    # Bare `shoppybot plugins` (no leaf) must print usage and exit 2, not start the bot.
+    plugins_p.set_defaults(func=_require_subcommand(plugins_p))
 
     # --- web ---
     web_p = sub.add_parser(
