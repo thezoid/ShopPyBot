@@ -5,7 +5,9 @@ import threading
 import warnings
 from pathlib import Path
 
-from pydantic import BaseModel, Field, model_validator
+from urllib.parse import urlparse as _urlparse
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -226,6 +228,22 @@ class ProxyConfig(BaseModel):
     urls: list[str] = Field(default_factory=list)
     max_failures: int = 3
     cooldown_secs: float = 300.0
+
+    @field_validator("urls", mode="before")
+    @classmethod
+    def validate_proxy_urls(cls, v):
+        """WR-05 / CR-03: reject URLs missing scheme, hostname, or port at config load.
+
+        A schemeless or portless URL would produce host_port='None:None', which Chrome
+        ignores, silently causing a direct connection that leaks the real IP.
+        """
+        for url in v:
+            parsed = _urlparse(url)
+            if not parsed.scheme or not parsed.hostname or parsed.port is None:
+                raise ValueError(
+                    f"Invalid proxy URL {url!r}: must be scheme://[user:pass@]host:port"
+                )
+        return v
 
 
 class AppConfig(BaseSettings):
