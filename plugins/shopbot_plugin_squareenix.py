@@ -23,6 +23,7 @@ from core.credentials import get_store
 
 from core.config_schema import DEFAULT_USER_AGENTS
 from core.plugin_base import RetailerPlugin
+from core.stealth import apply_stealth, build_proxy_browser_args, setup_proxy_auth
 from logger import writeLog
 
 
@@ -45,6 +46,11 @@ class SquareEnixPlugin(RetailerPlugin):
         Reads config.platforms.squareenix.headless (ANTI-03) and user_agents (ANTI-02).
         Falls back to headless=True and DEFAULT_USER_AGENTS when config is absent.
         """
+        # Fail loudly if proxy required but pool is exhausted (T-13-10, Pitfall 2).
+        if getattr(self, "_proxy_required", False) and getattr(self, "_proxy", None) is None:
+            writeLog("Proxy enabled but pool exhausted -- refusing direct launch", "ERROR")
+            raise RuntimeError("SquareEnixPlugin: proxy pool exhausted; cannot launch")
+
         headless = True
         ua_list: list[str] = []
 
@@ -61,9 +67,20 @@ class SquareEnixPlugin(RetailerPlugin):
             ua = random.choice(DEFAULT_USER_AGENTS)
         browser_args = [f"--user-agent={ua}"]
 
+        # ANTI-04: merge proxy + WebRTC args ([] when proxy disabled).
+        browser_args = browser_args + build_proxy_browser_args(getattr(self, "_proxy", None))
+
         # ANTI-03: per-platform headless toggle; nodriver.Config appends --headless=new when True.
         # NOTE: never pass "--headless" via browser_args -- nodriver raises ValueError.
         self.driver = await nodriver.start(headless=headless, browser_args=browser_args)
+
+        # ANTI-08: apply stealth BEFORE first navigation (Pitfall 8).
+        await apply_stealth(self.driver.main_tab)
+
+        # Authenticated proxy: register CDP Fetch handlers (Pitfall 4+5).
+        proxy = getattr(self, "_proxy", None)
+        if proxy and proxy.username:
+            await setup_proxy_auth(self.driver.main_tab, proxy.username, proxy.password)
 
     async def teardown(self) -> None:
         if self.driver:

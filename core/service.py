@@ -17,6 +17,7 @@ from typing import Optional
 from core.config_schema import AppConfig
 from core.credentials import init_store
 from core.orchestrator import async_main
+from core.stealth import ProxyPool
 from logger import writeLog
 from models import add_items_sync, get_items_sync, remove_item_sync
 
@@ -38,6 +39,11 @@ class BotService:
         # Initialize the credential store before the daemon thread launches
         # so the store is available without a race (RESEARCH thread-safety note).
         init_store(self._cfg)
+        # ANTI-04: emit startup log when proxy rotation is enabled (T-13-09 mitigation).
+        # Log only the integer pool size -- never log URLs or credentials.
+        if self._cfg.proxy.enabled:
+            n = len(self._cfg.proxy.urls)
+            writeLog(f"Proxy rotation: enabled, pool_size={n}", "INFO")
 
     # ------------------------------------------------------------------
     # Read-only accessors (callable without start)

@@ -64,11 +64,30 @@ class PluginRegistry:
     Browser launch is deferred to setup_for_items (D-09 lazy launch).
     """
 
-    def __init__(self, config, plugins_dir: Path) -> None:
+    def __init__(self, config, plugins_dir: Path, proxy_pool=None) -> None:
         plugin_classes = _discover_plugins(plugins_dir)
         # Eagerly construct all plugin instances: cheap objects, no browser yet.
         self._all_plugins: list[RetailerPlugin] = [cls(config) for cls in plugin_classes]
         self._active_plugins: list[RetailerPlugin] = []
+        self._proxy_pool = proxy_pool
+
+    def assign_proxy(self, plugin) -> None:
+        """Set proxy state on a plugin instance before setup().
+
+        When a pool is available, advances to the next non-retired entry and
+        sets plugin._proxy, plugin._pool, and plugin._proxy_required=True.
+        When the pool is exhausted (all retired), _proxy_required=True but
+        _proxy=None so the plugin's setup() can fail loudly (Pitfall 2).
+        When no pool is configured, sets _proxy_required=False and _proxy=None.
+        Credentials are NEVER logged here.
+        """
+        if self._proxy_pool is None:
+            plugin._proxy_required = False
+            plugin._proxy = None
+            return
+        plugin._proxy_required = True
+        plugin._pool = self._proxy_pool
+        plugin._proxy = self._proxy_pool.advance()
 
     def route(self, url: str) -> RetailerPlugin | None:
         """Return the active plugin whose domain_patterns matches url's hostname.
@@ -120,6 +139,7 @@ class PluginRegistry:
 
         for plugin in needed:
             try:
+                self.assign_proxy(plugin)
                 await plugin.setup()
                 self._active_plugins.append(plugin)
             except Exception as exc:

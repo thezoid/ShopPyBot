@@ -234,6 +234,9 @@ def mock_nodriver_start():
             self.browser = MagicMock()
 
     recorder = _Recorder()
+    # Ensure main_tab.send is an AsyncMock so apply_stealth can be awaited.
+    recorder.browser.main_tab = MagicMock()
+    recorder.browser.main_tab.send = AsyncMock()
 
     async def _fake_start(*args, **kwargs):
         recorder.calls.append(kwargs)

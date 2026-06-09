@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from core.registry import PluginRegistry
+from core.stealth import ProxyPool
 from logger import writeLog
 from models import (
     get_items_sync,
@@ -182,6 +183,7 @@ async def _staggered_setup(registry, items, stagger_secs: float = _STAGGER_SECS)
             "INFO",
         )
         try:
+            registry.assign_proxy(plugin)
             await plugin.setup()
             registry._active_plugins.append(plugin)
         except Exception as exc:
@@ -221,7 +223,14 @@ async def async_main(cfg, cvv) -> None:
     from notifications import build_dispatcher
 
     plugins_dir = Path(__file__).parent.parent / "plugins"
-    registry = PluginRegistry(cfg, plugins_dir)
+    proxy_pool = None
+    if getattr(getattr(cfg, "proxy", None), "enabled", False):
+        proxy_pool = ProxyPool.from_urls(
+            cfg.proxy.urls,
+            cfg.proxy.max_failures,
+            cfg.proxy.cooldown_secs,
+        )
+    registry = PluginRegistry(cfg, plugins_dir, proxy_pool=proxy_pool)
     loop = asyncio.get_running_loop()
 
     items = await loop.run_in_executor(None, get_items_sync)

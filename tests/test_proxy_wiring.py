@@ -369,11 +369,9 @@ async def test_amazon_ban_signal_records_failure():
 
     browser.get = mock_get
 
-    # Make select return None (no add-to-cart found) so check returns False
-    async def mock_select(selector, timeout=10):
-        return None
-
-    tab.select = mock_select
+    # Make select and find return None (no elements found)
+    tab.select = AsyncMock(return_value=None)
+    tab.find = AsyncMock(return_value=None)
     tab.evaluate = AsyncMock(return_value="access denied - bot detected")
 
     with patch.object(_amazon_module, "_is_ban_response", return_value=True):

@@ -13,6 +13,7 @@ import nodriver
 
 from core.credentials import get_store
 from core.plugin_base import RetailerPlugin
+from core.stealth import apply_stealth, build_proxy_browser_args, setup_proxy_auth, _is_ban_response
 from logger import writeLog
 from utils import play_notification_sound
 
@@ -52,17 +53,27 @@ class AmazonPlugin(RetailerPlugin):
             event.clear()
 
     async def setup(self) -> None:
-        # nodriver.start() MUST be awaited from async context.
-        # Browser.__init__ raises RuntimeError if no running event loop, so
-        # this can never be called in __init__ (see RESEARCH.md Pitfall 1).
-        # SC3: headless flag is config-driven; read from config.platforms.amazon.headless.
-        # Defaults to True (headless) when self.config is None or the attribute is absent.
+        # Fail loudly if proxy required but pool is exhausted (T-13-10, Pitfall 2).
+        if getattr(self, "_proxy_required", False) and getattr(self, "_proxy", None) is None:
+            writeLog("Proxy enabled but pool exhausted -- refusing direct launch", "ERROR")
+            raise RuntimeError("AmazonPlugin: proxy pool exhausted; cannot launch")
+
         headless = True
         if self.config:
             platform_cfg = getattr(getattr(self.config, "platforms", None), "amazon", None)
             if platform_cfg is not None:
                 headless = getattr(platform_cfg, "headless", True)
-        self.driver = await nodriver.start(headless=headless)
+
+        proxy = getattr(self, "_proxy", None)
+        browser_args = build_proxy_browser_args(proxy) or None
+        self.driver = await nodriver.start(headless=headless, browser_args=browser_args)
+
+        # ANTI-08: apply stealth BEFORE first navigation (Pitfall 8).
+        await apply_stealth(self.driver.main_tab)
+
+        # Authenticated proxy: register CDP Fetch handlers (Pitfall 4+5).
+        if proxy and proxy.username:
+            await setup_proxy_auth(self.driver.main_tab, proxy.username, proxy.password)
 
     async def teardown(self) -> None:
         if self.driver:
@@ -93,6 +104,19 @@ class AmazonPlugin(RetailerPlugin):
                     self.captcha_event,
                     "CAPTCHA detected on Amazon. Solve it in the browser, then press Enter.",
                 )
+
+            # ANTI-05: scan body for ban phrases; record failure on proxy (restart-only).
+            body_text = ""
+            try:
+                body_text = await tab.evaluate("document.body.innerText") or ""
+            except Exception:
+                pass
+            if _is_ban_response(0, body_text):
+                proxy = getattr(self, "_proxy", None)
+                pool = getattr(self, "_pool", None)
+                if proxy and pool:
+                    pool.record_failure(proxy)
+                return False
 
             writeLog("Waiting for add-to-cart or buy-now button", "DEBUG")
             add_to_cart = await tab.select("#add-to-cart-button", timeout=10)

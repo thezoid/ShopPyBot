@@ -15,6 +15,7 @@ import nodriver
 
 from core.credentials import get_store
 from core.plugin_base import RetailerPlugin
+from core.stealth import apply_stealth, build_proxy_browser_args, setup_proxy_auth, _is_ban_response
 from logger import writeLog
 
 
@@ -37,17 +38,27 @@ class BestBuyPlugin(RetailerPlugin):
         self._cvv = None
 
     async def setup(self) -> None:
-        # nodriver.start() MUST be awaited from async context.
-        # Browser.__init__ raises RuntimeError if no running event loop, so
-        # this can never be called in __init__ (see RESEARCH.md Pitfall 1).
-        # SC3: headless flag is config-driven; read from config.platforms.bestbuy.headless.
-        # Defaults to True (headless) when self.config is None or the attribute is absent.
+        # Fail loudly if proxy required but pool is exhausted (T-13-10, Pitfall 2).
+        if getattr(self, "_proxy_required", False) and getattr(self, "_proxy", None) is None:
+            writeLog("Proxy enabled but pool exhausted -- refusing direct launch", "ERROR")
+            raise RuntimeError("BestBuyPlugin: proxy pool exhausted; cannot launch")
+
         headless = True
         if self.config:
             platform_cfg = getattr(getattr(self.config, "platforms", None), "bestbuy", None)
             if platform_cfg is not None:
                 headless = getattr(platform_cfg, "headless", True)
-        self.driver = await nodriver.start(headless=headless)
+
+        proxy = getattr(self, "_proxy", None)
+        browser_args = build_proxy_browser_args(proxy) or None
+        self.driver = await nodriver.start(headless=headless, browser_args=browser_args)
+
+        # ANTI-08: apply stealth BEFORE first navigation (Pitfall 8).
+        await apply_stealth(self.driver.main_tab)
+
+        # Authenticated proxy: register CDP Fetch handlers (Pitfall 4+5).
+        if proxy and proxy.username:
+            await setup_proxy_auth(self.driver.main_tab, proxy.username, proxy.password)
 
     async def teardown(self) -> None:
         if self.driver:
