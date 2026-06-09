@@ -58,6 +58,27 @@ def initialize_db(delete=False):
             conn.execute(
                 "ALTER TABLE items ADD COLUMN last_notified TEXT"
             )
+        # Phase 16: price monitoring columns (idempotent -- PRICE-01, PRICE-05).
+        if "target_price" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN target_price INTEGER")
+        if "price_drop_pct" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN price_drop_pct REAL")
+        if "price_alert_armed" not in existing:
+            conn.execute(
+                "ALTER TABLE items ADD COLUMN price_alert_armed INTEGER NOT NULL DEFAULT 0"
+            )
+        if "price_last_notified" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN price_last_notified TEXT")
+        # Phase 16: append-only price history table (PRICE-02).
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY,
+                item_link TEXT NOT NULL,
+                price_cents INTEGER NOT NULL,
+                currency TEXT NOT NULL DEFAULT 'USD',
+                scraped_at TEXT NOT NULL
+            )
+        ''')
 
 
 def get_items_sync():
@@ -123,6 +144,107 @@ def clear_item_available_sync(link: str) -> None:
             "UPDATE items SET last_seen_available=0 WHERE link=?",
             (link,),
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: price history + price-alert dedup + price config (PRICE-01/02/05)
+# ---------------------------------------------------------------------------
+
+
+def append_price_history_sync(
+    link: str, price_cents: int, scraped_at: str, currency: str = "USD"
+) -> None:
+    """Insert one price observation into the append-only price_history table."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "INSERT INTO price_history (item_link, price_cents, currency, scraped_at)"
+            " VALUES (?, ?, ?, ?)",
+            (link, price_cents, currency, scraped_at),
+        )
+
+
+def get_price_history_sync(link: str, limit: int = 10) -> list[tuple]:
+    """Return last N (price_cents, currency, scraped_at) rows, newest first."""
+    with get_db_connection() as conn:
+        return conn.execute(
+            "SELECT price_cents, currency, scraped_at FROM price_history"
+            " WHERE item_link=? ORDER BY scraped_at DESC LIMIT ?",
+            (link, limit),
+        ).fetchall()
+
+
+def get_last_price_sync(link: str) -> int | None:
+    """Return the most recent price_cents for the item, or None if no history."""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT price_cents FROM price_history"
+            " WHERE item_link=? ORDER BY scraped_at DESC LIMIT 1",
+            (link,),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def get_price_alert_state_sync(link: str) -> tuple[bool, str | None]:
+    """Return (price_alert_armed as bool, price_last_notified) for price dedup.
+
+    Returns (False, None) when the item row is missing.
+    """
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT price_alert_armed, price_last_notified FROM items WHERE link=?",
+            (link,),
+        ).fetchone()
+    if row is None:
+        return False, None
+    return bool(row[0]), row[1]
+
+
+def set_price_alert_armed_sync(link: str, notified_at: str) -> None:
+    """Set price_alert_armed=1 and price_last_notified for price-drop dedup.
+
+    MUST NOT touch last_seen_available or last_notified (Pitfall 1).
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET price_alert_armed=1, price_last_notified=? WHERE link=?",
+            (notified_at, link),
+        )
+
+
+def clear_price_alert_armed_sync(link: str) -> None:
+    """Reset price_alert_armed=0 (price recovered above threshold)."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET price_alert_armed=0 WHERE link=?",
+            (link,),
+        )
+
+
+def update_item_price_config_sync(
+    link: str, target_price: int | None, price_drop_pct: float | None
+) -> None:
+    """Write per-item price monitoring config to the items table (PRICE-01/05).
+
+    Called after add_items_sync to seed config from ItemConfig fields.
+    Idempotent: NULL overwrites NULL when config has no price targets.
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET target_price=?, price_drop_pct=? WHERE link=?",
+            (target_price, price_drop_pct, link),
+        )
+
+
+def get_item_price_config_sync(link: str) -> tuple[int | None, float | None] | None:
+    """Return (target_price, price_drop_pct) for the item, or None if row missing."""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT target_price, price_drop_pct FROM items WHERE link=?",
+            (link,),
+        ).fetchone()
+    if row is None:
+        return None
+    return row[0], row[1]
 
 
 # Legacy names kept for backward compatibility (existing tests and imports).

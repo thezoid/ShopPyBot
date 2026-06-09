@@ -4,6 +4,7 @@ import os
 import threading
 import warnings
 from pathlib import Path
+from typing import Optional
 
 from urllib.parse import urlparse as _urlparse
 
@@ -48,6 +49,8 @@ class ItemConfig(BaseModel):
     link: str
     auto_buy: bool = False
     quantity: int = 1
+    target_price: Optional[int] = None    # cents; NULL = monitoring off (PRICE-01)
+    price_drop_pct: Optional[float] = None  # e.g. 10.0 = alert on 10%+ drop (PRICE-05)
 
 
 class AvailableConfig(BaseModel):
