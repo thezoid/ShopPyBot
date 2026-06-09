@@ -41,8 +41,11 @@ def test_no_os_environ_secret_reads():
         repo_root / "core",
     ]
 
+    scanned_files: list[Path] = []
+
     for scan_dir in dirs_to_scan:
-        for py_file in sorted(scan_dir.glob("*.py")):
+        for py_file in sorted(scan_dir.rglob("*.py")):
+            scanned_files.append(py_file)
             rel = py_file.relative_to(repo_root)
 
             # Exception 1: core/credentials.py is entirely exempt
@@ -83,6 +86,14 @@ def test_no_os_environ_secret_reads():
                             f"{rel}:{lineno}: os.environ read of {key!r} -- "
                             f"use get_store().get({key!r}) instead"
                         )
+
+    # Companion assertion: prove core/cli/ is covered (recursion guard).
+    # If this fails, the scan reverted to non-recursive glob and core/cli/*.py are invisible.
+    scanned_rels = {f.relative_to(repo_root) for f in scanned_files}
+    assert Path("core/cli/config_cmd.py") in scanned_rels, (
+        "SC1 coverage gap: core/cli/config_cmd.py not in scanned set -- "
+        "rglob must recurse into core/cli/"
+    )
 
     assert not violations, (
         "SC1 FAIL -- os.environ secret reads found in consumer code:\n"
