@@ -540,3 +540,93 @@ def test_bestbuy_source_no_str_exc():
         "str(exc) found in BestBuy plugin:\n" +
         "\n".join(f"  line {n}: {l}" for n, l in violations)
     )
+
+
+# ===========================================================================
+# CR-02 regression: token injection uses json.dumps -- no JS breakout possible
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_amazon_token_with_backslash_rejected():
+    """Token containing backslash is rejected before injection (CR-02 regression)."""
+    solver = _make_solver(token=r"TOKEN\WITH\BACKSLASH")
+    plugin = _make_amazon_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=[None, "k_abc", None])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
+
+    assert len(wait_called) == 1, "Token with backslash must trigger manual pause"
+    inject_js_calls = [
+        call for call in tab.evaluate.call_args_list
+        if "g-recaptcha-response" in str(call)
+    ]
+    assert len(inject_js_calls) == 0, "Injection JS must NOT be called with backslash token"
+
+
+@pytest.mark.asyncio
+async def test_amazon_inject_token_uses_json_dumps():
+    """_inject_token must embed token via json.dumps so special chars are escaped (CR-02)."""
+    import json
+    plugin = _make_amazon_plugin()
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(return_value=None)
+
+    token_with_special = 'hello"world'
+    await plugin._inject_token(tab, token_with_special)
+
+    assert tab.evaluate.called
+    injected_js = tab.evaluate.call_args[0][0]
+    safe = json.dumps(token_with_special)
+    assert safe in injected_js, (
+        f"json.dumps output {safe!r} must appear in injected JS; got: {injected_js!r}"
+    )
+    # The raw unescaped form must NOT appear as a bare string
+    assert f"'{token_with_special}'" not in injected_js
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_token_with_backslash_rejected():
+    """BestBuy: token containing backslash is rejected before injection (CR-02 regression)."""
+    solver = _make_solver(token=r"TOKEN\BACKSLASH")
+    plugin = _make_bestbuy_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=["k_bb", None, None])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://bestbuy.com/site/TEST")
+
+    assert len(wait_called) == 1, "BestBuy: token with backslash must trigger manual pause"
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_inject_token_uses_json_dumps():
+    """BestBuy _inject_token must embed token via json.dumps (CR-02)."""
+    import json
+    plugin = _make_bestbuy_plugin()
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(return_value=None)
+
+    token_with_special = "back\\slash"
+    await plugin._inject_token(tab, token_with_special)
+
+    assert tab.evaluate.called
+    injected_js = tab.evaluate.call_args[0][0]
+    safe = json.dumps(token_with_special)
+    assert safe in injected_js, (
+        f"json.dumps output {safe!r} must appear in injected BestBuy JS; got: {injected_js!r}"
+    )

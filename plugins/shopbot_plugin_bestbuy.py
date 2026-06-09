@@ -12,6 +12,7 @@ directly. The orchestrator's write queue owns the sole write path.
 """
 
 import asyncio
+import json as _json
 import logging
 
 import nodriver
@@ -73,13 +74,14 @@ class BestBuyPlugin(RetailerPlugin):
 
     async def _inject_token(self, tab, token: str) -> None:
         """Inject a validated reCAPTCHA token into the page via JS callbacks."""
+        safe = _json.dumps(token)   # produces "..." with all special chars escaped (CR-02)
         inject_js = (
             f"(function(){{"
             f"var el=document.getElementById('g-recaptcha-response');"
-            f"if(el){{el.value='{token}';}}"
+            f"if(el){{el.value={safe};}}"
             f"var c=window.___grecaptcha_cfg&&window.___grecaptcha_cfg.clients;"
             f"if(c){{Object.values(c).forEach(function(x){{"
-            f"if(x&&x.callback){{try{{x.callback('{token}');}}catch(e){{}}}}"
+            f"if(x&&x.callback){{try{{x.callback({safe});}}catch(e){{}}}}"
             f"}});}}}})();"
         )
         await tab.evaluate(inject_js)
@@ -107,6 +109,9 @@ class BestBuyPlugin(RetailerPlugin):
             )
             return
 
+        # WR-01: asyncio.timeout cancels the await but not the executor thread.
+        # The thread can run up to _POLL_INTERVAL_SECS + requests timeout (10s) past
+        # the 120s gate. _MAX_POLLS is sized so normal runs finish before timeout fires.
         loop = asyncio.get_running_loop()
         try:
             async with asyncio.timeout(120):
@@ -121,7 +126,7 @@ class BestBuyPlugin(RetailerPlugin):
             )
             return
 
-        if not token or "'" in token or "\n" in token:
+        if not token or "'" in token or "\\" in token or "\n" in token:  # CR-02
             _log.warning("BestBuy CAPTCHA token failed validation -- falling back to manual pause")
             await self._wait_user_action(
                 self.captcha_event,
