@@ -26,6 +26,7 @@ Add per-item price tracking, price-drop alerts (absolute target and percentage),
 
 ### get_price() ABC hook
 - Optional method on the plugin ABC (`core/plugin_base.py`), DEFAULT returns `None` (unsupported) — non-breaking, no plugin ABC version bump that breaks loading. Called alongside the stock check each poll cycle; `None` → record nothing, no alert.
+- **At least one plugin implements a REAL get_price() this phase (user decision 2026-06-09): Amazon.** The Amazon plugin extracts the live DOM price and parses it to integer cents, so price monitoring works end-to-end for the primary platform. All OTHER plugins keep the default-None (deferred to future follow-ups). The Amazon price selector is site-specific (may need maintenance); the text→cents parsing is unit-tested with fixtures (no live browser needed for parsing tests). A malformed/missing price → return None → record nothing (graceful, no crash).
 
 ### Alerts (fan-out via existing dispatcher)
 - Use the EXISTING notification dispatcher with a distinct `price_drop` notification_type. Dedup columns for price alerts are SEPARATE from the stock-alert dedup columns (`last_seen_available`/`last_notified`) — do not reuse them.
