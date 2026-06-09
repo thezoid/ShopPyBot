@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: executing
-last_updated: "2026-06-09T07:05:41Z"
-last_activity: 2026-06-09 -- Phase 13 Plan 02 completed (ProxyConfig schema + sample.config.yml)
+status: verifying
+last_updated: "2026-06-09T07:24:49.376Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
-  percent: 22
+  completed_plans: 7
+  percent: 33
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 13 (anti-detection-layer-1-fingerprint-proxy) — EXECUTING
+Phase: 13 (anti-detection-layer-1-fingerprint-proxy) — COMPLETE
 Plan: 3 of 3
-Status: Executing Phase 13
-Last activity: 2026-06-09 -- Phase 13 Plan 02 completed (ProxyConfig schema + sample.config.yml)
+Status: Phase 13 complete -- all 3 plans done; ready for Phase 14 planning
+Last activity: 2026-06-09 -- Phase 13 Plan 03 complete (stealth+proxy wired into all 8 plugins)
 
 ## Phase Status
 
@@ -113,12 +113,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
 | Phase 12 P03 | 4min | - tasks | - files |
 | Phase 12 P04 | 5min | 2 tasks | 1 files |
+| Phase 13 P03 | 13min | 3 tasks | 11 files |
 
 ## Session Continuity
 
-**Last action**: Phase 13 Plan 02 complete -- ProxyConfig Pydantic model + AppConfig.proxy field + sample.config.yml proxy section (ANTI-04 config surface)
-**Next action**: Execute Phase 13 Plan 03 (plugin wiring: stealth apply + proxy rotation in plugin_base.py)
-**Context to carry**: AppConfig.proxy: ProxyConfig with enabled/urls/max_failures/cooldown_secs. core/stealth.py exports: STEALTH_JS, apply_stealth, _ProxyEntry, ProxyPool, _parse_proxy_url, _is_ban_response, build_proxy_browser_args, setup_proxy_auth. ProxyPool.size() returns total entry count for startup log "Proxy rotation: enabled, pool_size=N". No ABC version bump. 380 tests passing.
+**Last action**: Phase 13 Plan 03 complete -- stealth+proxy wired end-to-end: service startup log, orchestrator ProxyPool construction, registry.assign_proxy, all 8 plugins (ANTI-04/ANTI-05/ANTI-08)
+**Next action**: Run /gsd:plan-phase 14 to begin CAPTCHA Solving planning
+**Context to carry**: Phase 13 fully complete. 414 tests passing. PLUGIN_API_VERSION=2 (no bump). Proxy rotation disabled by default; opt-in via cfg.proxy.enabled. Each plugin receives self._proxy from registry.assign_proxy before setup(). Fail-loud on pool exhaustion. apply_stealth called before first nav in all 8 plugins.
 
 ---
 
@@ -243,6 +244,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 13-01]: time.monotonic used for cooldown retired_until timestamps; module-level time attribute patched in tests (not global monotonic) for testability
 - [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern; no model_validator or os.environ reads in ProxyConfig (credentials live in config.yml per RESEARCH Open Question 3)
 - [Phase 13-02]: sample.config.yml proxy example uses proxy.example.com placeholder only; real URLs in user's gitignored config.yml
+- [Phase ?]: [Phase 13-03]: Per-instance proxy scoping via registry.assign_proxy; conftest mock_nodriver_start gets AsyncMock on main_tab.send for apply_stealth compatibility
 
 ## Operator Next Steps
 

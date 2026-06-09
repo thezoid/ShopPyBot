@@ -45,7 +45,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 ### v3.0 Resilience + Ecosystem (Phases 12-17)
 
 - [x] **Phase 12: Stability Foundation** — Close v2.0 deferred cross-OS checks and resolve 4 audit tech-debt items to establish a clean test baseline before adding new features (completed 2026-06-09)
-- [ ] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping
+- [x] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping (completed 2026-06-09)
 - [ ] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap
 - [ ] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs
 - [ ] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command
@@ -91,9 +91,11 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
+
 - [x] 13-01-PLAN.md — core/stealth.py: STEALTH_JS + apply_stealth, ProxyPool (round-robin/retire/cooldown), proxy launch args + WebRTC flag, CDP Fetch auth, ban-signal detector (+ unit tests)
 - [x] 13-02-PLAN.md — ProxyConfig schema (opt-in, disabled by default) + documented sample.config.yml proxy section
-- [ ] 13-03-PLAN.md — Wire stealth + proxy into BotService/orchestrator/registry and all 8 plugins; per-instance scoping, exact startup log, fail-loud on pool exhaustion, ban-detect recording
+- [x] 13-03-PLAN.md — Wire stealth + proxy into BotService/orchestrator/registry and all 8 plugins; per-instance scoping, exact startup log, fail-loud on pool exhaustion, ban-detect recording
+
 **UI hint**: no
 
 ### Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving
@@ -172,7 +174,7 @@ Plans:
 | 10. Optional Web UI | v2.0 | 4/4 | Complete | 2026-06-04 |
 | 11. Cross-Platform Verification | v2.0 | 5/5 | Complete | 2026-06-05 |
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
-| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 0/3 | Planned | - |
+| 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete   | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 0/TBD | Not started | - |
 | 15. Plugin Ecosystem Registry | v3.0 | 0/TBD | Not started | - |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |

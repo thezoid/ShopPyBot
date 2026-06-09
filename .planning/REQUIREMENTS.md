@@ -12,11 +12,11 @@ Prior milestone requirements (v1 44 + v2.0 22 = 66, all satisfied) are archived 
 
 ### Anti-Detection Hardening
 
-- [ ] **ANTI-04**: User can enable proxy rotation via an opt-in `proxy:` config section (disabled by default) with a configurable pool of `scheme://user:pass@host:port` URLs, using sticky sessions that hold one IP per check cycle.
-- [ ] **ANTI-05**: Bot detects ban signals (HTTP 403/429/503, challenge-redirect, block-phrase body) and automatically rotates to the next proxy, retiring a proxy for a cooldown period after N consecutive failures.
+- [x] **ANTI-04**: User can enable proxy rotation via an opt-in `proxy:` config section (disabled by default) with a configurable pool of `scheme://user:pass@host:port` URLs, using sticky sessions that hold one IP per check cycle.
+- [x] **ANTI-05**: Bot detects ban signals (HTTP 403/429/503, challenge-redirect, block-phrase body) and automatically rotates to the next proxy, retiring a proxy for a cooldown period after N consecutive failures.
 - [ ] **ANTI-06**: User can enable CAPTCHA solving (reCAPTCHA v2 and Amazon WAF) via 2captcha through an opt-in `captcha_solver:` flag, with the API key stored in CredentialStore (`TWOCAPTCHA_API_KEY`), never in config.yml.
 - [ ] **ANTI-07**: Bot checks the CAPTCHA-solver account balance at startup, warns when balance is low, and skips solver use when balance is zero.
-- [ ] **ANTI-08**: Bot applies a JS fingerprint stealth patch at browser startup (`window.chrome`, `navigator.plugins`, `navigator.languages`, consistent screen dimensions) via a shared `core/stealth.py` utility, with no plugin ABC version bump.
+- [x] **ANTI-08**: Bot applies a JS fingerprint stealth patch at browser startup (`window.chrome`, `navigator.plugins`, `navigator.languages`, consistent screen dimensions) via a shared `core/stealth.py` utility, with no plugin ABC version bump.
 
 ### Plugin Ecosystem
 
