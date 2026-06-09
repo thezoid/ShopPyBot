@@ -522,9 +522,10 @@ def test_plugins_list_table(capsys, tmp_data_dir):
 | A1 | `plugins_dir` path computed as `Path(__file__).parent.parent / "plugins"` in `list_plugins()` | Pattern 2 | Wrong path = empty plugin list; low risk, easy to verify in test |
 | A2 | `__init_subclass__` is the recommended enforcement point for `difficulty` validation | Pitfall 3 | Alternative is validate-on-read in `list_plugins()`; behavior difference is when the error surfaces |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`difficulty` validation enforcement point**
+   - **RESOLVED:** Use `__init_subclass__` (fail-fast at import for an explicitly-invalid value; plugins omitting `difficulty` use the default and are unaffected). Implemented in 15-01 Task 1.
    - What we know: CONTEXT says "difficulty is validated against the three allowed
      values" but does not specify when.
    - What's unclear: `__init_subclass__` raises at import time; validate-in-
@@ -536,6 +537,7 @@ def test_plugins_list_table(capsys, tmp_data_dir):
      import errors).
 
 2. **`plugins/PLUGIN_DEV.md` update scope**
+   - **RESOLVED:** Include `PLUGIN_DEV.md` in the docs update (primary plugin-author reference). Implemented in 15-03 Task 2.
    - What we know: the file's ABC table does not mention the new attributes.
    - What's unclear: CONTEXT.md lists "update CONTRIBUTING.md and PR template"
      but does not explicitly list `PLUGIN_DEV.md`.
