@@ -45,7 +45,8 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 ### v3.0 Resilience + Ecosystem (Phases 12-17)
 
 - [x] **Phase 12: Stability Foundation** — Close v2.0 deferred cross-OS checks and resolve 4 audit tech-debt items to establish a clean test baseline before adding new features (completed 2026-06-09)
-- [x] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping (completed 2026-06-09)
+- [x] **Phase 13: Anti-Detection Layer 1 — Fingerprint + Proxy** — Apply JS fingerprint stealth patch and implement proxy rotation with ban detection and per-instance scoping
+ (completed 2026-06-09)
 - [ ] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap
 - [ ] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs
 - [ ] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command
@@ -105,12 +106,18 @@ Plans:
 **Requirements**: ANTI-06, ANTI-07
 **Success Criteria** (what must be TRUE):
 
-  1. User can enable CAPTCHA solving via `captcha_solver.enabled: true` in config; the 2captcha API key is stored exclusively in CredentialStore (`TWOCAPTCHA_API_KEY`), never in config.yml
+  1. User can enable CAPTCHA solving via `captcha.enabled: true` in config; the 2captcha API key is stored exclusively in CredentialStore (`TWOCAPTCHA_API_KEY`), never in config.yml
   2. Bot checks 2captcha account balance at startup, logs a WARNING when balance is low, and skips solver use (falling back to manual pause) when balance is zero
   3. CAPTCHA solve calls use `run_in_executor` + `asyncio.timeout(120)` so other plugin poll tasks are not blocked during a solve
   4. A configurable `captcha.max_solves_per_run` limit prevents unbounded API charges; default config disables CAPTCHA solving
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+
+- [ ] 14-01-PLAN.md — Foundation: TWOCAPTCHA_API_KEY in SECRET_KEYS, CaptchaConfig, CaptchaSolver 2captcha v1 client (submit/poll/balance/cap)
+- [ ] 14-02-PLAN.md — Wiring: solver constructed fresh in async_main + startup balance check + registry.assign_solver (mirrors ProxyPool)
+- [ ] 14-03-PLAN.md — Plugin solve path: Amazon + BestBuy reCAPTCHA solve under run_in_executor+timeout(120) with manual-pause fallback; WAF deferred
 
 ### Phase 15: Plugin Ecosystem Registry
 
