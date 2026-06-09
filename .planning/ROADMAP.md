@@ -49,7 +49,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
  (completed 2026-06-09)
 
 - [x] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap (completed 2026-06-09)
-- [ ] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs
+- [x] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs (completed 2026-06-09)
 - [ ] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command
 - [ ] **Phase 17: Test Hardening** — Unit and integration coverage for all v3.0 features (proxy config, CAPTCHA flow, price monitoring schema and threshold logic, plugin ABC additions)
 
@@ -137,7 +137,7 @@ Plans:
 Plans:
 
 - [x] 15-01-PLAN.md — REG-02: add difficulty/requires_proxy/requires_captcha class attrs + __init_subclass__ difficulty validation to RetailerPlugin ABC (non-breaking, PLUGIN_API_VERSION stays 2) + test_plugin_base.py assertions
-- [ ] 15-02-PLAN.md — REG-03: BotService.list_plugins() over registry._all_plugins + core/cli/plugins.py handler + plugins-list subparser with --json + no-network CLI tests
+- [x] 15-02-PLAN.md — REG-03: BotService.list_plugins() over registry._all_plugins + core/cli/plugins.py handler + plugins-list subparser with --json + no-network CLI tests
 - [x] 15-03-PLAN.md — REG-01/REG-04: docs/PLUGIN_REGISTRY.md 9-field wiki SPEC + CONTRIBUTING.md/PR-template/PLUGIN_DEV.md attr requirements + tests/test_docs.py
 
 ### Phase 16: Price Monitoring
@@ -190,7 +190,7 @@ Plans:
 | 12. Stability Foundation | v3.0 | 4/4 | Complete    | 2026-06-09 |
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 15. Plugin Ecosystem Registry | v3.0 | 2/3 | In Progress|  |
+| 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 0/TBD | Not started | - |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
 
