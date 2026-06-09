@@ -10,6 +10,7 @@ and passed in (T-07-04, ASYNC-03).
 """
 
 import asyncio
+import logging
 import threading
 from pathlib import Path
 from typing import Optional
@@ -20,6 +21,8 @@ from core.orchestrator import async_main
 from core.stealth import ProxyPool
 from logger import writeLog
 from models import add_items_sync, get_items_sync, remove_item_sync
+
+_log = logging.getLogger(__name__)
 
 
 class BotService:
@@ -44,6 +47,15 @@ class BotService:
         if self._cfg.proxy.enabled:
             n = len(self._cfg.proxy.urls)
             writeLog(f"Proxy rotation: enabled, pool_size={n}", "INFO")
+        # ANTI-06: emit startup log when CAPTCHA solving is enabled (T-14-log mitigation).
+        # Log only the integer cap and float threshold -- NEVER the API key (key is
+        # read later in async_main via get_store; it is never present here).
+        if getattr(self._cfg.captcha, "enabled", False):
+            _log.info(
+                "CAPTCHA solving: enabled, max_solves_per_run=%d, low_balance_threshold=%.2f",
+                self._cfg.captcha.max_solves_per_run,
+                self._cfg.captcha.low_balance_threshold,
+            )
 
     # ------------------------------------------------------------------
     # Read-only accessors (callable without start)

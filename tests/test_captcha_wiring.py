@@ -85,116 +85,159 @@ class TestAssignSolver:
 
 
 # ---------------------------------------------------------------------------
-# Task 1: async_main builds solver only when captcha.enabled=True
+# Task 1: _build_captcha_solver helper + async_main registry wiring
 # ---------------------------------------------------------------------------
 
-class TestOrchestratorSolverConstruction:
-    """Verify CaptchaSolver.from_config is called correctly in async_main."""
+class TestBuildCaptchaSolver:
+    """Verify the _build_captcha_solver helper (extracted from async_main)."""
 
-    def _make_cfg(self, captcha_enabled=False):
-        """Minimal AppConfig-like namespace for orchestrator tests."""
-        captcha_cfg = types.SimpleNamespace(
-            enabled=captcha_enabled,
+    def _make_captcha_cfg(self, enabled: bool):
+        return types.SimpleNamespace(
+            enabled=enabled,
             max_solves_per_run=5,
             low_balance_threshold=1.0,
         )
-        proxy_cfg = types.SimpleNamespace(enabled=False)
-        app_cfg = types.SimpleNamespace(poll_interval=30)
-        return types.SimpleNamespace(
-            captcha=captcha_cfg,
-            proxy=proxy_cfg,
-            app=app_cfg,
-        )
 
-    def test_from_config_not_called_when_disabled(self):
-        """CaptchaSolver.from_config must NOT be called when captcha.enabled=False."""
-        cfg = self._make_cfg(captcha_enabled=False)
+    def test_returns_none_when_disabled(self):
+        """_build_captcha_solver returns None when captcha.enabled=False."""
+        from core.orchestrator import _build_captcha_solver
+        cfg = types.SimpleNamespace(captcha=self._make_captcha_cfg(enabled=False))
 
         with patch("core.orchestrator.CaptchaSolver") as mock_cls, \
-             patch("core.orchestrator.get_store"), \
-             patch("core.orchestrator.PluginRegistry") as mock_reg_cls, \
-             patch("core.orchestrator.get_items_sync", return_value=[]), \
-             patch("core.orchestrator._staggered_setup", new=AsyncMock()), \
-             patch("core.orchestrator.build_dispatcher", return_value=MagicMock()), \
-             patch("core.orchestrator._start_stdin_listener"):
+             patch("core.orchestrator.get_store"):
+            result = _build_captcha_solver(cfg)
 
-            mock_reg_cls.return_value._active_plugins = []
-
-            asyncio.run(_run_async_main(cfg))
-
+        assert result is None
         mock_cls.from_config.assert_not_called()
 
-    def test_from_config_called_when_enabled(self):
-        """CaptchaSolver.from_config IS called when captcha.enabled=True."""
-        cfg = self._make_cfg(captcha_enabled=True)
+    def test_returns_none_when_no_captcha_attr(self):
+        """_build_captcha_solver returns None when cfg has no captcha attribute."""
+        from core.orchestrator import _build_captcha_solver
+        cfg = types.SimpleNamespace()  # no captcha attr
+
+        with patch("core.orchestrator.CaptchaSolver") as mock_cls:
+            result = _build_captcha_solver(cfg)
+
+        assert result is None
+        mock_cls.from_config.assert_not_called()
+
+    def test_calls_from_config_when_enabled(self):
+        """_build_captcha_solver calls CaptchaSolver.from_config with captcha cfg + store."""
+        from core.orchestrator import _build_captcha_solver
+        captcha_cfg = self._make_captcha_cfg(enabled=True)
+        cfg = types.SimpleNamespace(captcha=captcha_cfg)
         mock_solver = MagicMock()
 
         with patch("core.orchestrator.CaptchaSolver") as mock_cls, \
-             patch("core.orchestrator.get_store") as mock_store, \
-             patch("core.orchestrator.PluginRegistry") as mock_reg_cls, \
-             patch("core.orchestrator.get_items_sync", return_value=[]), \
-             patch("core.orchestrator._staggered_setup", new=AsyncMock()), \
-             patch("core.orchestrator.build_dispatcher", return_value=MagicMock()), \
-             patch("core.orchestrator._start_stdin_listener"):
-
+             patch("core.orchestrator.get_store") as mock_store:
             mock_cls.from_config.return_value = mock_solver
-            mock_reg_cls.return_value._active_plugins = []
+            result = _build_captcha_solver(cfg)
 
-            asyncio.run(_run_async_main(cfg))
+        assert result is mock_solver
+        mock_cls.from_config.assert_called_once_with(captcha_cfg, mock_store.return_value)
 
-        mock_cls.from_config.assert_called_once()
-        call_args = mock_cls.from_config.call_args
-        # First positional arg is cfg.captcha
-        assert call_args[0][0] is cfg.captcha
-
-    def test_balance_check_called_via_executor_when_solver_exists(self):
-        """check_balance_at_startup runs via run_in_executor, not inline."""
-        cfg = self._make_cfg(captcha_enabled=True)
-        mock_solver = MagicMock()
-
-        calls = []
-
-        async def _capture_run(coro_or_fn, *args):
-            """Capture executor calls to detect balance check."""
-            calls.append(coro_or_fn)
-            if callable(coro_or_fn):
-                coro_or_fn(*args)
+    def test_passes_store_from_get_store(self):
+        """_build_captcha_solver passes get_store() as the second arg to from_config."""
+        from core.orchestrator import _build_captcha_solver
+        captcha_cfg = self._make_captcha_cfg(enabled=True)
+        cfg = types.SimpleNamespace(captcha=captcha_cfg)
+        fake_store = MagicMock()
 
         with patch("core.orchestrator.CaptchaSolver") as mock_cls, \
-             patch("core.orchestrator.get_store"), \
-             patch("core.orchestrator.PluginRegistry") as mock_reg_cls, \
-             patch("core.orchestrator.get_items_sync", return_value=[]), \
-             patch("core.orchestrator._staggered_setup", new=AsyncMock()), \
-             patch("core.orchestrator.build_dispatcher", return_value=MagicMock()), \
-             patch("core.orchestrator._start_stdin_listener"):
+             patch("core.orchestrator.get_store", return_value=fake_store):
+            mock_cls.from_config.return_value = MagicMock()
+            _build_captcha_solver(cfg)
 
-            mock_cls.from_config.return_value = mock_solver
-            mock_reg_cls.return_value._active_plugins = []
+        _, args, _ = mock_cls.from_config.mock_calls[0]
+        assert args[1] is fake_store
 
-            asyncio.run(_run_async_main_with_executor_capture(cfg, calls))
 
-        # The balance check function should have been passed to run_in_executor
-        assert mock_solver.check_balance_at_startup in calls, (
+class TestOrchestratorBalanceCheck:
+    """Verify balance check runs via run_in_executor in async_main."""
+
+    @pytest.mark.asyncio
+    async def test_balance_check_uses_run_in_executor(self):
+        """When solver is not None, check_balance_at_startup is awaited via executor."""
+        import core.orchestrator as orch
+
+        mock_solver = MagicMock()
+        executor_calls = []
+
+        async def _fake_executor(pool, fn, *args):
+            executor_calls.append(fn)
+            if callable(fn):
+                fn(*args)
+
+        loop = asyncio.get_running_loop()
+        original_executor = loop.run_in_executor
+        loop.run_in_executor = _fake_executor
+
+        try:
+            with patch("core.orchestrator._build_proxy_pool", return_value=None), \
+                 patch("core.orchestrator._build_captcha_solver", return_value=mock_solver), \
+                 patch("core.orchestrator.PluginRegistry") as mock_reg_cls, \
+                 patch("core.orchestrator.get_items_sync", return_value=[]), \
+                 patch("core.orchestrator._staggered_setup", new=AsyncMock()), \
+                 patch("core.orchestrator._start_stdin_listener"), \
+                 patch("core.orchestrator.asyncio.TaskGroup") as mock_tg_cls:
+
+                mock_reg_cls.return_value._active_plugins = []
+
+                ctx = AsyncMock()
+                ctx.__aenter__ = AsyncMock(return_value=ctx)
+                ctx.__aexit__ = AsyncMock(return_value=False)
+                ctx.create_task = MagicMock()
+                mock_tg_cls.return_value = ctx
+
+                cfg = types.SimpleNamespace(
+                    captcha=types.SimpleNamespace(enabled=True),
+                    proxy=types.SimpleNamespace(enabled=False),
+                    app=types.SimpleNamespace(poll_interval=30),
+                )
+
+                try:
+                    await asyncio.wait_for(orch.async_main(cfg, None), timeout=1.0)
+                except (asyncio.TimeoutError, Exception):
+                    pass
+        finally:
+            loop.run_in_executor = original_executor
+
+        assert mock_solver.check_balance_at_startup in executor_calls, (
             "check_balance_at_startup was not dispatched via run_in_executor"
         )
 
-    def test_captcha_solver_passed_to_registry(self):
-        """async_main passes captcha_solver= to PluginRegistry constructor."""
-        cfg = self._make_cfg(captcha_enabled=True)
+    @pytest.mark.asyncio
+    async def test_captcha_solver_passed_to_registry(self):
+        """async_main passes captcha_solver= to PluginRegistry."""
+        import core.orchestrator as orch
+
         mock_solver = MagicMock()
 
-        with patch("core.orchestrator.CaptchaSolver") as mock_cls, \
-             patch("core.orchestrator.get_store"), \
+        with patch("core.orchestrator._build_proxy_pool", return_value=None), \
+             patch("core.orchestrator._build_captcha_solver", return_value=mock_solver), \
              patch("core.orchestrator.PluginRegistry") as mock_reg_cls, \
              patch("core.orchestrator.get_items_sync", return_value=[]), \
              patch("core.orchestrator._staggered_setup", new=AsyncMock()), \
-             patch("core.orchestrator.build_dispatcher", return_value=MagicMock()), \
-             patch("core.orchestrator._start_stdin_listener"):
+             patch("core.orchestrator._start_stdin_listener"), \
+             patch("core.orchestrator.asyncio.TaskGroup") as mock_tg_cls:
 
-            mock_cls.from_config.return_value = mock_solver
             mock_reg_cls.return_value._active_plugins = []
+            ctx = AsyncMock()
+            ctx.__aenter__ = AsyncMock(return_value=ctx)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            ctx.create_task = MagicMock()
+            mock_tg_cls.return_value = ctx
 
-            asyncio.run(_run_async_main(cfg))
+            cfg = types.SimpleNamespace(
+                captcha=types.SimpleNamespace(enabled=True),
+                proxy=types.SimpleNamespace(enabled=False),
+                app=types.SimpleNamespace(poll_interval=30),
+            )
+
+            try:
+                await asyncio.wait_for(orch.async_main(cfg, None), timeout=1.0)
+            except (asyncio.TimeoutError, Exception):
+                pass
 
         _, kwargs = mock_reg_cls.call_args
         assert kwargs.get("captcha_solver") is mock_solver
@@ -230,12 +273,16 @@ class TestStaggeredSetupAssignSolver:
 # ---------------------------------------------------------------------------
 
 class TestBotServiceStartupLog:
-    """Verify BotService.__init__ logs CAPTCHA-enabled status without key leakage."""
+    """Verify BotService.__init__ logs CAPTCHA-enabled status without key leakage.
+
+    BotService uses Python's logging module (via logging.getLogger) for the CAPTCHA
+    startup message so that caplog can capture it for security-assertion tests.
+    This mirrors the approach used in core/captcha.py (Plan 01 decision).
+    """
 
     def _make_captcha_cfg(self, enabled: bool):
         from core.config_schema import AppConfig, CaptchaConfig
         cfg = AppConfig()
-        # Override captcha config via model_copy
         captcha = CaptchaConfig(enabled=enabled, max_solves_per_run=5, low_balance_threshold=0.5)
         return cfg.model_copy(update={"captcha": captcha})
 
@@ -244,7 +291,7 @@ class TestBotServiceStartupLog:
         import logging
         cfg = self._make_captcha_cfg(enabled=True)
         with patch("core.service.init_store"):
-            with caplog.at_level(logging.DEBUG, logger="root"):
+            with caplog.at_level(logging.INFO, logger="core.service"):
                 from core.service import BotService
                 BotService(cfg=cfg)
 
@@ -254,11 +301,11 @@ class TestBotServiceStartupLog:
         )
 
     def test_startup_log_absent_when_disabled(self, caplog):
-        """BotService does NOT log CAPTCHA solving when captcha.enabled=False."""
+        """BotService does NOT log 'CAPTCHA solving: enabled' when captcha.enabled=False."""
         import logging
         cfg = self._make_captcha_cfg(enabled=False)
         with patch("core.service.init_store"):
-            with caplog.at_level(logging.DEBUG, logger="root"):
+            with caplog.at_level(logging.INFO, logger="core.service"):
                 from core.service import BotService
                 BotService(cfg=cfg)
 
@@ -272,7 +319,7 @@ class TestBotServiceStartupLog:
         import logging
         cfg = self._make_captcha_cfg(enabled=True)
         with patch("core.service.init_store"):
-            with caplog.at_level(logging.DEBUG, logger="root"):
+            with caplog.at_level(logging.INFO, logger="core.service"):
                 from core.service import BotService
                 BotService(cfg=cfg)
 
@@ -288,7 +335,7 @@ class TestBotServiceStartupLog:
         try:
             cfg = self._make_captcha_cfg(enabled=True)
             with patch("core.service.init_store"):
-                with caplog.at_level(logging.DEBUG, logger="root"):
+                with caplog.at_level(logging.INFO, logger="core.service"):
                     from core.service import BotService
                     BotService(cfg=cfg)
 
@@ -300,71 +347,3 @@ class TestBotServiceStartupLog:
             del os.environ["TWOCAPTCHA_API_KEY"]
 
 
-# ---------------------------------------------------------------------------
-# Async helpers for orchestrator tests
-# ---------------------------------------------------------------------------
-
-async def _run_async_main(cfg):
-    """Run async_main with an early exit by raising KeyboardInterrupt."""
-    import core.orchestrator as orch
-
-    # Patch TaskGroup to raise immediately (avoid real async tasks)
-    orig = asyncio.TaskGroup
-
-    class _EarlyExit(Exception):
-        pass
-
-    class _FakeTaskGroup:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        def create_task(self, coro, **kw):
-            # Cancel immediately
-            async def _noop():
-                pass
-            t = asyncio.ensure_future(_noop())
-            return t
-
-    with patch("core.orchestrator.asyncio") as mock_asyncio:
-        mock_asyncio.TaskGroup = _FakeTaskGroup
-        mock_asyncio.Queue = asyncio.Queue
-        mock_asyncio.sleep = asyncio.sleep
-        mock_asyncio.wait_for = asyncio.wait_for
-        mock_asyncio.get_running_loop = asyncio.get_running_loop
-        mock_asyncio.TimeoutError = asyncio.TimeoutError
-
-        # We can't easily short-circuit TaskGroup; instead just call async_main
-        # and trust that _staggered_setup is patched to return quickly.
-        try:
-            await asyncio.wait_for(orch.async_main(cfg, None), timeout=2.0)
-        except (asyncio.TimeoutError, KeyboardInterrupt, Exception):
-            pass
-
-
-async def _run_async_main_with_executor_capture(cfg, calls_list):
-    """Run async_main while capturing all run_in_executor calls."""
-    import core.orchestrator as orch
-
-    original_get_loop = asyncio.get_running_loop
-
-    def _patched_get_loop():
-        loop = original_get_loop()
-        original_executor = loop.run_in_executor
-
-        async def _capturing_executor(pool, fn, *args):
-            calls_list.append(fn)
-            # Actually run it to avoid side effects
-            if callable(fn):
-                return fn(*args)
-
-        loop.run_in_executor = _capturing_executor
-        return loop
-
-    with patch("core.orchestrator.asyncio.get_running_loop", side_effect=_patched_get_loop):
-        try:
-            await asyncio.wait_for(orch.async_main(cfg, None), timeout=2.0)
-        except (asyncio.TimeoutError, KeyboardInterrupt, Exception):
-            pass

@@ -64,12 +64,13 @@ class PluginRegistry:
     Browser launch is deferred to setup_for_items (D-09 lazy launch).
     """
 
-    def __init__(self, config, plugins_dir: Path, proxy_pool=None) -> None:
+    def __init__(self, config, plugins_dir: Path, proxy_pool=None, captcha_solver=None) -> None:
         plugin_classes = _discover_plugins(plugins_dir)
         # Eagerly construct all plugin instances: cheap objects, no browser yet.
         self._all_plugins: list[RetailerPlugin] = [cls(config) for cls in plugin_classes]
         self._active_plugins: list[RetailerPlugin] = []
         self._proxy_pool = proxy_pool
+        self._captcha_solver = captcha_solver
 
     def assign_proxy(self, plugin) -> None:
         """Set proxy state on a plugin instance before setup().
@@ -88,6 +89,15 @@ class PluginRegistry:
         plugin._proxy_required = True
         plugin._pool = self._proxy_pool
         plugin._proxy = self._proxy_pool.advance()
+
+    def assign_solver(self, plugin) -> None:
+        """Set captcha solver on a plugin instance before setup().
+
+        When a solver is available, sets plugin._captcha_solver = self._captcha_solver.
+        When no solver is configured (disabled or no key), sets plugin._captcha_solver = None.
+        The API key is NEVER read or logged here.
+        """
+        plugin._captcha_solver = self._captcha_solver
 
     def route(self, url: str) -> RetailerPlugin | None:
         """Return the active plugin whose domain_patterns matches url's hostname.

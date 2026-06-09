@@ -18,6 +18,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from core.captcha import CaptchaSolver
+from core.credentials import get_store
 from core.registry import PluginRegistry
 from core.stealth import ProxyPool
 from logger import writeLog
@@ -184,6 +186,7 @@ async def _staggered_setup(registry, items, stagger_secs: float = _STAGGER_SECS)
         )
         try:
             registry.assign_proxy(plugin)
+            registry.assign_solver(plugin)
             await plugin.setup()
             registry._active_plugins.append(plugin)
         except Exception as exc:
@@ -218,20 +221,37 @@ def _start_stdin_listener(plugins: list, loop: asyncio.AbstractEventLoop) -> Non
     loop.run_in_executor(None, _stdin_listener_thread, plugins, loop)
 
 
+def _build_proxy_pool(cfg):
+    """Return a ProxyPool when proxy is enabled, else None."""
+    if not getattr(getattr(cfg, "proxy", None), "enabled", False):
+        return None
+    return ProxyPool.from_urls(
+        cfg.proxy.urls,
+        cfg.proxy.max_failures,
+        cfg.proxy.cooldown_secs,
+    )
+
+
+def _build_captcha_solver(cfg):
+    """Return a CaptchaSolver when captcha is enabled and key is present, else None."""
+    if not getattr(getattr(cfg, "captcha", None), "enabled", False):
+        return None
+    return CaptchaSolver.from_config(cfg.captcha, get_store())
+
+
 async def async_main(cfg, cvv) -> None:
     """Entry point: stagger setup, run TaskGroup, teardown cleanly."""
     from notifications import build_dispatcher
 
     plugins_dir = Path(__file__).parent.parent / "plugins"
-    proxy_pool = None
-    if getattr(getattr(cfg, "proxy", None), "enabled", False):
-        proxy_pool = ProxyPool.from_urls(
-            cfg.proxy.urls,
-            cfg.proxy.max_failures,
-            cfg.proxy.cooldown_secs,
-        )
-    registry = PluginRegistry(cfg, plugins_dir, proxy_pool=proxy_pool)
+    proxy_pool = _build_proxy_pool(cfg)
+    captcha_solver = _build_captcha_solver(cfg)
     loop = asyncio.get_running_loop()
+
+    if captcha_solver is not None:
+        await loop.run_in_executor(None, captcha_solver.check_balance_at_startup)
+
+    registry = PluginRegistry(cfg, plugins_dir, proxy_pool=proxy_pool, captcha_solver=captcha_solver)
 
     items = await loop.run_in_executor(None, get_items_sync)
     await _staggered_setup(registry, items)
