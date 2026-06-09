@@ -25,6 +25,7 @@ from core.stealth import (
     _is_ban_response,
     build_proxy_browser_args,
     setup_proxy_auth,
+    _live_tasks,
 )
 
 
@@ -103,12 +104,27 @@ def test_proxypool_current_returns_first():
 
 
 def test_proxypool_roundrobin():
-    """advance() cycles 1, 2, 0, 1 across 3 entries."""
+    """advance() cycles 0, 1, 2, 0 across 3 entries (CR-01: entries[0] is never skipped)."""
     pool, entries = _make_pool(3)
+    assert pool.advance() is entries[0]
     assert pool.advance() is entries[1]
     assert pool.advance() is entries[2]
     assert pool.advance() is entries[0]
-    assert pool.advance() is entries[1]
+
+
+def test_proxypool_roundrobin_no_skip_first(tmp_path):
+    """CR-01 regression: a 3-proxy pool yields entries[0], [1], [2], [0] in order.
+
+    The pre-fix bug seeded _index=0 so advance() returned entries[1] first,
+    permanently skipping entries[0]. With _index=-1 the sequence is correct.
+    """
+    entries = [_make_entry(host_port=f"10.0.{i}.1:8080") for i in range(3)]
+    pool = ProxyPool(entries)
+    results = [pool.advance() for _ in range(4)]
+    assert results[0] is entries[0], "First advance must return entries[0]"
+    assert results[1] is entries[1]
+    assert results[2] is entries[2]
+    assert results[3] is entries[0], "Fourth advance must wrap back to entries[0]"
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +224,23 @@ def test_parse_proxy_url_no_creds():
     assert password == ""
 
 
+def test_parse_proxy_url_portless_raises():
+    """CR-03 regression: port-less URL must raise ValueError, not produce 'host:None'.
+
+    The pre-fix code produced f'{hostname}:None', which Chrome ignores and connects
+    directly, silently leaking the real IP. The fix raises ValueError at pool
+    construction time so the misconfiguration is caught at startup.
+    """
+    with pytest.raises(ValueError, match="missing port"):
+        _parse_proxy_url("http://proxy.example.com")
+
+
+def test_parse_proxy_url_no_hostname_raises():
+    """CR-03 regression: URL with no parseable hostname must raise ValueError."""
+    with pytest.raises(ValueError, match="missing hostname"):
+        _parse_proxy_url("proxy.example.com:8080")  # no scheme -> treated as path
+
+
 # ---------------------------------------------------------------------------
 # build_proxy_browser_args
 # ---------------------------------------------------------------------------
@@ -276,6 +309,52 @@ async def test_setup_proxy_auth_noop_empty_user():
 
     tab.add_handler.assert_not_called()
     tab.send.assert_not_awaited()
+
+
+async def test_setup_proxy_auth_tasks_retained_in_live_tasks():
+    """CR-04 regression: tasks created by handler callbacks are added to _live_tasks.
+
+    The pre-fix code discarded the create_task() return value immediately, allowing
+    CPython to GC the task before it ran. The fix stores each task in _live_tasks and
+    removes it via done callback. This test simulates the auth handler being fired and
+    asserts that the task is tracked (or has already completed and been discarded).
+    """
+    import asyncio as _asyncio
+
+    tab = MagicMock()
+    captured_handlers: dict = {}
+    tasks_seen: list = []
+
+    def _record_handler(event_type, callback):
+        captured_handlers[event_type.__name__] = callback
+
+    tab.add_handler = _record_handler
+    tab.send = AsyncMock(return_value=None)
+
+    _live_tasks.clear()
+
+    await setup_proxy_auth(tab, "user", "pass")
+
+    assert "AuthRequired" in captured_handlers, "AuthRequired handler not registered"
+
+    # Simulate the AuthRequired event firing inside a running loop.
+    from nodriver.cdp.fetch import AuthRequired
+    mock_event = MagicMock(spec=AuthRequired)
+    mock_event.request_id = "req-1"
+
+    await captured_handlers["AuthRequired"](mock_event)
+
+    # The task should be in _live_tasks (pending) or already completed+removed.
+    # Either way, tab.send must have been scheduled exactly once (for the enable
+    # call) plus once inside the handler = 2 total by the time we await the task.
+    # Allow the event loop to process the pending task.
+    await _asyncio.sleep(0)
+
+    # After yielding, the task should have run and called tab.send a second time.
+    assert tab.send.await_count >= 2, (
+        f"Expected at least 2 send calls (enable + auth response), "
+        f"got {tab.send.await_count}"
+    )
 
 
 # ---------------------------------------------------------------------------

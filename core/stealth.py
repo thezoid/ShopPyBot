@@ -108,10 +108,14 @@ _BAN_PHRASES = [
 
 
 def _is_ban_response(status_code: int, body_text: str) -> bool:
-    """Return True if the HTTP response indicates a ban or challenge page."""
+    """Return True if the HTTP response indicates a ban or challenge page.
+
+    WR-04: body scan is capped at 8 KB to avoid blocking the event loop on
+    large pages. Ban phrases in headers are always within the first 8 KB.
+    """
     if status_code in _BAN_STATUSES:
         return True
-    lower = body_text.lower()
+    lower = body_text[:8192].lower()
     return any(phrase in lower for phrase in _BAN_PHRASES)
 
 
@@ -125,8 +129,16 @@ def _parse_proxy_url(url: str) -> tuple:
 
     host_port never includes credentials (T-13-01 mitigation).
     Returns empty strings for missing username/password, not None.
+
+    Raises ValueError if hostname or port is missing (CR-03: fail loud rather
+    than silently producing host_port='None:None' which Chrome ignores,
+    causing a direct connection that leaks the real IP).
     """
     parsed = urlparse(url)
+    if not parsed.hostname:
+        raise ValueError(f"Proxy URL missing hostname: {url!r}")
+    if parsed.port is None:
+        raise ValueError(f"Proxy URL missing port: {url!r}")
     host_port = f"{parsed.hostname}:{parsed.port}"
     return host_port, parsed.username or "", parsed.password or ""
 
@@ -179,7 +191,7 @@ class ProxyPool:
         cooldown_secs: float = 300.0,
     ) -> None:
         self._entries = entries
-        self._index = 0
+        self._index = -1  # CR-01: advance() increments before read; seed at -1 so first call returns entries[0]
         self._max_failures = max_failures
         self._cooldown = cooldown_secs
 
@@ -210,10 +222,16 @@ class ProxyPool:
         return self.size()
 
     def current(self) -> Optional[_ProxyEntry]:
-        """Return the proxy at the current index without advancing."""
+        """Return the proxy at the current index without advancing.
+
+        Before the first advance() call (_index == -1), returns entries[0]
+        to reflect what the first advance() will return.
+        """
         if not self._entries:
             return None
-        return self._entries[self._index % len(self._entries)]
+        # When _index is -1 (pre-advance), the next entry is entries[0].
+        idx = (self._index + 1) % len(self._entries) if self._index < 0 else self._index
+        return self._entries[idx]
 
     def advance(self) -> Optional[_ProxyEntry]:
         """Move to the next non-retired proxy (round-robin).
@@ -263,6 +281,10 @@ def build_proxy_browser_args(entry: Optional[_ProxyEntry]) -> list:
 # Authenticated proxy via CDP Fetch (Pitfalls 4+5: ordering + create_task)
 # ---------------------------------------------------------------------------
 
+# CR-04: strong references prevent CPython GC from collecting tasks before they
+# complete. Tasks discard themselves on completion via the done callback.
+_live_tasks: set = set()
+
 
 async def setup_proxy_auth(tab, username: str, password: str) -> None:
     """Register CDP Fetch handlers to respond to proxy 407 auth challenges.
@@ -271,18 +293,21 @@ async def setup_proxy_auth(tab, username: str, password: str) -> None:
     Handlers are registered BEFORE fetch.enable to avoid missing the first
     auth challenge (Pitfall 4). All tab.send calls are wrapped in
     asyncio.create_task to prevent receive-loop deadlock (Pitfall 5).
+    Task references are retained in _live_tasks until completion (CR-04).
     Credentials are passed to AuthChallengeResponse only, never logged.
     """
     if not username:
         return
 
     async def _on_request_paused(event: fetch.RequestPaused) -> None:
-        asyncio.create_task(
+        t = asyncio.create_task(
             tab.send(fetch.continue_request(request_id=event.request_id))
         )
+        _live_tasks.add(t)
+        t.add_done_callback(_live_tasks.discard)
 
     async def _on_auth_required(event: fetch.AuthRequired) -> None:
-        asyncio.create_task(
+        t = asyncio.create_task(
             tab.send(fetch.continue_with_auth(
                 request_id=event.request_id,
                 auth_challenge_response=fetch.AuthChallengeResponse(
@@ -292,6 +317,8 @@ async def setup_proxy_auth(tab, username: str, password: str) -> None:
                 ),
             ))
         )
+        _live_tasks.add(t)
+        t.add_done_callback(_live_tasks.discard)
 
     tab.add_handler(fetch.RequestPaused, _on_request_paused)
     tab.add_handler(fetch.AuthRequired, _on_auth_required)
