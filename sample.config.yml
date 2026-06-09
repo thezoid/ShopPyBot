@@ -1,6 +1,23 @@
 selenium:
   driver_path: path/to/chromedriver
 
+# Proxy rotation (ANTI-04): opt-in, disabled by default.
+# Set enabled: true and list one or more proxy URLs to activate rotation.
+# URL format: scheme://[user:pass@]host:port
+#   - http://proxy.example.com:8080
+#   - http://user:pass@proxy.example.com:8080
+#   - socks5://proxy.example.com:1080
+# SECURITY: proxy URLs with user:pass credentials are stored locally in
+# config.yml (which is gitignored). Credentials are never logged; only
+# host:port appears in log output (e.g. "Proxy rotation: enabled, pool_size=2").
+proxy:
+  enabled: false
+  urls: []
+  # Example (replace placeholder host before use):
+  # - http://user:pass@proxy.example.com:8080
+  max_failures: 3     # consecutive failures before a proxy enters cooldown
+  cooldown_secs: 300  # seconds a failed proxy waits before re-entering the pool
+
 # Credentials are NOT stored here. Set AMZ_EMAIL, AMZ_PWD, BB_EMAIL, BB_PASSWORD
 # as environment variables (see .env.example); the CVV is collected at runtime
 # via a hidden prompt and never written to disk.
