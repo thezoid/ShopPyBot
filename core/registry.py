@@ -130,6 +130,10 @@ class PluginRegistry:
 
         items: iterable of DB rows -- (name, link, auto_buy, quantity, purchased).
         On setup() failure, logs WARNING and skips that plugin (does not abort).
+
+        WR-03: proxy assignment is the CALLER'S responsibility (orchestrator calls
+        assign_proxy before setup_for_items or before individual plugin.setup() calls).
+        This method does NOT call assign_proxy to prevent double-advancing the pool.
         """
         needed: set[RetailerPlugin] = set()
         for item in items:
@@ -139,7 +143,6 @@ class PluginRegistry:
 
         for plugin in needed:
             try:
-                self.assign_proxy(plugin)
                 await plugin.setup()
                 self._active_plugins.append(plugin)
             except Exception as exc:
