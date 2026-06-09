@@ -55,11 +55,18 @@ def test_log_dir_env_override(monkeypatch, tmp_path):
 
 def test_no_hardcoded_separators():
     """No source file in core/, logger.py, models.py, utils.py uses bare string path separators."""
-    src_files = list(Path("core").rglob("*.py")) + [
-        Path("logger.py"),
-        Path("models.py"),
-        Path("utils.py"),
+    repo_root = Path(__file__).parent.parent
+    src_files = list((repo_root / "core").rglob("*.py")) + [
+        repo_root / "logger.py",
+        repo_root / "models.py",
+        repo_root / "utils.py",
     ]
+    # Non-empty guard: fails loudly if anchor is wrong and yields zero files.
+    assert len(src_files) > 0, "separator guard scanned zero files -- check __file__ anchor"
+    # Optional coverage check: a known file must be present.
+    assert repo_root / "core" / "paths.py" in src_files, (
+        "core/paths.py missing from scanned set -- rglob anchor may be wrong"
+    )
     bad_patterns = ['"data/', "'data/", '"logs/', "'logs/"]
     violations = []
     for f in src_files:
