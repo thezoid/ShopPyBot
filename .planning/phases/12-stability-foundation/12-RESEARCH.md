@@ -525,22 +525,39 @@ No library upgrades or framework changes in scope. All existing pinned versions 
 **All claims in this research were verified against the actual codebase files or the
 v2.0-MILESTONE-AUDIT.md artifact. No assumed claims.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **TD-4 regression test: does `test_web_credentials.py` already cover the `set_credential` POST?**
    - What we know: file exists; covers credential listing and CSRF
    - What's unclear: whether `POST /credentials` with a valid key/value is already tested
-   - Recommendation: read `tests/test_web_credentials.py` at plan time and add only if missing
+   - **RESOLVED (read `tests/test_web_credentials.py` at plan time):** YES — already covered,
+     unconditionally. `test_post_credentials_calls_store_set` (line 64) patches
+     `core.credentials.get_store`, POSTs `/credentials` with `{"key": "AMZ_EMAIL", "value":
+     "test@example.com"}`, and asserts `mock_store.set.assert_called_once_with("AMZ_EMAIL",
+     "test@example.com")`. Companion tests `test_post_credentials_returns_ok_status`,
+     `test_post_credentials_secret_not_in_response`, and the 422 no-write guards
+     (`test_post_credentials_unknown_key_returns_422_no_write` etc.) round out the credential write
+     seam. Therefore the credential half of TD-4 needs NO new test — Plan 12-03 names
+     `test_post_credentials_calls_store_set` as the satisfying artifact (does not re-add it) and adds
+     only the remaining CONFIG-seam regression test (`write_web_config` -> `_DEFAULT_YAML_PATH`).
 
 2. **MC-4 banner template variable: what is the exact Jinja2 conditional in `dashboard.html`?**
    - What we know: `app.state.is_non_local` is passed to the template context as `is_non_local`
    - What's unclear: the exact HTML/class name of the banner element to assert in the test
-   - Recommendation: read `web/templates/dashboard.html` at plan time to target the right text
+   - **RESOLVED (confirmed at plan time, recorded in Plan 12-03 `<interfaces>`):** the conditional is
+     `{% if is_non_local %}` wrapping a `<div class="banner-warning">` whose copy includes the
+     assertable substring "reachable beyond localhost". Plan 12-03 Task 2 asserts that substring is
+     present when `create_app(mock_svc, is_non_local=True)` and absent when `is_non_local=False`
+     (proving the gate, per Pitfall 5).
 
 3. **Ubuntu checks: is WSL2 acceptable for Ubuntu manual checks?**
    - What we know: WSL2 provides an Ubuntu environment on this Windows machine
    - What's unclear: whether the user has WSL2 / Ubuntu available
-   - Recommendation: plan should note WSL2 as an option; user confirms at execution time
+   - **RESOLVED (planning decision):** STILL ENVIRONMENT-DEPENDENT — confirmed at execution time, not
+     plan time. Plan 12-04 handles this deterministically: Ubuntu variants are run only if WSL2 / an
+     Ubuntu host is available at the Task 1 checkpoint; otherwise the corresponding cells are recorded
+     as "pending Ubuntu access" (never silently skipped, never marked PASS unless actually run). No
+     code or plan change depends on the answer — the documentation outcome is well-defined either way.
 
 ## Sources
 
