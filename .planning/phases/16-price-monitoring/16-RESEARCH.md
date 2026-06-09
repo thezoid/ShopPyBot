@@ -675,7 +675,9 @@ def _pct_drop_from_last(current_cents: int, last_cents: int) -> float:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> RESOLVED 2026-06-09: Q1 → implement Amazon real get_price() (user decision, CONTEXT.md). Q2 → separate `update_item_price_config_sync` seed. Q3 → single `price_drop` alert per dedup window. All three are locked in 16-CONTEXT.md and implemented by the plans.
 
 1. **Does PRICE-02 require at least one plugin to implement get_price() this phase?**
    - What we know: The requirement says "optional ABC hook (default returns None = unsupported)." No concrete plugin is named.
