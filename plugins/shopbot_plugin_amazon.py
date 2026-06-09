@@ -10,6 +10,8 @@ Neither value is ever logged, stored to disk, or written to config.yml.
 import asyncio
 import json as _json
 import logging
+import math
+import re
 
 import nodriver
 
@@ -20,6 +22,35 @@ from logger import writeLog
 from utils import play_notification_sound
 
 _log = logging.getLogger(__name__)
+
+# Price selectors tried in order; first non-empty element text wins.
+_PRICE_SELECTORS = [
+    ".a-price .a-offscreen",
+    "#corePrice_feature_div .a-offscreen",
+    "#priceblock_ourprice",
+]
+
+
+def _parse_price_to_cents(text: str | None) -> int | None:
+    """Parse a price string into integer cents. Returns None for invalid input.
+
+    Strips all characters except digits and '.' via re.sub, then converts via
+    round(float * 100). Rejects empty, non-finite, zero, or negative results.
+    Never uses eval/exec on scraped text (T-16-PRICESTR).
+    """
+    if not text:
+        return None
+    cleaned = re.sub(r"[^\d.]", "", text)
+    if not cleaned or not any(c.isdigit() for c in cleaned):
+        return None
+    try:
+        value = float(cleaned)
+    except ValueError:
+        return None
+    if not math.isfinite(value) or value <= 0:
+        return None
+    return round(value * 100)
+
 
 _WAF_PROBE_JS = (
     "(function(){var p=window.gokuProps;"
@@ -184,6 +215,29 @@ class AmazonPlugin(RetailerPlugin):
             # handles any missing-connection edge case internally (RESEARCH Pattern 7).
             self.driver.stop()
             self.driver = None
+
+    async def get_price(self, url: str) -> int | None:
+        """Scrape the current Amazon listing price and return integer cents.
+
+        Tries an ordered list of CSS selectors; takes the first non-empty text;
+        delegates to _parse_price_to_cents for sanitization. Any exception
+        (network, selector, parse) logs the class name and returns None (T-16-DOS).
+        Selector list is site-specific and may need maintenance (documented in SUMMARY).
+        """
+        try:
+            tab = await self.driver.get(url)
+            for selector in _PRICE_SELECTORS:
+                element = await tab.select(selector, timeout=10)
+                if element is None:
+                    continue
+                text = getattr(element, "text", None) or ""
+                result = _parse_price_to_cents(text)
+                if result is not None:
+                    return result
+            return None
+        except Exception as exc:
+            writeLog(f"[AmazonPlugin] get_price error: {exc.__class__.__name__}", "ERROR")
+            return None
 
     async def detect_captcha(self) -> bool:
         """Return True if an Amazon CAPTCHA challenge page is present."""
