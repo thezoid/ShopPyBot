@@ -36,7 +36,7 @@ Prior milestone requirements (v1 44 + v2.0 22 = 66, all satisfied) are archived 
 
 ### Stability / Polish
 
-- [ ] **STAB-01**: All 4 deferred v2.0 cross-OS/UI manual checks are executed and documented pass/fail (keyring restart survival, masked-TTY passphrase prompt, web dashboard render on Ubuntu, `0.0.0.0` bind warning), with any failures fixed.
+- [x] **STAB-01**: All 4 deferred v2.0 cross-OS/UI manual checks are executed and documented pass/fail (keyring restart survival, masked-TTY passphrase prompt, web dashboard render on Ubuntu, `0.0.0.0` bind warning), with any failures fixed.
 - [x] **STAB-02**: The 4 v2.0 audit tech-debt items are resolved with a targeted regression test for each (no broad refactors).
 - [ ] **STAB-03**: New v3.0 features (proxy rotation, CAPTCHA solving, price monitoring) have unit coverage for config parsing, DB schema, and threshold/comparison logic plus integration coverage for the plugin ABC additions.
 

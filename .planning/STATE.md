@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-09T05:08:47.489Z"
+last_updated: "2026-06-09T05:20:12.669Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 12 (stability-foundation) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-09
 
@@ -109,6 +109,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 ---
 | Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
 | Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
+| Phase 12 P03 | 4min | - tasks | - files |
 
 ## Session Continuity
 
@@ -230,6 +231,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 12-01]: TD-1 test isolation via finally-block reload: both tests restore logger to original import-time state to prevent _LOGGING_LEVEL bleed
 - [Phase ?]: TD-2 closed: Switch all three dirs_to_scan to rglob (not just core/) for future-proofing; companion assertion on core/cli/config_cmd.py proves recursion coverage
 - [Phase ?]: TD-3 closed: Separator guard anchored to Path(__file__).parent.parent with len(src_files)>0 guard; silent empty-list false-pass eliminated
+- [Phase ?]: [Phase 12-03]: TD-4 config seam accepted under MOD-02 -- write_web_config writes directly to _DEFAULT_YAML_PATH; BotService scope covers DB/registry/orchestrator only; WEB_ALLOWLIST is the safety boundary
+- [Phase ?]: [Phase 12-03]: MC-4 is_non_local banner gate proven both ways -- banner present when is_non_local=True, absent when is_non_local=False (Jinja2 conditional enforced in CI)
 
 ## Operator Next Steps
 
