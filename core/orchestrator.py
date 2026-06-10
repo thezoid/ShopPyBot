@@ -61,7 +61,11 @@ def _cents_to_display(cents: int | None) -> str:
 
 
 def _pct_from_target(price_cents: int, target_cents: int) -> float:
-    """Return percentage price is below target (0.0 when price >= target)."""
+    """Return percentage price is below target (0.0 when price >= target).
+
+    Rounded to 1 decimal for display only (C-02). The trigger decision in
+    _check_price_triggers uses integer-cent arithmetic and never calls this.
+    """
     if target_cents <= 0:
         return 0.0
     return max(0.0, round((target_cents - price_cents) / target_cents * 100, 1))
