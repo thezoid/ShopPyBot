@@ -13,9 +13,12 @@ Tests cover:
 asyncio_mode = "auto" in pyproject.toml: no @pytest.mark.asyncio decorators needed.
 """
 
+import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
+import core.stealth as stealth_module
 from core.stealth import (
     STEALTH_JS,
     apply_stealth,
@@ -376,3 +379,112 @@ def test_is_ban_response_phrase():
     assert _is_ban_response(200, "access denied") is True
     assert _is_ban_response(200, "Please verify you are human") is True
     assert _is_ban_response(200, "bot detected on this session") is True
+
+
+# ---------------------------------------------------------------------------
+# PX-02: _on_request_paused continues the request + tracks task in _live_tasks
+# ---------------------------------------------------------------------------
+
+
+async def test_setup_proxy_auth_request_paused_continues():
+    """PX-02: the RequestPaused handler fires continue_request and tracks the task.
+
+    Covers stealth.py:303-307 -- _on_request_paused must:
+      1. call asyncio.create_task(tab.send(fetch.continue_request(request_id=...)))
+      2. add the task to _live_tasks
+      3. register a done callback that discards the task from _live_tasks once done
+
+    Strategy: capture the handler via add_handler call_args, invoke it with a
+    fake event, observe that _live_tasks grows by 1 right after the handler runs
+    (before the task completes), then yield to the event loop so the task runs and
+    the done callback discards it, and finally assert the tab.send payload.
+    """
+    from nodriver.cdp import fetch
+
+    tab = MagicMock()
+    tab.send = AsyncMock(return_value=None)
+    tab.add_handler = MagicMock()
+
+    stealth_module._live_tasks.clear()
+    await setup_proxy_auth(tab, "user", "pass")
+
+    # Locate the _on_request_paused handler registered for fetch.RequestPaused
+    handler = None
+    for c in tab.add_handler.call_args_list:
+        event_type, callback = c[0]
+        if event_type is fetch.RequestPaused:
+            handler = callback
+            break
+    assert handler is not None, "No handler registered for fetch.RequestPaused"
+
+    # Invoke the handler with a fake event carrying request_id="req-1"
+    fake_event = SimpleNamespace(request_id="req-1")
+    size_before = len(stealth_module._live_tasks)
+    await handler(fake_event)
+    size_after = len(stealth_module._live_tasks)
+
+    # The handler must have added one task to _live_tasks (task still pending)
+    assert size_after == size_before + 1, (
+        f"Expected _live_tasks to grow by 1 after handler; "
+        f"before={size_before}, after={size_after}"
+    )
+
+    # Grab the task that was just added
+    the_task = next(iter(stealth_module._live_tasks))
+
+    # Yield control so the scheduled task runs (first tick) and the done
+    # callback fires (second tick).
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    # After the task completes, the done callback should have discarded it
+    assert the_task not in stealth_module._live_tasks, (
+        "Done callback did not discard the task from _live_tasks"
+    )
+
+    # tab.send was called twice: once for fetch.enable, once for continue_request
+    assert tab.send.await_count == 2, (
+        f"Expected 2 tab.send calls (enable + continue_request), got {tab.send.await_count}"
+    )
+    # The second send carries a generator produced by fetch.continue_request(...)
+    # (nodriver CDP functions are generator factories, not class constructors)
+    continue_call_arg = tab.send.await_args_list[1][0][0]
+    assert hasattr(continue_call_arg, "__qualname__"), (
+        "Expected a generator with __qualname__, got something else"
+    )
+    assert continue_call_arg.__qualname__ == "continue_request", (
+        f"Expected generator from fetch.continue_request, "
+        f"got {continue_call_arg.__qualname__!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# PX-03: ProxyPool empty pool + pool-level methods
+# ---------------------------------------------------------------------------
+
+
+def test_proxypool_empty_and_pool_level_methods():
+    """PX-03: covers the empty-pool branches and pool.record_success().
+
+    Covers stealth.py:222 (__len__ on empty pool), 231 (current()->None for
+    empty pool), 243 (advance()->None for empty pool), and 257
+    (pool.record_success resets entry.failures to 0).
+    """
+    # Empty pool: __len__, current(), advance() all reflect zero-entry state
+    empty_pool = ProxyPool([])
+    assert len(empty_pool) == 0, "Empty pool must have len 0"
+    assert empty_pool.current() is None, "current() on empty pool must return None"
+    assert empty_pool.advance() is None, "advance() on empty pool must return None"
+
+    # 1-entry pool: pool.record_success resets failures to 0 via entry.record_success()
+    pool = ProxyPool.from_urls(["http://h:1"])
+    entry = pool.current()
+    assert entry is not None, "1-entry pool must have a current entry"
+
+    # Drive failures > 0 (but below the default max_failures=3 so not yet retired)
+    entry.record_failure(3, 300.0)
+    entry.record_failure(3, 300.0)
+    assert entry.failures == 2, "Expected 2 failures before reset"
+
+    pool.record_success(entry)
+    assert entry.failures == 0, "record_success must reset entry.failures to 0"

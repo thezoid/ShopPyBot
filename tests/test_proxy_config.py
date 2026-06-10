@@ -72,3 +72,33 @@ def test_appconfig_has_proxy_field(tmp_path):
     cfg = AppConfig(yaml_file=_write_config(tmp_path, {"available": {"items": []}}))
     assert hasattr(cfg, "proxy")
     assert isinstance(cfg.proxy, ProxyConfig)
+
+
+def test_proxyconfig_rejects_invalid_proxy_url():
+    """PX-01: validate_proxy_urls raises ValidationError for malformed URLs.
+
+    Covers config_schema.py:256-257 -- the validator rejects:
+      - hostname-only (no scheme, no port)
+      - schemeless with port (no scheme)
+      - portless (scheme + host, no port)
+
+    A fully-specified scheme://user:pass@host:port passes as the positive control.
+    """
+    from pydantic import ValidationError
+
+    # Negative: hostname-only (no scheme, no port)
+    with pytest.raises(ValidationError):
+        ProxyConfig(urls=["1.2.3.4"])
+
+    # Negative: schemeless but has port notation (urllib treats the whole thing
+    # as a path with no scheme/hostname, so parsed.scheme == '' and hostname is None)
+    with pytest.raises(ValidationError):
+        ProxyConfig(urls=["//1.2.3.4:8080"])
+
+    # Negative: portless (scheme + host but no port)
+    with pytest.raises(ValidationError):
+        ProxyConfig(urls=["http://1.2.3.4"])
+
+    # Positive control: fully-specified URL with credentials passes
+    cfg = ProxyConfig(urls=["http://user:pass@1.2.3.4:8080"])
+    assert cfg.urls[0] == "http://user:pass@1.2.3.4:8080"
