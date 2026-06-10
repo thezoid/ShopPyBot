@@ -514,6 +514,152 @@ def test_seed_writes_price_config(tmp_data_dir):
 
 
 # ---------------------------------------------------------------------------
+# PR-02: pct helpers guard non-positive denominator (orchestrator.py:70, 77)
+# ---------------------------------------------------------------------------
+
+
+def test_pct_helpers_guard_nonpositive_denominator():
+    """PR-02: _pct_from_target and _pct_drop_from_last return 0.0 for zero or negative denominator.
+
+    Exercises orchestrator.py:70 (target_cents <= 0 guard) and line 77
+    (last_cents <= 0 guard) -- no ZeroDivisionError for either helper.
+    """
+    from core.orchestrator import _pct_from_target, _pct_drop_from_last
+
+    # Zero denominator
+    assert _pct_from_target(4500, 0) == 0.0
+    assert _pct_drop_from_last(4500, 0) == 0.0
+
+    # Negative denominator
+    assert _pct_from_target(4500, -100) == 0.0
+    assert _pct_drop_from_last(4500, -100) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# PR-03: _evaluate_price_triggers early-returns on missing or null config (orch:123, 126)
+# ---------------------------------------------------------------------------
+
+
+async def test_evaluate_price_triggers_skips_when_no_config(tmp_data_dir):
+    """PR-03: _evaluate_price_triggers returns early when config is absent or all-None.
+
+    Sub-case 1: no item row in DB (get_item_price_config_sync returns None) ->
+    early return at orchestrator.py:123; dispatcher.notify not called.
+    Sub-case 2: item row exists but both target_price and price_drop_pct are None ->
+    early return at orchestrator.py:126; dispatcher.notify not called.
+    """
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _evaluate_price_triggers
+
+    loop = asyncio.get_running_loop()
+
+    # Sub-case 1: no item row (get_item_price_config_sync returns None).
+    initialize_db(delete=True)
+    link_missing = "https://fake.example.com/noconfig"
+    dispatcher1 = MagicMock()
+    dispatcher1.notify = AsyncMock()
+    plugin1 = MagicMock()
+    await _evaluate_price_triggers(plugin1, "NoConfig", link_missing, 4500, None, dispatcher1, loop)
+    dispatcher1.notify.assert_not_awaited()
+
+    # Sub-case 2: item row exists but (None, None) config.
+    link_null = "https://fake.example.com/nullconfig"
+    add_items_sync([("NullConfig", link_null, False, 1, False)])
+    # Do NOT call update_item_price_config_sync -- both fields default to NULL.
+    dispatcher2 = MagicMock()
+    dispatcher2.notify = AsyncMock()
+    plugin2 = MagicMock()
+    await _evaluate_price_triggers(plugin2, "NullConfig", link_null, 4500, None, dispatcher2, loop)
+    dispatcher2.notify.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# AB-01: get_price exception is isolated; availability path still runs (orch:209-210)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_price_error_is_isolated_and_does_not_propagate(fake_plugin, tmp_data_dir):
+    """AB-01: a RuntimeError from get_price is caught and logged; _check_and_buy does not raise.
+
+    The availability/notification path continues to run after the get_price
+    exception -- here an available item puts set_available into the write_queue.
+    Exercises orchestrator.py:209-210 (get_price error isolation).
+    """
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+    from unittest.mock import AsyncMock
+
+    initialize_db()
+    link = "https://fake.example.com/ab01"
+    add_items_sync([("Widget", link, False, 1, False)])
+
+    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+    plugin.check_availability = AsyncMock(return_value=True)
+    plugin.get_price = AsyncMock(side_effect=RuntimeError("boom"))
+
+    write_queue = asyncio.Queue()
+
+    # Must not raise even though get_price raises.
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
+
+    # Availability path ran: rising edge put set_available in the queue.
+    assert not write_queue.empty(), "Expected set_available entry in write_queue but queue is empty"
+    item = await write_queue.get()
+    assert item[0] == "set_available", f"Expected set_available, got {item[0]}"
+
+
+# ---------------------------------------------------------------------------
+# AB-02: get_price sequencing relative to check_availability (orch:201-203, 207-210)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_price_invoked_alongside_check_availability_sequencing(fake_plugin, tmp_data_dir):
+    """AB-02: get_price runs when check_availability returns False; skipped when it raises.
+
+    Sub-case A: check_availability returns False (unavailable) -> get_price IS
+    called (call_count == 1) because get_price runs after any successful
+    check_availability call regardless of the boolean result.
+    Sub-case B: check_availability raises -> _check_and_buy returns at orch:201-203
+    BEFORE reaching get_price (call_count == 0); no exception propagated.
+    """
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+    from unittest.mock import AsyncMock
+
+    initialize_db()
+    link_a = "https://fake.example.com/ab02a"
+    link_b = "https://fake.example.com/ab02b"
+    add_items_sync([("WidgetA", link_a, False, 1, False)])
+    add_items_sync([("WidgetB", link_b, False, 1, False)])
+
+    # Sub-case A: check_availability=False, get_price should still be called.
+    plugin_a = fake_plugin(domains=["fake.example.com"], available=False)
+    plugin_a.check_availability = AsyncMock(return_value=False)
+    plugin_a.get_price = AsyncMock(return_value=None)
+    write_queue_a = asyncio.Queue()
+    await _check_and_buy(plugin_a, "WidgetA", link_a, False, write_queue_a, dispatcher=None)
+    assert plugin_a.get_price.call_count == 1, (
+        f"Expected get_price called once when available=False, got {plugin_a.get_price.call_count}"
+    )
+
+    # Sub-case B: check_availability raises -> early return before get_price.
+    plugin_b = fake_plugin(domains=["fake.example.com"], available=False)
+    plugin_b.check_availability = AsyncMock(side_effect=RuntimeError("network error"))
+    plugin_b.get_price = AsyncMock()
+    write_queue_b = asyncio.Queue()
+    await _check_and_buy(plugin_b, "WidgetB", link_b, False, write_queue_b, dispatcher=None)
+    assert plugin_b.get_price.call_count == 0, (
+        f"Expected get_price NOT called when check_availability raises, got {plugin_b.get_price.call_count}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # BotService.get_price_history accessor
 # ---------------------------------------------------------------------------
 
