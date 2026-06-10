@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: executing
-last_updated: "2026-06-10T01:49:22.954Z"
+status: complete
+last_updated: "2026-06-10T02:05:00.000Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 21
-  completed_plans: 20
-  percent: 83
+  completed_plans: 21
+  percent: 100
 ---
 
 # ShopPyBot — State
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 17 (test-hardening) — EXECUTING
+Phase: 17 (test-hardening) — COMPLETE
 Plan: 4 of 4
-Status: Ready to execute
+Status: Complete
 Last activity: 2026-06-10
 
 ## Phase Status
@@ -42,7 +42,7 @@ Last activity: 2026-06-10
 | 14 — Anti-Detection Layer 2 (CAPTCHA Solving) | 2captcha opt-in with balance check, async executor, spend cap | Not started | 2 |
 | 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Complete | 4 |
 | 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Complete | 6 |
-| 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Not started | 1 |
+| 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Complete | 1 |
 
 ---
 
@@ -127,11 +127,12 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 17-test-hardening P01 | 15 | 2 tasks | 3 files |
 | Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
 | Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
+| Phase 17-test-hardening P04 | 4min | 1 tasks | 1 files |
 
 ## Session Continuity
 
-**Last action**: Phase 17 Plan 03 complete -- PR-01..PR-04 + AB-01/AB-02 price tests (models.py:48-81/198/246, orchestrator.py:70/77/123/126/209-210 now covered); 546 passed, 2 skipped.
-**Next action**: Execute Phase 17 (Test Hardening) -- run /gsd:plan-phase 17
+**Last action**: Phase 17 Plan 04 complete -- AB-03 (requires_captcha+easy override) + AB-04 (_handle_ban ban->cooldown bridge, branch 53->55 all 3 sub-cases); 548 passed, 2 skipped. Phase 17 COMPLETE. Milestone v3.0 COMPLETE.
+**Next action**: None -- milestone v3.0 fully closed
 **Context to carry**: Phase 16 fully closed (PRICE-01 through PRICE-06). price-history CLI: `shoppybot items price-history <name> [--limit N]` via BotService.get_price_history; $X.XX table formatting. Phase 15 fully closed (REG-01 through REG-04).
 
 ---

@@ -10,7 +10,7 @@
 
 - ✅ **v1 Open Source Launch** — Phases 1-6 (shipped 2026-06-03)
 - ✅ **v2.0 Modular Core + Cross-Platform UX** — Phases 7-11 (shipped 2026-06-06)
-- **v3.0 Resilience + Ecosystem** — Phases 12-17 (in progress)
+- **v3.0 Resilience + Ecosystem** — Phases 12-17 (COMPLETE 2026-06-10)
 
 ---
 
@@ -51,7 +51,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 - [x] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap (completed 2026-06-09)
 - [x] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs (completed 2026-06-09)
 - [x] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command (completed 2026-06-10)
-- [ ] **Phase 17: Test Hardening** — Unit and integration coverage for all v3.0 features (proxy config, CAPTCHA flow, price monitoring schema and threshold logic, plugin ABC additions)
+- [x] **Phase 17: Test Hardening** — Unit and integration coverage for all v3.0 features (proxy config, CAPTCHA flow, price monitoring schema and threshold logic, plugin ABC additions) (completed 2026-06-10)
 
 ---
 
@@ -183,7 +183,7 @@ Plans:
 - [x] 17-01-PLAN.md — Proxy coverage: PX-01..PX-06 (config validator, fetch-handler tasks, ProxyPool edges, registry routing/lifecycle isolation)
 - [x] 17-02-PLAN.md — CAPTCHA coverage: CP-01..CP-05 (poll/timeout errors, balance gate, solve_amazon_waf submit/poll/decode)
 - [x] 17-03-PLAN.md — Price + get_price integration: PR-01..PR-04 + AB-01, AB-02 (v2.0-schema migration fixture, trigger guards, get_price-alongside-check_availability)
-- [ ] 17-04-PLAN.md — Plugin ABC: AB-03, AB-04 (metadata overrides + _handle_ban ban→proxy-cooldown bridge)
+- [x] 17-04-PLAN.md — Plugin ABC: AB-03, AB-04 (metadata overrides + _handle_ban ban→proxy-cooldown bridge)
 
 ---
 
@@ -207,7 +207,7 @@ Plans:
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete    | 2026-06-10 |
-| 17. Test Hardening | v3.0 | 3/4 | In Progress|  |
+| 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.
 
