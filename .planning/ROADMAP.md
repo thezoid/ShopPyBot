@@ -50,7 +50,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md` (status: passed).
 
 - [x] **Phase 14: Anti-Detection Layer 2 — CAPTCHA Solving** — Integrate 2captcha opt-in solver with CredentialStore key, startup balance check, async executor wrapping, and spend cap (completed 2026-06-09)
 - [x] **Phase 15: Plugin Ecosystem Registry** — Add difficulty/proxy/captcha class attrs to ABC, create GitHub wiki registry table, ship `shoppybot plugins list` command, and update contributor docs (completed 2026-06-09)
-- [ ] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command
+- [x] **Phase 16: Price Monitoring** — Per-item target price, append-only price history table, percentage-drop secondary trigger, fan-out price-drop alerts with separate dedup, and price-history CLI command (completed 2026-06-10)
 - [ ] **Phase 17: Test Hardening** — Unit and integration coverage for all v3.0 features (proxy config, CAPTCHA flow, price monitoring schema and threshold logic, plugin ABC additions)
 
 ---
@@ -160,7 +160,7 @@ Plans:
 - [x] 16-01-PLAN.md — Data layer: idempotent price_history table + 4 items columns + 8 parameterized price _sync functions + ItemConfig target_price/price_drop_pct (PRICE-01/02/05)
 - [x] 16-02-PLAN.md — Plugin + notification contract: NotificationEvent price fields, default-None get_price() ABC hook, real Amazon get_price() + text→cents parser, price_drop notifier branches (PRICE-02/04)
 - [x] 16-03-PLAN.md — Orchestrator wiring: _check_and_buy price path, both triggers with separate dedup, single price_drop dispatch, startup config seeding + BotService.get_price_history (PRICE-02/03/04/05)
-- [ ] 16-04-PLAN.md — CLI: shoppybot items price-history <name> leaf with --limit (default 10), $X.XX table, no network (PRICE-06)
+- [x] 16-04-PLAN.md — CLI: shoppybot items price-history <name> leaf with --limit (default 10), $X.XX table, no network (PRICE-06)
 
 **UI hint**: yes
 
@@ -199,7 +199,7 @@ Plans:
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 16. Price Monitoring | v3.0 | 3/4 | In Progress|  |
+| 16. Price Monitoring | v3.0 | 4/4 | Complete   | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.

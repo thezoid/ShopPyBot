@@ -33,7 +33,7 @@ Prior milestone requirements (v1 44 + v2.0 22 = 66, all satisfied) are archived 
 - [x] **PRICE-03**: User receives price-drop alerts through the existing fan-out notification dispatcher using a distinct `price_drop` notification_type with dedup separate from stock alerts.
 - [x] **PRICE-04**: Price alert payloads include the current price, the target price, and the percentage from target.
 - [x] **PRICE-05**: User can set a per-item `price_drop_pct` threshold as a secondary trigger (alert on an N%+ drop from the last-seen price) alongside the absolute target.
-- [ ] **PRICE-06**: User can run `shoppybot items price-history <name>` to view the last N recorded prices for an item.
+- [x] **PRICE-06**: User can run `shoppybot items price-history <name>` to view the last N recorded prices for an item.
 
 ### Stability / Polish
 

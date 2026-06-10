@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: verifying
-last_updated: "2026-06-10T00:05:51.938Z"
+last_updated: "2026-06-10T00:14:14.854Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 17
-  completed_plans: 16
-  percent: 67
+  completed_plans: 17
+  percent: 83
 ---
 
 # ShopPyBot — State
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 16 (price-monitoring) — EXECUTING
+Phase: 16 (price-monitoring) — COMPLETE
 Plan: 4 of 4
-Status: Phase complete — ready for verification
+Status: Phase complete — PRICE-06 closed; 522 passed, 2 skipped
 Last activity: 2026-06-10
 
 ## Phase Status
@@ -41,7 +41,7 @@ Last activity: 2026-06-10
 | 13 — Anti-Detection Layer 1 (Fingerprint + Proxy) | JS stealth patch + proxy rotation with ban detection | Not started | 3 |
 | 14 — Anti-Detection Layer 2 (CAPTCHA Solving) | 2captcha opt-in with balance check, async executor, spend cap | Not started | 2 |
 | 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Complete | 4 |
-| 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Not started | 6 |
+| 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Complete | 6 |
 | 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Not started | 1 |
 
 ---
@@ -123,12 +123,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 16-price-monitoring P01 | 5min | 2 tasks | 3 files |
 | Phase 16 P02 | 8min | 4 tasks | 6 files |
 | Phase 16-price-monitoring P03 | 8min | 3 tasks | 5 files |
+| Phase 16-price-monitoring P04 | 5min | 3 tasks | 3 files |
 
 ## Session Continuity
 
-**Last action**: Phase 15 Plan 02 complete -- BotService.list_plugins() + core/cli/plugins.py + shoppybot plugins list [--json]; REG-03 closed; 492 passed, 2 skipped. (Plan 03 previously closed REG-01, REG-04.)
-**Next action**: Execute Phase 16 (Price Monitoring) -- run /gsd:plan-phase 16
-**Context to carry**: Phase 15 fully closed (REG-01 through REG-04). RetailerPlugin ABC has difficulty/requires_proxy/requires_captcha class attrs with defaults. plugins list CLI (shoppybot plugins list [--json]) via BotService.list_plugins() + core/cli/plugins.py. PLUGIN_REGISTRY.md is in-repo SPEC only; live wiki page must be created manually by a maintainer on first plugin PR merge.
+**Last action**: Phase 16 Plan 04 complete -- price-history CLI leaf (PRICE-06 closed); 522 passed, 2 skipped.
+**Next action**: Execute Phase 17 (Test Hardening) -- run /gsd:plan-phase 17
+**Context to carry**: Phase 16 fully closed (PRICE-01 through PRICE-06). price-history CLI: `shoppybot items price-history <name> [--limit N]` via BotService.get_price_history; $X.XX table formatting. Phase 15 fully closed (REG-01 through REG-04).
 
 ---
 
