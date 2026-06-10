@@ -181,7 +181,7 @@ Plans:
 Plans:
 
 - [x] 17-01-PLAN.md — Proxy coverage: PX-01..PX-06 (config validator, fetch-handler tasks, ProxyPool edges, registry routing/lifecycle isolation)
-- [ ] 17-02-PLAN.md — CAPTCHA coverage: CP-01..CP-05 (poll/timeout errors, balance gate, solve_amazon_waf submit/poll/decode)
+- [x] 17-02-PLAN.md — CAPTCHA coverage: CP-01..CP-05 (poll/timeout errors, balance gate, solve_amazon_waf submit/poll/decode)
 - [ ] 17-03-PLAN.md — Price + get_price integration: PR-01..PR-04 + AB-01, AB-02 (v2.0-schema migration fixture, trigger guards, get_price-alongside-check_availability)
 - [ ] 17-04-PLAN.md — Plugin ABC: AB-03, AB-04 (metadata overrides + _handle_ban ban→proxy-cooldown bridge)
 
@@ -207,7 +207,7 @@ Plans:
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete    | 2026-06-10 |
-| 17. Test Hardening | v3.0 | 1/4 | In Progress|  |
+| 17. Test Hardening | v3.0 | 2/4 | In Progress|  |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.
 
