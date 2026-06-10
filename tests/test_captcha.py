@@ -416,3 +416,79 @@ def test_solve_amazon_waf_blocked_when_balance_not_ok():
     solver.balance_ok = False
     with pytest.raises(RuntimeError, match="can_solve"):
         solver.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
+
+
+# ---------------------------------------------------------------------------
+# CP-04: solve_amazon_waf happy path returns decoded dict
+# ---------------------------------------------------------------------------
+
+def test_solve_amazon_waf_success_returns_decoded_dict():
+    """CP-04: AmazonTask POST succeeds, poll returns JSON-string token, result decoded.
+
+    Covers captcha.py:179 (_solve_count increment), 180-198 (submit + poll),
+    201 (json.loads). _solve_count must increment by exactly 1.
+    """
+    import json as _json
+    from core.captcha import CaptchaSolver
+
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "cid-cp04"}
+
+    token_dict = {"captcha_voucher": "v", "existing_token": "e"}
+    poll_resp = MagicMock()
+    poll_resp.json.return_value = {"status": 1, "request": _json.dumps(token_dict)}
+
+    solver = CaptchaSolver("test-api-key-cp04", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        mock_req.get.return_value = poll_resp
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            result = solver.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
+
+    assert result == {"captcha_voucher": "v", "existing_token": "e"}
+    assert solver._solve_count == 1
+
+
+# ---------------------------------------------------------------------------
+# CP-05: solve_amazon_waf non-JSON fallback and submit-error raise
+# ---------------------------------------------------------------------------
+
+def test_solve_amazon_waf_non_json_token_falls_back_and_submit_error_raises():
+    """CP-05a/b: non-JSON poll token falls back to dict; submit status!=1 raises RuntimeError.
+
+    CP-05a covers captcha.py:202-203 (non-JSON fallback).
+    CP-05b covers captcha.py:195-196 (AmazonTask submit error raise).
+    """
+    from core.captcha import CaptchaSolver
+
+    # --- CP-05a: non-JSON token fallback ---
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "cid-cp05a"}
+
+    plain_poll_resp = MagicMock()
+    plain_poll_resp.json.return_value = {"status": 1, "request": "plain-voucher-string"}
+
+    solver_a = CaptchaSolver("test-api-key-cp05a", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        mock_req.get.return_value = plain_poll_resp
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            result_a = solver_a.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
+
+    assert result_a == {"captcha_voucher": "plain-voucher-string", "existing_token": ""}
+
+    # --- CP-05b: AmazonTask submit status!=1 raises RuntimeError ---
+    error_submit_resp = MagicMock()
+    error_submit_resp.json.return_value = {"status": 0, "request": "ERROR_WRONG_USER_KEY"}
+
+    solver_b = CaptchaSolver("test-api-key-cp05b", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = error_submit_resp
+        with patch("core.captcha.time"):
+            with pytest.raises(RuntimeError):
+                solver_b.solve_amazon_waf("k", "iv", "ctx", "https://example.com")
