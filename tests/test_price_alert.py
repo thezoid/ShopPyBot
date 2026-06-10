@@ -348,6 +348,89 @@ async def test_price_dedup_independent(fake_plugin, fake_notifier, tmp_data_dir)
 
 
 # ---------------------------------------------------------------------------
+# T-02: pct-drop trigger end-to-end integration tests
+# ---------------------------------------------------------------------------
+
+
+async def test_pct_drop_trigger_end_to_end(fake_plugin, fake_notifier, tmp_data_dir):
+    """T-02a: pct-drop-only config fires exactly once on a 10% drop over two cycles.
+
+    Cycle 1 seeds the price history (5000). Cycle 2 drops to 4500 (exactly 10%).
+    One price_drop event with target_price_cents=None and price_cents=4500.
+    Cycle 3 is a no-op (armed; dedup blocks).
+    """
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync, update_item_price_config_sync
+    from notifications.dispatcher import NotificationDispatcher
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/pct-drop-e2e"
+    add_items_sync([("Widget", link, False, 1, False)])
+    # pct-drop only, no absolute target
+    update_item_price_config_sync(link, None, 10.0)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
+    write_queue = asyncio.Queue()
+
+    def price_drop_events():
+        return [e for e in notifier.events if e.action == "price_drop"]
+
+    # Cycle 1: seed price history at 5000 (no prev_price yet, trigger can't fire)
+    plugin.get_price = AsyncMock(return_value=5000)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(price_drop_events()) == 0
+
+    # Cycle 2: price drops to 4500 (exactly 10%) -> must fire once
+    plugin.get_price = AsyncMock(return_value=4500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    events = price_drop_events()
+    assert len(events) == 1
+    assert events[0].target_price_cents is None
+    assert events[0].price_cents == 4500
+
+    # Cycle 3: armed; must NOT fire again
+    plugin.get_price = AsyncMock(return_value=4500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+    assert len(price_drop_events()) == 1
+
+
+async def test_pct_drop_trigger_with_absolute_target(fake_plugin, fake_notifier, tmp_data_dir):
+    """T-02b: absolute target fires in a single cycle when price <= target.
+
+    Seed (target=5000, drop_pct=10.0); first cycle at 4500 fires immediately
+    (no prior price needed for the absolute path). No double-fire in same cycle.
+    """
+    import asyncio
+    import models
+    from models import initialize_db, add_items_sync, update_item_price_config_sync
+    from notifications.dispatcher import NotificationDispatcher
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/abs-target-e2e"
+    add_items_sync([("Widget", link, False, 1, False)])
+    # both absolute target and pct-drop config
+    update_item_price_config_sync(link, 5000, 10.0)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
+    write_queue = asyncio.Queue()
+
+    # Single cycle at 4500 (<= target 5000): exactly one event, no double-fire
+    plugin.get_price = AsyncMock(return_value=4500)
+    await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
+
+    price_drop_events = [e for e in notifier.events if e.action == "price_drop"]
+    assert len(price_drop_events) == 1, f"Expected 1 event, got {len(price_drop_events)}"
+    assert price_drop_events[0].price_cents == 4500
+
+
+# ---------------------------------------------------------------------------
 # Config seeding: update_item_price_config_sync called per config item
 # ---------------------------------------------------------------------------
 
