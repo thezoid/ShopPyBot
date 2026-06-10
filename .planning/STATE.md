@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: completed
-last_updated: "2026-06-10T02:05:39.869Z"
-last_activity: 2026-06-10
+status: Awaiting next milestone
+last_updated: "2026-06-10T02:41:18.306Z"
+last_activity: 2026-06-10 — Milestone v3.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Complete
-Last activity: 2026-06-10
+Phase: Milestone v3.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-10 — Milestone v3.0 completed and archived
 
 ## Phase Status
 
@@ -282,4 +282,4 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Operator Next Steps
 
-- Execute Phase 16 Plan 03 (orchestrator wiring: get_price() call + price trigger evaluation)
+- Start the next milestone with /gsd:new-milestone
