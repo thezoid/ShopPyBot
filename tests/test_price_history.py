@@ -245,3 +245,124 @@ def test_update_item_price_config(tmp_data_dir):
     target, drop_pct = row
     assert target == 4999
     assert drop_pct == 10.0
+
+
+# ---------------------------------------------------------------------------
+# PR-01: v2.0-schema in-place migration fixture (criterion-3 required gap)
+# ---------------------------------------------------------------------------
+
+
+def test_v2_schema_db_migrates_to_v3_in_place(tmp_data_dir):
+    """PR-01: a hand-built v2.0 items table migrates to v3.0 in place.
+
+    Builds a raw v2.0 items table (six legacy columns only -- no v3.0 price
+    columns, no price_history table), inserts a legacy row, then calls
+    initialize_db() (delete=False) and asserts:
+    (a) all six v3.0 columns are now present on items,
+    (b) price_history table exists with its five expected columns,
+    (c) the pre-existing legacy row survived with no data loss,
+    (d) a second initialize_db() call is idempotent (no error, same columns,
+        same single row).
+    Exercises models.py:48-81 ALTER branch against a genuine v2.0 DB.
+    """
+    LEGACY_LINK = "https://legacy.test/x"
+    V3_COLS = {
+        "last_seen_available",
+        "last_notified",
+        "target_price",
+        "price_drop_pct",
+        "price_alert_armed",
+        "price_last_notified",
+    }
+    PH_COLS = {"id", "item_link", "price_cents", "currency", "scraped_at"}
+
+    # Build a v2.0 DB: items table with only the six legacy columns.
+    conn = sqlite3.connect(models.DB_PATH)
+    conn.execute(
+        "CREATE TABLE items ("
+        "id INTEGER PRIMARY KEY,"
+        " name TEXT NOT NULL,"
+        " link TEXT NOT NULL UNIQUE,"
+        " auto_buy BOOLEAN NOT NULL,"
+        " quantity INTEGER NOT NULL,"
+        " purchased BOOLEAN NOT NULL DEFAULT 0"
+        ")"
+    )
+    conn.execute(
+        "INSERT INTO items (name, link, auto_buy, quantity, purchased)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("Legacy", LEGACY_LINK, 0, 1, 0),
+    )
+    conn.commit()
+    conn.close()
+
+    # Pre-assert: v3.0 columns absent, price_history does not exist.
+    conn = sqlite3.connect(models.DB_PATH)
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    conn.close()
+    for col in V3_COLS:
+        assert col not in existing_cols, f"v3.0 column present before migration: {col}"
+    assert "price_history" not in tables, "price_history table present before migration"
+
+    # Run migration (delete=False).
+    models.initialize_db()
+
+    # Post-assert (a): all six v3.0 columns present on items.
+    conn = sqlite3.connect(models.DB_PATH)
+    migrated_cols = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    assert V3_COLS.issubset(migrated_cols), f"Missing v3.0 columns after migration: {V3_COLS - migrated_cols}"
+
+    # Post-assert (b): price_history exists with correct columns.
+    ph_cols = {row[1] for row in conn.execute("PRAGMA table_info(price_history)").fetchall()}
+    assert PH_COLS == ph_cols, f"price_history columns mismatch: {ph_cols}"
+
+    # Post-assert (c): legacy row survived with original values.
+    row = conn.execute(
+        "SELECT name, link, auto_buy, quantity, purchased FROM items WHERE link=?",
+        (LEGACY_LINK,),
+    ).fetchone()
+    conn.close()
+    assert row is not None, "Legacy row was deleted by migration"
+    name, link, auto_buy, quantity, purchased = row
+    assert name == "Legacy"
+    assert link == LEGACY_LINK
+    assert auto_buy == 0
+    assert quantity == 1
+    assert purchased == 0
+
+    # Post-assert (d): second initialize_db() call is idempotent.
+    models.initialize_db()
+    conn = sqlite3.connect(models.DB_PATH)
+    idempotent_cols = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    row_count = conn.execute(
+        "SELECT COUNT(*) FROM items WHERE link=?", (LEGACY_LINK,)
+    ).fetchone()[0]
+    conn.close()
+    assert idempotent_cols == migrated_cols, "Column set changed on second initialize_db() call"
+    assert row_count == 1, f"Legacy row count changed on second initialize_db() call: {row_count}"
+
+
+# ---------------------------------------------------------------------------
+# PR-04: row-None sentinels for get_price_alert_state_sync and get_item_price_config_sync
+# ---------------------------------------------------------------------------
+
+
+def test_price_config_and_alert_state_for_missing_item(tmp_data_dir):
+    """PR-04: sentinel returns for a link that has no row in items.
+
+    get_price_alert_state_sync returns (False, None) when row is missing
+    (models.py:197-198). get_item_price_config_sync returns None when row is
+    missing (models.py:245-246). Uses a fresh DB with no items inserted.
+    """
+    models.initialize_db(delete=True)
+
+    alert_state = models.get_price_alert_state_sync("https://missing.test")
+    assert alert_state == (False, None), (
+        f"Expected (False, None) for missing item, got {alert_state}"
+    )
+
+    price_config = models.get_item_price_config_sync("https://missing.test")
+    assert price_config is None, (
+        f"Expected None for missing item, got {price_config}"
+    )
