@@ -73,7 +73,7 @@ class BotService:
         """Return all DB rows as plain tuples (no bot start required)."""
         return get_items_sync()
 
-    def get_price_history(self, name: str, limit: int = 10) -> list:
+    def get_price_history(self, name: str, limit: int = 10) -> list[tuple[int, str, str]]:
         """Return last N (price_cents, currency, scraped_at) rows for the named item.
 
         Resolves name to link via exact case-sensitive match. Returns [] if not found.
