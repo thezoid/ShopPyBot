@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Resilience + Ecosystem
-status: Awaiting next milestone
-last_updated: "2026-06-10T02:41:18.306Z"
-last_activity: 2026-06-10 — Milestone v3.0 completed and archived
+milestone: v4.0
+milestone_name: Win-the-Drop
+status: planning
+last_updated: "2026-06-10T14:13:21.058Z"
+last_activity: 2026-06-10
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Milestone v3.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-10 — Milestone v3.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-10 — Milestone v4.0 started
 
 ## Phase Status
 

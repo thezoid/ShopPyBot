@@ -16,27 +16,26 @@ Target user: technically capable individuals who want automated stock monitoring
 
 ## Current State
 
-**Shipped v2.0 Modular Core + Cross-Platform UX (2026-06-06).** The v1 code is refactored into a reusable core library: all bot logic lives behind a single `BotService` API consumed by both the CLI (default) and an optional FastAPI web UI. A runtime-selected `CredentialStore` (OS keyring → encrypted-file → env-var) centralizes secret access with no plaintext on disk. The package installs via pip with a `shoppybot` console entry point; `python main.py` remains a thin shim. Paths resolve per-OS through `core/paths.py`; a CI matrix (ubuntu-latest + windows-latest, Python 3.13) plus `docs/PLATFORMS.md` document the cross-platform verification.
+**Shipped v3.0 Resilience + Ecosystem (2026-06-10).** Built on the v2.0 modular core (`BotService` API behind a CLI-default front-end plus an optional FastAPI web UI; runtime-selected `CredentialStore` with no plaintext on disk). v3.0 added anti-detection (JS stealth + proxy rotation with ban detection; opt-in 2captcha reCAPTCHA-v2 solving with balance check and spend cap), the plugin ecosystem (ABC `difficulty`/`requires_proxy`/`requires_captcha` attrs, `shoppybot plugins list`, a GitHub-wiki registry spec, contributor docs), and price monitoring (per-item target price, price history table, price-drop fan-out alerts, `items price-history` CLI).
 
-11 phases / 48 plans, all complete. 66/66 requirements satisfied (44 v1 + 22 v2.0). Full suite: 354 passed, 2 skipped.
+v3.0: 6 phases (12-17) / 21 plans, all complete. Full suite: 548 passed, 2 skipped.
 
-**Deferred:** live cross-OS/UI manual checks (keyring restart, masked-TTY, dashboard render, 0.0.0.0 warning) documented in `docs/PLATFORMS.md` and tracked in STATE.md → Deferred Items; run `/gsd:verify-work` on real Ubuntu/Windows to close.
-
-**Next milestone goals:** TBD (run `/gsd:new-milestone`). Candidates from the deferred v2 backlog: GitHub wiki plugin registry, proxy rotation, CAPTCHA solving, price-drop alerts.
+**Deferred (carried):** v2.0 live cross-OS/UI manual checks (keyring restart persistence, masked-TTY setup, web dashboard live render, 0.0.0.0 warning) tracked in STATE.md → Deferred Items; Amazon WAF CAPTCHA auto-solve deferred (degrades to manual pause).
 
 **Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
 
-## Current Milestone: v3.0 Resilience + Ecosystem
+## Current Milestone: v4.0 Win-the-Drop (Acquisition Core + Reliability)
 
-**Goal:** Raise real-world buy success on bot-protected platforms, grow the contributor ecosystem, add price-aware tracking, and pay down v2.0 deferred debt.
+**Goal:** Make ShopPyBot complete *verified* orders on limited-release drops, and survive multi-hour unattended runs without one fault taking everything down.
 
 **Target features:**
-- Anti-detection hardening — proxy rotation, CAPTCHA-solving integration, stronger fingerprint resilience.
-- Plugin ecosystem — GitHub wiki plugin registry with anti-detection difficulty ratings, plugin discovery/listing, contributor onboarding.
-- Price monitoring — per-item target price, price-drop alerts, and price history alongside existing stock alerts.
-- Stability / polish — close v2.0 deferred manual cross-OS/UI checks, resolve the 4 audit tech-debt items, harden tests.
+- Acquisition Core: checkout profile (shipping/billing) + form-fill on 1-2 reliable retailers (BestBuy, Amazon); order-confirmation capture (mark `purchased` only on a real confirmation, not a button click); bounded retry-on-cart with backoff; per-item/per-step checkout time budget; a central monitor-only run mode that also closes the `test_mode` place-order hole (6 of 7 plugins).
+- Always-On Reliability: per-coroutine supervision + backoff restart; browser-crash detection + relaunch; encrypted session/cookie persistence; DB read-path error isolation; per-item orchestrator timeout; structured health/heartbeat surface; one unified transient retry/backoff.
+- Opportunistic server-safety: headless pygame import-crash guard; SIGTERM/SIGINT teardown bridge (stop orphaning Chrome).
 
-**Key constraints:** preserve the v2.0 security posture (no plaintext secrets, CLI default, web optional/localhost); new deps (proxy lib, CAPTCHA SDK) require package-legitimacy review; continues phase numbering from 11.
+**Deferred to follow-on:** request/API-mode checkout, virtual-waiting-room/queue survival (Queue-it/PerimeterX/Akamai/DataDome), multi-account/multi-profile parallel attempts, Amazon WAF auto-solve. All XL arms-race or ToS-hostile.
+
+**Key constraints:** preserve the v2.0 security posture (no plaintext secrets, CLI default, web optional/localhost); payment via retailer-saved methods + CVV-at-runtime (never persist full card data, PCI); checkout work targets the `nodriver` plugin stack; continues phase numbering from 17.
 
 ## Requirements
 
@@ -68,27 +67,42 @@ Target user: technically capable individuals who want automated stock monitoring
 - ✓ Optional FastAPI local web UI (items/config/credentials/control) — v2.0 (Phase 10)
 - ✓ Cross-platform per-OS paths + CI matrix + PLATFORMS.md — v2.0 (Phase 11)
 
-### Active (v3.0 Resilience + Ecosystem)
+### Validated (shipped v3.0 Resilience + Ecosystem)
 
-- [ ] Anti-detection: proxy rotation
-- [ ] Anti-detection: CAPTCHA-solving integration
-- [ ] Anti-detection: stronger fingerprint resilience
-- [ ] Plugin ecosystem: GitHub wiki plugin registry + difficulty ratings
-- [ ] Plugin ecosystem: plugin discovery/listing + contributor onboarding
-- [ ] Price monitoring: per-item target price + price-drop alerts + price history
-- [ ] Stability: close v2.0 deferred cross-OS/UI manual checks
-- [ ] Stability: resolve v2.0 audit tech-debt + test hardening
+- ✓ Anti-detection: JS stealth + proxy rotation with ban detection — v3.0 (Phase 13)
+- ✓ Anti-detection: 2captcha opt-in reCAPTCHA-v2 solving (balance check, spend cap, async executor) — v3.0 (Phase 14)
+- ✓ Plugin ecosystem: ABC difficulty/requires_proxy/requires_captcha attrs, `plugins list` CLI, wiki registry spec, contributor docs — v3.0 (Phase 15)
+- ✓ Price monitoring: per-item target price, price history table, price-drop fan-out alerts, price-history CLI — v3.0 (Phase 16)
+- ✓ Stability: v2.0 audit tech-debt resolved + test hardening (548 tests) — v3.0 (Phases 12, 17)
+
+### Active (v4.0 Win-the-Drop — Acquisition Core + Reliability)
+
+- [ ] Acquisition: checkout profile (shipping/billing) + form-fill (BestBuy, Amazon)
+- [ ] Acquisition: order-confirmation capture / verified purchase
+- [ ] Acquisition: bounded retry-on-cart with backoff (idempotent, no double-buy)
+- [ ] Acquisition: per-item/per-step checkout time budget
+- [ ] Acquisition: central monitor-only run mode + close test_mode place-order hole
+- [ ] Reliability: per-coroutine supervision + backoff restart
+- [ ] Reliability: browser-crash detection + relaunch
+- [ ] Reliability: encrypted session/cookie persistence
+- [ ] Reliability: DB read-path error isolation
+- [ ] Reliability: per-item orchestrator timeout
+- [ ] Reliability: structured health/heartbeat surface
 
 ### Deferred
 
-- (Refined into v3.0 Active above.)
+- Request/API-mode (hybrid) checkout (XL arms-race) — follow-on after v4.0
+- Virtual-waiting-room / queue survival: Queue-it, PerimeterX, Akamai, DataDome (XL) — follow-on
+- Multi-account / multi-profile parallel attempts (XL, most ToS-hostile) — follow-on, opt-in if ever
+- Amazon WAF CAPTCHA auto-solve — re-deferred (todo: `waf-auto-solve-followup`)
+- Public-release hardening: git-history scrub/squash (SEED-001) + release-please tagging (SEED-002) — when a release milestone is scoped
 
 ### Out of Scope
 
 - PyPI package per plugin — adds packaging overhead; plugins/ folder achieves discoverability more simply
-- Proxy rotation / browser fingerprint spoofing — advanced anti-detection is out of scope
-- Price monitoring / price drop alerts — stock availability is the core use case
-- (v2.0 update) GUI / web dashboard is NO LONGER out of scope: v2.0 adds an OPTIONAL local web UI over the modular core; the CLI remains the default and the GUI is never required.
+- (v2.0) GUI / web dashboard is NOT out of scope: an OPTIONAL local web UI exists over the modular core; the CLI remains default and the GUI is never required.
+- (v3.0 update) Proxy rotation, fingerprint resilience, CAPTCHA solving, and price monitoring are no longer out of scope: shipped in v3.0.
+- (v4.0) Acquisition arms-race tactics — request/API-mode checkout, virtual-waiting-room survival, multi-account farming — deferred and uncommitted; ToS-hostile and high-maintenance.
 
 ## Key Decisions
 
@@ -123,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-06 — v3.0 Resilience + Ecosystem milestone started*
+*Last updated: 2026-06-10 — v4.0 Win-the-Drop milestone started*
