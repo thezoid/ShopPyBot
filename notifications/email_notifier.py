@@ -21,14 +21,7 @@ from email.message import EmailMessage
 
 from core.config_schema import EmailConfig
 from core.credentials import get_store
-from notifications.base import Notifier, NotificationEvent
-
-
-def _cents_to_display(cents: int | None) -> str:
-    """Format integer cents as $X.XX; return 'n/a' for None."""
-    if cents is None:
-        return "n/a"
-    return f"${cents / 100:.2f}"
+from notifications.base import Notifier, NotificationEvent, cents_to_display
 
 
 def _build_email_body(event: NotificationEvent) -> str:
@@ -40,8 +33,8 @@ def _build_email_body(event: NotificationEvent) -> str:
         f"Action: {event.action}",
     ]
     if event.action == "price_drop":
-        lines.append(f"Current Price: {_cents_to_display(event.price_cents)}")
-        lines.append(f"Target Price: {_cents_to_display(event.target_price_cents)}")
+        lines.append(f"Current Price: {cents_to_display(event.price_cents)}")
+        lines.append(f"Target Price: {cents_to_display(event.target_price_cents)}")
         if event.pct_from_target is not None:
             lines.append(f"Below Target: {event.pct_from_target}%")
     return "\n".join(lines) + "\n"

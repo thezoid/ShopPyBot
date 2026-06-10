@@ -54,9 +54,10 @@ def _build_event(name: str, link: str, plugin_name: str, action: str):
     )
 
 
-def _cents_to_display(cents: int) -> str:
-    """Format integer cents as a dollar string, e.g. 4999 -> '$49.99'."""
-    return f"${cents / 100:.2f}"
+def _cents_to_display(cents: int | None) -> str:
+    """Format integer cents as $X.XX; delegates to shared helper (K-01)."""
+    from notifications.base import cents_to_display
+    return cents_to_display(cents)
 
 
 def _pct_from_target(price_cents: int, target_cents: int) -> float:

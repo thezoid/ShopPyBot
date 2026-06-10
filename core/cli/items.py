@@ -6,6 +6,7 @@ Imports only sys and BotService -- never models/orchestrator/registry (MOD-02).
 import sys
 
 from core.service import BotService
+from notifications.base import cents_to_display
 
 
 def _format_items_table(rows: list) -> str:
@@ -66,7 +67,7 @@ def _format_price_history_table(name: str, rows: list) -> str:
         return f"No price history recorded for: {name}"
     headers = ("Price", "Currency", "Recorded At")
     formatted = [
-        (f"${r[0] / 100:.2f}", r[1], r[2])
+        (cents_to_display(r[0]), r[1], r[2])
         for r in rows
     ]
     widths = [

@@ -10,6 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
+def cents_to_display(cents: int | None) -> str:
+    """Format integer cents as $X.XX; return 'n/a' for None."""
+    if cents is None:
+        return "n/a"
+    return f"${cents / 100:.2f}"
+
+
 @dataclass
 class NotificationEvent:
     """Carries context for a single stock alert or purchase confirmation.

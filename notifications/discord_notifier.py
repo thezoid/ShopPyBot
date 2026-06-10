@@ -19,15 +19,8 @@ import asyncio
 import requests
 
 from logger import writeLog
-from notifications.base import Notifier, NotificationEvent
+from notifications.base import Notifier, NotificationEvent, cents_to_display
 from datetime import timezone
-
-
-def _cents_to_display(cents: int | None) -> str:
-    """Format integer cents as $X.XX; return 'n/a' for None."""
-    if cents is None:
-        return "n/a"
-    return f"${cents / 100:.2f}"
 
 
 def _build_discord_payload(event: NotificationEvent) -> dict:
@@ -43,12 +36,12 @@ def _build_discord_payload(event: NotificationEvent) -> dict:
     if event.action == "price_drop":
         fields.append({
             "name": "Current Price",
-            "value": _cents_to_display(event.price_cents),
+            "value": cents_to_display(event.price_cents),
             "inline": True,
         })
         fields.append({
             "name": "Target Price",
-            "value": _cents_to_display(event.target_price_cents),
+            "value": cents_to_display(event.target_price_cents),
             "inline": True,
         })
         if event.pct_from_target is not None:

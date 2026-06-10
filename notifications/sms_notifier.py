@@ -24,14 +24,7 @@ from requests.auth import HTTPBasicAuth
 
 from core.config_schema import SmsConfig
 from core.credentials import get_store
-from notifications.base import Notifier, NotificationEvent
-
-
-def _cents_to_display(cents: int | None) -> str:
-    """Format integer cents as $X.XX; return 'n/a' for None."""
-    if cents is None:
-        return "n/a"
-    return f"${cents / 100:.2f}"
+from notifications.base import Notifier, NotificationEvent, cents_to_display
 
 
 def _build_sms_body(event: NotificationEvent) -> str:
@@ -41,8 +34,8 @@ def _build_sms_body(event: NotificationEvent) -> str:
         f"{event.item_url} ({event.platform})"
     )
     if event.action == "price_drop":
-        price_str = _cents_to_display(event.price_cents)
-        target_str = _cents_to_display(event.target_price_cents)
+        price_str = cents_to_display(event.price_cents)
+        target_str = cents_to_display(event.target_price_cents)
         base += f" | Price: {price_str}, Target: {target_str}"
         if event.pct_from_target is not None:
             base += f", {event.pct_from_target}% below target"
