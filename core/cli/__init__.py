@@ -9,7 +9,7 @@ import sys
 
 from core.cli.run import handle_run
 from core.cli.setup import handle_setup
-from core.cli.items import handle_items_list, handle_items_add, handle_items_remove
+from core.cli.items import handle_items_list, handle_items_add, handle_items_remove, handle_items_price_history
 from core.cli.config_cmd import handle_config_show, handle_config_set
 from core.cli.web import handle_web
 from core.cli.plugins import handle_plugins_list
@@ -88,6 +88,16 @@ def build_parser() -> argparse.ArgumentParser:
     remove_p = items_sub.add_parser("remove", help="Remove a tracked item by URL.")
     remove_p.add_argument("--url", required=True, help="Product URL to remove.")
     remove_p.set_defaults(func=handle_items_remove)
+
+    ph_p = items_sub.add_parser("price-history", help="Show recorded price history for an item.")
+    ph_p.add_argument("name", help="Item name.")
+    ph_p.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Number of recent prices to show (default: 10).",
+    )
+    ph_p.set_defaults(func=handle_items_price_history)
 
     # Bare `shoppybot items` (no leaf) must print usage and exit 2, not start the bot.
     items_p.set_defaults(func=_require_subcommand(items_p))
