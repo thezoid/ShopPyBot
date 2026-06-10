@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from core.plugin_base import RetailerPlugin, PLUGIN_API_VERSION
@@ -156,3 +157,69 @@ def test_existing_plugins_load():
         assert isinstance(instance.requires_captcha, bool), (
             f"{cls.__name__}.requires_captcha is not a bool"
         )
+
+
+# ---------------------------------------------------------------------------
+# AB-03: requires_captcha=True + difficulty='easy' override permutation
+# ---------------------------------------------------------------------------
+
+
+def test_requires_captcha_and_easy_difficulty_overrides():
+    """A subclass may override requires_captcha=True and difficulty='easy'; both values
+    stick and __init_subclass__ accepts the valid difficulty without raising."""
+
+    class EasyCaptchaPlugin(RetailerPlugin):
+        domain_patterns = ["ex.com"]
+        difficulty = "easy"
+        requires_captcha = True
+
+        async def check_availability(self, url: str) -> bool:
+            return True
+
+        async def auto_buy(self, url: str) -> bool:
+            return False
+
+    # Override permutation assertions (plugin_base.py:22-24 + __init_subclass__ validation)
+    assert EasyCaptchaPlugin.requires_captcha is True
+    assert EasyCaptchaPlugin.difficulty == "easy"
+    # requires_proxy is not overridden; must still inherit the False default
+    assert EasyCaptchaPlugin.requires_proxy is False
+
+
+# ---------------------------------------------------------------------------
+# AB-04: _handle_ban ban→proxy-cooldown bridge (plugin_base.py:43-55, branch 53→55)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_ban_records_failure_on_proxy_when_banned():
+    """_handle_ban covers the three sub-cases on branch 53->55:
+    (1) ban phrase + proxy/pool present -> pool.record_failure(proxy) called once, returns True
+    (2) benign text -> returns False, record_failure not called (early return at line 49-50)
+    (3) no _proxy/_pool attributes -> returns True, no exception (if-guard short-circuits)
+    """
+    # --- Sub-case 1: ban path WITH proxy ---
+    plugin = MinimalPlugin(config=None)
+    proxy_sentinel = object()
+    mock_pool = MagicMock()
+    plugin._proxy = proxy_sentinel
+    plugin._pool = mock_pool
+
+    result = plugin._handle_ban("Access Denied - bot detected")
+
+    assert result is True
+    mock_pool.record_failure.assert_called_once_with(proxy_sentinel)
+
+    # --- Sub-case 2: benign path (same plugin instance; record_failure call count must not grow) ---
+    call_count_before = mock_pool.record_failure.call_count
+    benign_result = plugin._handle_ban("normal page content")
+    assert benign_result is False
+    assert mock_pool.record_failure.call_count == call_count_before  # no new call
+
+    # --- Sub-case 3: no _proxy/_pool configured (fresh instance, no attributes set) ---
+    fresh_plugin = MinimalPlugin(config=None)
+    # Verify the attributes are truly absent (not just falsy)
+    assert not hasattr(fresh_plugin, "_proxy")
+    assert not hasattr(fresh_plugin, "_pool")
+
+    no_proxy_result = fresh_plugin._handle_ban("access denied")
+    assert no_proxy_result is True  # ban detected; safe no-op on missing proxy (branch 53->55)
