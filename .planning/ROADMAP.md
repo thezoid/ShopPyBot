@@ -176,7 +176,13 @@ Plans:
   3. Unit tests cover price comparison threshold logic, `price_history` DB schema (including idempotent migration against a v2.0 DB fixture), and price-drop dedup separation from stock-alert dedup
   4. Integration tests cover the plugin ABC additions (`difficulty`, `requires_proxy`, `requires_captcha` defaults and overrides) and the `get_price()` hook being called alongside `check_availability`
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — Proxy coverage: PX-01..PX-06 (config validator, fetch-handler tasks, ProxyPool edges, registry routing/lifecycle isolation)
+- [ ] 17-02-PLAN.md — CAPTCHA coverage: CP-01..CP-05 (poll/timeout errors, balance gate, solve_amazon_waf submit/poll/decode)
+- [ ] 17-03-PLAN.md — Price + get_price integration: PR-01..PR-04 + AB-01, AB-02 (v2.0-schema migration fixture, trigger guards, get_price-alongside-check_availability)
+- [ ] 17-04-PLAN.md — Plugin ABC: AB-03, AB-04 (metadata overrides + _handle_ban ban→proxy-cooldown bridge)
 
 ---
 
@@ -200,10 +206,10 @@ Plans:
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete    | 2026-06-10 |
-| 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
+| 17. Test Hardening | v3.0 | 0/4 | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.
 
 ---
 
-*Last updated: 2026-06-09 — Phase 16 planned (4 plans, PRICE-01 through PRICE-06)*
+*Last updated: 2026-06-10 — Phase 17 planned (4 plans, STAB-03 test hardening)*
