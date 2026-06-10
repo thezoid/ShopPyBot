@@ -78,6 +78,30 @@ def test_check_price_triggers_pct_drop():
     assert _check_price_triggers(4500, None, 10.0, None) is False
 
 
+def test_pct_drop_trigger_no_false_positive_at_boundary():
+    """C-01 regression: 9.96% drop must NOT fire a 10.0% threshold.
+
+    Pre-fix bug: _pct_drop_from_last rounds 9.96 -> 10.0 before comparing,
+    causing a false positive. Fix uses integer-cent arithmetic.
+    """
+    from core.orchestrator import _check_price_triggers
+
+    # last=5000, current=4502 -> drop = 498/5000 = 9.96%: must NOT fire at 10.0
+    assert _check_price_triggers(4502, None, 10.0, 5000) is False, (
+        "9.96% drop should not fire a 10.0% threshold (C-01)"
+    )
+
+    # last=5000, current=4500 -> drop = 500/5000 = exactly 10%: MUST fire
+    assert _check_price_triggers(4500, None, 10.0, 5000) is True, (
+        "Exactly 10% drop must fire a 10.0% threshold (C-01)"
+    )
+
+    # last=5000, current=4499 -> drop = 501/5000 = 10.02%: MUST fire
+    assert _check_price_triggers(4499, None, 10.0, 5000) is True, (
+        "10.02% drop must fire a 10.0% threshold (C-01)"
+    )
+
+
 # ---------------------------------------------------------------------------
 # _build_price_drop_event payload
 # ---------------------------------------------------------------------------

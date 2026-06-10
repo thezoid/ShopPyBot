@@ -82,11 +82,15 @@ def _check_price_triggers(
     """Return True if absolute target OR percentage-drop trigger fires.
 
     Guards each trigger with is-not-None check (Pitfall 4).
+    The pct-drop check uses integer-cent arithmetic to avoid false positives
+    from pre-rounding (C-01): a 9.96% drop must NOT fire a 10.0% threshold.
     """
     if target_price is not None and price_cents <= target_price:
         return True
-    if price_drop_pct is not None and prev_price is not None:
-        if _pct_drop_from_last(price_cents, prev_price) >= price_drop_pct:
+    if price_drop_pct is not None and prev_price is not None and prev_price > 0:
+        # Compare in integer-cent space: (drop * 100) >= threshold * prev_price
+        # avoids floating-point rounding that could fire at 9.96% on a 10% threshold.
+        if (prev_price - price_cents) * 100 >= price_drop_pct * prev_price:
             return True
     return False
 
