@@ -73,6 +73,10 @@ def test_parse_price_to_cents_fixtures():
     assert _parse_price_to_cents("Currently unavailable") is None
     assert _parse_price_to_cents("Price: see cart") is None
 
+    # T-04: zero and negative-looking strings must return None (guard: value <= 0)
+    assert _parse_price_to_cents("$0.00") is None, "$0.00 must return None"
+    assert _parse_price_to_cents("-$5.00") is None, "negative price string must return None"
+
 
 # ---------------------------------------------------------------------------
 # Task 1-c: Default get_price() on ABC returns None

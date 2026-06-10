@@ -35,10 +35,14 @@ def _parse_price_to_cents(text: str | None) -> int | None:
     """Parse a price string into integer cents. Returns None for invalid input.
 
     Strips all characters except digits and '.' via re.sub, then converts via
-    round(float * 100). Rejects empty, non-finite, zero, or negative results.
+    round(float * 100). Rejects empty, non-finite, zero, negative, or strings
+    containing a '-' sign (negative prices are invalid).
     Never uses eval/exec on scraped text (T-16-PRICESTR).
     """
     if not text:
+        return None
+    # Reject any string containing a minus sign before stripping (T-04 guard).
+    if "-" in text:
         return None
     cleaned = re.sub(r"[^\d.]", "", text)
     if not cleaned or not any(c.isdigit() for c in cleaned):

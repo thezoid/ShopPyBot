@@ -431,6 +431,59 @@ async def test_pct_drop_trigger_with_absolute_target(fake_plugin, fake_notifier,
 
 
 # ---------------------------------------------------------------------------
+# T-04: None/0 price from get_price must NOT call append or trigger evaluation
+# ---------------------------------------------------------------------------
+
+
+async def test_none_price_skips_history_and_triggers(fake_plugin, tmp_data_dir):
+    """T-04a: get_price returning None must not call append_price_history_sync."""
+    import asyncio
+    import core.orchestrator as orch_mod
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+    from unittest.mock import MagicMock
+
+    initialize_db()
+    link = "https://fake.example.com/none-price"
+    add_items_sync([("Widget", link, False, 1, False)])
+
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
+    plugin.get_price = AsyncMock(return_value=None)
+
+    append_spy = MagicMock()
+    write_queue = asyncio.Queue()
+
+    with patch.object(orch_mod, "append_price_history_sync", side_effect=append_spy):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
+
+    append_spy.assert_not_called()
+
+
+async def test_zero_price_skips_history_and_triggers(fake_plugin, tmp_data_dir):
+    """T-04b: get_price returning 0 must not call append_price_history_sync."""
+    import asyncio
+    import core.orchestrator as orch_mod
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+    from unittest.mock import MagicMock
+
+    initialize_db()
+    link = "https://fake.example.com/zero-price"
+    add_items_sync([("Widget", link, False, 1, False)])
+
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
+    plugin.get_price = AsyncMock(return_value=0)
+
+    append_spy = MagicMock()
+    write_queue = asyncio.Queue()
+
+    with patch.object(orch_mod, "append_price_history_sync", side_effect=append_spy):
+        await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
+
+    append_spy.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Config seeding: update_item_price_config_sync called per config item
 # ---------------------------------------------------------------------------
 
