@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
-status: completed
-last_updated: "2026-06-10T00:54:43.343Z"
+status: executing
+last_updated: "2026-06-10T01:32:19.131Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 21
+  completed_plans: 18
   percent: 83
 ---
 
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Phase complete — PRICE-06 closed; 522 passed, 2 skipped
+Phase: 17 (test-hardening) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-10
 
 ## Phase Status
@@ -124,6 +124,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 16 P02 | 8min | 4 tasks | 6 files |
 | Phase 16-price-monitoring P03 | 8min | 3 tasks | 5 files |
 | Phase 16-price-monitoring P04 | 5min | 3 tasks | 3 files |
+| Phase 17-test-hardening P01 | 15 | 2 tasks | 3 files |
 
 ## Session Continuity
 
@@ -274,6 +275,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 16-02]: get_price() is concrete non-abstract default on RetailerPlugin; PLUGIN_API_VERSION stays 2 (additive non-breaking, PRICE-02)
 - [Phase 16-02]: Amazon price selector list is site-specific and maintenance-required; documented in SUMMARY
 - [Phase 16-02]: _build_email_body() and _build_sms_body() extracted as testable module-level helpers; send() delegates to them
+- [Phase ?]: CDP assertion pattern
 
 ## Operator Next Steps
 
