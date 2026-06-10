@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Resilience + Ecosystem
 status: executing
-last_updated: "2026-06-10T01:39:37.428Z"
+last_updated: "2026-06-10T01:49:22.954Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
   percent: 83
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 17 (test-hardening) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-10
 
@@ -126,10 +126,11 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 16-price-monitoring P04 | 5min | 3 tasks | 3 files |
 | Phase 17-test-hardening P01 | 15 | 2 tasks | 3 files |
 | Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
+| Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 16 Plan 04 complete -- price-history CLI leaf (PRICE-06 closed); 522 passed, 2 skipped.
+**Last action**: Phase 17 Plan 03 complete -- PR-01..PR-04 + AB-01/AB-02 price tests (models.py:48-81/198/246, orchestrator.py:70/77/123/126/209-210 now covered); 546 passed, 2 skipped.
 **Next action**: Execute Phase 17 (Test Hardening) -- run /gsd:plan-phase 17
 **Context to carry**: Phase 16 fully closed (PRICE-01 through PRICE-06). price-history CLI: `shoppybot items price-history <name> [--limit N]` via BotService.get_price_history; $X.XX table formatting. Phase 15 fully closed (REG-01 through REG-04).
 
