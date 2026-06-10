@@ -205,11 +205,14 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
         writeLog(f"[{plugin.__class__.__name__}] get_price error: {exc.__class__.__name__}", "ERROR")
 
     if price_cents is not None and price_cents > 0:
-        # Read previous price BEFORE appending current one (Pitfall 3)
-        prev_price = await loop.run_in_executor(None, get_last_price_sync, link)
-        now_iso = datetime.now(timezone.utc).isoformat()
-        await loop.run_in_executor(None, append_price_history_sync, link, price_cents, now_iso)
-        await _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, dispatcher, loop)
+        try:
+            # Read previous price BEFORE appending current one (Pitfall 3)
+            prev_price = await loop.run_in_executor(None, get_last_price_sync, link)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await loop.run_in_executor(None, append_price_history_sync, link, price_cents, now_iso)
+            await _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, dispatcher, loop)
+        except Exception as exc:
+            writeLog(f"[{plugin.__class__.__name__}] price-history error: {exc.__class__.__name__}", "ERROR")
 
     was_available, _ = await loop.run_in_executor(None, get_item_notification_state_sync, link)
 

@@ -124,6 +124,37 @@ def test_price_drop_event_payload():
 
 
 # ---------------------------------------------------------------------------
+# REL-01 regression: price-history DB error must NOT propagate out of _check_and_buy
+# ---------------------------------------------------------------------------
+
+
+async def test_price_history_db_error_does_not_propagate(fake_plugin, tmp_data_dir):
+    """REL-01: if a price DB call raises, _check_and_buy catches it and continues.
+
+    Without the fix the exception escapes into run_plugin -> asyncio.TaskGroup
+    which cancels ALL sibling tasks (whole bot down).
+    """
+    import asyncio
+    import core.orchestrator as orch_mod
+    from models import initialize_db, add_items_sync
+    from core.orchestrator import _check_and_buy
+
+    initialize_db()
+    link = "https://fake.example.com/rel01"
+    add_items_sync([("Widget", link, False, 1, False)])
+
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
+    plugin.get_price = AsyncMock(return_value=4500)
+
+    write_queue = asyncio.Queue()
+
+    # Make append_price_history_sync raise to simulate a DB failure
+    with patch.object(orch_mod, "append_price_history_sync", side_effect=RuntimeError("db gone")):
+        # Must not raise -- the exception is isolated inside _check_and_buy
+        await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
+
+
+# ---------------------------------------------------------------------------
 # Last-price read order (Pitfall 3): get_last_price_sync called before append
 # ---------------------------------------------------------------------------
 
