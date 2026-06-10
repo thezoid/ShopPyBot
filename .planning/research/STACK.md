@@ -704,3 +704,407 @@ approach (no dedicated API needed).
 
 ---
 *v3.0 stack additions researched: 2026-06-06*
+
+---
+
+---
+
+# v4.0 Stack Additions — Win-the-Drop (Checkout Automation + Reliability)
+
+**Researched:** 2026-06-10
+**Confidence:** HIGH overall. nodriver API verified from source code. asyncio primitives verified
+from Python 3.13 stdlib docs. CredentialStore reuse patterns confirmed from in-repo code.
+
+**Verdict: Zero new runtime dependencies required for v4.0.**
+
+Every v4.0 feature is achievable with the existing pinned stack. The analysis below maps each
+feature to specific existing APIs and explains why no external library is needed.
+
+---
+
+## Acquisition Core Features
+
+### Checkout Profile Form-Fill (shipping/billing)
+
+**Mechanism:** nodriver `tab.select(selector)` + `element.send_keys(value)` sequences.
+This is the exact pattern already used in `BestBuyPlugin.login()` and the existing checkout
+flows — shipping/billing form-fill is structurally identical to credential field-fill.
+
+**Profile storage:** A new `CheckoutProfile` Pydantic model (name, address1, address2, city,
+state, zip, country, phone) added to `core/config_schema.py`. Values stored in `CredentialStore`
+using new keys appended to `SECRET_KEYS`. Payment CVV already collected via `getpass` at runtime
+and never persisted (existing PCI-safe pattern, unchanged).
+
+**No new dep.** nodriver 0.50.3, Pydantic 2.13.3, and `core/credentials.py` cover this entirely.
+
+---
+
+### Order-Confirmation Detection
+
+**Mechanism:** After the place-order click, poll for DOM confirmation signals (order number
+element, URL transition to `/thank-you` or `/order-confirmation`, or page title containing
+"Order" or "Thank You") using `tab.find()` or `tab.evaluate()`. Wrap the polling loop in
+`asyncio.timeout(budget_secs)` as a hard deadline. The `purchased` flag in SQLite is only
+written after a confirmation signal fires — not on button click.
+
+**No new dep.** `asyncio.timeout` (stdlib, Python 3.11+, already used in `_solve_or_pause()`),
+nodriver `tab.find()` / `tab.evaluate()`.
+
+---
+
+### Bounded Retry-on-Cart with Backoff
+
+**Mechanism:** A `_retry_checkout(plugin, url, max_attempts, base_delay)` helper in
+`core/orchestrator.py`. Inner loop:
+
+```python
+for attempt in range(max_attempts):
+    if await loop.run_in_executor(None, get_item_purchased_sync, url):
+        return True   # idempotency guard
+    try:
+        success = await plugin.auto_buy(url)
+        if success:
+            return True
+    except Exception as exc:
+        writeLog(f"checkout attempt {attempt+1} failed: {exc.__class__.__name__}", "WARNING")
+    jitter = random.uniform(0, 1)
+    await asyncio.sleep(base_delay * (2 ** attempt) + jitter)
+return False
+```
+
+**No new dep.** `random` (stdlib), `asyncio.sleep` (stdlib). The idempotency guard reuses the
+existing `get_item_purchased_sync` read path. `tenacity` and `backoff` are NOT used: the retry
+semantics are domain-specific (max 3 attempts, bounded by a per-item checkout budget) and the
+5-line manual loop is clearer than decorator indirection for a bounded case.
+
+---
+
+### Per-Step/Per-Item Checkout Time Budget
+
+**Mechanism:** `asyncio.timeout(n)` context manager wrapping individual checkout steps within
+plugin `auto_buy()` and wrapping `_check_and_buy()` in `run_plugin()`. Budget values from config:
+`app.item_timeout_secs` (default 120) and `app.checkout_step_timeout_secs` (default 30). On
+`asyncio.TimeoutError`, log the item URL and continue to the next item — do not raise into the
+supervisor.
+
+**No new dep.** `asyncio.timeout` is stdlib since Python 3.11.
+
+---
+
+### Monitor-Only Run Mode
+
+**Mechanism:** A `--monitor-only` CLI flag sets `cfg.app.monitor_only = True`. In
+`_try_auto_buy()` (orchestrator), guard:
+
+```python
+if getattr(cfg.app, "monitor_only", False):
+    return
+```
+
+This closes the `test_mode` place-order hole: even if a plugin's `test_mode` check is missing,
+the orchestrator never calls `auto_buy()` in monitor-only mode. The config flag is a Pydantic
+`bool` field with `default=False`.
+
+**No new dep.**
+
+---
+
+## Always-On Reliability Features
+
+### Per-Coroutine Supervision + Backoff Restart
+
+**Mechanism:** Replace the bare `tg.create_task(run_plugin(...))` in `async_main()` with a
+supervisor wrapper:
+
+```python
+async def _supervise_plugin(plugin, write_queue, poll_interval, dispatcher, max_failures=5):
+    attempt = 0
+    while attempt < max_failures:
+        try:
+            await run_plugin(plugin, write_queue, poll_interval, dispatcher)
+        except asyncio.CancelledError:
+            raise   # propagate clean shutdown, never swallow
+        except Exception as exc:
+            writeLog(f"[{plugin.__class__.__name__}] crash #{attempt+1}: {exc}", "ERROR")
+            attempt += 1
+            await asyncio.sleep(min(2 ** attempt, 60))
+    writeLog(f"[{plugin.__class__.__name__}] max_failures reached -- retiring", "ERROR")
+```
+
+The supervisor itself is what `TaskGroup` holds. A single plugin crash no longer propagates to
+siblings via the `except*` unwinding path.
+
+**No new dep.** Pure asyncio + stdlib math. `tenacity` is not used: the supervisor loop is
+stateful (it needs to relaunch the browser, not just retry a function call), and a custom
+supervisor gives cleaner control over the browser-crash relaunch sequence.
+
+---
+
+### Browser-Crash/Disconnect Detection + Relaunch
+
+**Mechanism:** nodriver's `Browser.stopped` property checks `self._process.returncode is None`.
+When `returncode is not None`, the process has exited. Add a crash check at the top of
+`run_plugin()`'s inner loop:
+
+```python
+if plugin.driver and plugin.driver.stopped:
+    raise RuntimeError(f"[{plugin.__class__.__name__}] browser process exited")
+```
+
+This raises into `_supervise_plugin`, which handles:
+1. `await plugin.teardown()` — safe even if driver is None
+2. Backoff sleep
+3. `await plugin.setup()` — relaunches Chrome, re-applies stealth + proxy
+4. Re-login via `await plugin.login()`
+5. Restore session cookies from encrypted session store (see below)
+
+`browser._process_pid` (int) is used in log messages only.
+
+Re-applying stealth and proxy on relaunch reuses `apply_stealth()`, `build_proxy_browser_args()`,
+and `setup_proxy_auth()` from the existing `core/stealth.py` — no new code.
+
+**No new dep.** `browser.stopped` confirmed from nodriver source at `nodriver/core/browser.py`:
+property returns `True` when `self._process.returncode is not None`.
+
+---
+
+### Encrypted Session/Cookie Persistence
+
+**Mechanism:**
+
+**Save path (called after successful login):**
+1. `cookies = await plugin.driver.cookies.get_all()` — returns `List[cdp.network.Cookie]`
+2. Serialize: `payload = json.dumps([c.to_json() for c in cookies]).encode()`
+3. Encrypt using existing Fernet machinery (reuse `_derive_key` + `Fernet` from `core/credentials.py`)
+4. Write ciphertext to `platformdirs.user_data_dir("shoppybot") / "sessions" / f"{platform_key}.bin"`
+
+**Restore path (called after browser relaunch, before first navigation):**
+1. Read and decrypt ciphertext using same key derivation
+2. Deserialize: `cookie_params = [cdp.network.CookieParam(**c) for c in json.loads(plaintext)]`
+3. Restore via raw CDP: `await plugin.driver.main_tab.send(cdp.storage.set_cookies(cookies=cookie_params))`
+
+**Why raw CDP, not `browser.cookies.set_all()`:** `CookieJar.set_all()` has a confirmed bug
+(nodriver Issues #1816, #2020) where the implementation calls `get_cookies` internally and
+discards the argument. Using `cdp.storage.set_cookies()` directly bypasses the buggy wrapper.
+`cdp.storage` is already imported transitively via `from nodriver import cdp` in `core/stealth.py`.
+
+**Why not `browser.cookies.save()` / `browser.cookies.load()`:** These write and read a
+plaintext file on disk. That violates the project's security posture (no plaintext secrets on
+disk). Manual encryption via the existing `cryptography.fernet.Fernet` path maintains the same
+security guarantee as `EncryptedFileBackend`.
+
+**Passphrase:** Reuses `SHOPBOT_STORE_PASSPHRASE` from `_resolve_passphrase()` in
+`core/credentials.py` — no new secrets to manage.
+
+**New file:** `core/session_store.py` (~60 lines). No new pip deps.
+
+**No new dep.** Reuses: `cryptography` (Fernet, already pinned), `json` (stdlib),
+`platformdirs` (already pinned), `cdp.storage` (already importable from nodriver).
+
+---
+
+### DB Read-Path Error Isolation
+
+**Mechanism:** In `run_plugin()`, wrap `get_items_sync` in explicit DB error guards:
+
+```python
+try:
+    items = await loop.run_in_executor(None, get_items_sync)
+except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
+    writeLog(f"DB read failed, skipping poll cycle: {exc.__class__.__name__}", "ERROR")
+    await asyncio.sleep(poll_interval)
+    continue
+```
+
+Per-item errors in `_check_and_buy` already have broad `except Exception` guards. This change
+closes the `get_items_sync` path which currently has no isolation.
+
+**No new dep.** `sqlite3.OperationalError` and `sqlite3.DatabaseError` are stdlib.
+
+---
+
+### Per-Item Orchestrator Timeout
+
+**Mechanism:** Wrap `_check_and_buy()` in `run_plugin()` with `asyncio.timeout`:
+
+```python
+async with asyncio.timeout(getattr(cfg.app, "item_timeout_secs", 120)):
+    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
+```
+
+On `asyncio.TimeoutError`, log the item URL and `continue` to the next item. The timeout is
+configurable in `config.yml` as `app.item_timeout_secs`.
+
+**No new dep.**
+
+---
+
+### Structured Health/Heartbeat Surface
+
+**Mechanism:** A shared `HealthState` dataclass in `core/health.py`:
+
+```python
+from dataclasses import dataclass, field
+import time
+
+@dataclass
+class HealthState:
+    started_at: float = field(default_factory=time.monotonic)
+    last_tick: float = field(default_factory=time.monotonic)
+    plugin_states: dict[str, str] = field(default_factory=dict)
+    errors_since_start: int = 0
+```
+
+Exposed two ways:
+1. Orchestrator calls `health.last_tick = time.monotonic()` and updates `plugin_states` each
+   poll cycle. `writeLog(f"[HEALTH] {health.summary()}", "DEBUG")` emits a parseable heartbeat.
+2. FastAPI `/health` route (FastAPI already present as optional dep) returns `health.to_dict()`
+   as JSON. No new web framework.
+
+**No new dep.** `dataclasses` (stdlib), `time.monotonic()` (stdlib), FastAPI already present.
+
+---
+
+### SIGTERM/SIGINT Teardown Bridge (Opportunistic)
+
+**Mechanism:** Cross-platform signal bridge in `async_main()`:
+
+```python
+import signal, sys
+
+def _request_shutdown(loop, stop_event):
+    loop.call_soon_threadsafe(stop_event.set)
+
+stop_event = asyncio.Event()
+loop = asyncio.get_running_loop()
+
+if sys.platform != "win32":
+    loop.add_signal_handler(signal.SIGTERM, _request_shutdown, loop, stop_event)
+else:
+    # Windows: add_signal_handler raises NotImplementedError; use signal.signal instead
+    signal.signal(signal.SIGTERM, lambda *_: loop.call_soon_threadsafe(stop_event.set))
+```
+
+When `stop_event` fires, cancel the TaskGroup tasks; the existing `finally` block in
+`async_main()` calls `registry.teardown_all()` to close Chrome processes before exit.
+
+**No new dep.** `signal` (stdlib), `asyncio.Event` (stdlib). Note: on Windows, `signal.SIGTERM`
+via `signal.signal()` is not guaranteed to fire from external process terminators; this is a
+best-effort guard, not a hard guarantee.
+
+---
+
+### Headless pygame Import-Crash Guard (Opportunistic)
+
+**Mechanism:** In `utils.py`, promote the existing ad-hoc import to a module-level flag:
+
+```python
+try:
+    import pygame
+    _pygame_available = True
+except Exception:
+    _pygame_available = False
+```
+
+All sound functions guard on `_pygame_available` before calling any `pygame` API. This prevents
+`ImportError` on headless servers where `pygame` fails to find a display.
+
+**No new dep.**
+
+---
+
+## v4.0 Consolidated Additions
+
+### New runtime dependencies
+
+**None.** Zero changes to `requirements.txt` or `pyproject.toml` for v4.0.
+
+### New stdlib-only internal modules
+
+| Module | Location | Purpose |
+|--------|----------|---------|
+| `core/session_store.py` | Encrypted cookie save/restore | Browser session persistence |
+| `core/health.py` | `HealthState` dataclass + summary | Heartbeat surface |
+
+### Config schema additions (Pydantic, no new dep)
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `app.monitor_only` | `bool` | `False` | Monitor-only run mode |
+| `app.item_timeout_secs` | `int` | `120` | Per-item orchestrator timeout |
+| `app.checkout_step_timeout_secs` | `int` | `30` | Per-step checkout budget |
+| `app.checkout_max_attempts` | `int` | `3` | Bounded retry-on-cart limit |
+| `app.supervisor_max_failures` | `int` | `5` | Per-plugin supervisor failure cap |
+
+### SECRET_KEYS additions (CredentialStore, no new dep)
+
+New keys for checkout profile fields (appended to `SECRET_KEYS` list in `core/credentials.py`):
+`CHECKOUT_NAME`, `CHECKOUT_ADDRESS1`, `CHECKOUT_ADDRESS2`, `CHECKOUT_CITY`, `CHECKOUT_STATE`,
+`CHECKOUT_ZIP`, `CHECKOUT_COUNTRY`, `CHECKOUT_PHONE`.
+
+---
+
+## What NOT to Add for v4.0
+
+| Proposed Dep | Why to Reject | Use Instead |
+|---|---|---|
+| `tenacity` or `backoff` | Bounded 3-attempt checkout retry is a 10-line loop; decorator-based retry obscures the stateful relaunch logic in the supervisor | `asyncio.sleep` + `while attempt < max_attempts` |
+| `aiohttp` or `httpx` | No new HTTP calls introduced in v4.0; 2captcha HTTP is already `requests` in executor | `requests` in `run_in_executor` (existing) |
+| `async-healthcheck` or `aio-tiny-healthcheck` | FastAPI already present for the web UI; adding a second HTTP server is redundant | FastAPI `/health` route + heartbeat log line |
+| `structlog` | Introduces a second logging system alongside the existing `writeLog()` convention; migration cost, inconsistency risk | `writeLog()` with structured format strings |
+| `APScheduler` | All scheduling is `asyncio.sleep` in the existing poll loop | `asyncio.sleep` + `_get_plugin_sleep()` |
+| nodriver upgrade beyond 0.50.3 | `set_all` bug exists across multiple versions; upgrading risks breaking anti-detection; raw CDP workaround (`cdp.storage.set_cookies`) is version-stable | Pin at 0.50.3, use raw CDP for cookie restore |
+| `cryptography` upgrade | 44.0.2 is current and covers all Fernet/scrypt needs for session encryption | No change needed |
+| `pickle` for cookie serialization | Pickle is a binary execution vector; an encrypted pickle file is still a deserialization risk | `json.dumps` + `cdp.network.Cookie.to_json()` |
+
+---
+
+## Integration Points
+
+| v4.0 Feature | Existing Hook | New Files/Changes |
+|---|---|---|
+| Checkout profile form-fill | Plugin `auto_buy()` override | `core/config_schema.py` (CheckoutProfile model), `SECRET_KEYS` additions |
+| Order-confirmation detection | `auto_buy()` return contract | Plugin files only |
+| Bounded retry-on-cart | `_try_auto_buy()` in orchestrator | `core/orchestrator.py` (`_retry_checkout` helper) |
+| Per-step timeout | Plugin `auto_buy()` internals | Plugin files + `core/config_schema.py` |
+| Monitor-only mode | `_try_auto_buy()` guard | `core/orchestrator.py`, `core/config_schema.py`, CLI |
+| Supervisor + backoff | `tg.create_task` replacement | `core/orchestrator.py` (`_supervise_plugin`) |
+| Browser crash + relaunch | `run_plugin()` crash check | `core/orchestrator.py`, `core/plugin_base.py` |
+| Encrypted cookie persistence | Post-login save; post-relaunch restore | New `core/session_store.py` |
+| DB read-path isolation | `run_plugin()` `get_items_sync` call | `core/orchestrator.py` |
+| Per-item orchestrator timeout | `run_plugin()` inner loop | `core/orchestrator.py` |
+| Health/heartbeat | Orchestrator poll cycle + FastAPI | New `core/health.py`; `web/routes.py` |
+| SIGTERM bridge | `async_main()` startup | `core/orchestrator.py` |
+| pygame import guard | `utils.py` | `utils.py` |
+
+---
+
+## nodriver API Reference for v4.0 (HIGH confidence — verified from source)
+
+| API | Location | Notes |
+|-----|----------|-------|
+| `browser.stopped` | `nodriver/core/browser.py` | `True` when `self._process.returncode is not None` |
+| `browser._process_pid` | `nodriver/core/browser.py` | int; set at launch; log-safe |
+| `browser.cookies.get_all()` | `CookieJar` | Returns `List[cdp.network.Cookie]`; each has `.to_json()` |
+| `browser.cookies.set_all()` | `CookieJar` | BUGGY — discards argument; do not use |
+| `tab.send(cdp.storage.set_cookies(...))` | CDP direct | Correct cookie restore path; bypasses set_all bug |
+| `browser.cookies.save(file)` | `CookieJar` | Writes plaintext — do not use; encrypt manually |
+| `browser.cookies.load(file)` | `CookieJar` | Reads plaintext — do not use; decrypt manually |
+
+---
+
+## v4.0 Sources
+
+- nodriver `Browser` class source, `stopped` property and `_process_pid`:
+  https://github.com/ultrafunkamsterdam/nodriver/blob/main/nodriver/core/browser.py (verified 2026-06-10)
+- nodriver `CookieJar.set_all()` bug (Issues #1816, #2020):
+  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/1816
+  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2020
+- Python 3.13 `asyncio.timeout` docs: https://docs.python.org/3.13/library/asyncio-task.html
+- Python 3.13 `signal` module Windows limitations: https://docs.python.org/3/library/asyncio-eventloop.html
+- `core/stealth.py` in-repo — `from nodriver import cdp` confirms `cdp.storage` importable (HIGH confidence)
+- `core/credentials.py` in-repo — Fernet + scrypt path confirmed reusable (HIGH confidence)
+- `core/orchestrator.py` in-repo — existing `asyncio.timeout(120)` usage confirms pattern (HIGH confidence)
+
+---
+*v4.0 stack additions researched: 2026-06-10*

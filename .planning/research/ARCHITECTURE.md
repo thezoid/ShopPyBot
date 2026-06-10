@@ -1,673 +1,533 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** Python shopping bot — plugin framework + async browser automation
-**Researched:** 2026-06-06 (v3.0 integration analysis, supersedes prior v1 research)
-**Confidence:** HIGH (existing codebase fully read; all integration points derived from source)
-
----
-
-## v3.0 Scope
-
-Three feature clusters need to integrate with the shipped v2.0 architecture:
-
-1. **Anti-detection hardening** — proxy rotation, CAPTCHA-solving service, fingerprint resilience
-2. **Plugin ecosystem** — GitHub wiki registry generated from plugin metadata
-3. **Price monitoring** — per-item target price, price history, price-drop alerts
-
-The analysis below covers each cluster: what touches the existing system, what is new, and a
-dependency-ordered build sequence.
+**Domain:** Python shopping bot — asyncio/nodriver plugin framework, v4.0 acquisition + reliability integration
+**Researched:** 2026-06-10 (v4.0 Win-the-Drop integration analysis; supersedes v3.0 research)
+**Confidence:** HIGH (all integration points derived from direct source reads; no inference from training data)
 
 ---
 
-## Existing Architecture (v2.0 Baseline)
+## v4.0 Scope
+
+Two feature clusters integrate into the shipped v3.0 architecture:
+
+1. **Acquisition Core** — checkout profile/form-fill, order-confirmation capture, idempotent retry-on-cart, per-step/per-item time budget, central monitor-only safety gate
+2. **Always-On Reliability** — per-coroutine supervision + backoff restart, browser-crash detection + relaunch, encrypted session/cookie persistence, DB read-path error isolation, per-item asyncio timeout, structured health/heartbeat surface
+
+---
+
+## Existing Architecture (v3.0 Baseline)
 
 ```
 BotService (core/service.py)
-  └─ async_main (core/orchestrator.py)
-       ├─ PluginRegistry (core/registry.py)
-       │    └─ RetailerPlugin ABC (core/plugin_base.py)
-       │         └─ plugins/shopbot_plugin_*.py  (7 concrete plugins)
-       ├─ write_queue drain  →  models.py (SQLite WAL CRUD)
-       └─ NotificationDispatcher (notifications/dispatcher.py)
-            └─ Notifier ABC (notifications/base.py)
-                 ├─ SoundNotifier
-                 ├─ DiscordNotifier
-                 ├─ EmailNotifier
-                 └─ SmsNotifier
+  |-- background daemon thread owns its own asyncio event loop
+  |-- get_status() -> {"running": bool}   <-- extend for health surface
+  +-- async_main (core/orchestrator.py)
+       |-- PluginRegistry (core/registry.py)
+       |    |-- _discover_plugins(): importlib scan of plugins/shopbot_plugin_*.py
+       |    |-- _all_plugins: eager list; no browser yet
+       |    |-- _active_plugins: post-setup; one Browser per plugin instance
+       |    +-- RetailerPlugin ABC (core/plugin_base.py)
+       |         |-- setup() / teardown()
+       |         |-- check_availability(url) -> bool   [abstract]
+       |         |-- auto_buy(url) -> bool             [abstract]
+       |         |-- get_price(url) -> int | None      [concrete, returns None]
+       |         |-- login() / detect_captcha()        [no-op defaults]
+       |         +-- plugins/shopbot_plugin_*.py       [7 concrete plugins]
+       |
+       |-- write_queue (asyncio.Queue)
+       |    +-- _write_queue_drain task  ->  models.py (SQLite WAL CRUD)
+       |
+       |-- run_plugin() per active plugin  [long-lived poll coroutine]
+       |    +-- _check_and_buy()  ->  _try_auto_buy()  ->  plugin.auto_buy()
+       |
+       +-- NotificationDispatcher (notifications/dispatcher.py)
+            +-- fan-out: SoundNotifier, DiscordNotifier, EmailNotifier, SmsNotifier
 
-core/config_schema.py   — Pydantic AppConfig + per-platform submodels
-core/credentials.py     — CredentialStore (get/set/list/delete), SECRET_KEYS list
-core/paths.py           — per-OS data/config/log dirs
+core/config_schema.py   -- Pydantic AppConfig; debug.test_mode; no checkout/profile section yet
+core/credentials.py     -- CredentialStore (keyring / encrypted-file / env-var); SECRET_KEYS list
+core/stealth.py         -- STEALTH_JS, apply_stealth, ProxyPool, setup_proxy_auth
+models.py               -- SQLite WAL: items + price_history tables; all writes via write_queue
 ```
 
-Key facts that constrain integration:
+Key constraints that drive all integration decisions below:
 
-- `RetailerPlugin.setup()` is where each plugin creates its `nodriver` browser. That is the
-  correct hook point for proxy/fingerprint configuration because the browser args are set
-  exactly once, before any navigation.
-- `CredentialStore.SECRET_KEYS` is the authoritative list of all secrets the system knows
-  about. New secrets (CAPTCHA API keys, proxy credentials) must be added here.
-- `models.py` items table has: `id, name, link, auto_buy, quantity, purchased,
-  last_seen_available, last_notified`. Price columns do not exist yet.
-- `NotificationEvent` carries `item_name, item_url, platform, timestamp, action`. Price-drop
-  alerts need a new action value and optionally a price payload.
-- The orchestrator write queue handles typed tuples `("purchased"|"set_available"|"clear_available", ...)`.
-  Price writes need a new tag.
-- `AppConfig.platforms.*` has per-platform submodels. Proxy and CAPTCHA solver config
-  belong there (per-platform opt-in) alongside a global fallback.
+- `RetailerPlugin.setup()` is the only place browser args are set. Any relaunch must reproduce the full setup sequence (stealth injection, proxy auth, login).
+- The write-queue is the **sole write path** to SQLite. Any new write (order confirmation, session flush) must go through it or through a dedicated drain, never direct.
+- `debug.test_mode` is the existing config flag for purchase suppression. Only `AmazonPlugin.auto_buy()` reads it; the other 6 plugins bypass it entirely. This is the critical safety hole v4.0 must close.
+- `BotService.get_status()` currently returns only `{"running": bool}`. The health surface expands this dict.
+- `CredentialStore.SECRET_KEYS` is the authoritative list; new secrets (checkout profile fields) must be added.
 
 ---
 
-## Cluster 1: Anti-Detection Hardening
+## v4.0 Component Map: New vs Modified
 
-### 1a. Where Proxy/CAPTCHA/Fingerprint Hooks Live
+### New Modules
 
-**Decision: shared `BrowserFactory` callable, injected into `RetailerPlugin.setup()`.**
+| Module | Placement | Responsibility |
+|--------|-----------|----------------|
+| `core/checkout_profile.py` | New module | `CheckoutProfile` dataclass; load from CredentialStore; no plaintext in config or DB |
+| `core/confirmation.py` | New module | `detect_order_confirmation(tab, platform) -> str | None`; per-platform selector map; returns order_id or None |
+| `core/supervisor.py` | New module | `supervise(coro, name, max_retries, backoff)` async wrapper; replaces bare task creation in orchestrator |
+| `core/health.py` | New module | `HealthRegistry`; per-plugin heartbeat dict; queryable via `BotService.get_status()` |
+| `core/session_store.py` | New module | Fernet-encrypted JSON cookie persistence; reuses `EncryptedFileBackend` pattern from `credentials.py` |
+| `core/retry.py` | New module | `RetryPolicy` dataclass + `with_retry(coro, policy)` async helper; one unified backoff implementation |
 
-Each plugin currently calls `nodriver.start(headless=headless)` in its own `setup()`.
-Across 7 plugins that is 7 identical copies of browser-launch logic. If proxy config,
-fingerprint args, or CAPTCHA extension paths must be wired into the browser, every plugin
-is modified separately — which defeats the plugin framework's goal.
+### Modified Modules
 
-The correct approach is a `core/browser_factory.py` module that encapsulates all
-anti-detection browser launch concerns and is called by the ABC's default `setup()`.
-
-```
-core/browser_factory.py   (NEW)
-  build_browser(platform_cfg, global_cfg) -> nodriver.Browser
-    - reads proxy from platform_cfg.proxy (or global_cfg.proxy as fallback)
-    - reads fingerprint seed from platform_cfg or global_cfg
-    - loads CAPTCHA solver extension if configured
-    - calls nodriver.start(...) with assembled args
-    - returns browser instance
-```
-
-`RetailerPlugin.setup()` in `core/plugin_base.py` becomes a concrete default that calls
-`build_browser(...)`. Plugins that need custom setup override it and call `super().setup()`
-or call `build_browser()` directly.
-
-**Backward compat:** The ABC's `setup()` is currently `async def setup(self) -> None: ...`
-(a no-op ellipsis). Making it a concrete default that calls `build_browser()` is
-backward-compatible: existing plugins that override `setup()` completely are unaffected;
-existing plugins that call `await self.driver = nodriver.start(...)` directly keep working
-until they are updated to delegate to `build_browser()`. The migration can be done
-plugin-by-plugin. Zero forced rewrites at integration time.
-
-### 1b. Config Schema for Proxy and Fingerprint
-
-Per-platform proxy opt-in with a global fallback follows the existing pattern for
-`user_agents` and `headless`. Add to each `*PlatformConfig` in `core/config_schema.py`:
-
-```python
-class BasePlatformConfig(BaseModel):      # NEW shared base, extract from existing duplication
-    min_delay: float = Field(default=5.0, ge=0.0)
-    max_delay: float = Field(default=15.0, ge=0.0)
-    headless: bool = True
-    user_agents: list[str] = Field(default_factory=list)
-    proxy: str = ""            # NEW: "http://host:port" or "" = disabled
-    fingerprint_seed: int = 0  # NEW: 0 = random per session
-    captcha_solver: str = ""   # NEW: "" | "2captcha" | "capsolver" | "manual"
-```
-
-All 7 platform submodels currently duplicate `min_delay/max_delay/headless/user_agents`.
-Consolidating into `BasePlatformConfig` reduces schema duplication. This is a refactor
-contained entirely within `config_schema.py` and is backward-compatible (field names unchanged).
-
-A global anti-detection config block handles defaults:
-
-```python
-class AntiDetectionConfig(BaseModel):   # NEW
-    proxy: str = ""                     # global fallback when per-platform proxy is ""
-    fingerprint_seed: int = 0
-    captcha_solver: str = ""            # global default solver
-    captcha_timeout: int = 120          # seconds to wait for CAPTCHA solve
-```
-
-`AppConfig` gains `anti_detection: AntiDetectionConfig = AntiDetectionConfig()`.
-
-**Config resolution in `browser_factory.py`:** per-platform value takes precedence over
-global when non-empty/non-zero.
-
-### 1c. CAPTCHA Secrets Through CredentialStore
-
-`core/credentials.py` SECRET_KEYS list must be extended:
-
-```python
-# ADD to SECRET_KEYS:
-"TWOCAPTCHA_API_KEY",    # 2captcha service
-"CAPSOLVER_API_KEY",     # capsolver.com service
-"PROXY_USERNAME",        # authenticated proxy credential
-"PROXY_PASSWORD",
-```
-
-The CAPTCHA solver integration in `browser_factory.py` calls `get_store().get("TWOCAPTCHA_API_KEY")`
-(or whichever solver is configured). Keys never appear in config.yml. The `shoppybot setup`
-interactive flow and web UI credential routes already handle arbitrary SECRET_KEYS entries,
-so adding 4 new keys requires only updating the SECRET_KEYS list — the store, CLI, and web
-UI pick them up automatically.
-
-### 1d. CAPTCHA Solve Flow
-
-The existing pattern (amazon plugin's `_wait_user_action` with `asyncio.Event`) handles
-manual CAPTCHA already. Automated solving adds a middle path:
-
-```
-detect_captcha() returns True
-  -> captcha_solver configured?
-       YES: call solver API, wait for solution token (up to captcha_timeout)
-            inject solution into page
-            if inject fails: fall back to manual event flow
-       NO:  existing manual asyncio.Event flow (unchanged)
-```
-
-This lives in a new `core/captcha.py` helper that plugins call. The `detect_captcha()`
-ABC method signature does not change — it remains `async def detect_captcha(self) -> bool`.
-A new `async def solve_captcha(self, tab) -> bool` method is added to the ABC as a
-concrete (non-abstract) default that calls `core/captcha.py`. Plugins can override.
-
-### 1e. Modified vs New Components — Cluster 1
-
-| Component | Status | Change |
-|-----------|--------|--------|
-| `core/plugin_base.py` | MODIFIED | `setup()` becomes concrete default calling `build_browser()`; add `solve_captcha()` concrete method |
-| `core/config_schema.py` | MODIFIED | Extract `BasePlatformConfig`; add `proxy/fingerprint_seed/captcha_solver` fields; add `AntiDetectionConfig`; add to `AppConfig` |
-| `core/credentials.py` | MODIFIED | Add 4 new keys to `SECRET_KEYS` |
-| `core/browser_factory.py` | NEW | `build_browser(platform_cfg, global_cfg) -> Browser`; assembles nodriver args for proxy, UA, fingerprint, CAPTCHA extension |
-| `core/captcha.py` | NEW | `solve_captcha(tab, solver_name, api_key, timeout) -> bool`; wraps 2captcha/capsolver HTTP APIs |
-| `plugins/shopbot_plugin_*.py` (7 files) | MODIFIED (optional) | Each plugin's `setup()` can be simplified to delegate to `super().setup()` — this is a quality improvement, not a hard requirement |
+| Module | What Changes | Why |
+|--------|-------------|-----|
+| `core/orchestrator.py` | Replace bare `tg.create_task` with `supervisor`; add per-item `asyncio.timeout`; wrap DB reads in try/except; thread heartbeat updates through `HealthRegistry` | Supervision, timeout, read isolation, heartbeat |
+| `core/plugin_base.py` | Add `monitor_only` property (reads `AppConfig.debug.monitor_only`); add `place_order_guarded()` default that checks `monitor_only` before calling the plugin's actual place-order DOM click | Central safety gate — the ABC intercepts all plugins, not per-plugin code |
+| `core/service.py` | Expand `get_status()` to pull from `HealthRegistry`; accept `monitor_only` param on `start()` | Health surface, monitor-only control |
+| `core/config_schema.py` | Add `DebugConfig.monitor_only: bool = True`; add `CheckoutConfig` sub-model (per-step timeout, max cart retries, item budget); add `CheckoutConfig` to `AppConfig` | Config-driven gates and budgets |
+| `core/credentials.py` | Add checkout profile keys to `SECRET_KEYS`: `CHECKOUT_FIRST_NAME`, `CHECKOUT_LAST_NAME`, `CHECKOUT_ADDRESS_LINE1`, `CHECKOUT_ADDRESS_LINE2`, `CHECKOUT_CITY`, `CHECKOUT_STATE`, `CHECKOUT_ZIP`, `CHECKOUT_COUNTRY`, `CHECKOUT_PHONE` (9 keys; no card numbers; CVV already threaded) | Secure profile storage |
+| `models.py` | Add columns to `items` table: `order_id TEXT`, `confirmed_at TEXT`, `checkout_attempts INTEGER DEFAULT 0`; add new write-queue tag `confirmed` | Verified purchase tracking, retry idempotency |
+| `plugins/shopbot_plugin_amazon.py` | Remove inline `test_mode` check; delegate to `place_order_guarded()` from ABC; add confirmation detection call after place-order | Centralize safety gate; verified purchase |
+| `plugins/shopbot_plugin_bestbuy.py` | Same: delegate to `place_order_guarded()`; add confirmation detection | Same |
+| 5 remaining plugins | Same: delegate to `place_order_guarded()` | Close the 6-of-7 safety hole |
 
 ---
 
-## Cluster 2: Plugin Ecosystem Registry
+## Feature-to-Component Placement
 
-### 2a. Plugin Metadata — New ABC Attributes
+### Acquisition Core
 
-The GitHub wiki registry needs structured data per plugin. Add class attributes to
-`RetailerPlugin`:
+**Checkout profile / form-fill**
 
-```python
-class RetailerPlugin(ABC):
-    domain_patterns: list[str]      # EXISTING
-    platform_key: str               # EXISTING (used by orchestrator for config lookup)
+- Where: `core/checkout_profile.py` (new) + `core/credentials.py` (modified SECRET_KEYS)
+- `CheckoutProfile` is a frozen dataclass with typed fields: `first_name`, `last_name`, `address_line1`, `address_line2`, `city`, `state`, `zip_code`, `country`, `phone`. No card data.
+- Loaded via `CheckoutProfile.from_store(get_store())` at plugin setup time. Values come exclusively from the CredentialStore; never from config.yml or models.
+- Plugins that implement form-fill call `self._profile.fill_shipping_form(tab)` — a method on `CheckoutProfile` that takes a nodriver tab and performs the DOM writes. This keeps the selector logic in the profile helper, not scattered across 7 plugin files.
 
-    # NEW — wiki registry metadata:
-    display_name: str = ""          # human name, e.g. "Amazon US"
-    maintainer: str = ""            # GitHub handle or email
-    risk_level: str = "unknown"     # "low" | "medium" | "high" | "unknown"
-    captcha_notes: str = ""         # short free-text, e.g. "reCAPTCHA v2 on checkout"
-    auto_buy_supported: bool = True # False = check-only plugin
-    plugin_version: str = "1.0.0"
-```
+**Order confirmation capture**
 
-These are class attributes with defaults, not abstract. Existing plugins that do not define
-them get the defaults (backward-compatible). The registry already reads `domain_patterns`
-as a class attribute before `__init__` — same pattern applies here.
+- Where: `core/confirmation.py` (new)
+- `detect_order_confirmation(tab, platform: str) -> str | None` tries a platform-keyed selector map (e.g. Amazon: `#confirmedOrderId`, BestBuy: `.order-confirmation-number`) and returns an order ID string or None.
+- Called inside each plugin's `auto_buy()` AFTER the place-order click. The orchestrator only enqueues the `("confirmed", link, order_id, ts)` write-queue tuple when this returns a non-None value.
+- This is the gate: `purchased=1` is set only on confirmed orders. Returning True from `auto_buy()` without a confirmed order_id logs a warning but does NOT mark purchased.
+- Must come before retry logic in the build order to avoid double-buy on retry.
 
-**No ABC change breaks existing plugins.** All new attributes have defaults. The ABC
-`PLUGIN_API_VERSION` stays at 2.
+**Idempotent retry-on-cart**
 
-### 2b. Registry Generation
+- Where: `core/retry.py` (new) + orchestrator `_try_auto_buy` (modified)
+- `RetryPolicy(max_attempts: int, backoff_base: float, jitter: float)` dataclass.
+- `with_retry(coro, policy)` async helper: catches the specific "not in cart" / "cart expired" exception class (raised by the plugin), backs off, and re-calls. Does NOT retry on a confirmed order_id (idempotency: checks `items.order_id IS NOT NULL` via the write-queue drain before any retry).
+- Max cart attempts is configurable via `CheckoutConfig.max_cart_retries` in config.yml (default: 3).
 
-A new `core/wiki_registry.py` module (or a CLI command) iterates `PluginRegistry._all_plugins`,
-reads the class attributes above, and renders a Markdown table. This output is either
-committed to the GitHub wiki manually or pushed via GitHub API.
+**Per-step / per-item checkout time budget**
 
-```
-core/wiki_registry.py   (NEW)
-  generate_registry_markdown(registry: PluginRegistry) -> str
-    - iterates plugins
-    - reads metadata class attributes
-    - formats Markdown table: Plugin | Platforms | Maintainer | Risk | Auto-Buy | Notes
-    - returns Markdown string
+- Where: `core/config_schema.py` (new `CheckoutConfig` model) + orchestrator `_check_and_buy` (modified)
+- `CheckoutConfig.item_timeout_secs: int = 120` wraps the entire `_check_and_buy` call with `asyncio.timeout(item_timeout_secs)`.
+- `CheckoutConfig.step_timeout_secs: int = 15` is passed to each `tab.select(selector, timeout=step_timeout_secs)` call inside plugins. Plugins currently hardcode `timeout=10`; step_timeout is the config-driven replacement.
+- Both settings live in `AppConfig.checkout` (new sub-model, alongside the existing `debug`, `proxy`, `captcha` sub-models).
 
-CLI command: shoppybot registry generate  -> prints or writes to file
-```
+**Central monitor-only safety gate**
 
-The wiki push itself (GitHub API) is out-of-scope for the bot process; the CI workflow
-or a maintainer runs `shoppybot registry generate > wiki/Plugin-Registry.md` and commits.
-
-### 2c. Modified vs New Components — Cluster 2
-
-| Component | Status | Change |
-|-----------|--------|--------|
-| `core/plugin_base.py` | MODIFIED | Add 6 class-attribute metadata fields with defaults |
-| `core/registry.py` | UNCHANGED | `_discover_plugins` already reads class attributes; no change needed |
-| `core/wiki_registry.py` | NEW | `generate_registry_markdown()` function |
-| `core/cli/` | MODIFIED | Add `registry` subcommand that calls `wiki_registry.generate_registry_markdown` |
-| `plugins/shopbot_plugin_*.py` (7 files) | MODIFIED | Add metadata attributes (display_name, maintainer, risk_level, etc.) to each plugin class |
-| `plugins/PLUGIN_DEV.md` | MODIFIED | Document new metadata attributes; update example_plugin.py |
+- Where: `core/plugin_base.py` (modified ABC) + `core/config_schema.py` (modified `DebugConfig`)
+- Problem: `debug.test_mode` is only read by `AmazonPlugin.auto_buy()`. The other 6 plugins call their place-order selector click unconditionally.
+- Solution: add `DebugConfig.monitor_only: bool = True` (default True for safety). Add `RetailerPlugin.place_order_guarded(tab, selector: str) -> bool` as a concrete method on the ABC. This method:
+  1. Checks `self.config.debug.monitor_only` (not `test_mode`; the two are separate: `test_mode` is Amazon-legacy, `monitor_only` is the universal v4.0 gate).
+  2. If `monitor_only=True`: logs "MONITOR-ONLY: skipping place-order click" and returns False.
+  3. If `monitor_only=False`: performs the click and returns True.
+- All 7 plugins replace their direct `await place_order.click()` call with `await self.place_order_guarded(tab, selector)`.
+- `test_mode` in AmazonPlugin is deprecated in the same pass: Amazon reads `monitor_only` going forward; `test_mode` stays in config for backward compat but Amazon stops reading it for the purchase gate.
+- `BotService.start(monitor_only: bool = True)` passes the value into `AppConfig` before calling `async_main`, so the CLI/web UI can override it without editing config.yml.
 
 ---
 
-## Cluster 3: Price Monitoring
+### Always-On Reliability
 
-### 3a. Data Model Changes
+**Per-coroutine supervision + backoff restart**
 
-**Decision: new columns on the existing `items` table, not a separate table.**
+- Where: `core/supervisor.py` (new) + `core/orchestrator.py` (modified)
+- `supervise(coro_factory, name, policy: RetryPolicy)` is an async wrapper that:
+  1. Runs `coro_factory()` inside `asyncio.shield` to prevent TaskGroup cancellation on a single plugin crash.
+  2. On exception: logs the error with class name and plugin name, waits `policy.backoff_base * 2^attempt + jitter` seconds, then calls `coro_factory()` again up to `policy.max_attempts` times.
+  3. After exhausting retries: marks the plugin as DEAD in `HealthRegistry`, logs ERROR, and returns without raising (the TaskGroup continues running other plugins).
+- The orchestrator replaces `tg.create_task(run_plugin(...))` with `tg.create_task(supervise(lambda: run_plugin(...), name, policy))`.
+- This is the key constraint: `asyncio.TaskGroup` propagates the FIRST unhandled exception to all sibling tasks, tearing down the whole group. The supervisor absorbs exceptions before they reach the TaskGroup boundary.
 
-Rationale: price is a property of the item being tracked, not a separate entity. A separate
-table only makes sense if price history needs indefinite retention with per-timestamp rows.
-For the v3.0 scope (current price, target price, price history as a lightweight JSON log),
-new columns on `items` plus an optional `price_history` table is the right split.
+**Browser-crash detection + relaunch**
 
-Items table additions:
-```sql
-ALTER TABLE items ADD COLUMN current_price REAL;       -- NULL if not fetched yet
-ALTER TABLE items ADD COLUMN target_price REAL;        -- NULL = monitor regardless of price
-ALTER TABLE items ADD COLUMN currency TEXT DEFAULT 'USD';
-ALTER TABLE items ADD COLUMN price_last_checked TEXT;  -- ISO-8601 UTC timestamp
-```
+- Where: `core/supervisor.py` (new) + `core/plugin_base.py` (modified)
+- Browser crash manifests as `nodriver` raising on `tab.evaluate()` or `driver.get()` with a connection error. The supervisor catches this class of exception specifically.
+- On crash detection: the supervisor calls `plugin.relaunch()` — a new concrete method on the ABC that:
+  1. Calls `plugin.teardown()` (best-effort; ignores errors).
+  2. Re-runs `registry.assign_proxy(plugin)` and `registry.assign_solver(plugin)` to refresh the proxy assignment.
+  3. Calls `plugin.setup()` (re-creates the Browser, re-applies stealth, re-registers proxy auth).
+  4. Calls `plugin.login()` to re-authenticate.
+  5. Calls `session_store.restore(plugin)` if a session file exists (restore cookies before login to minimize re-auth friction).
+- The relaunch sequence order is: teardown → assign_proxy → setup (creates browser, applies stealth) → setup_proxy_auth → restore_session → login.
+- `plugin.relaunch()` is a concrete ABC method. Plugins override only if their relaunch needs custom steps (e.g. Amazon passkey re-dismissal).
 
-Price history table (new, separate — price is time-series data):
-```sql
-CREATE TABLE IF NOT EXISTS price_history (
-    id INTEGER PRIMARY KEY,
-    item_link TEXT NOT NULL,
-    price REAL NOT NULL,
-    currency TEXT NOT NULL DEFAULT 'USD',
-    checked_at TEXT NOT NULL,            -- ISO-8601 UTC
-    FOREIGN KEY (item_link) REFERENCES items(link)
-);
-```
+**Encrypted session/cookie persistence**
 
-`models.py` additions (all `_sync` pattern, WAL-safe):
-```python
-set_item_price_sync(link, price, currency, checked_at)   # updates current_price + logs history
-get_item_price_sync(link) -> tuple[float|None, float|None, str|None]  # current, target, checked_at
-add_price_history_sync(link, price, currency, checked_at)
-get_price_history_sync(link, limit=90) -> list[...]      # for display; default 90 days
-```
+- Where: `core/session_store.py` (new)
+- Pattern mirrors `EncryptedFileBackend` in `credentials.py`: Fernet + scrypt KDF, atomic write via `tempfile.mkstemp + os.replace`.
+- `SessionStore.save(plugin_name: str, cookies: list[dict]) -> None` serializes cookie dicts to JSON, encrypts, writes to `data/sessions/{plugin_name}.bin`.
+- `SessionStore.restore(tab, plugin_name: str) -> bool` decrypts and injects cookies via `tab.send(cdp.network.set_cookies(...))`. Returns True if file existed, False otherwise.
+- Called in the plugin's `setup()` after stealth injection (before first navigation). Also called after relaunch.
+- The passphrase is the same `SHOPBOT_STORE_PASSPHRASE` env var already used by `EncryptedFileBackend` — no new secret.
+- Sessions are **never** written to DB or logged. The `data/sessions/` directory is gitignored.
+- Must come before relaunch in the build order: relaunch calls `restore_session`.
 
-`initialize_db()` in `models.py` already uses idempotent `ALTER TABLE ... IF NOT EXISTS`
-pattern for `last_seen_available` and `last_notified`. Same pattern applies.
+**DB read-path error isolation**
 
-Config item schema (`ItemConfig` in `config_schema.py`) gains an optional field:
-```python
-class ItemConfig(BaseModel):
-    name: str
-    link: str
-    auto_buy: bool = False
-    quantity: int = 1
-    target_price: float | None = None   # NEW: None = no price gate
-```
+- Where: `core/orchestrator.py` (modified `_check_and_buy` and `run_plugin`)
+- Currently `get_items_sync` is called via `run_in_executor` inside `run_plugin`. If it raises (corrupted DB, locked file), the exception bubbles to the TaskGroup and kills the whole run.
+- Fix: wrap the `run_in_executor(None, get_items_sync)` call in try/except inside `run_plugin`. On failure: log ERROR with the exception class, skip this poll cycle, continue the `while True` loop. Do not re-raise.
+- Same isolation applied to all other `run_in_executor` DB reads in `_check_and_buy` (`get_item_notification_state_sync`, `get_last_price_sync`, `get_item_price_config_sync`).
+- Write-queue drain already has this isolation (the `except Exception` in `_write_queue_drain`). The read path does not.
 
-### 3b. Where Price Parsing Lives
+**Per-item asyncio timeout**
 
-**Decision: optional `get_price()` method on the RetailerPlugin ABC, not a separate parser module.**
+- Where: `core/orchestrator.py` (modified `_check_and_buy`) + `core/config_schema.py` (modified `CheckoutConfig`)
+- Wrap the `await _check_and_buy(...)` call inside `run_plugin` with `async with asyncio.timeout(cfg.checkout.item_timeout_secs)`. On `TimeoutError`: log WARNING with item name and elapsed seconds, continue loop.
+- The existing `asyncio.wait_for(event.wait(), timeout=300)` in `_wait_user_action` is a different guard (manual intervention wait). Both coexist; the outer item timeout is the hard ceiling.
 
-Each retailer exposes price differently (DOM selector, JSON-LD, API). The plugin already
-owns the browser and knows the page structure. A shared parser would need to handle
-7+ different DOM layouts — that is abstraction without value.
+**Structured health/heartbeat surface**
 
-```python
-# ADD to RetailerPlugin (non-abstract, returns None by default):
-async def get_price(self, url: str) -> float | None:
-    """Return the current item price as a float, or None if not parseable.
-
-    Default implementation returns None. Plugins that support price monitoring
-    override this method. Price is in the currency defined by the item config.
-    """
-    return None
-```
-
-This is additive and backward-compatible. Existing plugins get `None` (no price data).
-Plugins that implement it start feeding price history automatically.
-
-The orchestrator calls `get_price()` alongside `check_availability()` in `_check_and_buy()`:
-
-```python
-# MODIFIED: core/orchestrator.py _check_and_buy()
-price = await plugin.get_price(link)
-if price is not None:
-    await write_queue.put(("set_price", link, price, "USD", now_iso))
-```
-
-A new write-queue tag `"set_price"` is dispatched by `_dispatch_write()`.
-
-### 3c. Price-Drop Alert Through Existing Dispatcher
-
-The `NotificationEvent` dataclass gains two optional fields:
-
-```python
-@dataclass
-class NotificationEvent:
-    item_name: str
-    item_url: str
-    platform: str
-    timestamp: datetime
-    action: str    # EXISTING: "detected" | "purchased" | NEW: "price_drop"
-    current_price: float | None = None   # NEW
-    target_price: float | None = None    # NEW
-```
-
-This is a backward-compatible dataclass extension (keyword args with defaults). All existing
-notifiers that don't read these fields continue working without modification.
-
-The orchestrator emits a price-drop event when:
-```
-current_price is not None
-AND target_price is not None
-AND current_price <= target_price
-AND the price was not already at-or-below target on the last check
-```
-
-The dedup guard uses the same edge-trigger pattern as stock availability: the event fires
-once when price crosses the target, not on every poll cycle while it remains below target.
-A new `price_below_target` boolean column on `items` (or a derived check from `current_price`
-vs `target_price`) tracks the edge state. Simpler: compare current vs previous price from
-the write queue, store `price_alert_sent` timestamp in `items` alongside `last_notified`.
-
-Existing `NotificationDispatcher.notify()` requires no change — it fans out to all
-registered notifiers. Each notifier's `send()` method checks `event.action == "price_drop"`
-to render the right message. The Discord notifier already formats embeds from event fields;
-it needs only a new embed template branch for `price_drop`.
-
-### 3d. BotService and CLI/Web Surface
-
-`BotService` gains price-related item management methods:
-
-```python
-def set_item_target_price(self, link: str, price: float | None) -> None: ...
-def get_price_history(self, link: str, limit: int = 90) -> list: ...
-```
-
-CLI: `shoppybot items set-price --url "..." --target 299.99`
-Web UI: items list row gains current price display + target price input field.
-
-### 3e. Modified vs New Components — Cluster 3
-
-| Component | Status | Change |
-|-----------|--------|--------|
-| `models.py` | MODIFIED | Add 4 columns to items; add price_history table; add price CRUD functions |
-| `core/config_schema.py` | MODIFIED | Add `target_price: float | None` to `ItemConfig` |
-| `core/plugin_base.py` | MODIFIED | Add `get_price()` non-abstract method returning `None` |
-| `core/orchestrator.py` | MODIFIED | Call `get_price()` in `_check_and_buy`; emit `price_drop` events; add `"set_price"` write-queue tag in `_dispatch_write` |
-| `notifications/base.py` | MODIFIED | Add `current_price` and `target_price` optional fields to `NotificationEvent` |
-| `notifications/discord_notifier.py` | MODIFIED | Add embed branch for `action == "price_drop"` |
-| `notifications/email_notifier.py` | MODIFIED | Add message branch for price_drop |
-| `core/service.py` | MODIFIED | Add `set_item_target_price()` and `get_price_history()` |
-| `core/cli/` | MODIFIED | Add `items set-price` subcommand |
-| `web/` | MODIFIED | Extend items routes and template for price display |
-| `plugins/shopbot_plugin_*.py` | OPTIONAL | Each can implement `get_price()` incrementally; default is None |
+- Where: `core/health.py` (new) + `core/service.py` (modified `get_status`) + `core/orchestrator.py` (modified)
+- `HealthRegistry` is a thread-safe dict wrapper: `{plugin_name: HealthEntry}`.
+- `HealthEntry` fields: `status: Literal["starting", "running", "crashed", "dead", "relaunching"]`, `last_heartbeat: float` (monotonic), `consecutive_errors: int`, `last_error: str | None`, `items_checked: int`, `orders_confirmed: int`.
+- Orchestrator updates `HealthRegistry` at: poll cycle start (heartbeat timestamp), after each successful `check_availability` call (items_checked++), after confirmed order (orders_confirmed++), on exception in supervisor (consecutive_errors++, status="crashed"), after relaunch (status="relaunching"), after relaunch success (status="running").
+- `BotService.get_status()` returns: `{"running": bool, "plugins": {name: entry_dict}, "uptime_secs": float}`.
+- Notifications dispatcher already fans out events for `detected` and `purchased` actions. Add `health_degraded` event type for when `consecutive_errors` exceeds a threshold (configurable via `CheckoutConfig.alert_on_errors: int = 5`).
+- The health dict is queried by the FastAPI web UI (`GET /status`) and the existing notification dispatcher without new IPC — `BotService.get_status()` is thread-safe because `HealthRegistry` uses a `threading.Lock`.
 
 ---
 
-## Consolidated Component Map
-
-### New Components
-
-| File | Purpose |
-|------|---------|
-| `core/browser_factory.py` | `build_browser()` — assembles nodriver args for proxy, UA, fingerprint, CAPTCHA extension |
-| `core/captcha.py` | `solve_captcha()` — wraps 2captcha/capsolver APIs; falls back to manual event |
-| `core/wiki_registry.py` | `generate_registry_markdown()` — renders plugin metadata to Markdown table |
-
-### Modified Components
-
-| File | What Changes |
-|------|-------------|
-| `core/plugin_base.py` | `setup()` default calls `build_browser()`; add `solve_captcha()`, `get_price()`, metadata class attributes |
-| `core/config_schema.py` | `BasePlatformConfig` extraction; proxy/fingerprint/captcha fields; `AntiDetectionConfig`; `ItemConfig.target_price` |
-| `core/credentials.py` | 4 new entries in `SECRET_KEYS` |
-| `core/orchestrator.py` | `_check_and_buy` calls `get_price()`; `_dispatch_write` handles `"set_price"` tag; price-drop edge-trigger event |
-| `core/service.py` | `set_item_target_price()`, `get_price_history()` |
-| `core/cli/` | `registry generate` subcommand; `items set-price` subcommand |
-| `core/registry.py` | UNCHANGED |
-| `models.py` | 4 new columns on items; price_history table; price CRUD functions |
-| `notifications/base.py` | `NotificationEvent` gains `current_price`, `target_price` optional fields; `action` gains `"price_drop"` |
-| `notifications/dispatcher.py` | UNCHANGED |
-| `notifications/discord_notifier.py` | Price-drop embed branch |
-| `notifications/email_notifier.py` | Price-drop message branch |
-| `web/` routes + templates | Price display and target-price input |
-| `plugins/shopbot_plugin_*.py` | Metadata attributes (required for wiki registry); `setup()` delegation (optional refactor); `get_price()` (optional per plugin) |
-
----
-
-## Data Flow Changes
-
-### Stock Check (existing + price added)
+## Data Flow: v4.0 Acquisition Path
 
 ```
-orchestrator._check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher)
-  ├── plugin.check_availability(link)         # UNCHANGED
-  ├── plugin.get_price(link)                  # NEW (returns None if not implemented)
-  │     -> write_queue.put(("set_price", link, price, currency, ts))  # NEW tag
-  ├── price_drop edge check                   # NEW
-  │     -> dispatcher.notify(price_drop event)  # NEW action
-  └── ... (existing availability/purchase flow unchanged)
-```
-
-### Browser Launch (per plugin setup)
-
-```
-RetailerPlugin.setup()  [default impl, NEW]
-  -> browser_factory.build_browser(platform_cfg, global_anti_detection_cfg)
-       ├── resolve proxy (per-platform or global)
-       ├── resolve fingerprint seed
-       ├── load CAPTCHA extension path if configured
-       └── nodriver.start(**assembled_args) -> Browser
-  -> self.driver = browser
-```
-
-### CAPTCHA Solve (new path alongside existing manual path)
-
-```
-plugin.check_availability(link)
-  -> plugin.detect_captcha()  returns True
-       -> plugin.solve_captcha(tab)  [NEW default impl]
-            -> captcha_solver configured?
-                 YES: core/captcha.py: call API, inject token, return True/False
-                 NO:  _wait_user_action(captcha_event, ...)  [EXISTING unchanged]
-```
-
-### Price-Drop Notification
-
-```
-models.price_history  <-  set_item_price_sync()
-items.current_price   <-  set_item_price_sync()
+run_plugin (per plugin coroutine, supervised)
   |
-  v
-orchestrator: current_price <= target_price AND was_above_target?
-  YES -> dispatcher.notify(NotificationEvent(action="price_drop", current_price=X, target_price=Y))
-         -> DiscordNotifier: embed with price fields
-         -> EmailNotifier: price-drop subject/body
-         -> SoundNotifier: notification sound (existing, unchanged)
+  +-- asyncio.timeout(item_timeout_secs)
+  |     |
+  |     +-- _check_and_buy(plugin, name, link, auto_buy, write_queue)
+  |           |
+  |           +-- plugin.check_availability(link) -> bool
+  |           |     [on crash: supervisor catches, relaunch, retry]
+  |           |
+  |           +-- [available=True, auto_buy=True]
+  |                 |
+  |                 +-- _try_auto_buy_with_retry(plugin, name, link, write_queue, policy)
+  |                       |
+  |                       +-- [attempt loop, max_cart_retries]
+  |                       |     |
+  |                       |     +-- checkout_profile.fill_shipping_form(tab)
+  |                       |     +-- plugin.place_order_guarded(tab, selector)
+  |                       |     |     [if monitor_only=True: log, return False, no retry]
+  |                       |     +-- confirmation.detect_order_confirmation(tab, platform)
+  |                       |     |     [returns order_id or None]
+  |                       |     +-- [order_id is not None]:
+  |                       |           write_queue.put(("confirmed", link, order_id, ts))
+  |                       |           -> models: purchased=1, order_id, confirmed_at
+  |                       |           dispatcher.notify("purchased")
+  |                       |     +-- [order_id is None, attempt < max_cart_retries]:
+  |                       |           backoff sleep, retry from cart step
+  |                       |
+  |                       +-- [all attempts exhausted]: log WARNING, return False
+  |
+  +-- [TimeoutError]: log WARNING, continue loop
+
+write_queue (asyncio.Queue, drained by _write_queue_drain)
+  +-- ("purchased", link)                  -- legacy, still valid
+  +-- ("confirmed", link, order_id, ts)    -- new v4.0 tag
+  +-- ("set_available", link, ts)          -- existing
+  +-- ("clear_available", link)            -- existing
 ```
 
 ---
 
-## Backward Compatibility
-
-All 7 existing plugins remain valid without modification. Specifically:
-
-- New ABC class attributes (`display_name`, `risk_level`, etc.) have defaults.
-- `setup()` default is now concrete but plugins that override it entirely are unaffected.
-- `get_price()` default returns `None` — plugins without price support produce no price events.
-- `solve_captcha()` default uses the existing manual event flow if no solver is configured.
-- `NotificationEvent` new fields are keyword-only with `None` defaults — existing notifiers
-  that ignore them continue working.
-- `SECRET_KEYS` additions are additive — existing stored secrets are unaffected.
-
-The only forced change across all 7 plugins is adding the metadata class attributes for the
-wiki registry. That is 6 lines per plugin file and does not touch any logic.
-
----
-
-## Suggested Build Order
-
-Dependencies drive the order. Each step's deliverable must exist before the next begins.
-
-### Step 1: Config schema extensions (no code dependencies)
-
-Target: `core/config_schema.py`
-
-- Extract `BasePlatformConfig`; add `proxy`, `fingerprint_seed`, `captcha_solver` fields
-- Add `AntiDetectionConfig`; wire into `AppConfig`
-- Add `target_price` to `ItemConfig`
-
-This step has no upstream dependencies and unblocks all other steps.
-
-### Step 2: CredentialStore expansion (depends on Step 1 only for testing context)
-
-Target: `core/credentials.py`
-
-- Add `TWOCAPTCHA_API_KEY`, `CAPSOLVER_API_KEY`, `PROXY_USERNAME`, `PROXY_PASSWORD` to SECRET_KEYS
-- Update `shoppybot setup` prompts if they enumerate SECRET_KEYS (verify in cli/setup.py)
-
-### Step 3: Browser factory (depends on Steps 1 and 2)
-
-Target: `core/browser_factory.py` (NEW)
-
-- `build_browser(platform_cfg, global_cfg)` reads proxy, fingerprint, headless, user_agents
-- Calls `get_store()` for proxy credentials if `PROXY_USERNAME` is set
-- Returns `nodriver` browser instance
-- Unit-testable by mocking `nodriver.start`
-
-### Step 4: CAPTCHA solver helper (depends on Steps 2 and 3)
-
-Target: `core/captcha.py` (NEW)
-
-- `solve_captcha(tab, solver_name, api_key, timeout)` wraps 2captcha/capsolver HTTP calls
-- Returns bool; raises on API error (caller decides fallback)
-
-### Step 5: ABC updates (depends on Steps 3 and 4)
-
-Target: `core/plugin_base.py`
-
-- `setup()` default: calls `build_browser()` and assigns `self.driver`
-- Add `solve_captcha()` concrete method delegating to `core/captcha.py`
-- Add `get_price()` returning `None`
-- Add metadata class attributes with defaults
-
-At this point all infrastructure is in place. Steps 6-8 can proceed in any order.
-
-### Step 6: Price data layer (depends on Step 1)
-
-Target: `models.py`
-
-- Idempotent `ALTER TABLE` for 4 new items columns
-- `CREATE TABLE IF NOT EXISTS price_history`
-- Add price CRUD sync functions
-- Extend `initialize_db()`
-
-### Step 7: Orchestrator price wiring (depends on Steps 5 and 6)
-
-Target: `core/orchestrator.py`
-
-- `_check_and_buy` calls `plugin.get_price(link)` after availability check
-- Add `"set_price"` tuple tag to `_dispatch_write`
-- Price-drop edge-trigger check and `dispatcher.notify` call
-
-### Step 8: Notification event and notifier updates (depends on Step 7)
-
-Targets: `notifications/base.py`, `notifications/discord_notifier.py`, `notifications/email_notifier.py`
-
-- Add optional price fields to `NotificationEvent`
-- Add `price_drop` branches to Discord embed and email body
-
-### Step 9: Plugin metadata (depends on Step 5)
-
-Targets: `plugins/shopbot_plugin_*.py` (7 files)
-
-- Add metadata class attributes to each plugin
-- Optionally simplify each plugin's `setup()` to call `super().setup()`
-- Optionally implement `get_price()` for platforms where price DOM is stable
-
-### Step 10: Wiki registry (depends on Step 9)
-
-Target: `core/wiki_registry.py` (NEW)
-
-- `generate_registry_markdown(registry)` reads metadata, renders table
-
-### Step 11: BotService and front-ends (depends on Steps 6, 8, 10)
-
-Targets: `core/service.py`, `core/cli/`, `web/`
-
-- `BotService.set_item_target_price()`, `get_price_history()`
-- CLI `items set-price` subcommand
-- CLI `registry generate` subcommand
-- Web UI price display and target-price input
-
-### Dependency Graph
+## Data Flow: v4.0 Reliability Path
 
 ```
-Step 1: config_schema
-  └─ Step 2: credentials
-       └─ Step 3: browser_factory
-            └─ Step 4: captcha.py
-                 └─ Step 5: plugin_base (ABC updates)
-                      └─ Step 9: plugin metadata
-                           └─ Step 10: wiki_registry
-
-Step 1: config_schema
-  └─ Step 6: models (price data layer)
-       └─ Step 7: orchestrator (price wiring)
-            └─ Step 8: notifications (price_drop event/notifiers)
-                 └─ Step 11: BotService + CLI + web
-
-All steps must complete before Step 11.
-Steps 6-8 and Steps 3-5 can proceed in parallel after Step 1.
+async_main
+  |
+  +-- _staggered_setup (unchanged; adds session restore per plugin after setup)
+  |     +-- plugin.setup()
+  |     +-- session_store.restore(tab, plugin_name)   [new step]
+  |     +-- plugin.login()
+  |
+  +-- asyncio.TaskGroup
+       |
+       +-- _write_queue_drain (unchanged)
+       |
+       +-- supervise(lambda: run_plugin(plugin, ...), name, policy)  [wraps each plugin]
+             |
+             +-- run_plugin [while True loop]
+             |     +-- DB read isolation (try/except around all run_in_executor reads)
+             |     +-- heartbeat update at top of each cycle
+             |
+             +-- [exception in run_plugin]:
+                   supervisor catches
+                   |
+                   +-- [connection/crash exception]: plugin.relaunch()
+                   |     +-- plugin.teardown()
+                   |     +-- registry.assign_proxy(plugin)
+                   |     +-- plugin.setup()  [new browser, stealth, proxy auth]
+                   |     +-- session_store.restore(tab, plugin_name)
+                   |     +-- plugin.login()
+                   |     +-- health.update(plugin_name, status="relaunching")
+                   |
+                   +-- [other exception]: backoff, retry run_plugin
+                   |
+                   +-- [retries exhausted]: health.update(status="dead"), return
 ```
 
 ---
 
-## Anti-Patterns to Avoid
+## Schema Changes (models.py)
 
-### Each Plugin Reimplements Browser Launch
+```sql
+-- Idempotent ALTER TABLE additions (same pattern as v3.0 price columns)
+ALTER TABLE items ADD COLUMN order_id TEXT;
+ALTER TABLE items ADD COLUMN confirmed_at TEXT;
+ALTER TABLE items ADD COLUMN checkout_attempts INTEGER NOT NULL DEFAULT 0;
+```
 
-**What:** Continuing the current pattern where every plugin calls `nodriver.start(headless=...)` directly.
-**Why bad:** Proxy/fingerprint/CAPTCHA extension wiring must then be duplicated in 7+ files. A new
-contributor's plugin naturally skips it.
-**Instead:** `browser_factory.build_browser()` is the single launch point. ABC's default `setup()`
-calls it.
+New write-queue tags handled by `_dispatch_write`:
 
-### Storing CAPTCHA API Keys in config.yml
+| Tag | Tuple shape | Model operation |
+|-----|------------|-----------------|
+| `confirmed` | `("confirmed", link, order_id, ts)` | `UPDATE items SET purchased=1, order_id=?, confirmed_at=? WHERE link=?`; increments `checkout_attempts` |
+| existing `purchased` | `("purchased", link)` | unchanged; still valid for legacy test paths |
 
-**What:** Adding `twocaptcha_api_key: "..."` to a config.yml section.
-**Why bad:** Violates the established v2.0 security posture (CRED-06): secrets never plaintext on disk.
-**Instead:** Route through `CredentialStore.get("TWOCAPTCHA_API_KEY")` — already the pattern for all
-other secrets.
-
-### Separate Price Table as the Primary Store
-
-**What:** Putting `current_price` and `target_price` in a `prices` table joined to `items`.
-**Why bad:** Every orchestrator poll cycle requires a join. The item and its price target are 1:1.
-**Instead:** 4 columns on `items` (current_price, target_price, currency, price_last_checked).
-Only the time-series history goes in a separate `price_history` table.
-
-### Making `get_price` Abstract
-
-**What:** `@abstractmethod async def get_price(self, url: str) -> float | None`
-**Why bad:** Breaks all 7 existing plugins immediately; price monitoring is opt-in.
-**Instead:** Concrete default returning `None`. Plugins opt in by overriding.
-
-### Embedding Price in NotificationEvent as a Formatted String
-
-**What:** `action: str = "price_drop: $299.99 -> $249.99"`
-**Why bad:** Parsers downstream (web UI, future integrations) must string-split. Impossible to
-localize currency.
-**Instead:** Separate `current_price: float | None` and `target_price: float | None` fields on
-`NotificationEvent`. Notifiers format them per-channel.
+The `purchased` write-queue path is NOT removed. It stays as the write path when `auto_buy()` succeeds but confirmation detection fails (e.g. confirmation page loads too slowly). In that case a WARNING is logged: "purchase click succeeded but confirmation not detected — marking purchased without order_id".
 
 ---
 
-## Scalability Considerations
+## Config Schema Changes (config_schema.py)
 
-| Concern | v3.0 scope | Future concern |
-|---------|-----------|----------------|
-| CAPTCHA API cost | Per-solve billing; rate-limit with exponential backoff in `core/captcha.py` | Monitor spend; add per-platform on/off toggle |
-| Proxy rotation pool | Single proxy string per platform for now | Proxy pool list + round-robin if single proxy gets blocked |
-| Price history retention | 90-day default; no auto-purge yet | Add `VACUUM` + periodic delete of rows older than N days |
-| Browser fingerprint | Seed per session; static during session | Rotate seed per N requests if platforms learn session patterns |
-| Plugin registry wiki | Generated locally, manually pushed | Automate via GitHub Actions on plugin PR merge |
+```python
+class CheckoutConfig(BaseModel):
+    item_timeout_secs: int = 120       # outer asyncio.timeout per item
+    step_timeout_secs: int = 15        # tab.select timeout per DOM step
+    max_cart_retries: int = 3          # retry-on-cart attempts
+    backoff_base: float = 2.0          # seconds; doubles per attempt
+    backoff_jitter: float = 1.0        # random uniform [0, jitter] added
+    alert_on_errors: int = 5           # consecutive errors before health alert
+
+class DebugConfig(BaseModel):
+    logging_level: int = 5
+    test_mode: bool = True             # Amazon legacy; kept for compat
+    monitor_only: bool = True          # v4.0 universal safety gate (default safe)
+
+# AppConfig gains:
+checkout: CheckoutConfig = CheckoutConfig()
+```
+
+New `SECRET_KEYS` additions (9 keys; no card numbers; PCI constraint preserved):
+
+```python
+"CHECKOUT_FIRST_NAME", "CHECKOUT_LAST_NAME",
+"CHECKOUT_ADDRESS_LINE1", "CHECKOUT_ADDRESS_LINE2",
+"CHECKOUT_CITY", "CHECKOUT_STATE", "CHECKOUT_ZIP",
+"CHECKOUT_COUNTRY", "CHECKOUT_PHONE",
+```
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: ABC Concrete Method as Cross-Cutting Gate
+
+`RetailerPlugin.place_order_guarded()` is a concrete method on the ABC that all 7 plugins call instead of a direct `.click()`. This is the only design that closes the 6-of-7 safety hole without editing each plugin independently. The alternative (per-plugin `if self.config.debug.monitor_only: return False`) would require 7 edit points and would break again on every new community plugin.
+
+```python
+# core/plugin_base.py (addition to RetailerPlugin)
+async def place_order_guarded(self, tab, selector: str) -> bool:
+    """Click the place-order button unless monitor_only is active.
+
+    All 7 plugins replace their direct await place_order.click() with this.
+    Returns True if click was performed, False if suppressed.
+    """
+    monitor_only = getattr(getattr(self.config, "debug", None), "monitor_only", True)
+    if monitor_only:
+        writeLog(
+            f"[{self.__class__.__name__}] MONITOR-ONLY: skipping place-order click",
+            "INFO",
+        )
+        return False
+    element = await tab.select(selector, timeout=15)
+    if not element:
+        return False
+    await element.click()
+    return True
+```
+
+### Pattern 2: Supervisor-Wrapped Coroutine Factory
+
+The orchestrator passes a factory (not the coroutine itself) to the supervisor so the supervisor can create a fresh coroutine on each restart attempt. Passing the coroutine directly would fail on the second attempt because a consumed coroutine cannot be re-awaited.
+
+```python
+# core/orchestrator.py (modified tg.create_task call)
+tg.create_task(
+    supervise(
+        coro_factory=lambda: run_plugin(plugin, write_queue, poll_interval, dispatcher),
+        name=f"poll-{plugin.__class__.__name__}",
+        policy=RetryPolicy(max_attempts=5, backoff_base=2.0, jitter=1.0),
+        health=health_registry,
+    ),
+    name=f"supervised-{plugin.__class__.__name__}",
+)
+```
+
+### Pattern 3: Confirmation-Before-Purchased Write
+
+The orchestrator must NOT enqueue `("purchased", link)` until `detect_order_confirmation()` returns. The existing `_try_auto_buy` returns True immediately after `place_order.click()` without waiting for confirmation. The v4.0 path changes this:
+
+```
+auto_buy(url) -> bool
+  [does DOM interactions up to and including place_order_guarded]
+  [does NOT call confirmation detection -- that stays in orchestrator]
+  returns True = "place-order click was performed and not suppressed"
+
+_try_auto_buy_with_retry (orchestrator):
+  success = await plugin.auto_buy(link)
+  if not success:
+      return
+  order_id = await confirmation.detect_order_confirmation(tab, plugin_name)
+  if order_id:
+      write_queue.put(("confirmed", link, order_id, ts))
+  else:
+      writeLog("WARNING: place-order succeeded but confirmation not detected", "WARNING")
+      write_queue.put(("purchased", link))   # fallback; no order_id persisted
+```
+
+This preserves backward compatibility: a plugin that cannot return the browser tab (e.g. opens a new window) still falls back to the legacy `purchased` write.
+
+### Pattern 4: Reuse EncryptedFileBackend for Session Store
+
+`core/session_store.py` does not re-implement encryption. It instantiates `EncryptedFileBackend` with the same `SHOPBOT_STORE_PASSPHRASE` and a per-plugin path. This avoids a second KDF implementation and reuses the already-tested atomic write logic.
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Per-Plugin monitor_only Check
+
+**What people do:** Copy the Amazon `test_mode` pattern into each of the 6 other plugins, adding `if self.config.debug.monitor_only: return False` at the top of each `auto_buy()`.
+
+**Why it's wrong:** Every new community plugin written without this check bypasses the gate. The ABC concrete-method approach makes the safe path the default path.
+
+**Do this instead:** `place_order_guarded()` on the ABC. Plugins that never reach a place-order step (monitor-only retailers) don't need to call it.
+
+### Anti-Pattern 2: Direct DB Writes from Plugin Code
+
+**What people do:** Call `update_item_purchased_sync(link)` directly inside `auto_buy()` after confirmation is detected.
+
+**Why it's wrong:** Breaks the write-queue serialization guarantee (ASYNC-05). Two plugins buying the same item (if items overlap) could interleave writes. The write-queue is a single-consumer asyncio.Queue; that guarantee is voided by any out-of-band write.
+
+**Do this instead:** Return True from `auto_buy()` and let the orchestrator enqueue `("confirmed", ...)`. The confirmation detection also runs in the orchestrator, not in the plugin.
+
+### Anti-Pattern 3: Tearing Down the TaskGroup on Crash
+
+**What people do:** Let an exception from a crashed plugin bubble through `run_plugin` up to the TaskGroup. `asyncio.TaskGroup` cancels all sibling tasks on the first unhandled exception.
+
+**Why it's wrong:** One BestBuy browser crash at 3am kills Amazon, Walmart, and all other plugins. The `except*` handler in `async_main` only catches `KeyboardInterrupt`, not plugin crashes.
+
+**Do this instead:** The supervisor absorbs exceptions before the TaskGroup boundary. Each plugin's crash is isolated to that plugin's supervised coroutine.
+
+### Anti-Pattern 4: Re-Creating the TaskGroup After a Crash
+
+**What people do:** Catch the TaskGroup exception, tear everything down, and restart `async_main` from scratch.
+
+**Why it's wrong:** A full restart re-runs `_staggered_setup` (re-launches all browsers with 1.5s stagger), taking 10+ seconds during a drop. The supervisor's per-coroutine restart leaves all other plugins running while only the crashed one relaunches.
+
+**Do this instead:** The supervisor restarts only the failed plugin's coroutine. The TaskGroup and all other coroutines remain unaffected.
+
+---
+
+## Build Order (Dependency-Ordered)
+
+Dependencies drive the order. Each phase listed below is a candidate for a planning phase in the roadmap:
+
+**Phase A: Safety Gate + Config Foundation**
+- Add `DebugConfig.monitor_only` and `CheckoutConfig` to `config_schema.py`
+- Add `place_order_guarded()` concrete method to `RetailerPlugin` ABC
+- Update all 7 plugins to call `place_order_guarded()` (remove per-plugin `test_mode` checks from Amazon; no-op change for the other 6 since they previously had no gate)
+- Add `checkout` sub-model to `AppConfig`
+- Result: monitor-only gate is live for all plugins; config foundation exists for all downstream work
+- No downstream dependencies; this is the safest change to ship first
+
+**Phase B: DB Schema + Write-Queue Tag**
+- Add `order_id`, `confirmed_at`, `checkout_attempts` columns to `items` table (idempotent ALTER TABLE)
+- Add `confirmed` tag handling to `_dispatch_write` in orchestrator
+- Result: DB can receive confirmed-order writes; write-queue drain handles the new tag
+- Required before confirmation detection can persist anything
+
+**Phase C: Confirmation Detection**
+- Build `core/confirmation.py` with per-platform selector map (Amazon, BestBuy first; others stub)
+- Wire confirmation call into orchestrator `_try_auto_buy` path
+- Result: confirmed purchases write `order_id` + `confirmed_at`; unconfirmed purchases fall back to legacy `purchased` write with WARNING log
+- Must come before retry logic (confirmation is the idempotency check that prevents double-buy on retry)
+
+**Phase D: Checkout Profile + Form-Fill**
+- Add 9 checkout keys to `SECRET_KEYS` in `credentials.py`
+- Build `core/checkout_profile.py` with `CheckoutProfile` dataclass and `fill_shipping_form(tab)` method
+- Implement form-fill in BestBuy plugin first (most reliable selector history); Amazon second
+- Add `shoppybot setup checkout-profile` CLI command to populate keys interactively
+- Result: form-fill works for BestBuy and Amazon; other plugins stub
+
+**Phase E: Retry-on-Cart**
+- Build `core/retry.py` with `RetryPolicy` and `with_retry`
+- Wire into `_try_auto_buy` in orchestrator (replaces single-attempt call)
+- Idempotency check: reads `items.order_id IS NOT NULL` before any retry attempt
+- Result: transient cart failures retry with backoff without double-buying
+
+**Phase F: Encrypted Session Persistence**
+- Build `core/session_store.py` (reuses `EncryptedFileBackend` pattern)
+- Add `session_store.save()` call at end of successful `login()` in Amazon and BestBuy plugins
+- Add `session_store.restore()` call in `_staggered_setup` after `plugin.setup()` and before `plugin.login()`
+- Result: sessions survive restarts; login frequency reduced
+- Must come before relaunch implementation (relaunch calls restore)
+
+**Phase G: Supervisor + Browser Relaunch**
+- Build `core/supervisor.py`
+- Add `plugin.relaunch()` concrete method to ABC
+- Replace bare `tg.create_task(run_plugin(...))` with `tg.create_task(supervise(...))` in orchestrator
+- Add DB read isolation (try/except around all `run_in_executor` read calls in orchestrator)
+- Add per-item `asyncio.timeout` wrapping `_check_and_buy` call in `run_plugin`
+- Result: crashes are isolated; auto-relaunch preserves session; DB read errors are non-fatal
+
+**Phase H: Health Surface**
+- Build `core/health.py` with `HealthRegistry` and `HealthEntry`
+- Thread heartbeat updates through supervisor and orchestrator
+- Expand `BotService.get_status()` to return plugin health dict
+- Wire `health_degraded` event type to notification dispatcher
+- Update FastAPI `/status` endpoint to surface the expanded dict
+- Result: queryable health; degraded-plugin alerts via existing notification channels
+
+---
+
+## Integration Points Summary
+
+| Feature | Touches ABC | Touches Orchestrator | New Module | Modified Config |
+|---------|-------------|---------------------|------------|-----------------|
+| monitor_only gate | YES (`place_order_guarded`) | NO | NO | `DebugConfig.monitor_only` |
+| Checkout profile | NO (injected at plugin level) | NO | `checkout_profile.py` | `SECRET_KEYS` +9 |
+| Confirmation detection | NO (called from orchestrator) | YES (`_try_auto_buy`) | `confirmation.py` | NO |
+| Retry-on-cart | NO | YES (`_try_auto_buy`) | `retry.py` | `CheckoutConfig` |
+| Time budgets | NO | YES (wraps `_check_and_buy`) | NO | `CheckoutConfig` |
+| Session persistence | YES (`relaunch`) | partial (restore in setup) | `session_store.py` | NO |
+| Supervision | NO | YES (replaces `tg.create_task`) | `supervisor.py` | NO |
+| Browser relaunch | YES (`relaunch()`) | called from supervisor | NO | NO |
+| DB read isolation | NO | YES (try/except on reads) | NO | NO |
+| Per-item timeout | NO | YES (wraps `_check_and_buy`) | NO | `CheckoutConfig` |
+| Health surface | NO | YES (heartbeat updates) | `health.py` | `CheckoutConfig.alert_on_errors` |
 
 ---
 
 ## Sources
 
-- Codebase read directly: `core/plugin_base.py`, `core/credentials.py`, `core/config_schema.py`,
-  `core/orchestrator.py`, `core/registry.py`, `core/service.py`, `models.py`,
-  `notifications/base.py`, `notifications/dispatcher.py`, `plugins/shopbot_plugin_amazon.py`
-- Existing architecture doc: `.planning/research/ARCHITECTURE.md` (v1 research, superseded)
-- Project state: `.planning/PROJECT.md`, `.planning/milestones/v2.0-ROADMAP.md`
-- Confidence: HIGH — all integration points derived from reading the actual source, not assumptions
+- Source reads: `core/service.py`, `core/orchestrator.py`, `core/registry.py`, `core/plugin_base.py`, `core/credentials.py`, `core/stealth.py`, `core/config_schema.py`, `models.py`, `plugins/shopbot_plugin_amazon.py`, `plugins/shopbot_plugin_bestbuy.py`, `plugins/shopbot_plugin_walmart.py`, `plugins/shopbot_plugin_target.py`, `plugins/shopbot_plugin_gamestop.py`
+- All integration points derived from direct source reads; no inference from training data
+- asyncio.TaskGroup exception propagation behavior: Python 3.11 docs (exception group semantics)
+- Fernet/scrypt pattern: `core/credentials.py` `EncryptedFileBackend` (HIGH confidence, read directly)
+
+---
+
+*Architecture research for: ShopPyBot v4.0 Win-the-Drop — asyncio/nodriver acquisition + reliability integration*
+*Researched: 2026-06-10*

@@ -1,464 +1,297 @@
-# Feature Research — v3.0 Resilience + Ecosystem
+# Feature Research — v4.0 Win-the-Drop (Checkout Automation + Reliability)
 
-**Domain:** Community-extensible retail stock-checkout bot (Python / nodriver)
-**Researched:** 2026-06-06
-**Milestone scope:** NEW v3.0 features only. Existing v2.0 features are not re-researched.
-**Confidence:** HIGH (proxy/CAPTCHA), MEDIUM (fingerprint resilience, price monitoring), HIGH (plugin registry)
+**Domain:** Verified-checkout + reliability features for a community-extensible retail stock-checkout bot (Python / nodriver)
+**Researched:** 2026-06-10
+**Milestone scope:** NEW v4.0 features only. Existing v3.0 and earlier features are not re-researched.
+**Confidence:** HIGH (checkout flow patterns, retry/idempotency), MEDIUM (per-retailer confirmation signals), HIGH (supervisor/backoff patterns), MEDIUM (nodriver cookie persistence — known bugs)
 
 ---
 
 ## Context: What Already Exists (Do Not Re-Research)
 
-The following are shipped and stable. Requirements for v3.0 must build on top of them without breaking them.
-
-| System | Key facts relevant to v3.0 |
+| System | Key facts relevant to v4.0 |
 |--------|---------------------------|
-| Plugin ABC (`RetailerPlugin`) | `async check_availability`, `auto_buy`, `login`, `detect_captcha`, `setup`, `teardown`; `domain_patterns` class attr; `PLUGIN_API_VERSION = 2` |
-| Config schema (`AppConfig`) | Pydantic/YAML; per-platform section under `platforms.<name>` with `min_delay`, `max_delay`, `headless`, `user_agents`; `notifications.*` section for fan-out; `credentials.backend` for store selection |
-| Notification system | Fan-out dispatcher; per-channel failure isolation; per-item `last_notified` dedup in SQLite; SMS is opt-in with env-var gate |
-| SQLite schema | `items` table with `name`, `link`, `auto_buy`, `quantity`, `purchased`, `last_notified`; WAL mode + busy timeout |
-| CredentialStore | keyring / encrypted-file / env-var; all secrets route through it; no plaintext on disk |
-| Anti-detection (current) | Per-platform jitter delays, UA rotation, `navigator.webdriver` hidden via CDP, headless toggle |
-| Platforms covered | Amazon, BestBuy, Walmart, Target, GameStop, Square Enix, NewEgg |
-| Anti-detection difficulty per platform | Amazon: Medium, BestBuy: Medium, Walmart: High (HUMAN/PerimeterX), Target: High (Akamai), GameStop: Medium, NewEgg: Low-Medium, Square Enix: Low |
+| Plugin ABC (`RetailerPlugin`) | `async auto_buy(url) -> bool`; orchestrator marks purchased only on `True` return; `test_mode` skips final click on 6 of 7 plugins |
+| `auto_buy` gap | Returns `True` after `place_order.click()` with no confirmation check; button-click = "purchased" is wrong |
+| Orchestrator (`core/orchestrator.py`) | `asyncio.TaskGroup` with one long-lived `run_plugin` coroutine per plugin; write-queue serializes DB writes; `_try_auto_buy` wraps auto_buy with a bare try/except but no retry |
+| `_write_queue_drain` | Sole write path; already serialized; enqueues `("purchased", link)` tuples |
+| `models.py` | `update_item_purchased_sync` with `purchased` flag; already prevents re-buy on next poll loop |
+| Login pattern | Called inside `auto_buy` on every invocation; no session reuse; MFA/passkey gates require manual user action |
+| BestBuy CVV | Threaded via `plugin._cvv`; set by `main.py` via `getpass`; never logged |
+| Config | `debug.test_mode: bool`; `app.poll_interval: float`; per-platform `min_delay`/`max_delay` |
 
 ---
 
-## Feature Area 1: Anti-Detection Hardening
+## Feature Landscape
 
-### 1a. Proxy Rotation
+### Table Stakes (Users Expect These)
 
-**How it works in real scraping tools:**
-Proxy rotation injects a different outbound IP address per request or per session. Two session models exist:
-- Per-request rotation: new IP on every HTTP request. Maximizes IP diversity but breaks session state (login cookies, cart state). Retail checkout flows CANNOT use per-request rotation.
-- Sticky session: same IP held for a logical session (one product page visit through checkout, or one full poll cycle). Provider appends a session token to the proxy auth username (e.g., `user-session-abc123:pass@host:port`). Sticky sessions are required for authenticated flows.
+Features whose absence makes the bot functionally incomplete for v4.0's stated goal of "verified orders."
 
-Proxy types, relevant to retail:
-- Datacenter: fast, cheap (~$0.01-$0.05/GB), easy to fingerprint as non-residential. Blocked by Walmart/HUMAN and Target/Akamai almost immediately.
-- Residential: real ISP IPs, hard to block. Significantly higher cost (~$5-15/GB). Required for Walmart, Target, useful for BestBuy Akamai.
-- ISP proxies: datacenter speed + residential IP reputation. Good middle ground for retail.
+| Feature | Why Expected | Complexity | Existing Hook / Dependency | ToS-sensitive? |
+|---------|--------------|------------|---------------------------|----------------|
+| **Order-confirmation detection** | Without it, a bot that reports "purchased" on a click, then discovers the order failed (session expired, payment declined, CAPTCHA injected mid-checkout), will suppress re-attempts forever via the `purchased` flag. Every real checkout bot verifies a real order. | MEDIUM | Extends `auto_buy`; must return `True` only on confirmed signal; write-queue path unchanged | No |
+| **Monitor-only / alert-without-buy mode** | Users routinely want to watch a drop without having the bot place an order — either for manual review or because `auto_buy` is not safe for that item. Currently, `auto_buy=False` per-item skips buying, but there is no global "never buy" CLI flag. Also closes the `test_mode` hole: 6 of 7 plugins skip the final click under `test_mode` but still call all preceding checkout steps. | LOW | `--monitor-only` CLI flag passed into `async_main`; orchestrator skips `_try_auto_buy` globally; orthogonal to per-item `auto_buy` flag | No |
+| **Checkout profile (shipping/billing form-fill)** | On limited drops, a new-device checkout or address-change challenge fires the full shipping/billing form. Bots that only handle pre-saved accounts stall silently. Profile data must be stored encrypted, never in config.yml or logs. | MEDIUM | New `CheckoutProfile` model in `CredentialStore`; per-plugin form-fill helper; PCI constraint: CVV at runtime only, never persisted | **Opt-in** (payment data in credential store) |
+| **Bounded retry-on-cart with backoff and double-buy guard** | Transient failures (add-to-cart 429, session blip, checkout button briefly absent) are common on drop day. Without retry, the bot abandons valid opportunities. Without double-buy guard, retrying a POST-equivalent checkout click risks duplicate orders. | MEDIUM | New `_try_auto_buy_with_retry` wrapping `_try_auto_buy`; idempotency guard reads `purchased` flag from DB before each attempt; max attempts + exponential backoff cap | No |
+| **Per-step / per-item checkout time budget** | A stalled checkout step (form-fill waiting forever, checkout page not loading) can block the entire plugin coroutine, preventing future poll cycles. `asyncio.wait_for` wrapping each step is standard practice. | LOW | `asyncio.wait_for` wrapping `auto_buy` call in orchestrator; configurable `checkout_timeout_secs` per platform | No |
 
-**Ban/block detection signals:**
-- HTTP 403, 429, 503 response codes
-- Redirect to CAPTCHA or challenge page (URL contains `/challenge`, `/robot`, `/sorry`)
-- Response body contains known block phrases ("Access Denied", "blocked", "are you a robot")
-- Zero or near-zero page content length on a normally-large page
+### Differentiators (Competitive Advantage)
 
-**Failure handling pattern:**
-1. Attempt request through proxy
-2. On block signal: mark proxy as penalized, rotate to next in pool
-3. After N failures on a proxy: retire it from rotation for a cooldown period
-4. When pool is exhausted: fall back to no-proxy (direct connection) or raise alert
+Features that distinguish ShopPyBot from single-script bots and advance the plugin-framework value proposition.
 
-**Config shape (what existing tools use):**
+| Feature | Value Proposition | Complexity | Existing Hook / Dependency | ToS-sensitive? |
+|---------|-------------------|------------|---------------------------|----------------|
+| **Encrypted session/cookie persistence** | Login + MFA is the slowest and most fragile part of checkout. Reusing a live authenticated session eliminates the passkey-dismiss and OTP pauses on every `auto_buy` call. Commercially sold bots (Refract, etc.) call this "prelogin." | MEDIUM | nodriver `browser.cookies.get_all()` / `set_all()` via CDP — known `set_all` bugs in issues #1816, #2020, #2232; workaround: direct `cdp.storage.set_cookies` call; encrypt with `cryptography.fernet` or reuse existing `EncryptedFileStore`; store path under per-platform key | **Opt-in** (persists auth tokens to disk) |
+| **Structured health / heartbeat surface** | Long-running unattended runs silently stall. A per-plugin liveness timestamp + periodic heartbeat log line lets operators know the bot is alive without polling logs manually. Also enables future monitoring integrations (Discord webhook, Prometheus). | LOW | New `_heartbeat` coroutine in orchestrator TaskGroup; writes `last_alive_at` dict keyed by plugin name; emits a log line at configurable interval | No |
+| **Per-coroutine supervisor with backoff restart** | Currently, if a plugin coroutine raises an unhandled exception, `asyncio.TaskGroup` propagates it and tears down all tasks. A supervisor wrapper catches the exception, sleeps with exponential backoff, and relaunches the coroutine — keeping other plugins alive. Failure budget (e.g., 5 crashes in 5 minutes) triggers a clean exit rather than an infinite restart loop. | MEDIUM | Replaces bare `tg.create_task(run_plugin(...))` with `tg.create_task(supervised(run_plugin, plugin, ...))` wrapper; failure counter per plugin with rolling window | No |
+| **Browser-crash detection and relaunch** | nodriver's Chrome subprocess can die silently (OOM, renderer crash, orphan after proxy disconnect). No built-in crash detection exists in nodriver (confirmed by docs + issue #2130). Detection via `plugin.driver._process.returncode` or a CDP ping; relaunch calls `plugin.teardown()` then `plugin.setup()` then re-adds to active pool. | MEDIUM | New `_is_browser_alive(plugin)` helper; called at top of each `run_plugin` iteration; relaunch via `registry.relaunch_plugin(plugin)` | No |
+| **DB read-path error isolation** | A SQLite read failure in `get_items_sync` raises into `run_plugin`, which — without the supervisor above — kills the plugin coroutine. Wrapping DB reads with a retry (3x with 1s sleep) and logging the error without re-raising prevents a DB hiccup from stopping the bot. | LOW | Narrow try/except around `loop.run_in_executor(None, get_items_sync)` in `run_plugin`; log error, skip iteration, continue loop | No |
+| **Per-item orchestrator timeout** | If `_check_and_buy` hangs (browser frozen mid-checkout), all items for that plugin are blocked. `asyncio.wait_for` around the entire `_check_and_buy` call with a `per_item_timeout_secs` config value prevents one stuck item from starving others. | LOW | `asyncio.wait_for(_check_and_buy(...), timeout=cfg.app.per_item_timeout_secs)` in `run_plugin` | No |
 
-```yaml
-proxy:
-  enabled: false          # opt-in; disabled by default
-  mode: sticky            # sticky | per_request
-  session_ttl: 300        # seconds before rotating sticky session (0 = never rotate within check)
-  proxies:
-    - url: "http://user:pass@host:port"
-    - url: "socks5://user:pass@host:port"
-  ban_status_codes: [403, 429, 503]
-  max_failures_before_retire: 3
-  cooldown_seconds: 600
+### Anti-Features (Commonly Requested, Often Problematic)
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Full card-data persistence** | Avoid re-entering payment info on each run | PCI-DSS: storing full card number + CVV anywhere on disk is a serious violation; most retailers require CVV at time of transaction specifically to prevent stored re-use | Store only last-4 + expiry for display; collect CVV at runtime via `getpass`; use retailer-saved payment methods; the v4.0 design already does this correctly |
+| **Immediate retry on every checkout failure** | Maximize acquisition chances | POST-equivalent checkout is not idempotent; an immediate retry after an ambiguous "connection reset" can produce a duplicate order; Amazon and BestBuy do not expose an idempotency key | Check `purchased` flag in DB before each retry attempt; use exponential backoff with a small max-attempts cap (3-5); add a mandatory post-click settle delay before reading confirmation |
+| **Parallel multi-account checkout** | Higher acquisition probability per drop | Most ToS-hostile feature category; direct CFAA risk when accounts are fictitious; high detection/ban rate; requires N sets of credentials and N billing profiles; complex state machine for coordinating successes | Single-account, single-attempt with fast retry; this is deferred in PROJECT.md and should stay deferred |
+| **Request/API-mode checkout (bypass browser)** | 10-100x faster than DOM automation | Arms-race: retailers detect and block API-mode checkout constantly; maintenance burden is very high; defeats the stealth investment in v3.0; also more ToS-hostile than browser automation | Stick with the nodriver browser stack; optimize checkout speed through session persistence and per-step timeouts |
+| **Amazon WAF CAPTCHA auto-solve** | Unblock auto-buy when WAF fires | Amazon WAF CAPTCHA (`window.gokuProps`) is a distinct challenge from reCAPTCHA v2; 2captcha does not support it; any "solve" service for it changes frequently and is fragile; deferred in PROJECT.md | Manual pause on WAF detection (already implemented); defer until a reliable solve path exists |
+| **Unlimited retry loops on cart failure** | Never miss a drop due to transient errors | Drop-day 429s can turn a "retry forever" loop into a ban trigger; cart-state can become inconsistent across unlimited retries; logs become unreadable | Bounded retry (max 3-5 attempts) with jitter backoff; log each attempt; abort and re-arm on next poll cycle |
+
+---
+
+## Order-Confirmation Detection: Per-Retailer Signal Inventory
+
+This is the most research-intensive area. Signals are listed from most to least reliable.
+
+### Amazon
+
+| Signal | Reliability | Implementation |
+|--------|------------|----------------|
+| URL contains `/gp/buy/thankyou/handlers` | HIGH | Amazon's standard post-order landing URL; check `tab.url` after `place_order.click()` with a short settle delay | 
+| Page contains order-number element `#orderDetails` or `span.order-id-number` | HIGH (backup) | `tab.select("#orderDetails", timeout=10)` or text search for pattern `\d{3}-\d{7}-\d{7}`; Amazon order numbers always match this format |
+| Page title contains "Thank you" | MEDIUM | JavaScript `document.title` evaluation; fragile to i18n and A/B tests |
+| Account order history contains new entry (API call to `/gp/css/order-history`) | LOW (too slow) | Requires a second navigation; only use as a last-resort verification pass |
+
+**Recommended composite check for Amazon:** URL prefix match (`/gp/buy/thankyou`) AND either `#orderDetails` element present OR order-number regex match in page text. Any one of URL or DOM match is sufficient; require at least one.
+
+### BestBuy
+
+| Signal | Reliability | Implementation |
+|--------|------------|----------------|
+| URL contains `/checkout/r/thank-you` or `/checkout/r/confirmation` | HIGH | BestBuy's post-order redirect; check `tab.url` after place-order click |
+| Page contains order-number element `.thank-you-order-number` or `[data-testid="order-number"]` | HIGH (backup) | `tab.select(".thank-you-order-number", timeout=10)` — confirmed by ScrapingBee article pattern; BestBuy's selector may drift on redesign |
+| Page contains text "Order confirmed" or "Thank you for your order" | MEDIUM | `tab.find("Order confirmed", timeout=5)` — confirmed by BestBuy UX review and community reports |
+
+**Important BestBuy caveat:** Refract's docs note "BestBuy's site does not surface failures clearly — it may show 'invited' or 'requested' states that are NOT confirmed purchases." The URL redirect to `/checkout/r/thank-you` is the most reliable signal. Absence of redirect after place-order click = failure (not confirmed).
+
+**Recommended composite check for BestBuy:** URL must contain `/thank-you` AND `.thank-you-order-number` element OR "Order confirmed" text. Do not rely on text alone.
+
+### Other Plugins (Walmart, Target, GameStop, SquareEnix, NewEgg)
+
+These plugins currently have no `auto_buy` confirmation check and v4.0 does not extend form-fill to them. The correct v4.0 approach: wrap their existing `place_order.click()` with a URL-based check (any redirect away from the order-review page) and a generic "order number" regex scan. No per-plugin DOM surgery needed for v4.0 — that is deferred.
+
+---
+
+## Retry-on-Cart Semantics
+
+### When to Retry
+
+| Condition | Retry? | Rationale |
+|-----------|--------|-----------|
+| `add-to-cart` button not found (stock gone) | NO | Item sold out; re-arm on next poll cycle |
+| `add-to-cart` click returns 429 / challenge page | YES (with backoff) | Transient rate-limit; back off and retry |
+| Cart page loads but checkout button absent | YES (1 retry) | Intermittent cart load failure |
+| `place_order.click()` completes but NO confirmation URL observed | YES (1 retry, max 2 total) | Possible click miss or navigation delay |
+| `place_order.click()` completes AND confirmation URL observed | NO | Success; enqueue DB write immediately |
+| `purchased` flag already set in DB | NO (hard guard) | Idempotency: DB is the authoritative state |
+| Any attempt after 5 consecutive failures | ABORT | Failure budget exceeded; log and exit checkout |
+
+### Backoff Values (Recommended)
+
+- Base delay: 2 seconds
+- Multiplier: 2x per attempt
+- Max delay: 30 seconds
+- Jitter: `random.uniform(0, base_delay)` added to each sleep
+- Max attempts: 3 for cart-add; 2 for place-order (lower because place-order is less idempotent)
+
+### Double-Buy Guard (Idempotency)
+
+The `purchased` flag in SQLite is the idempotency anchor. Before each retry attempt in `_try_auto_buy_with_retry`, read the flag synchronously. If already `True`, abort silently. This is safe because `_write_queue_drain` is the only writer and runs serially.
+
+**Critical:** Do NOT retry immediately after `place_order.click()`. Insert a settle delay (3-5 seconds) before reading the confirmation URL. The browser navigation after a successful order has measurable latency.
+
+---
+
+## Checkout Time Budgets (Recommended Values)
+
+| Step | Recommended Timeout | Rationale |
+|------|--------------------|-----------| 
+| `add-to-cart` click + cart page load | 15 seconds | Fast on good sessions; generous for slow pages |
+| Full checkout flow (`auto_buy` end-to-end) | 90 seconds | Covers form-fill + CVV + confirmation wait |
+| Per-item `_check_and_buy` (orchestrator level) | 120 seconds | Adds 30s buffer above `auto_buy` for pre/post work |
+| Post-place-order settle (before confirmation check) | 5 seconds | Navigation latency after successful order |
+| Session/cookie load at login | 10 seconds | CDP `set_cookies` call |
+
+These map directly to `asyncio.wait_for` timeout arguments. They should be config-overridable under `platforms.<name>.checkout_timeout_secs`.
+
+---
+
+## Session / Cookie Persistence Implementation Notes
+
+### nodriver-Specific Concerns (HIGH confidence — from GitHub issues #1816, #2020, #2232)
+
+- `browser.cookies.set_all(cookies)` has a confirmed bug: the `cookies` parameter is silently overwritten by `cdp.storage.get_cookies()` before use. The result is that set_all does nothing.
+- **Workaround confirmed working:** Use `await tab.send(cdp.storage.set_cookies(cookies=cookie_list))` directly — bypasses the broken helper.
+- `browser.cookies.get_all()` works correctly for reading.
+- HttpOnly cookies are accessible via CDP `Network.getAllCookies` but not via `document.cookie` JavaScript.
+
+### Storage Approach
+
+1. After successful login, call `await plugin.driver.cookies.get_all()` to capture the full cookie jar as a list of `cdp.network.Cookie` objects.
+2. Serialize to JSON (not pickle — avoids class version issues on upgrade).
+3. Encrypt with `cryptography.fernet` using a key from `CredentialStore` (reuse existing infrastructure).
+4. Write to a platform-scoped file: `.shopbot_sessions/<platform>_cookies.enc` under the app data directory.
+5. On next `login()` call, check if a valid session file exists. If yes, restore cookies via direct CDP call (workaround above), navigate to account page, verify logged-in state by checking for account-nav element. If verification fails, fall back to full login.
+
+### Security Constraints (Non-Negotiable)
+
+- Session files must be encrypted at rest (no plaintext JSON cookies on disk).
+- Session files must be scoped to a platform and never shared across plugins.
+- Session file path must never appear in logs.
+- This feature is **opt-in** (`platforms.<name>.session_persistence: true`) because it persists authentication tokens that could be misused if the machine is compromised.
+
+---
+
+## Supervisor and Health Patterns
+
+### Per-Coroutine Supervisor (Recommended Pattern)
+
+Replace the current bare `tg.create_task(run_plugin(...))` in `async_main` with a supervised wrapper:
+
+```
+supervised(coroutine_factory, *args, max_failures=5, window_secs=300, base_backoff=2.0, max_backoff=60.0)
 ```
 
-Integration with existing config: add `proxy:` as a top-level config section (parallel to `platforms:`, `notifications:`). Per-platform override is a v3.1 concern, not MVP.
+- Runs `coroutine_factory(*args)` in a loop.
+- On exception: increments per-plugin failure counter, logs the error, sleeps with exponential backoff + jitter.
+- If failure counter exceeds `max_failures` within `window_secs`: logs a critical error and returns (does NOT re-raise into TaskGroup, allowing other plugins to continue).
+- On success (clean return from the coroutine): resets failure counter.
+- Respects `asyncio.CancelledError` — never catches it; propagates cleanly for shutdown.
 
-**Dependency on existing features:** None structural. The proxy URL is passed to the nodriver `Browser` constructor as a launch argument (`--proxy-server=<url>`). Credential (proxy username/password) can be stored in CredentialStore if needed, but plain proxy URLs in config.yml are acceptable since they are not account credentials.
+### Browser-Crash Detection
 
-### Table Stakes vs Differentiators vs Anti-Features — Proxy Rotation
+nodriver does not provide a built-in health check. The recommended detection approach:
 
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| Sticky-session proxy per check cycle | Table stakes | LOW | Required for authenticated checkout flows; per-request breaks login state |
-| Configurable proxy list in config.yml | Table stakes | LOW | Simple YAML list of `scheme://user:pass@host:port` URLs |
-| Ban signal detection (status codes + body patterns) | Table stakes | LOW | Without it, proxy rotation silently uses blocked proxies |
-| Automatic rotation on ban detection | Table stakes | LOW | Core value; rotating blind is pointless |
-| Cooldown/retry before retiring a proxy | Differentiator | LOW-MED | Avoids burning the pool on transient errors |
-| Residential vs datacenter documentation per platform | Differentiator | LOW | Guidance in PLATFORMS.md; no code complexity |
-| Per-platform proxy override | Anti-feature | MED | Over-engineering; single pool serves all platforms for personal use |
-| Proxy health monitoring dashboard | Anti-feature | HIGH | Out of scope; CLI log output is sufficient |
-| Proxy pool auto-replenishment from provider API | Anti-feature | HIGH | Paid service dependency + maintenance; users supply their own list |
-| SOCKS5 authentication in Chrome flags | Differentiator | LOW | Chrome supports `--proxy-server=socks5://` natively; worth documenting |
+1. Check `plugin.driver._process.returncode is not None` — if the subprocess has exited, the browser is dead.
+2. Alternatively: wrap every `tab.select(...)` call in a try/except; if a `ConnectionError` or `websockets` disconnect fires, treat as crash.
+3. On crash detection: call `plugin.teardown()`, sleep 5 seconds, call `plugin.setup()`. If setup fails, increment the failure budget.
 
-### 1b. CAPTCHA Solving
+### Health / Heartbeat Surface
 
-**How it works in real tools:**
+A lightweight `_heartbeat` coroutine runs in the TaskGroup alongside plugin coroutines:
 
-CAPTCHA solving services (2captcha, CapSolver, AntiCaptcha) expose an async submit/poll flow:
-1. Bot extracts CAPTCHA parameters from the page (sitekey, page URL, type)
-2. Bot submits task to service API; receives a task ID immediately
-3. Bot polls the result endpoint every 5-10 seconds (polling below 5s is rate-limited by 2captcha)
-4. Service returns a token (reCAPTCHA: `g-recaptcha-response` form field value, or similar)
-5. Bot injects the token into the page form and submits
-
-For Selenium/nodriver this means the bot pauses the checkout flow, calls the external service, waits (typically 30-120 seconds for human workers; faster for AI solvers), then resumes.
-
-**CAPTCHA types by platform (v3.0 targets):**
-
-| Platform | CAPTCHA Type | 2captcha cost/1000 | Notes |
-|----------|-------------|-------------------|-------|
-| Amazon | Amazon WAF Captcha (image-based), reCAPTCHA v2 (intermittent) | $1.45 (WAF), $1.00 (reCAPTCHA v2) | Triggered on login and high-frequency polling; not every session |
-| BestBuy | Akamai Bot Manager (no classic CAPTCHA challenge; uses behavioral fingerprinting) | N/A — behavioral, not solvable with token service | Akamai blocks at TLS/behavior level before a CAPTCHA is shown |
-| Walmart | HUMAN Security / PerimeterX (no traditional CAPTCHA; behavioral + fingerprint) | N/A | Same as Akamai — CAPTCHA solving services do not address this |
-| Target | Akamai (same as BestBuy) | N/A | |
-| GameStop | reCAPTCHA v2 on checkout | $1.00/1000 | Triggered at checkout more reliably than stock check |
-| NewEgg | reCAPTCHA v2 (intermittent) | $1.00/1000 | Lower frequency |
-| Square Enix | Standard image CAPTCHA or minimal protection | $0.50-$1.00/1000 | Low frequency |
-
-Key insight: Walmart and Target use behavioral bot managers (HUMAN/PerimeterX/Akamai), not traditional CAPTCHAs. CAPTCHA solving services do not help with these platforms. Proxy rotation + fingerprint hardening is the only lever for them.
-
-**Cost model for personal use:** At $1.00/1000 for reCAPTCHA v2, a personal user who hits 10 CAPTCHAs per day would spend ~$3/month. The cost is acceptable but must be opt-in (same gate pattern as SMS/Twilio).
-
-**Async flow in Python (2captcha-python library):**
-
-The `AsyncTwoCaptcha` class wraps submit + poll in a single `await solver.recaptcha(sitekey=..., url=...)` call. Default polling interval is 10 seconds, `recaptchaTimeout` defaults to 600s. The library handles retries internally. The API key is a secret and must route through CredentialStore (key: `TWOCAPTCHA_API_KEY`).
-
-### Table Stakes vs Differentiators vs Anti-Features — CAPTCHA Solving
-
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| Opt-in only with explicit config flag (`captcha_solver.enabled: false`) | Table stakes | LOW | Same pattern as SMS; accidental charges must be impossible |
-| API key stored in CredentialStore (not config.yml) | Table stakes | LOW | CRED-06 invariant; `TWOCAPTCHA_API_KEY` env/keyring key |
-| reCAPTCHA v2 solving (GameStop, NewEgg, intermittent Amazon) | Table stakes | LOW-MED | Highest-value type for this platform set |
-| Amazon WAF Captcha solving | Differentiator | LOW-MED | Type already supported by 2captcha; adds Amazon checkout success rate |
-| Async submit/poll with configurable timeout | Table stakes | LOW | Use `AsyncTwoCaptcha`; integrate as `await` in plugin `detect_captcha` flow |
-| Balance check at startup (warn if balance low, skip if zero) | Differentiator | LOW | `await solver.balance()` call at bot start; prevents silent failures |
-| Per-solve cost logging (DEBUG level) | Differentiator | LOW | Transparency; helps user track spend |
-| Cloudflare Turnstile solving | Anti-feature | MED | $1.45/1000; Turnstile is behavioral, solve success rate is lower; not on target platforms |
-| HUMAN/PerimeterX CAPTCHA solving | Anti-feature | HIGH | These are not traditional CAPTCHAs; no solve service addresses them reliably |
-| Self-hosted CAPTCHA solver (e.g., ohmycaptcha) | Anti-feature | HIGH | Operational complexity far exceeds value for personal use |
-| Solve-result injection into DOM for Selenium | Table stakes | LOW | Standard pattern: `driver.execute_script("document.getElementById('g-recaptcha-response').innerHTML='...'")` |
-
-**Dependency on existing features:**
-- `detect_captcha()` method in plugin ABC: already exists as a hook; solver integrates here
-- CredentialStore: API key flows through it
-- Notification dedup: CAPTCHA solve events do not need dedup (they are transient, not per-restock)
-
-### 1c. Fingerprint Resilience
-
-**What matters for personal-use personal-volume bots:**
-
-Browser fingerprinting works at several layers:
-- Layer 1 (basic, already patched): `navigator.webdriver = true`, Selenium UA string. The existing CDP patch + UA rotation already address this.
-- Layer 2 (medium difficulty): Chrome automation flags in `navigator.plugins`, `window.chrome` object absence, `navigator.languages` mismatch, screen resolution / color depth anomalies.
-- Layer 3 (advanced): Canvas fingerprint, WebGL renderer/vendor, AudioContext, font enumeration, timing attacks. These require patched Chromium builds or significant JS injection.
-- Layer 4 (behavioral): Mouse movement patterns, click timing, scroll velocity, keystroke cadence. Only addressable with human simulation or ML-based movement generation.
-
-**undetected-chromedriver vs selenium-stealth vs nodriver:**
-- `undetected-chromedriver`: patches Layer 1 + parts of Layer 2 (webdriver flag, some Chrome properties). Last PyPI release early 2024; successor is `nodriver`. The existing codebase already migrated to nodriver per the v2.0 plugin base (`setup()` creates a nodriver Browser). So undetected-chromedriver is not an option to add; nodriver is already in use.
-- `selenium-stealth`: a Selenium plugin that injects JS patches for Layer 2 signals (window.chrome, navigator.plugins, navigator.languages, WebGL). Not compatible with nodriver (nodriver is not Selenium).
-- `nodriver` (already in use): suppresses some basic bot signals by default. Does not patch Canvas/WebGL.
-- `playwright-stealth` / `rebrowser-playwright`: not applicable (project uses nodriver/Chrome, not Playwright).
-
-**What is worth doing for personal-use at low poll volume:**
-
-| Signal | Worth Patching | Effort | Impact |
-|--------|---------------|--------|--------|
-| `navigator.webdriver` | Already done (CDP patch) | Done | High |
-| UA rotation | Already done | Done | High |
-| `window.chrome` object | YES | LOW | Medium for BestBuy/Akamai |
-| `navigator.plugins` (non-empty) | YES | LOW | Medium |
-| `navigator.languages` consistent with UA | YES | LOW | Low-Medium |
-| Screen dimensions consistent with headless | YES | LOW | Low-Medium |
-| Canvas fingerprint | NO | HIGH | Arms race; requires patched Chromium |
-| WebGL renderer spoofing | NO | HIGH | Same; diminishing returns for personal use |
-| Behavioral mouse simulation | NO | VERY HIGH | Over-engineering for personal-use volume |
-| TLS fingerprint (JA3) | NO | VERY HIGH | Requires custom TLS stack; out of scope |
-
-The practical answer for personal use: inject a JS stealth patch bundle at `Browser.setup()` time, covering `window.chrome`, `navigator.plugins`, `navigator.languages`, and permission query behavior. These are the signals that Akamai and BestBuy/GameStop check first. Canvas/WebGL/behavioral simulation is explicitly an anti-feature at this scale.
-
-### Table Stakes vs Differentiators vs Anti-Features — Fingerprint Resilience
-
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| JS stealth patch at browser startup (window.chrome, navigator.plugins, navigator.languages) | Table stakes | LOW | One `page.evaluate()` call in plugin `setup()`; covers Layer 2 signals |
-| Consistent screen resolution in headless mode (non-zero `window.outerWidth`) | Table stakes | LOW | Browser launch arg; fixes a known headless tell |
-| Permission query behavior normalization | Differentiator | LOW | Prevents fingerprint via `navigator.permissions.query({name:'notifications'})` |
-| Canvas fingerprint spoofing | Anti-feature | HIGH | Requires patched Chromium; arms race; not worth it for personal use |
-| WebGL renderer spoofing | Anti-feature | HIGH | Same reason |
-| Behavioral mouse simulation / human-like click timing | Anti-feature | VERY HIGH | Over-engineering for personal-use poll frequency |
-| TLS/JA3 fingerprint evasion | Anti-feature | VERY HIGH | Requires custom TLS stack; out of scope entirely |
-| Plugin-level `stealth_level` config knob | Anti-feature | MED | Unnecessary abstraction; one sensible default serves all platforms |
-
-**Dependency on existing features:** The nodriver `Browser` is already constructed in `plugin.setup()`. The stealth patch is added there without ABC changes. No plugin API version bump needed if implemented as a shared utility in `core/stealth.py` called from each plugin's `setup()`.
-
----
-
-## Feature Area 2: Plugin Ecosystem Registry
-
-**How registries work in comparable open-source tools:**
-
-The GitHub wiki is the standard approach for community plugin directories at this scale (not PyPI, not a separate registry service). Examples: Obsidian plugin registry (GitHub repo), Drone CI plugin registry (GitHub wiki markdown table), Homebridge plugin registry (npm + GitHub but that is PyPI-scale). For a project at ShopPyBot's community size, a wiki markdown table is exactly right.
-
-**What a useful per-plugin wiki entry contains (from studying comparable registries):**
-
-| Field | Why It Matters | Required vs Optional |
-|-------|---------------|---------------------|
-| Plugin name | Unique identifier for discovery | Required |
-| Platform / retailer covered | Primary lookup key | Required |
-| Domain pattern(s) | What URLs match; avoids duplicate effort | Required |
-| Maintainer (GitHub handle) | Who to contact for issues | Required |
-| Anti-detection difficulty (Low/Medium/High/Extreme) | Manages user expectations; prevents frustrated issues | Required |
-| Methods implemented | Which ABC methods are non-no-op (check_availability, auto_buy, login) | Required |
-| Last verified working date | Bots break when sites change; staleness signal | Required |
-| Known limitations | Checkout blocked, CAPTCHA type required, headless issues | Required |
-| Proxy required | Whether the platform requires residential proxy for reliable operation | Required |
-| CAPTCHA solver required | Whether it requires CAPTCHA service integration | Required |
-| Link to plugin file or PR | For installation | Required |
-| Notes | Anything else | Optional |
-
-**Anti-detection difficulty rating definitions:**
-
-| Rating | Meaning | Examples |
-|--------|---------|---------|
-| Low | Standard Selenium with UA rotation works reliably | Square Enix, NewEgg |
-| Medium | Requires jitter delays + nodriver stealth patch; occasional CAPTCHA solve needed | Amazon, BestBuy, GameStop |
-| High | Requires residential proxy + stealth patch; checkout unreliable without CAPTCHA solver | Walmart, Target |
-| Extreme | Behavioral bot manager blocks all automated traffic; only API-based checking viable | Ticketmaster, Shopify stores with Kasada |
-
-**Auto-generated vs manual:** The "last verified working" date and status must be manually maintained — no CI can verify a real retail checkout. The table structure is manual. The contributor onboarding doc can pre-fill required fields via a wiki page template (GitHub wiki supports page templates via the `_Footer` / sidebar convention). Full automation is an anti-feature at this scale.
-
-**Plugin discovery/listing command:**
-
-A `shoppybot plugins` CLI subcommand that lists all loaded plugins (already auto-discovered from `plugins/`) with their `domain_patterns` and the difficulty rating declared as a class attribute. This provides local discoverability without requiring a network call to the wiki.
-
-### Table Stakes vs Differentiators vs Anti-Features — Plugin Registry
-
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| GitHub wiki markdown table with required fields (name, platform, difficulty, maintainer, last-verified, methods) | Table stakes | LOW | A markdown table; maintainable by any contributor via wiki PR |
-| Anti-detection difficulty rating (Low/Medium/High/Extreme) with defined criteria | Table stakes | LOW | Documented in PLUGIN_DEV.md; declared as `difficulty: str` class attr on plugin |
-| `proxy_required` and `captcha_required` flags per plugin entry | Table stakes | LOW | Critical for user expectation-setting when these are new v3.0 features |
-| `last_verified` date per plugin entry | Table stakes | LOW | Retail sites change frequently; staleness signal prevents wasted user time |
-| `shoppybot plugins list` CLI command | Differentiator | LOW | Lists loaded plugins + their declared attributes (difficulty, domains) without wiki lookup |
-| Plugin submission checklist update (add difficulty, proxy_required, captcha_required) | Table stakes | LOW | Update CONTRIBUTING.md + PR template to require these new fields |
-| Auto-generated registry from CI | Anti-feature | MED | CI cannot verify real-world working status; manual beats automation here |
-| Plugin version pinning / compatibility matrix | Anti-feature | HIGH | Over-engineering for this community size; PLUGIN_API_VERSION already gates incompatibility |
-| Plugin marketplace / ratings system | Anti-feature | HIGH | GitHub stars on the main repo is sufficient signal; separate ratings UI is overkill |
-| Automated plugin health testing against live retail | Anti-feature | VERY HIGH | Legal/TOS risk; operational cost; impractical to run in CI |
-
-**Dependency on existing features:**
-- Plugin ABC already has `domain_patterns` class attribute; add `difficulty` and `requires_proxy`, `requires_captcha` class attributes to the ABC (defaulting to sensible values). This is a non-breaking addition.
-- CONTRIBUTING.md and PR template (DOCS-01/02) already exist; update them rather than create new docs.
-
----
-
-## Feature Area 3: Price Monitoring
-
-**How it works in real tools:**
-
-Price monitoring is a separate concern from stock availability, but they share the same polling loop and page navigation. The standard pattern:
-
-1. Plugin scrapes current price from the product page alongside the stock check (same page visit, no extra request)
-2. Price is written to a `price_history` table with `(item_id, price, scraped_at)` — append-only, keyed by item + timestamp
-3. On each check: compare current price against user's configured `target_price`; also compare against previous price snapshot for drop detection
-4. Notification triggers:
-   - Price-drop alert: current price dropped below `target_price` threshold
-   - Price-below-absolute: current price is at or below an absolute value (e.g., "alert me if this drops below $299")
-   - Both can coexist; they are different notification payloads
-
-**Target-price threshold semantics (two models):**
-
-| Model | Trigger | Config field | Example |
-|-------|---------|-------------|---------|
-| Absolute threshold | `current_price <= target_price` | `target_price: 299.99` | "Alert when below $300" |
-| Percentage drop | `(current - previous) / previous <= -drop_pct` | `price_drop_pct: 10` | "Alert on 10%+ drop from last seen" |
-
-Both models are useful. Absolute is simpler and covers the primary use case (waiting for a sale). Percentage drop is secondary. Both should be supported but the absolute threshold is the MVP.
-
-**Price history retention:**
-- Append-only SQLite table: no retention limit in MVP. A personal user monitoring 10 items at 30-second intervals generates ~2,880 rows/day/item, ~1M rows/year. SQLite handles this fine.
-- If storage concerns arise, a simple `VACUUM` job after deleting rows older than 90 days is sufficient. This is a v3.1 concern.
-
-**SQLite schema addition:**
-
-```sql
--- New table alongside existing `items` table
-CREATE TABLE price_history (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    price      REAL NOT NULL,
-    scraped_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX ix_price_history_item_scraped ON price_history (item_id, scraped_at DESC);
-```
-
-The `items` table gains one new column: `target_price REAL DEFAULT NULL`. NULL means price monitoring is off for that item.
-
-**Integration with existing dedup:**
-
-Price-drop alerts use the SAME fan-out dispatcher and dedup mechanism as stock alerts, with a distinct `notification_type = 'price_drop'` to prevent stock-alert dedup from suppressing price alerts and vice versa. The `last_notified` column in SQLite tracks per-item per-type timestamps.
-
-**Plugin API surface change:**
-
-The plugin ABC gains an optional `get_price(url: str) -> float | None` method (default returns `None` = price monitoring not supported for this plugin). This is a non-breaking addition (default implementation in base class). The orchestrator calls it alongside `check_availability` on each poll cycle.
-
-**Config per-item addition:**
-
-```yaml
-available:
-  items:
-    - name: "PS5 Console"
-      link: "https://www.amazon.com/dp/..."
-      auto_buy: false
-      quantity: 1
-      target_price: 449.99    # new: alert when price drops to/below this
-```
-
-### Table Stakes vs Differentiators vs Anti-Features — Price Monitoring
-
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| Per-item `target_price` in config (absolute threshold) | Table stakes | LOW | One new YAML field on `ItemConfig`; NULL = disabled |
-| Price-drop alert via existing notification dispatcher | Table stakes | LOW | Reuse fan-out + dedup; new `notification_type` discriminator |
-| `price_history` table (append-only SQLite) | Table stakes | LOW | Two new SQL statements; `item_id` FK to existing `items` table |
-| `get_price()` hook on plugin ABC (returns `float | None`, default `None`) | Table stakes | LOW | Non-breaking optional method; only plugins that implement it get price tracking |
-| Price in notification payload (show current price, target price, % from target) | Table stakes | LOW | Notification payload enrichment; no arch change |
-| Separate dedup key for price alerts vs stock alerts | Table stakes | LOW | `notification_type` column on `last_notified` or separate tracking dict |
-| Percentage drop threshold (`price_drop_pct`) per item | Differentiator | LOW | Secondary trigger; complements absolute threshold |
-| `shoppybot items price-history <name>` CLI command (last N prices) | Differentiator | LOW-MED | Useful for user to see trend; reads `price_history` table |
-| Price chart / sparkline in web UI | Differentiator | MED | Optional; only if web UI is updated; defer to later |
-| Price history retention / auto-purge | Differentiator | LOW | `DELETE FROM price_history WHERE scraped_at < datetime('now', '-90 days')` on startup |
-| Historical low / average display | Differentiator | LOW | Single aggregate query on `price_history`; useful in CLI or web UI |
-| Price monitoring as a separate polling schedule (different from stock check interval) | Anti-feature | MED | Over-complicates the orchestrator; share the stock-check poll cycle |
-| Price prediction / trend modeling | Anti-feature | HIGH | Requires training data; outside scope |
-| Camelcamelcamel / third-party price history API integration | Anti-feature | MED | External dependency; Amazon-only; breaks personal-use simplicity |
-| Price monitoring plugin type (separate ABC from retail plugin) | Anti-feature | MED | Unnecessary split; price is a capability of a retail plugin, not a separate plugin class |
-
-**Dependency on existing features:**
-- `ItemConfig` in `config_schema.py`: add `target_price: float | None = None`
-- SQLite models: new `price_history` table + `target_price` column on `items`
-- Notification dispatcher: add `notification_type` parameter to fan-out call; update dedup logic
-- Plugin ABC: add `get_price()` default method
-- Orchestrator: call `get_price()` alongside `check_availability()`; write result to `price_history`; check threshold; dispatch alert if triggered
-
----
-
-## Feature Area 4: Stability / Polish
-
-### 4a. Deferred v2.0 Cross-OS Manual Checks
-
-These are not feature development — they are verification tasks. They close documented gaps in `docs/PLATFORMS.md` and `.planning/STATE.md`.
-
-| Check | What It Verifies | Complexity |
-|-------|-----------------|------------|
-| OS keyring restart survival (Windows Credential Manager) | `CredentialStore` keyring backend survives process restart | LOW — run + restart |
-| Masked-TTY passphrase prompt on Ubuntu | `getpass.getpass()` works in SSH terminal for encrypted-file store | LOW — SSH test |
-| Web UI dashboard render on real Ubuntu | FastAPI + Jinja2 renders correctly on Ubuntu Python | LOW — `shoppybot web` + browser |
-| Web UI `0.0.0.0` bind warning on Ubuntu | Security warning displays when non-localhost bind is used | LOW — config tweak |
-
-### 4b. Test Hardening
-
-Deferred v2.0 audit tech-debt items require targeted fixes, not broad refactors. Scope is: fix the 4 audit items documented in the v2.0 STATE.md, add regression tests for each.
-
-### Table Stakes vs Differentiators vs Anti-Features — Stability
-
-| Feature | Category | Complexity | Notes |
-|---------|----------|------------|-------|
-| Close all 4 deferred manual checks (document pass/fail, fix any failures) | Table stakes | LOW | Not feature development; verification + documentation |
-| Fix 4 v2.0 audit tech-debt items + regression tests | Table stakes | LOW-MED | Scope to the specific items; no broad refactors |
-| Test coverage for new v3.0 features (proxy rotation, CAPTCHA solving, price monitoring) | Table stakes | MED | Unit tests for config parsing, DB schema, price comparison logic; integration tests for plugin ABC additions |
-| Test parallelism / CI speed improvements | Differentiator | LOW-MED | Only if CI is measurably slow; YAGNI until proven needed |
-| End-to-end retail checkout tests in CI | Anti-feature | VERY HIGH | Legal/TOS risk; cannot run against live retail in CI |
+- Writes `{"plugin": ..., "last_alive": ISO-timestamp, "items_checked": N}` to a per-plugin in-memory dict every `heartbeat_interval_secs` (default: 60).
+- Emits one log line per plugin at INFO level: `[HEARTBEAT] AmazonPlugin alive, checked 42 items`.
+- Optionally serializes the dict to a JSON file (`.shopbot_health.json`) for external monitoring. This is opt-in.
 
 ---
 
 ## Feature Dependencies
 
 ```
-Proxy Rotation
-  requires: config_schema.py ProxyConfig section
-  requires: plugin setup() passes proxy arg to Browser launch
-  enhances: CAPTCHA Solving (proxy + CAPTCHA together raise success rate on Walmart/Target)
-  note: Walmart/Target improvement requires BOTH proxy + stealth, not just one
+Order-confirmation detection
+    requires --> auto_buy returns True ONLY on confirmed signal
+    requires --> settle delay before confirmation read
 
-CAPTCHA Solving
-  requires: CredentialStore (TWOCAPTCHA_API_KEY)
-  requires: detect_captcha() plugin hook (already exists)
-  requires: opt-in config flag (captcha_solver.enabled: false)
-  integrates: existing notification dispatcher (optional: "CAPTCHA solved" log entry)
+Bounded retry-on-cart
+    requires --> Order-confirmation detection (to distinguish "click failed" from "click succeeded")
+    requires --> DB purchased flag read before each attempt (idempotency guard)
+    conflicts --> Unlimited retry (anti-feature)
 
-Fingerprint Resilience (JS stealth patch)
-  requires: nodriver Browser already constructed in plugin setup() (already exists)
-  provides: core/stealth.py shared utility
-  no ABC version bump needed
+Checkout profile form-fill
+    requires --> CheckoutProfile in CredentialStore (encrypted; never plaintext)
+    enhances --> Retry-on-cart (profile re-fill on session expiry retry)
 
-Plugin Registry
-  requires: plugin ABC additions (difficulty, requires_proxy, requires_captcha class attrs)
-  requires: CONTRIBUTING.md + PR template update
-  provides: shoppybot plugins list CLI subcommand
+Session/cookie persistence
+    requires --> CredentialStore Fernet key
+    requires --> nodriver CDP workaround (set_cookies direct call)
+    enhances --> Checkout profile form-fill (fewer form-fills needed when session is live)
+    conflicts --> Unencrypted cookie storage (anti-feature)
 
-Price Monitoring
-  requires: ItemConfig.target_price field (config_schema.py)
-  requires: price_history SQLite table (models.py)
-  requires: get_price() on plugin ABC (non-breaking default)
-  requires: notification_type discriminator in fan-out dispatcher
-  enhances: web UI (optional; price chart on item detail page)
+Per-coroutine supervisor
+    requires --> asyncio.CancelledError propagation (must not be caught)
+    enhances --> Browser-crash detection + relaunch (supervisor drives the relaunch loop)
 
-Stability / Polish
-  no new feature dependencies
-  must not break: CredentialStore, plugin ABC, BotService API
+Browser-crash detection
+    requires --> plugin.driver._process or CDP ping
+    requires --> plugin.teardown() + plugin.setup() idempotency
+
+Per-item orchestrator timeout
+    requires --> asyncio.wait_for (stdlib, no new dependency)
+    enhances --> Per-coroutine supervisor (timeout fires before supervisor failure budget)
+
+Monitor-only mode
+    requires --> --monitor-only CLI flag wired into async_main
+    conflicts --> auto_buy per-item flag (orthogonal; monitor-only overrides all)
+
+Health / heartbeat
+    enhances --> Per-coroutine supervisor (heartbeat absence = implicit crash signal)
 ```
 
 ---
 
-## Prioritization Matrix
+## v4.0 Feature Prioritization
 
-| Feature | User Value | Implementation Cost | Dependency Risk | Priority |
-|---------|------------|---------------------|-----------------|----------|
-| JS stealth patch (fingerprint Layer 2) | HIGH — immediate improvement on BestBuy/GameStop | LOW | LOW (no ABC change) | P1 |
-| Proxy rotation (config + rotation logic) | HIGH — unlocks Walmart/Target success | MEDIUM | LOW-MED (config schema addition) | P1 |
-| CAPTCHA solving (reCAPTCHA v2, Amazon WAF) | HIGH — removes manual intervention on GameStop/Amazon | MEDIUM | MED (CredentialStore + async flow) | P1 |
-| Plugin registry (wiki table + difficulty ratings) | HIGH — community ecosystem value | LOW | LOW (docs only + minor ABC attr) | P1 |
-| `shoppybot plugins list` CLI | MEDIUM — nice discoverability | LOW | LOW | P2 |
-| Price monitoring (target_price threshold + history) | HIGH — new use case, highly requested | MEDIUM | MED (schema change + dispatcher update) | P1 |
-| Price history CLI command | LOW-MED | LOW | LOW | P2 |
-| Stability / deferred v2.0 checks | HIGH — closes known gaps | LOW | LOW | P1 (do first, unblocks testing) |
-| Balance check at startup (CAPTCHA solver) | MEDIUM | LOW | LOW | P2 |
-| Percentage drop threshold | LOW-MED | LOW | LOW | P2 |
+| Feature | User Value | Implementation Cost | Priority | Phase Recommendation |
+|---------|------------|---------------------|----------|---------------------|
+| Order-confirmation detection (Amazon + BestBuy) | HIGH | MEDIUM | P1 | Phase 18 (Acquisition Core A) |
+| Monitor-only mode + close test_mode hole | HIGH | LOW | P1 | Phase 18 |
+| Bounded retry-on-cart + double-buy guard | HIGH | MEDIUM | P1 | Phase 19 (Acquisition Core B) |
+| Per-step / per-item checkout time budget | HIGH | LOW | P1 | Phase 19 |
+| Per-coroutine supervisor + backoff restart | HIGH | MEDIUM | P1 | Phase 20 (Always-On Reliability A) |
+| Browser-crash detection + relaunch | HIGH | MEDIUM | P1 | Phase 20 |
+| DB read-path error isolation | MEDIUM | LOW | P2 | Phase 20 |
+| Encrypted session/cookie persistence | HIGH | MEDIUM | P2 | Phase 21 (Always-On Reliability B) |
+| Checkout profile form-fill (BestBuy, Amazon) | MEDIUM | MEDIUM | P2 | Phase 21 |
+| Structured health / heartbeat surface | MEDIUM | LOW | P2 | Phase 21 |
+| SIGTERM/SIGINT teardown bridge | MEDIUM | LOW | P2 | Phase 20 or 21 |
+| Headless pygame import-crash guard | LOW | LOW | P3 | Phase 20 (opportunistic) |
+
+**Priority key:**
+- P1: Required for v4.0 milestone goal ("verified orders + unattended survival")
+- P2: Should ship in v4.0; user-visible reliability improvement
+- P3: Opportunistic; include if low-risk, otherwise defer
 
 ---
 
-## Anti-Feature Summary (Scope Control)
+## ToS and Safety Summary
 
-The following are explicitly out of scope for v3.0 and should be rejected if raised during requirements:
-
-| Anti-Feature | Why Excluded |
-|-------------|--------------|
-| Canvas / WebGL / AudioContext fingerprint spoofing | Requires patched Chromium; arms-race maintenance; personal-use volume does not justify it |
-| Behavioral mouse simulation | VERY HIGH effort; unproven benefit at personal-use poll frequency |
-| TLS/JA3 fingerprint evasion | Custom TLS stack required; entirely out of scope |
-| Per-platform proxy pool override | Over-engineering; single global pool serves all platforms |
-| Proxy pool auto-replenishment from provider API | External paid dependency maintenance |
-| HUMAN/PerimeterX/Akamai CAPTCHA solving | These are behavioral managers, not token-based CAPTCHAs; no solve service addresses them |
-| Cloudflare Turnstile solving | Higher cost, lower success rate; Turnstile not on current target platform set |
-| Self-hosted CAPTCHA solver | Operational overhead exceeds value |
-| Plugin marketplace / ratings system | GitHub wiki table is sufficient for this community size |
-| Auto-generated plugin health testing against live retail | Legal/TOS risk; impractical in CI |
-| Price prediction / trend modeling | No training data; different problem domain |
-| Camelcamelcamel / third-party price API integration | External dependency; Amazon-only; breaks tool simplicity |
-| Separate price-monitoring polling schedule | Over-complicates orchestrator; share the stock poll cycle |
-| End-to-end retail checkout tests in CI | Legal/TOS risk; impractical |
+| Feature | ToS Risk | Required Treatment |
+|---------|----------|--------------------|
+| Checkout profile form-fill (shipping/billing) | Moderate: automated form-fill on retail sites violates most ToS | **Opt-in** via `platforms.<name>.checkout_profile: enabled: true`; document risk clearly |
+| Session/cookie persistence | Moderate: persists auth tokens; also violates most retailer ToS for automation | **Opt-in** via `platforms.<name>.session_persistence: true`; encrypted at rest; document risk |
+| Bounded retry-on-cart | Low: retry is common in legitimate clients | Safe by default; bounded to prevent abuse |
+| Monitor-only mode | None: no purchasing | Safe; explicitly reduces ToS risk |
+| Order-confirmation detection | None: improves accuracy | Safe; prevents false "purchased" flags |
+| All others (supervisor, crash relaunch, heartbeat, timeouts) | None: internal reliability | Safe by default |
 
 ---
 
 ## Sources
 
-- [2captcha Python package README](https://github.com/2captcha/2captcha-python) — async solve flow, supported CAPTCHA types, timeout/polling config
-- [2captcha Pricing](https://2captcha.com/pricing) — per-type cost per 1000 solves
-- [ScrapingBee Rotating Proxies Guide](https://www.scrapingbee.com/blog/rotating-proxies/) — per-request vs sticky session guidance, residential vs datacenter for e-commerce
-- [Scrapfly Price Tracker Guide](https://scrapfly.io/blog/posts/how-to-build-a-price-tracker-in-python) — SQLite schema (products + prices), percentage threshold logic, append-only pattern
-- [Rebrowser Undetected Chromedriver Guide](https://rebrowser.net/blog/undetected-chromedriver-the-ultimate-guide-to-bypassing-bot-detection) — fingerprint signals patched, maintenance status, nodriver as successor
-- [DEV.to Proxy Rotation 2026 Guide](https://dev.to/agenthustler/proxy-rotation-for-web-scraping-in-2026-the-complete-guide-with-code-23d) — ban detection patterns, cooldown strategy
-- [DEV.to CAPTCHA Bypass Techniques](https://dev.to/markus009/python-web-scraping-practical-ways-to-bypass-anti-bot-protection-proxy-rotation-captcha-services-4lm) — CAPTCHA service integration patterns
-- [Dolphin Anty CAPTCHA Service Comparison](https://dolphin-anty.com/blog/en/comparison-of-captcha-solving-services/) — service comparison, cost structure
-- Existing codebase: `core/plugin_base.py`, `core/config_schema.py` — current plugin ABC and config schema shapes that v3.0 must extend without breaking
+- nodriver cookie bug issues: github.com/ultrafunkamsterdam/undetected-chromedriver issues #1816, #2020, #2232
+- BestBuy bot checkout selectors: github.com/TreborNamor/Agressive-Store-Bots/blob/main/bestbuy.py (`.button--place-order`, `#credit-card-cvv`)
+- Order confirmation DOM pattern (ScrapingBee article): blog.adnansiddiqi.me — `.thank-you-order-number` CSS selector confirmed as order confirmation signal
+- BestBuy confirmation behavior: help.refractbot.com/modules/bestbuy-us — "site does not surface failures; only returns invited/requested"
+- Asyncio supervisor + failure budget pattern: medium.com/@skyler.lewis asyncio-patterns-part-2-managing-failures
+- Retry idempotency for POST: scrapeops.io/python-web-scraping-playbook/python-requests-retry-failed-requests — "POST is not idempotent; retry only on connection errors"
+- BOTS Act / ToS consequences: ftc.gov/business-guidance/blog/2025/04/bots-act-compliance-time-refresher
+- nodriver browser crash issue: github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2130
 
 ---
 
-*Feature research for: ShopPyBot v3.0 Resilience + Ecosystem*
-*Researched: 2026-06-06*
+*Feature research for: v4.0 Win-the-Drop — Acquisition Core + Reliability*
+*Researched: 2026-06-10*

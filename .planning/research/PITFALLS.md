@@ -1,797 +1,685 @@
-# Domain Pitfalls: ShopPyBot v3.0 Resilience + Ecosystem
+# Domain Pitfalls: ShopPyBot v4.0 Win-the-Drop (Checkout Automation + Reliability)
 
-**Domain:** Async nodriver/asyncio checkout bot adding proxy rotation, CAPTCHA solving,
-fingerprint resilience, price monitoring, and a plugin ecosystem registry to an existing
-modular core with CredentialStore.
-**Researched:** 2026-06-06
-**Supersedes:** v1 PITFALLS.md (v1/v2 pitfalls are resolved; this document covers v3.0
-feature additions only)
-**Overall Confidence:** HIGH for proxy/nodriver quirks, fingerprint, and security pitfalls
-(verified against official GitHub issues and community post-mortems). MEDIUM for legal risk
-(based on published legal analyses; jurisdiction-dependent).
-
----
-
-## 1. Proxy Rotation Pitfalls
-
-### 1.1 Authenticated Proxy Support Is Broken in Nodriver (Critical)
-
-**What goes wrong:** Nodriver cannot pass `username:password` credentials via the standard
-`--proxy-server=host:port` Chrome argument. Chrome ignores credentials in that arg. The
-only working paths are (a) a Chrome extension that intercepts auth via
-`Fetch.continueWithAuth` over CDP, or (b) IP-allowlisted proxies that require no
-credentials at all. Developers copy a proxy URL from their provider dashboard, add it to
-config, the bot silently connects direct, and the real IP appears in the retailer's logs
-on every request.
-
-**Warning Sign:** Proxy provider dashboard shows zero inbound traffic while the bot is
-running; or the target site's fingerprint response logs the ISP IP, not the proxy exit IP.
-
-**Prevention:** Build and gate-test authenticated proxy support via CDP
-`Fetch.continueWithAuth` before accepting proxy config from users. Alternatively, document
-that only IP-allowlisted proxies are supported in v3.0 and defer auth proxy support to a
-later phase with an explicit GitHub issue. Never silently fall back to direct connection:
-if proxy config is present but connection fails auth, raise a clear startup error.
-
-**Phase:** Anti-Detection Hardening (proxy rotation)
-
-**Sources:** GitHub Discussion #1798 and Issue #1903, ultrafunkamsterdam/undetected-chromedriver;
-TufayelLUS/Python-nodriver-use-all-type-proxy (extension workaround reference)
+**Domain:** Async nodriver/asyncio checkout bot adding verified-checkout, idempotent retry,
+encrypted session persistence, per-coroutine supervision, and unified backoff to an existing
+modular core (BotService + CredentialStore + plugin ABC).
+**Researched:** 2026-06-10
+**Supersedes:** v3.0 PITFALLS.md for v4.0 scope only; v3.0 pitfalls (proxy, CAPTCHA,
+fingerprint, price monitoring) remain in force and are not repeated here.
+**Overall Confidence:** HIGH for acquisition correctness, PCI handling, and asyncio
+interaction patterns (directly traceable to existing code). MEDIUM for nodriver browser
+relaunch specifics (nodriver public API surface is small; patterns inferred from CDPlib
+behavior and Phase 13 ship experience).
 
 ---
 
-### 1.2 WebRTC Leaks Real IP Through a Proxied Browser Session (Critical)
+## Critical Pitfalls
 
-**What goes wrong:** Chrome's WebRTC stack uses STUN to discover local and public IP
-addresses, bypassing the proxy tunnel entirely. Retailer fingerprinting layers cross-check
-the HTTP-visible proxy IP against the WebRTC-visible IP. If they differ, the session is
-flagged. Disabling WebRTC via Chrome preferences is not the nodriver default and must be
-set explicitly at browser launch.
+### Pitfall 1: Double-Buy via Non-Idempotent Checkout Retry
 
-**Warning Sign:** An IP-check test page loaded through the proxied browser returns the
-real ISP IP; or bot sessions are flagged immediately despite all HTTP traffic routing
-through the proxy.
+**What goes wrong:**
+`auto_buy` returns `False` on any exception in its outer `try/except`. If the exception
+fires after `place_order.click()` but before `return True`, the orchestrator (seeing
+`False`) treats the attempt as failed. On the next poll cycle `purchased` is still `False`
+in the DB, so `_check_and_buy` re-enters `auto_buy` and submits a second order. For
+limited-release items at $400-$700+ this is a serious financial error, not a UI glitch.
 
-**Prevention:** At browser launch in `plugin.setup()`, inject Chrome preferences:
-`webrtc.ip_handling_policy = disable_non_proxied_udp`,
-`webrtc.multiple_routes_enabled = false`, `webrtc.nonproxied_udp_enabled = false`.
-Write an integration test that confirms the STUN-visible IP is absent or matches the
-proxy exit node when the browser is launched with proxy config active.
+**Why it happens:**
+The current `auto_buy` contract is `bool` with no idempotency guard. The site may have
+already charged and shipped order 1 by the time order 2 is attempted. The write-queue
+drain path (`_dispatch_write`) is the only place `update_item_purchased_sync` is called,
+and it only fires when `auto_buy` returns `True`.
 
-**Phase:** Anti-Detection Hardening (proxy rotation)
+**How to avoid:**
+1. After `place_order.click()`, wait for and check the order confirmation page BEFORE
+   returning `True`. Return `True` only when a confirmed order number or "Thank you" page
+   element is detected (see Pitfall 2).
+2. Introduce an `in_progress` state column in the `items` table (or a transient in-memory
+   set on the plugin instance). Set it before `place_order.click()`; clear it on confirmed
+   success or explicit failure. The next poll cycle skips items in `in_progress` state even
+   if `purchased` is still `False`.
+3. Gate the retry-on-cart logic (Pitfall 5) on whether the confirmation page was already
+   seen this session — never retry a click that already advanced past cart.
+4. In the checkout time-budget cancellation path (Pitfall 5), set `in_progress=False` AND
+   query the order history API or confirmation page BEFORE concluding the order failed.
 
-**Sources:** undetected-chromedriver Issues #228 and #309 (WebRTC leak reports with
-mitigation code)
+**Warning signs:**
+- `"Order placed"` log line appears twice for the same URL in the same run.
+- Two confirmation emails arrive for the same item.
+- `purchased` DB flag is `False` after an `"Order placed"` log (write queue fell behind or
+  the drain task was cancelled mid-flight).
 
----
-
-### 1.3 DNS Leaks Even When WebRTC Is Disabled (Moderate)
-
-**What goes wrong:** If the system DNS resolver is queried directly instead of routing
-through the proxy tunnel, DNS requests for retailer domains reveal which sites the bot is
-hitting to the ISP. HTTP proxies cannot tunnel DNS; only SOCKS5 can. Nodriver spawns
-Chrome with the OS DNS resolver by default.
-
-**Warning Sign:** A DNS-leak test page shows the real ISP nameserver, not the proxy's
-nameserver.
-
-**Prevention:** Use SOCKS5 proxies for production proxy rotation, not HTTP proxies. When
-using SOCKS5, verify Chrome's `--host-resolver-rules` or remote-DNS option is set. Document
-this requirement in the proxy rotation config comment block so users understand that HTTP
-proxies are insufficient for anonymity.
-
-**Phase:** Anti-Detection Hardening (proxy rotation)
+**Phase to address:** Acquisition Core — verified-checkout + bounded retry phase.
 
 ---
 
-### 1.4 Dead Proxy Detected Only After Mid-Checkout Failure (Moderate)
+### Pitfall 2: False-Positive Order Confirmation Detection
 
-**What goes wrong:** The proxy pool selects a proxy that has gone offline. The browser
-hangs mid-checkout, after the cart add but before the order placement. Without pre-flight
-health checking, a dead proxy can abort an auto-buy sequence in a state where the item is
-in the cart but no purchase confirmation is received. The write-queue pair
-`set_available` / `purchased` in orchestrator.py requires `auto_buy()` to return `True`
-before writing `purchased=1`; a hard connection error before that return leaves the item
-marked available but not purchased, and the next poll cycle attempts the buy again.
+**What goes wrong:**
+`auto_buy` in `shopbot_plugin_bestbuy.py` (line 310) logs `"Order placed on BestBuy"` and
+returns `True` immediately after `place_order.click()` with no page-state verification.
+The button may have been clicked on a stale/expired session page that re-rendered as an
+error; the bot marks the item purchased, the notification fires, and the human discovers
+no order exists.
 
-**Warning Sign:** Intermittent `TimeoutError` or `ConnectionResetError` mid-checkout with
-no "Marked purchased" log entry; duplicate auto-buy attempts for the same item.
+Conversely, the Amazon plugin (lines 412-416) checks `test_mode` but skips confirmation
+scraping in live mode: it clicks `#submitOrderButtonId` and returns `True` without reading
+the resulting page. If Amazon's checkout redirects to a re-auth step, CVV challenge, or
+out-of-stock page instead of a thank-you page, `True` is returned for a non-order.
 
-**Prevention:** Add an async health-check coroutine that does a lightweight HTTP HEAD to a
-reliable non-retailer URL through each proxy before injecting it into a browser session.
-Skip dead proxies without attempting checkout. Confirm that the write-queue behavior
-correctly handles aborted checkouts: `purchased=1` must only be written when `auto_buy()`
-returns `True`, not on exception paths.
+**Why it happens:**
+Click-and-assume is the pattern inherited from the v1 Selenium bot. It worked when a human
+was watching. In unattended drop mode it is silently wrong.
 
-**Phase:** Anti-Detection Hardening (proxy rotation); touches orchestrator.py write-queue
-integration
+**How to avoid:**
+1. After `place_order.click()`, `await tab.get(...)` is not needed: nodriver stays on the
+   current tab after a click. Instead, use `tab.find()` or `tab.select()` to detect the
+   confirmation element within a bounded timeout (e.g., 30s).
+2. For BestBuy: detect `".thank-you-enhancement__order-number"` or an element matching
+   `/order[- ]*\d{7,}/i` (regex on `tab.text`).
+3. For Amazon: detect `"#widget-purchaseConfirmationStatus"` or `"#orderConfirmations"`.
+4. Treat any timeout or absence of the confirmation element as a definitive `False` return;
+   log the page title and body excerpt (first 200 chars, never logging credential fields)
+   for post-mortem.
+5. Add a `_confirm_order` helper that is separately unit-testable with mock tab responses.
 
----
+**Warning signs:**
+- Notification fires but no order in retailer account order history.
+- `purchased=True` in DB but email inbox has no confirmation from the retailer.
+- `tab.text` after the click contains "sign in", "session expired", or "out of stock".
 
-### 1.5 Datacenter Proxy Subnet Bans Poison the Entire Pool (Moderate)
-
-**What goes wrong:** Amazon, Walmart, and BestBuy maintain ASN and subnet blocklists.
-A /24 block (256 IPs) can be banned together when one proxy from that block is reported as
-abusive. Buying 100 datacenter proxies from one provider often means they share overlapping
-/24 subnets; one abuse report bans 50-200 proxies simultaneously. Users with cheap
-datacenter proxy pools find 100% of proxies blocked on first use against Amazon or Walmart.
-
-**Warning Sign:** All proxies in the pool return immediate CAPTCHA challenges or 503
-responses from the first request; no proxy shows a clean session on the target retailer.
-
-**Prevention:** In the plugin registry difficulty ratings, document that datacenter proxies
-are classified as HIGH detection risk for Amazon, Walmart, and BestBuy. Recommend
-residential or mobile proxies for these platforms. The proxy rotation config schema should
-accept a `proxy_type` field (datacenter / residential / mobile) and log a WARNING at
-startup when datacenter proxies are configured for a platform with a known high-detection
-rating.
-
-**Phase:** Plugin Ecosystem (difficulty ratings) and Anti-Detection Hardening (config schema)
+**Phase to address:** Acquisition Core — order-confirmation capture phase.
 
 ---
 
-### 1.6 Proxy State Scoped at Module Level Instead of Per Plugin Instance (Moderate)
+### Pitfall 3: Fragile Site-Specific Selectors That Silently Break
 
-**What goes wrong:** A module-level "current proxy" singleton shared across all plugin
-instances would assign the same proxy IP to all platform workers simultaneously. Amazon
-and BestBuy would be accessed from the same IP, creating cross-retailer tracking correlation
-and defeating per-platform isolation. Additionally, one plugin rotating away from a proxy
-mid-session while another is using it would break the active session.
+**What goes wrong:**
+CSS selectors like `".a-dropdown-prompt"` in `shopbot_plugin_bestbuy.py` (line 272) are
+copy-pasted from the legacy Selenium bot and carry a comment noting they look like Amazon
+selectors. When BestBuy updates their DOM, `tab.select()` returns `None`, the `if
+qty_dropdown:` guard is silently skipped, and the bot proceeds to checkout with the wrong
+quantity (or crashes at a later step). There is no observable difference in logs between
+"selector found, quantity set correctly" and "selector not found, skipping".
 
-**Warning Sign:** Log shows the same proxy IP used by all plugins in a single poll cycle;
-retailer detection rate does not decrease after enabling proxy rotation.
+The broader risk: all 7 plugins use their own selector sets with no shared testing
+harness. A single BestBuy redesign silently breaks the BestBuy plugin without alerting
+the Amazon or Target plugin operators.
 
-**Prevention:** Proxy selection must be per plugin instance, stored as `self._proxy` on
-the plugin, assigned in `setup()` and reused for the lifetime of that browser session. The
-proxy rotator must provide a per-call `get_next_proxy(platform_key)` function that draws
-from a pool — never a module-level current-proxy variable. Rotate proxy only at browser
-restart (teardown + setup), not mid-session.
+**How to avoid:**
+1. For each required selector (add-to-cart, CVV input, place-order, confirmation element),
+   log a WARNING when `select()` returns `None` rather than silently continuing. The warning
+   should include the selector string: `f"Selector {selector!r} not found on {url}"`.
+2. Gate place-order on CVV entry success: if `cvv_field` is `None` and `self._cvv` is set,
+   return `False` with a logged WARNING rather than proceeding without CVV.
+3. Treat `place_order = None` as an unrecoverable checkout failure; return `False`
+   immediately (current code already does this but the log says only "Place order button
+   not found" without the selector name -- add it).
+4. Define a `SELECTORS` dict at module top level so the roadmapper can see all selectors in
+   one place and the test fixture can patch them. Avoids selector strings scattered through
+   multi-hundred-line `auto_buy` methods.
+5. In tests, add a "stale selector" test case: mock tab that returns `None` for all
+   selectors and assert `auto_buy` returns `False` with a WARNING in the log.
 
-**Phase:** Anti-Detection Hardening (proxy rotation)
+**Warning signs:**
+- `auto_buy` completes without hitting the CVV step (no `"send_keys"` log on CVV field).
+- "Checkout button not found" or "Place order button not found" in logs for items that are
+  genuinely available and in cart.
+- A DOM audit diff (periodically `GET` the page outside of bot context and diff selector
+  presence) shows selectors have disappeared.
 
----
-
-## 2. CAPTCHA-Solving Integration Pitfalls
-
-### 2.1 No Spend Cap Causes Unbounded API Charges (Critical)
-
-**What goes wrong:** CAPTCHA-service pricing is per-solve (typically $0.001 to $3.00
-depending on CAPTCHA type; image CAPTCHAs are cheap, Cloudflare Turnstile is expensive).
-During a high-demand drop event, retailers may serve CAPTCHAs on every page load. Without
-a per-run or per-day cap, a weekend bot session can generate thousands of solve requests
-and a significant unexpected bill before the user notices. There is no built-in spend limit
-in the 2captcha or anticaptcha Python SDKs.
-
-**Warning Sign:** CAPTCHA service account balance drops by more than a few dollars per day
-without a corresponding increase in confirmed purchases; bot log shows repeated CAPTCHA
-detection cycles for the same item.
-
-**Prevention:** Add `captcha.max_solves_per_run` (integer) and `captcha.max_cost_usd_per_day`
-(float, optional) to the Pydantic config schema. Track solve count in memory per run. On
-exceeding the limit, log a CRITICAL message and disable CAPTCHA solving for that session,
-falling back to the existing manual pause pattern (asyncio.Event + stdin listener).
-Document the default limit in `sample.config.yml` with a comment explaining the cost risk.
-
-**Phase:** Anti-Detection Hardening (CAPTCHA integration)
+**Phase to address:** Acquisition Core — checkout form-fill phase; add a "selector
+health-check" step to the checkout plan.
 
 ---
 
-### 2.2 CAPTCHA API Key Stored as Plaintext in config.yml (Critical — Security)
+### Pitfall 4: Payment Data Handling / PCI Scope
 
-**What goes wrong:** Every CAPTCHA service tutorial and README example shows the API key
-as a string in code or config. A contributor who follows these tutorials puts the key in
-`config.yml` under something like `captcha.api_key`. The existing config schema uses
-`extra="ignore"`, so a plain string under an undeclared key is silently dropped and the
-user does not even realize the key is not being read. Or worse, the user adds a declared
-key, the key is read, and then they accidentally commit config.yml because it now contains
-"just config, not credentials."
+**What goes wrong:**
+Three failure modes exist for the CVV-at-runtime pattern:
 
-**Warning Sign:** `grep -r "2captcha\|anticaptcha\|capsolver" config.yml` returns a value;
-or git history shows config.yml changes that include an API key string.
+(a) **CVV written to a log**: the existing `auto_buy` in `shopbot_plugin_bestbuy.py`
+    calls `writeLog(f"Error during BestBuy auto-buy: {exc.__class__.__name__}", "ERROR")`
+    which is correctly redacted. But if a future checkout phase adds per-step debug logging
+    like `writeLog(f"Sending keys to CVV field: {self._cvv}", "DEBUG")` the CVV lands in
+    `logs/YYYYMONTHDD.log` in plaintext. Log files are not covered by CredentialStore
+    encryption.
 
-**Prevention:** Add `CAPTCHA_API_KEY` to `SECRET_KEYS` in `core/credentials.py` before
-writing any CAPTCHA integration code. Route all CAPTCHA client construction through
-`get_store().get("CAPTCHA_API_KEY")`. The Pydantic config schema should have a
-`captcha.enabled: bool` field but no `captcha.api_key` field. Add a startup assertion in
-`BotService` that checks the CAPTCHA API key is not present in `config.yml` when
-`captcha.enabled: true`. Update `SECURITY.md` and `CONTRIBUTING.md` to list
-`CAPTCHA_API_KEY` alongside retailer passwords as a never-commit secret.
+(b) **Full card number stored for convenience**: the checkout profile will contain billing
+    address + name. It is tempting to also store the card number and expiration in the
+    same CredentialStore record. Never do this. The BestBuy/Amazon flow uses retailer-saved
+    payment methods (the CVV is the only runtime secret). Storing the full PAN moves the
+    user into PCI DSS scope even for personal use, and creates a high-value target in
+    `creds.bin` or OS keyring.
 
-**Phase:** Anti-Detection Hardening (CAPTCHA integration); CredentialStore integration
-(Phase 8 precedent already established)
+(c) **CVV in a retry loop that logs attempts**: if bounded retry-on-cart (Pitfall 5)
+    passes `self._cvv` through each retry iteration, any exception handler that logs
+    `str(exc)` risks capturing the CVV if it appears in a stack frame. Use
+    `exc.__class__.__name__` only (existing policy per STATE.md Research Flags / PITFALLS 6.4).
 
----
+**How to avoid:**
+1. CVV remains `getpass`-only at startup; `self._cvv` is the only in-memory location.
+   Never add `CVV` to `SECRET_KEYS` or store it in `CredentialStore`.
+2. Never log `self._cvv`, never log `str(exc)` on checkout paths (use
+   `exc.__class__.__name__` per existing policy).
+3. Billing/shipping checkout profile fields are NOT payment card data. Store them in
+   CredentialStore under keys like `BB_SHIPPING_NAME`, `BB_SHIPPING_ADDRESS`, etc. They are
+   not PCI-sensitive and do not require the same treatment as CVV.
+4. Do not store card number, expiration, or full card holder data in CredentialStore.
+   The flow must rely on retailer-saved payment method + CVV-at-runtime only.
+5. Add a CI grep assertion (similar to existing SC1 `os.environ` guard) that rejects any
+   `writeLog` call with `_cvv` in the arguments on checkout code paths.
 
-### 2.3 Blocking SDK Solve Call Stalls the asyncio Event Loop (Moderate)
+**Warning signs:**
+- `logs/` files contain strings matching `/\d{3,4}/` adjacent to "cvv" or "card".
+- `CredentialStore` key list contains `CVV`, `CARD_NUMBER`, or `PAN`.
+- Debug log verbosity increased to level 5 during testing and a CVV value appears in
+  the log file.
 
-**What goes wrong:** The 2captcha-python and python-anticaptcha SDKs use blocking HTTP
-polling internally. Calling the sync solve method directly inside an async coroutine blocks
-the event loop for the entire solve duration (typically 15-120 seconds for complex
-CAPTCHAs). In the existing `asyncio.TaskGroup` structure in `orchestrator.py`, this blocks
-all plugin poll tasks for the duration. BestBuy, Walmart, and other platform workers stop
-polling entirely while Amazon's CAPTCHA is being solved.
-
-**Warning Sign:** All plugin poll tasks stop producing log output simultaneously when one
-plugin enters CAPTCHA solving; log resumes for all plugins only after the solve completes
-or times out.
-
-**Prevention:** Wrap all blocking CAPTCHA SDK calls with
-`await asyncio.get_running_loop().run_in_executor(None, solve_fn)`. Enforce a hard
-`asyncio.timeout(120)` context manager (available in Python 3.11+, already the project's
-minimum) around the executor call. Verify with a unit test that other plugin tasks
-continue to fire while a mock executor-based CAPTCHA solve is pending.
-
-**Phase:** Anti-Detection Hardening (CAPTCHA integration)
-
----
-
-### 2.4 CAPTCHA Solved but Session Still Gets Blocked (Moderate)
-
-**What goes wrong:** Modern retailer bot-detection systems (Akamai Bot Manager,
-PerimeterX/HUMAN Security, DataDome) analyze 200+ behavioral signals per session. Passing
-the CAPTCHA token clears one signal but does not clear a session fingerprinted as
-headless, lacking normal mouse movement, or having mismatched TLS behavior. After a
-successful CAPTCHA solve, the next page request is still challenged or returns incorrect
-inventory silently (e.g., always shows out-of-stock for a bot session).
-
-**Warning Sign:** The CAPTCHA service returns a token and marks the solve successful, but
-the subsequent page load still shows a CAPTCHA page or permanently "unavailable" for
-all items; purchase conversion rate remains near 0 despite successful solves.
-
-**Prevention:** Treat CAPTCHA solving as one layer in a multi-layer anti-detection stack,
-not a standalone fix. Document in `PLUGIN_DEV.md` and in the plugin registry difficulty
-ratings that CAPTCHA solving alone will not bypass retailers using behavioral session
-analysis. When a solve token is submitted but the next request still fails, log the
-failure distinctly from a solve failure so the cause is diagnosable.
-
-**Phase:** Anti-Detection Hardening (documentation); Plugin Ecosystem (difficulty ratings)
+**Phase to address:** Acquisition Core — checkout profile + form-fill phase; add SC grep
+check to that phase's test plan.
 
 ---
 
-### 2.5 No Timeout on the CAPTCHA Poll Loop Causes Hung Plugin Tasks (Moderate)
+### Pitfall 5: Time-Budget Cancellation Leaving a Half-Submitted Order
 
-**What goes wrong:** If the CAPTCHA service is degraded or no human solver picks up the
-task, the poll loop waits indefinitely. In the asyncio.TaskGroup model, a hung task does
-not block other tasks, but it consumes a thread in the executor pool and prevents the
-plugin from resuming normal polling. Under the existing `run_in_executor` pattern, thread
-pool exhaustion is a risk if multiple plugin instances each have a hung CAPTCHA solve
-simultaneously.
+**What goes wrong:**
+`asyncio.timeout()` or `asyncio.wait_for()` wrapping the entire `auto_buy` coroutine will
+raise `asyncio.TimeoutError` (or `asyncio.CancelledError` when a `TaskGroup` task is
+cancelled) at any `await` point inside the method -- including inside nodriver's own
+`tab.send()` calls. If the coroutine is cancelled after `place_order.click()` but before
+the confirmation check completes, the browser tab is left on the checkout page in a
+partially submitted state. The Chrome subprocess continues running; the next call to
+`self.driver.main_tab` may be operating on a stale post-click page state.
 
-**Warning Sign:** `run_plugin` task for one platform stops producing log output; thread
-count in the process climbs over time; other platforms continue normally.
+The converse risk: if the timeout fires BEFORE `place_order.click()`, the cart may hold the
+reserved item, blocking other purchasers and triggering a cart-expiry at the retailer that
+makes the item temporarily unavailable to the bot on the next poll.
 
-**Prevention:** Wrap the executor call in `asyncio.timeout(120)`. On timeout, log a WARNING
-and resume normal polling without marking the CAPTCHA as solved. Expose the timeout as a
-config field (`captcha.solve_timeout_seconds`, default 120). Document that increasing this
-value has a proportional impact on executor thread consumption.
+**Why it happens:**
+Per-item orchestrator timeouts (a v4.0 requirement) are straightforward for
+`check_availability` (stateless per-poll). Applying the same pattern to `auto_buy` (which
+is stateful and has side effects at the retailer) requires explicit checkpointing.
 
-**Phase:** Anti-Detection Hardening (CAPTCHA integration)
+**How to avoid:**
+1. Do not wrap the entire `auto_buy` call in a single `asyncio.timeout`. Instead, apply
+   timeout budgets per-step: navigate (10s), add-to-cart (15s), checkout-proceed (15s),
+   CVV entry (10s), place-order click (10s), confirmation wait (30s). Use
+   `asyncio.timeout(N)` as a context manager around each `await` separately.
+2. Track checkout progress via a local state variable inside `auto_buy`:
+   `stage = "cart" | "cvv" | "placed" | "confirmed"`. On `CancelledError`, catch it
+   in a finally block, log the stage, then re-raise. The orchestrator logs the stage to
+   assist post-mortem.
+3. After catching `CancelledError` at stage `"placed"` or later, set `in_progress=True`
+   in the DB rather than leaving `purchased=False` so the next poll cycle does not
+   immediately re-submit.
+4. For browser orphan prevention: `teardown()` already calls `self.driver.stop()` in the
+   `finally` of `async_main`. Per-item timeout should NOT call `teardown()`; only the
+   top-level shutdown path should. A per-item timeout should cancel the task and let
+   `async_main`'s `finally` handle browser cleanup.
 
----
+**Warning signs:**
+- Browser process consumes CPU after a timeout event (still rendering checkout page).
+- Two orders in retailer account from the same drop session.
+- `purchased=False` in DB after the "Order placed" log appeared (drain task cancelled
+  while the write was in flight).
 
-## 3. Fingerprint Resilience Pitfalls
-
-### 3.1 Aggressive Fingerprint Spoofing Hurts More Than It Helps (Critical)
-
-**What goes wrong:** Adding canvas noise overrides, AudioContext spoofing, font
-enumeration blocking, and custom TLS fingerprints introduces internal signal inconsistencies.
-Nodriver already applies a baseline CDP patch to hide `navigator.webdriver` (SEC-04,
-already shipped). Layering additional overrides creates mismatches: canvas claims one GPU
-renderer, WebGL reports a different one, audio fingerprint is inconsistent with the
-claimed hardware profile. Modern ML-based detection engines (Cloudflare, PerimeterX)
-specifically look for this cross-signal inconsistency pattern. Additionally, fingerprints
-that change on every run are a bot signature: a real user's hardware does not change
-between requests.
-
-**Warning Sign:** Detection rate increases after adding fingerprint overrides; the bot gets
-fewer successful checks post-spoofing than it did with vanilla nodriver.
-
-**Prevention:** Extend nodriver's own approach: apply overrides only for surfaces with
-confirmed detection evidence and maintain deterministic (per-session-instance, not
-per-request) values. Seed a random profile offset once in `plugin.setup()` and reuse it
-for the life of that browser instance. Do not override AudioContext, font enumeration, or
-TLS unless a controlled A/B test on a specific retailer shows measurable improvement.
-Test any fingerprint change against a fingerprinting test site (e.g., bot.sannysoft.com,
-CreepJS) in headful mode before deploying.
-
-**Phase:** Anti-Detection Hardening (fingerprint resilience)
-
-**Sources:** NoDriver Issue #2153 (static fingerprints on every run); zendriver Issue #108
-(canvas + font fingerprints unchanged); castle.io evolution of anti-detect frameworks
+**Phase to address:** Acquisition Core — per-item/per-step checkout time budget phase.
 
 ---
 
-### 3.2 Firefox / Safari UAs in the Rotation Pool Produce Detectable Inconsistency (Moderate)
+### Pitfall 6: Monitor-Only Gate That Fails to Block Place-Order in All 7 Plugins
 
-**What goes wrong:** The existing UA rotation pool in `config_schema.py` (`DEFAULT_USER_AGENTS`)
-includes a Firefox UA entry. The bot uses nodriver, which is Chrome-based. A Firefox UA
-string combined with Chrome's WebGL renderer, V8 JavaScript engine, and Chrome-only APIs
-(`chrome.runtime`, etc.) is trivially detectable as spoofed. Platforms using behavioral
-detection ban sessions with UA-vs-API inconsistency immediately.
+**What goes wrong:**
+The Amazon plugin implements `test_mode` correctly (lines 391-428): it pauses before and
+after the buy-now click, and explicitly skips `place_order.click()`. The BestBuy plugin
+has NO `test_mode` guard at all -- `place_order.click()` fires unconditionally when the
+button is found (lines 303-309). The 5 other plugins (Walmart, Target, GameStop,
+SquareEnix, Newegg) were built before checkout was real and have no place-order path yet,
+but they will need the gate when checkout is added in v4.0.
 
-**Warning Sign:** Detection rate is higher when Firefox UAs appear in the rotation than
-when only Chrome UAs are used; sessions with Firefox UA strings are consistently blocked
-before any page content is checked.
+A central `monitor_only` mode (v4.0 requirement) that is not threaded through the plugin
+ABC and tested per-plugin will have the same gap. If even one plugin bypasses the gate,
+the monitor-only mode cannot be trusted for demo or test environments.
 
-**Prevention:** Restrict `DEFAULT_USER_AGENTS` to Chrome-only UA strings matching the
-installed Chrome major version. Add a startup warning (not an error, to avoid breaking
-existing user configs) if a non-Chrome UA is present in the configured `user_agents` list
-for a nodriver-backed platform. Document the Chrome-only requirement in `PLUGIN_DEV.md`.
+**Why it happens:**
+`test_mode` is read from `self.config.debug.test_mode` inside the plugin, which requires
+the plugin to actively check it. There is no architectural enforcement from the base class.
 
-**Phase:** Anti-Detection Hardening (fingerprint resilience); also a config schema
-validation update
+**How to avoid:**
+1. Add `monitor_only: bool` to `AppConfig.debug` (or as a top-level field). Read it once
+   in `orchestrator.async_main` and pass it to `run_plugin` as a flag.
+2. In `run_plugin`, gate the `await _try_auto_buy(...)` call with `if not monitor_only`.
+   This prevents `auto_buy` from being called at all when monitor-only mode is active,
+   regardless of plugin implementation. This is the single enforcement point.
+3. Separately, fix the BestBuy `test_mode` gap: add the same `if not test_mode: ...
+   place_order.click()` pattern from Amazon to BestBuy. Test it with the existing
+   `test_pause_event` pattern.
+4. For new checkout implementations in other plugins, the ABC should document that
+   `auto_buy` MUST respect `self.config.debug.test_mode`; but the orchestrator-level gate
+   in step 2 is the authoritative guard.
+5. Add a CI test: mock all 7 plugins, set `monitor_only=True`, assert `auto_buy` is never
+   called (by asserting zero calls to `write_queue.put` with tag `"purchased"`).
 
----
+**Warning signs:**
+- BestBuy `auto_buy` places a real order during a "monitor-only" session.
+- Any plugin's `auto_buy` is called when `monitor_only=True` is set in config.
+- The `_try_auto_buy` orchestrator function shows up in call traces during monitor-only
+  runs (add a log line to `_try_auto_buy` that is easy to grep).
 
-### 3.3 Custom CDP Overrides May Undo Nodriver's Own Patches (Moderate)
-
-**What goes wrong:** Nodriver applies its own runtime CDP overrides during session
-initialization. Adding additional `page.evaluate()` or `Runtime.callFunctionOn` overrides
-after `setup()` completes may partially conflict with nodriver's patches depending on
-script injection order. The result is a partially-patched browser that passes neither
-automated stealth checks nor natural-browser fingerprint analysis.
-
-**Warning Sign:** CreepJS score worsens (detects more anomalies) after adding custom
-fingerprint overrides compared to vanilla nodriver in a controlled test.
-
-**Prevention:** Apply custom fingerprint overrides only via the nodriver `setup()` hook
-before the first page navigation, not after. Treat nodriver's existing patches as the floor.
-Add a standard integration test run (headful, against bot.sannysoft.com) for any new
-fingerprint override before merging.
-
-**Phase:** Anti-Detection Hardening (fingerprint resilience)
-
----
-
-## 4. Price Monitoring Pitfalls
-
-### 4.1 Price Selectors Break on the Next Retailer Frontend Deploy (Critical)
-
-**What goes wrong:** A CSS or XPath selector targeting the price element stops working
-after the retailer's next A/B test or frontend deployment (typically every 2-6 weeks for
-major retailers). A broken selector either returns `None` (no price recorded) or matches
-a different element (wrong price value written to history). Both cases produce misleading
-data or false price-drop alerts without any error surfacing to the user.
-
-**Warning Sign:** Price history shows `None` or `0.00` for all items after a specific
-date; or history shows wildly incorrect values (e.g., $1.00 for a $400 GPU).
-
-**Prevention:** Use a three-layer extraction cascade in order of stability:
-(1) JSON-LD `Product/Offer` structured data (most stable; retailer-maintained for SEO),
-(2) OpenGraph `og:price:amount` meta tag, (3) CSS selector as last resort.
-Store the raw price text string alongside the parsed float in the DB schema (a
-`price_raw_text TEXT` column) to enable debugging without re-scraping. If all three layers
-return None, log a WARNING and skip the price write for that cycle rather than writing
-`None` or `0.00`.
-
-**Phase:** Price Monitoring (new phase)
-
-**Sources:** HasData/ecommerce-price-scraper extraction cascade pattern;
-42signals.com universal price tracker architecture
+**Phase to address:** Acquisition Core — central monitor-only run mode + close test_mode
+place-order hole phase.
 
 ---
 
-### 4.2 Currency and Locale Parsing Produces Silent Wrong Numbers (Critical)
+### Pitfall 7: Per-Coroutine Restart Crash-Loops With No Backoff
 
-**What goes wrong:** A community-contributed plugin for a European retailer returns
-`"1.234,56"` as the price string (German locale: dot as thousands separator, comma as
-decimal). Naive `float("1.234,56")` raises `ValueError`, or the code strips non-numeric
-characters and returns `123456.0` instead of `1234.56`, or `1.234` (truncated). If a
-target price is set to `1200.00`, a false price-drop alert fires immediately on every poll.
+**What goes wrong:**
+The current `run_plugin` coroutine (orchestrator.py line 168) runs inside
+`asyncio.TaskGroup`. If the plugin raises an unhandled exception, `TaskGroup` cancels all
+sibling tasks and the entire bot exits. The v4.0 per-coroutine supervision requirement
+inverts this: individual plugin coroutines should restart independently rather than taking
+down the whole group.
 
-**Warning Sign:** Price-drop alerts fire for items whose price has not changed; price
-history shows values 10x or 100x too large or too small; items from non-US-locale plugins
-consistently show incorrect prices.
+The naive fix -- wrapping `run_plugin` in a `while True: try/except` restart loop -- will
+crash-loop at maximum speed if the plugin has a persistent error (e.g., login fails every
+time because `BB_PASSWORD` was rotated). 100+ browser launches per minute will trigger
+an OS-level Chrome process limit, exhaust disk space with crash dumps, and get the
+bot's IP banned in seconds.
 
-**Prevention:** Normalize all price strings through a single shared utility function before
-parsing. Handle both `1,234.56` (en-US) and `1.234,56` (de-DE) formats. The `babel`
-library provides locale-aware number parsing and is the recommended approach (HIGH
-confidence: official Babel docs). Log the raw price string and parsed float together on
-each extraction so mismatches are visible in the log at DEBUG level. Reject ambiguous
-strings that cannot be parsed with a deterministic locale with a WARNING log, not a
-silent zero.
+**How to avoid:**
+1. Implement exponential backoff with jitter for the per-plugin restart supervisor:
+   `delay = min(base * 2**attempts, max_delay) + random.uniform(0, 1)`.
+   Recommended values: `base=5s`, `max_delay=300s`. Reset `attempts=0` on a successful
+   poll cycle (defined as `check_availability` returning without exception).
+2. Add a `max_restarts` cap per plugin per run (e.g., 10). After hitting the cap, log
+   CRITICAL and stop restarting that plugin without killing siblings.
+3. Distinguish retryable errors (network timeout, nodriver `ConnectionError`) from
+   non-retryable errors (login credential failure, `RuntimeError: proxy pool exhausted`).
+   Non-retryable errors should go straight to the `max_restarts` cap without any delay.
+4. The supervisor should live outside `asyncio.TaskGroup` or use a shielded
+   `asyncio.create_task` per plugin so that one plugin's restart loop cannot propagate
+   `ExceptionGroup` cancellation to sibling plugins.
 
-**Phase:** Price Monitoring (new phase)
+**Warning signs:**
+- Log shows the same plugin "setup failed: ..." message repeating with no delay.
+- Chrome process count in `ps`/Task Manager grows without bound.
+- Bot exits entirely when one plugin fails (current behavior -- not the v4.0 target).
 
----
-
-### 4.3 False Price-Drop Alerts From Temporary Retailer Price Fluctuations (Moderate)
-
-**What goes wrong:** Retailers serve dynamic prices that fluctuate by cents between poll
-cycles (A/B test pricing, membership price variants, rounding differences across regions).
-An edge-trigger alert that fires whenever price crosses the target threshold fires multiple
-times per hour for the same item. Users receiving repeated notifications for the same
-non-actionable price fluctuation disable all notifications to stop the spam.
-
-**Warning Sign:** Discord or email channel receives multiple price-drop alerts per hour for
-the same item; price history shows rapid oscillation of $0.01-$1.00 around the target
-value.
-
-**Prevention:** Apply hysteresis: a price-drop alert fires only when price drops below
-`target_price * (1.0 - hysteresis_ratio)` (default 0.01, i.e., 1%). The alert does not
-re-arm until price rises back above `target_price * (1.0 + hysteresis_ratio)`. This
-mirrors the existing stock dedup pattern (`set_available`/`clear_available` edge-pair in
-orchestrator.py).
-
-**Integration pitfall:** The current `last_seen_available` and `last_notified` columns in
-the items table track stock state for the existing edge-trigger dedup. Price alert state
-must use separate columns (`price_alert_armed INTEGER DEFAULT 0`,
-`price_last_notified TEXT`). Do not reuse `last_notified` for both stock and price alerts:
-a price notification would suppress the next stock-available notification for the same
-item.
-
-**Phase:** Price Monitoring (new phase); coordinate with orchestrator.py write-queue
-(price writes must go through the same queue per ASYNC-05)
+**Phase to address:** Always-On Reliability — per-coroutine supervision + backoff restart.
 
 ---
 
-### 4.4 Price History Schema Added Without DB Migration Guard (Moderate)
+### Pitfall 8: Browser Relaunch That Forgets Stealth, Proxy, and Login
 
-**What goes wrong:** `models.py`'s `initialize_db()` uses idempotent `ALTER TABLE ... ADD COLUMN`
-with existence checks (as seen in the existing `last_seen_available` and `last_notified`
-additions). New price-monitoring columns added without following this pattern cause
-`OperationalError: duplicate column name` on startup for all existing deployments. Users
-then follow troubleshooting docs that say to re-initialize the DB, which calls
-`initialize_db(delete=True)` and wipes all purchase history and availability state.
+**What goes wrong:**
+`_staggered_setup` (orchestrator.py lines 284-308) applies `assign_proxy`, `assign_solver`,
+and `plugin.setup()` (which calls `apply_stealth` and `setup_proxy_auth`) in one pass at
+bot startup. A v4.0 browser-crash detection + relaunch path that calls only
+`plugin.setup()` will relaunch Chrome but will NOT re-apply stealth patches or
+authenticated proxy handlers, and will NOT re-log in. The browser comes up clean, hits
+the target site without stealth or proxy, gets banned immediately, and the crash-detection
+fires again -- producing a ban-loop.
 
-**Warning Sign:** Bot crashes on startup with `OperationalError` after updating to the
-price-monitoring version; or user reports losing their purchase history after following
-troubleshooting steps.
+**Why it happens:**
+`setup()` in both plugins (`shopbot_plugin_bestbuy.py` line 158, `shopbot_plugin_amazon.py`
+line 193) does correctly call `apply_stealth` and `setup_proxy_auth`. The danger is in
+the relaunch caller forgetting to also call `plugin.login()` after `setup()`. Login state
+is not persisted across browser restarts in the current design (no session/cookie
+persistence until Pitfall 9 is addressed).
 
-**Prevention:** Follow the existing idempotent column-addition pattern in `initialize_db`
-for every new price-monitoring column: read `PRAGMA table_info(items)` first, add each
-column only if absent. Add a CI test that runs `initialize_db()` against a pre-existing
-DB fixture (created by the v2.0 schema) and confirms it does not raise and does not lose
-existing rows.
+**How to avoid:**
+1. Define a `_cold_start(plugin, registry)` helper that encapsulates the full relaunch
+   sequence: `registry.assign_proxy(plugin)` + `registry.assign_solver(plugin)` +
+   `await plugin.setup()` + `await plugin.login()`. This is the single path both
+   `_staggered_setup` and the crash-recovery code use.
+2. After session/cookie persistence is implemented (Pitfall 9), the relaunch path should
+   also call `session_store.restore(plugin)` before `plugin.login()` so that a valid
+   session avoids re-triggering the passkey/OTP flow.
+3. Add a `stealth_applied: bool` flag to the plugin base class (or check via CDP
+   `Page.getScriptExecutionStatus`) as a post-relaunch assertion before the first
+   navigation.
+4. Test: mock `nodriver.start` to raise `OSError` on first call (simulating a crash), then
+   succeed on second call. Assert that `apply_stealth` and `setup_proxy_auth` are called
+   on both the first and second startup.
 
-**Phase:** Price Monitoring (new phase); also Stability (CI migration test)
+**Warning signs:**
+- After a relaunch, the bot hits the site and immediately returns a ban-page response
+  (`_handle_ban` returns `True` on the first request).
+- `apply_stealth` log line (`"[STAGGER-N] Initializing ..."`) appears once at startup but
+  not after a crash recovery.
+- Proxy provider dashboard shows direct-IP traffic appearing after the relaunch interval.
 
----
-
-## 5. Plugin Ecosystem Pitfalls
-
-### 5.1 GitHub Wiki Diverges from the Codebase Plugin API (Moderate)
-
-**What goes wrong:** The GitHub wiki for the plugin registry is a separate git repository
-not covered by CI. When `PLUGIN_API_VERSION` bumps (already at v2, bumped during v2.0
-migration), wiki entries that describe the v1 method signatures remain stale. Contributors
-read the wiki, implement a v1-style plugin, and it fails to load with a confusing error.
-The wiki cannot be linted, tested, or linked to a specific commit.
-
-**Warning Sign:** Community issues reporting that the wiki example code does not work with
-the current version; plugins submitted that implement the old `__init__(self, driver, config)`
-signature from the v1 interface.
-
-**Prevention:** Use the wiki only as a plugin directory listing (name, URL, platform,
-difficulty rating). All API contract documentation must live in the repository under
-`plugins/PLUGIN_DEV.md` (already exists, already versioned with the code). Wiki entries
-link to the canonical repo doc; they do not duplicate it. Add a CI assertion that
-`PLUGIN_API_VERSION` in `plugin_base.py` matches the version documented in
-`plugins/PLUGIN_DEV.md`.
-
-**Phase:** Plugin Ecosystem (new phase)
+**Phase to address:** Always-On Reliability — browser-crash detection + relaunch.
 
 ---
 
-### 5.2 Community Plugins Run In-Process with Full CredentialStore Access (Critical — Security)
+### Pitfall 9: Session/Cookie Persistence Leaking Auth Material to Plaintext
 
-**What goes wrong:** The plugin framework loads any `shopbot_plugin_*.py` file from
-`plugins/` via `importlib` at startup. A community plugin has direct access to the entire
-process memory, including the initialized `CredentialStore` singleton via `get_store()`.
-A malicious plugin could call `get_store().get("AMZ_PASSWORD")`, read `creds.bin` directly,
-intercept OTP inputs via the stdin listener, or make unauthorized purchases using the
-already-logged-in browser session.
+**What goes wrong:**
+nodriver's `Browser` object accumulates cookies (including session tokens, CSRF tokens,
+and auth cookies) in the browser process state. Persisting these across restarts requires
+serializing them via CDP `Network.getAllCookies` and writing the result to disk. If written
+as a plain JSON file alongside `config.yml` or in `data/`, this is plaintext auth material
+on disk -- the exact security posture that the v2.0 `CredentialStore` was built to prevent
+(STATE.md Key Decisions: "No secrets in SQLite", "Dynamic CredentialStore").
 
-The supply-chain risk is real and growing: third-party involvement in security breaches
-grew from 9% to 48% between 2022 and 2025 (Unit42). A 2.2M-install VS Code extension was
-briefly backdoored in 2026 to harvest credentials. Community plugins in a `.py` file
-drop-in model present an identical attack surface.
+**Why it happens:**
+Session persistence is not currently implemented. The temptation on implementation is to
+use `json.dump(cookies, open("sessions/bestbuy.json", "w"))` because it is five lines and
+appears to be "just browser state, not a password."
 
-**Warning Sign:** A plugin PR with code that calls `get_store()`, accesses `data/creds.bin`,
-makes outbound HTTP requests to non-retailer domains, or reads environment variables beyond
-the platform's own credentials.
+**How to avoid:**
+1. Route session/cookie persistence through the existing `EncryptedFileBackend` or a
+   new `SessionStore` wrapper that uses the same Fernet + scrypt approach from
+   `core/credentials.py`. The key for the session store should come from the same
+   `SHOPBOT_STORE_PASSPHRASE` or OS keyring path.
+2. Never write raw CDP cookie dicts to a plain file. The serialized value for each plugin
+   should be stored under a key like `BB_SESSION_COOKIES` (add to `SECRET_KEYS` list).
+3. On restore, verify cookie freshness: check `expires` timestamps and discard expired
+   cookies before injection. A stale session token is worse than none (it causes a
+   "session expired" redirect that the selector-based login flow does not handle cleanly).
+4. Session store write must use the same atomic write pattern (`mkstemp` + `os.replace`)
+   that `EncryptedFileBackend._save` uses to prevent partial writes on crash.
 
-**Prevention:**
-- Add explicitly to the PR review checklist (DOCS-05, already in the repo): "Reviewer
-  must confirm: no calls to `get_store()` directly; no reads from `data/` directory; no
-  outbound connections to non-retailer domains; no access to `os.environ` beyond what the
-  plugin's declared platform requires."
-- Add to `SECURITY.md`: "Community plugins run in-process with access to all credentials.
-  Review plugin source code before installing. The maintainers do not audit submitted
-  plugins for malicious behavior automatically."
-- Never auto-merge plugin PRs; require human code review for all files in `plugins/`.
-- Future hardening option (not in scope for v3.0, but document it): a platform-scoped
-  CredentialStore view that exposes only the keys prefixed with the plugin's declared
-  platform name.
+**Warning signs:**
+- A `.json` or `.pickle` file appears in `data/` or `sessions/` containing the string
+  `"session-token"` or `"cookie"`.
+- `git status` shows an untracked `sessions/` directory with readable content.
+- `CredentialStore.list()` does not include session-cookie keys, but session files exist.
 
-**Phase:** Plugin Ecosystem (new phase); security documentation update
-
-**Sources:** Unit42/Paloalto GitHub Actions supply chain attack analysis; CISA alert
-2026-05-28 on Nx Console VS Code extension compromise
-
----
-
-### 5.3 Difficulty Ratings That Encourage ToS Bypass Escalation (Legal / Ethical)
-
-**What goes wrong:** A plugin registry that rates platforms by "anti-detection difficulty"
-implicitly frames higher difficulty as a technical challenge to overcome. Contributors who
-want a "hard" project build plugins for the most aggressively protected platforms (Walmart
-PerimeterX, Target Akamai). The difficulty ratings become a leaderboard for bypass
-techniques, and the project accrues legal and reputational risk from encouraging increasingly
-aggressive circumvention.
-
-**Warning Sign:** Plugin PR submissions for Walmart or Target that include CAPTCHA-bypass
-automation, session spoofing, or multi-account rotation without any ToS compliance
-disclaimer.
-
-**Prevention:** Rename the rating dimension to "detection risk + ToS violation severity"
-rather than just "anti-detection difficulty." The rating must include an explicit ToS
-violation severity tag (Low / Medium / High) alongside the technical difficulty. High-risk
-plugin registry entries must display a mandatory disclaimer: "Using this plugin violates
-[Platform]'s Terms of Service and may result in account suspension." Add this requirement
-to the plugin submission checklist in `CONTRIBUTING.md`.
-
-**Phase:** Plugin Ecosystem (new phase)
+**Phase to address:** Always-On Reliability — encrypted session/cookie persistence.
 
 ---
 
-## 6. Legal, Ethical, and Security Risks
+### Pitfall 10: Per-Item asyncio Timeout That Cancels Mid-DB-Write or Mid-Checkout
 
-### 6.1 Auto-Buy + Proxy Rotation Violates Retailer ToS and CFAA Risk (Legal Risk)
+**What goes wrong:**
+`asyncio.CancelledError` propagates through every `await` without warning. The
+write-queue drain task (`_write_queue_drain`, orchestrator.py line 271) awaits
+`_dispatch_write`, which calls `loop.run_in_executor(None, update_item_purchased_sync)`.
+If the per-item orchestrator timeout fires while the executor thread is running the SQLite
+write, the `CancelledError` cancels the `await` in the drain coroutine but the executor
+thread continues to completion in the background. The `queue.task_done()` in the `finally`
+block fires normally. In this case, the write actually completes, but the drain task's
+exception handler may log a spurious error.
 
-**Risk level:** MEDIUM (civil ToS consequences near-certain; criminal CFAA risk low for
-personal use but exists when technical access controls are bypassed)
+The more serious case: if the per-item timeout is applied to `_check_and_buy` directly
+(not via the write queue), the `await write_queue.put(...)` calls inside
+`_check_and_buy` may be cancelled before the item is enqueued, leaving the DB in an
+inconsistent state (`set_available` fired but `clear_available` never will, or `purchased`
+was not marked despite a confirmed order).
 
-**What goes wrong:** Amazon, BestBuy, Walmart, Target, and GameStop all prohibit automated
-purchasing bots and proxy rotation in their Terms of Service. Using rotating proxies to
-bypass IP-rate limits or geo-blocking constitutes circumventing a technical access control,
-which strengthens CFAA claims beyond a simple ToS violation. Courts have generally
-distinguished between ToS-only violations (civil) and technical access control bypass
-(potentially CFAA). Using CAPTCHA bypass services alongside proxy rotation places the
-usage in the latter category.
+**How to avoid:**
+1. Never cancel the write-queue drain task (`_write_queue_drain`) via per-item timeout.
+   The drain task must run to natural completion on shutdown only (current `finally:
+   await asyncio.wait_for(write_queue.join(), timeout=10)` is correct; preserve it).
+2. Apply per-item timeouts only to the `check_availability` + `auto_buy` portion of
+   `_check_and_buy`, not to the `write_queue.put(...)` calls that follow them. Structure:
+   ```python
+   try:
+       async with asyncio.timeout(item_timeout):
+           available = await plugin.check_availability(link)
+           # ...auto_buy path...
+   except asyncio.TimeoutError:
+       writeLog(f"[{plugin.__class__.__name__}] Item timeout for {link}", "WARNING")
+       return
+   # write_queue.put calls are OUTSIDE the timeout context
+   await write_queue.put(("set_available", link, now_iso))
+   ```
+3. On `CancelledError` (from TaskGroup shutdown, not per-item timeout), do NOT suppress
+   it. Let it propagate after logging the item URL and current stage.
 
-Practical consequences: account permanent ban (including affiliated accounts and payment
-methods), order cancellation, and for commercial/resale use: cease-and-desist.
+**Warning signs:**
+- `"DB write failed for ..."` log followed by the item not being marked `purchased`
+  despite an order confirmation log in the same run.
+- `asyncio.InvalidStateError` or `queue.task_done()` called too many times (indicates the
+  drain task was cancelled mid-loop).
+- Items that were set available are never cleared on the next poll (missed
+  `clear_available` because the put was cancelled).
 
-**Prevention in code:**
-- Keep the existing `SECURITY.md` ToS disclaimer and expand it to name proxy rotation and
-  CAPTCHA bypass explicitly as features that violate retailer ToS.
-- The plugin registry difficulty rating must state "violates [Platform] ToS" as a mandatory
-  field, not optional metadata.
-- Add a one-time startup acknowledgment (stored as a flag in CredentialStore or as a
-  plaintext marker file, not config.yml) for any session that enables proxy rotation or
-  CAPTCHA solving: "You have enabled features that violate your retailer's Terms of Service.
-  Proceed at your own risk."
-- Do not market or document the tool as a means of resale arbitrage.
-
-**Phase:** Plugin Ecosystem (registry docs) and Anti-Detection Hardening (startup
-acknowledgment)
-
----
-
-### 6.2 CAPTCHA Bypass Raises DMCA Section 1201 Exposure (Legal Risk)
-
-**Risk level:** LOW-to-MEDIUM (courts are increasingly applying DMCA §1201 to bot
-circumvention; personal-use mitigation exists but is untested for CAPTCHA specifically)
-
-**What goes wrong:** CAPTCHA bypass services violate the Terms of Service of every major
-CAPTCHA provider (Google reCAPTCHA, hCaptcha, Cloudflare Turnstile). Using them to
-circumvent retailer-deployed CAPTCHAs may constitute circumvention of a technological
-protection measure under DMCA Section 1201. Recent litigation (Reddit v. unnamed parties,
-2025-2026) invokes DMCA §1201 alongside CFAA in web-scraping contexts, suggesting
-increased prosecutorial interest in this theory.
-
-**Prevention in code:**
-- CAPTCHA solving must be disabled in the default configuration (`captcha.enabled: false`).
-- The `sample.config.yml` comment block for the captcha section must state: "Enabling
-  CAPTCHA solving likely violates the ToS of the CAPTCHA provider and may violate DMCA
-  Section 1201. Users enable this feature at their own legal risk."
-- `SECURITY.md` must include CAPTCHA bypass in the known legal risks section.
-
-**Phase:** Anti-Detection Hardening (CAPTCHA integration); Plugin Ecosystem docs
+**Phase to address:** Always-On Reliability — per-item orchestrator timeout.
 
 ---
 
-### 6.3 Residential Proxy Provider May Source IPs Without Consent (Legal Risk — MEDIUM confidence)
+### Pitfall 11: DB Error Isolation That Silently Swallows Real Corruption
 
-**Risk level:** LOW for users of legitimate providers; MEDIUM if provider sourcing is
-opaque
+**What goes wrong:**
+The `_dispatch_write` function (orchestrator.py line 240) wraps the entire write in
+`try/except Exception` and logs the error, then continues. This is correct for transient
+SQLite locks (`OperationalError: database is locked`). But `sqlite3.DatabaseError` and
+`sqlite3.CorruptionError` indicate actual file corruption -- continuing silently means
+subsequent reads return garbage data, availability state diverges from reality, and the
+bot may never buy anything (or buy things it already owns) for the rest of the session.
 
-**What goes wrong:** Some residential proxy providers source their IP pool through app SDK
-bundles that grant proxy rights via buried, ignored ToS. The FBI has flagged such networks
-as potentially enabling unauthorized access to devices. Using such a provider makes the bot
-operator a downstream participant. This risk is difficult to verify without reading the
-provider's consent model documentation.
+**Why it happens:**
+A blanket `except Exception` at the write-queue drain level is the right shape for
+transient errors, but it makes no distinction between transient and fatal.
 
-**Prevention:** In the proxy rotation documentation and plugin registry anti-detection
-section, list evaluation criteria for proxy provider legitimacy: (1) transparent,
-informed-consent model for IP contributors, (2) published audit or compliance report,
-(3) clear opt-in mechanism for contributors rather than opt-out or implicit consent via
-app install. Do not name or recommend specific providers without reviewing their current
-consent documentation. Flag providers whose consent model cannot be verified as HIGH risk.
+**How to avoid:**
+1. Distinguish exception types at the write-queue drain level:
+   - `sqlite3.OperationalError` with message containing "locked": log WARNING, do NOT
+     re-raise; the write will succeed on retry.
+   - `sqlite3.DatabaseError` / `sqlite3.CorruptionError`: log CRITICAL, raise the
+     exception (which will propagate out of the drain task and cancel the TaskGroup,
+     triggering a clean shutdown with the existing `teardown_all` path).
+2. For read-path errors in `run_plugin` (the `get_items_sync` call), wrap in
+   `try/except sqlite3.OperationalError` only. A true `DatabaseError` on a read should
+   immediately stop the poll loop with a CRITICAL log rather than looping forever on
+   a corrupted `items` table.
+3. Add a startup DB integrity check: call `PRAGMA integrity_check` on startup in
+   `initialize_db` and raise `RuntimeError` if it returns anything other than `"ok"`.
+   This catches corruption before any writes attempt to proceed.
 
-**Phase:** Plugin Ecosystem (proxy documentation)
+**Warning signs:**
+- `"DB write failed for ..."` log appearing every poll cycle for the same item URL
+  (write never succeeds -- permanent failure being retried endlessly).
+- SQLite file size grows to 0 bytes or becomes non-parseable (file deleted mid-write
+  without atomic replace -- should not happen with the existing `os.replace` pattern, but
+  watch for it if session store is added without the same atomic-write guard).
+- `get_items_sync` returns an empty list when items are known to exist.
 
----
-
-### 6.4 Proxy Credentials and CAPTCHA API Key Are High-Value Monetizable Secrets (Security)
-
-**Risk:** A CAPTCHA API key with a loaded balance or proxy credentials with unlimited
-bandwidth are targets for theft. A log line that includes `str(exc)` where the exception
-message contains a URL with embedded credentials, or a config file that includes the
-API key, exposes it. The existing `dispatcher.py` pattern logs only `exc.__class__.__name__`
-to avoid this. The new proxy and CAPTCHA modules must follow the same discipline.
-
-**Prevention:**
-- Add `CAPTCHA_API_KEY`, `PROXY_USERNAME`, and `PROXY_PASSWORD` to `SECRET_KEYS` in
-  `core/credentials.py` before any proxy or CAPTCHA code is written. This is the same
-  extension point used for all v2.0 secrets.
-- Audit all logging paths in proxy and CAPTCHA modules: never pass `str(exc)` or
-  `repr(exc)` to `writeLog()` when those exceptions may contain credential strings (e.g.,
-  a `ConnectionError` from an auth proxy includes the proxy URL with embedded credentials).
-  Log only `exc.__class__.__name__`.
-- The existing `CRED-06` test (asserts no secret plaintext in config.yml, logs, SQLite)
-  must be extended to cover `CAPTCHA_API_KEY`, `PROXY_USERNAME`, `PROXY_PASSWORD` before
-  these features ship.
-
-**Phase:** Anti-Detection Hardening (both CAPTCHA and proxy); must be addressed in Phase
-requirements before any implementation begins
+**Phase to address:** Always-On Reliability — DB read-path error isolation phase.
 
 ---
 
-### 6.5 Web UI Credential Exposure Amplified by New High-Value Secret Types (Security)
+### Pitfall 12: Two Divergent Retry Implementations (Orchestrator Transient-Retry vs Checkout Retry-on-Cart)
 
-**What goes wrong:** The existing web UI localhost-bind requirement (GUI-06, Phase 10) was
-designed to protect retailer passwords. The v3.0 additions introduce proxy credentials and
-CAPTCHA API keys, which are arguably more sensitive (financial cost if leaked, not just
-account ban). If a user overrides the localhost bind (explicit opt-in with warning, as
-implemented), those credentials are now exposed to the local network.
+**What goes wrong:**
+v4.0 adds two distinct retry concepts:
+- **Orchestrator transient retry**: retry a failed `check_availability` or `auto_buy` call
+  due to network error or nodriver connection reset (per-coroutine supervision in Pitfall 7).
+- **Checkout retry-on-cart**: if `auto_buy` fails at the "add to cart" step (item went
+  out of stock in the window between `check_availability` and `auto_buy`), wait briefly
+  and re-attempt the cart add up to N times.
 
-**Warning Sign:** The non-localhost bind warning text still references only "retailer
-credentials" and does not mention proxy or CAPTCHA API credentials.
+If these are implemented independently (one in `run_plugin`, one inside `auto_buy`), they
+will have different backoff parameters, different logging, different exception handling,
+and different interaction with the `in_progress` state (Pitfall 1). When both fire
+simultaneously (a cart error during an already-retrying plugin), the bot may attempt
+`max_supervisor_retries * max_cart_retries` orders -- multiplicative, not additive.
 
-**Prevention:** Update the non-localhost bind warning text to enumerate all credential
-types now managed by the web UI, including proxy credentials and CAPTCHA API keys.
-This is a one-line update to the warning message but is easy to miss.
+**How to avoid:**
+1. Define a single `RetryPolicy` dataclass in `core/retry.py`:
+   ```python
+   @dataclass
+   class RetryPolicy:
+       max_attempts: int
+       base_delay: float
+       max_delay: float
+       jitter: bool = True
+       retryable_exceptions: tuple = (Exception,)
+   ```
+2. Implement one `async def with_retry(coro_fn, policy: RetryPolicy)` utility that both
+   the supervisor restart path and the checkout cart-retry path use.
+3. The supervisor retry (Pitfall 7) uses `RetryPolicy(max_attempts=10, base_delay=5,
+   max_delay=300)`.
+4. The checkout cart-retry uses `RetryPolicy(max_attempts=3, base_delay=2, max_delay=10)`
+   and is scoped only to the "add to cart" step -- never to `place_order.click()` or later
+   (per Pitfall 1).
+5. The two policies are configured independently in `AppConfig` so operators can tune them
+   without touching code.
 
-**Phase:** Stability / security hardening in v3.0
+**Warning signs:**
+- `auto_buy` has its own `for attempt in range(N)` loop AND the supervisor also has a
+  restart loop -- both are independently retrying with no shared state.
+- Log shows "attempt 1/3" interleaved with "restarting plugin" messages making the
+  actual retry count ambiguous.
+- Cart retry fires after a confirmed-order step (retry should be gated to pre-CVV stages).
 
----
-
-## 7. Integration Pitfalls with Existing System
-
-### 7.1 Config Schema Extension Without Pydantic Model Causes Silent Ignore (Moderate)
-
-**What goes wrong:** AppConfig uses `extra="ignore"` on all Pydantic models. Adding proxy
-rotation and CAPTCHA config keys to `config.yml` without adding corresponding Pydantic
-model fields causes those keys to be silently discarded at startup. The bot runs without
-proxy rotation or CAPTCHA because the config was never read, and there is no error or
-warning. Users spend hours debugging why proxy rotation has no effect.
-
-**Warning Sign:** User sets `proxy.enabled: true` in config.yml; no proxy-related log
-entries appear at startup; bot uses direct connection.
-
-**Prevention:** Every new config section (proxy, captcha, price monitoring) must have a
-corresponding Pydantic model added to `config_schema.py` before the feature is implemented.
-Add a startup log line that explicitly confirms the proxy and CAPTCHA config state:
-"Proxy rotation: disabled" or "Proxy rotation: enabled, pool_size=N". This makes the active
-configuration unambiguously visible without requiring the user to diff the schema.
-
-**Note:** The existing naming inconsistency between `delay_seconds`/`delay_jitter`
-(Amazon/BestBuy legacy fields) and `min_delay`/`max_delay` (Phase 6 platform fields) is
-pre-existing tech debt. V3.0 new platform config fields should use `min_delay`/`max_delay`
-for consistency with the Phase 6 majority; do not introduce a third naming scheme.
-
-**Phase:** Anti-Detection Hardening (config schema); also Stability (harmonize delay field
-naming as part of the audit tech-debt items)
-
----
-
-### 7.2 Price Alert Dedup Must Not Conflict with Stock Alert Dedup (Moderate)
-
-**What goes wrong:** Both stock availability (existing) and price-drop alerts (new) need
-per-item state in the `items` table. The existing `last_seen_available` (INTEGER) and
-`last_notified` (TEXT) columns track stock state for the edge-trigger dedup in
-`orchestrator.py` and `models.py`. Reusing `last_notified` for price alerts would cause
-a price notification to suppress the next stock-available notification for the same item
-(or vice versa): the `get_item_notification_state_sync` function reads `last_notified` to
-determine dedup state, and conflating the two events breaks both.
-
-**Prevention:** Add dedicated columns for price state: `current_price REAL`,
-`price_last_notified TEXT`, `price_alert_armed INTEGER DEFAULT 0`. Do not modify the
-semantics of `last_seen_available` or `last_notified`. Add a parallel
-`get_item_price_state_sync(link)` function that reads only the price columns. All price
-writes must go through the existing `write_queue` drain in `orchestrator.py` to respect
-ASYNC-05 (single async write queue serializes all DB writes).
-
-**Phase:** Price Monitoring (new phase); coordinate with orchestrator.py write-queue
+**Phase to address:** Always-On Reliability — one unified transient retry/backoff phase;
+must be built before checkout retry is added to any plugin.
 
 ---
 
-### 7.3 CredentialStore Not Initialized Before CAPTCHA/Proxy Code Calls get_store() (Moderate)
+## Technical Debt Patterns
 
-**What goes wrong:** `get_store()` in `core/credentials.py` returns a fresh `EnvVarBackend`
-if called before `init_store(cfg)` runs in `BotService.__init__`. If proxy or CAPTCHA
-initialization code calls `get_store()` at import time or inside a plugin's `__init__`
-method, the CredentialStore singleton has not been set, the key falls back to env-var
-lookup, and keyring or encrypted-file backends are bypassed silently.
-
-**Warning Sign:** CAPTCHA or proxy credentials work when set as environment variables but
-not when stored via the keyring or encrypted-file backend; the startup log shows
-"env-var backend active" for a user who has configured keyring.
-
-**Prevention:** Never call `get_store()` in module-level code or in `__init__` methods.
-Call it only inside `setup()` or async methods that run after `BotService.__init__` has
-completed `init_store(cfg)`. Add this rule explicitly to `PLUGIN_DEV.md` with the
-rationale: `get_store()` returns `EnvVarBackend` by default if called before
-`init_store()`, which silently bypasses the configured backend.
-
-**Phase:** Anti-Detection Hardening (applies to both proxy and CAPTCHA); Plugin Ecosystem
-docs
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| `return True` after `place_order.click()` without confirmation check | Simple, works when site is healthy | Double-buy on session edge cases; false purchase notifications | Never; confirmation check is required for v4.0 |
+| Single `asyncio.timeout` around entire `auto_buy` | Easy to implement | Orphans browser state mid-checkout; CancelledError at click fires double-buy risk | Never for place-order step; per-step timeouts only |
+| Blanket `except Exception` in write-queue drain | Prevents drain task crash | Swallows DB corruption silently | Only for `OperationalError` "locked"; fatal errors must propagate |
+| Storing session cookies as plain JSON | 5-line implementation | Plaintext auth material on disk; violates v2.0 security posture | Never; must use CredentialStore-equivalent encryption |
+| One global `test_mode` check inside Amazon plugin only | Works for Amazon UAT | Other plugins (BestBuy) have no gate; monitor-only mode cannot be trusted | Never; orchestrator-level gate required for all plugins |
+| Inline backoff in `run_plugin` | Avoids a new module | Two backoff implementations diverge silently over time | Never; single `RetryPolicy` utility required |
 
 ---
 
-## 8. Phase-Specific Warning Matrix
+## Integration Gotchas
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Proxy config schema | Silent extra="ignore" drops proxy keys | Add Pydantic proxy model before writing any proxy code (7.1) |
-| Proxy auth in nodriver | Auth proxy silently falls back to direct | CDP auth intercept or IP-allowlist only; fail loudly if proxy config present but connection is direct (1.1) |
-| Proxy WebRTC | Real IP leaks via WebRTC STUN bypass | Inject three WebRTC Chrome prefs in setup() (1.2) |
-| Proxy dead detection | Aborted checkout, item left in ambiguous state | Health-check before checkout; purchased=1 only on confirmed True return (1.4) |
-| Proxy datacenter | Entire pool banned via subnet | Document residential requirement for high-detection platforms (1.5) |
-| Proxy per-instance scope | Module-level proxy shared across plugins | Store as self._proxy on each plugin instance (1.6) |
-| CAPTCHA API key | Key committed to config.yml | Add to SECRET_KEYS before any implementation; no captcha.api_key field in schema (2.2) |
-| CAPTCHA solve call | Blocks event loop, freezes all plugins | run_in_executor + asyncio.timeout(120) mandatory (2.3) |
-| CAPTCHA cost | Unbounded spend during high-CAPTCHA events | max_solves_per_run config field; default CAPTCHA disabled (2.1) |
-| CAPTCHA post-solve still blocked | Misdiagnosed as solve failure | Log solve-success-but-page-still-blocked distinctly (2.4) |
-| Fingerprint spoofing | Cross-signal inconsistency detected by ML | Deterministic per-session noise; don't override beyond navigator.webdriver (3.1) |
-| UA pool Firefox entries | UA-vs-API mismatch flagged instantly | Chrome-only UAs; startup warning for non-Chrome UA in nodriver plugin (3.2) |
-| Fingerprint override order | Undoes nodriver's own patches | Apply in setup() only, test against CreepJS before merging (3.3) |
-| Price selector breakage | Wrong/null price after retailer frontend deploy | JSON-LD > OG > CSS cascade; store raw_price_text (4.1) |
-| Price locale parsing | Silent 10x-wrong number from non-US format | Babel locale-aware parsing; log raw + parsed (4.2) |
-| Price vs stock dedup collision | Price notification suppresses stock alert | Dedicated price columns; parallel get_item_price_state_sync (7.2) |
-| Price DB migration | OperationalError on existing installs | Idempotent ALTER TABLE with PRAGMA table_info check; CI migration fixture test (4.4) |
-| Wiki staleness | Wiki describes v1 API after v2 bump | Wiki = directory listing only; API docs in PLUGIN_DEV.md (5.1) |
-| Community plugin trust | Malicious .py reads CredentialStore | PR checklist; SECURITY.md disclosure; no auto-merge (5.2) |
-| Difficulty ratings framing | Encourages ToS bypass escalation | Rename to "detection risk + ToS violation severity"; mandatory ToS disclaimer per plugin (5.3) |
-| CAPTCHA legal risk | DMCA §1201 exposure | Opt-in only; disabled by default; explicit disclaimer in config comment and SECURITY.md (6.2) |
-| Proxy/CAPTCHA secret logging | str(exc) leaks API key or proxy URL | Log only exc.__class__.__name__; extend CRED-06 test to new secret keys (6.4) |
-| CredentialStore timing | get_store() called before init_store() | Only call get_store() inside setup() or async methods; document in PLUGIN_DEV.md (7.3) |
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| nodriver `tab.select()` on post-click page | Calling `select()` on a stale tab reference after a click navigates the page | After `click()` on a submit/place-order button, use `await asyncio.sleep(0)` + `tab.find()` or wait for the confirmation element on the same tab object -- nodriver updates `main_tab` in place after navigation |
+| nodriver `Browser.stop()` in a crash-recovery path | Calling `stop()` and immediately calling `nodriver.start()` in the same event loop tick | `stop()` is synchronous but Chrome process termination is async at the OS level; add a brief `await asyncio.sleep(1)` or poll `psutil` for process exit before relaunching |
+| CredentialStore `get()` during checkout | Calling `get_store().get("BB_PASSWORD")` inside the hot checkout path | Call `get_store().get(...)` once in `login()` and cache the value for the session; `EncryptedFileBackend.get()` decrypts the entire file on every call (O(keys) decrypt per access) |
+| CDP `Network.getAllCookies` for session persistence | Serializing and storing the full CDP cookie dict including `httpOnly` session tokens | Only persist cookies that are not `httpOnly` and not marked `secure`-only; or accept that restoration requires post-inject verification via `tab.evaluate("document.cookie")` |
+| `asyncio.timeout()` wrapping nodriver `tab.send()` | The timeout cancels the Python `await` but not the underlying CDP message handler; nodriver may still process the response | After a timeout in a nodriver `tab.send()` call, treat the tab state as unknown; do not re-use the tab for further checkout steps without a fresh page navigation |
+
+---
+
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| `writeLog(f"CVV: {self._cvv}", "DEBUG")` on any code path | CVV in plaintext log files, unencrypted | SC grep CI assertion blocking `_cvv` in any `writeLog` argument |
+| Storing full card number in `CredentialStore` for "convenience" | PCI DSS scope for personal tool; high-value target in `creds.bin` | Only CVV at runtime; billing address is fine in store; full PAN never |
+| `str(exc)` in exception handlers on checkout paths | Stack trace may contain CVV if it appeared in a method argument | `exc.__class__.__name__` only (existing policy per STATE.md PITFALLS 6.4) |
+| Session cookie file in repo directory without `.gitignore` entry | Auth cookies committed to git history | `sessions/` and `data/*.bin` must be in `.gitignore`; CI check for these patterns |
+| `monitor_only` flag readable from config.yml (not enforced in code) | User edits config, flag change not picked up mid-run | Read flag once at startup into `async_main` local; changes require restart |
+| Checkout profile (shipping address) logged at INFO level | Address in log files; low risk but unnecessary | Log only "checkout profile loaded for {platform}" not the address values |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| `EncryptedFileBackend.get()` called per-checkout-step | Decrypt latency adds 50-100ms per call; noticeable on drops with sub-second windows | Cache credentials in plugin `__init__` or `setup()`, not in hot path | Any drop where checkout must complete in under 5s |
+| `get_items_sync` called once per poll inside `run_plugin` (current) | On a 30-item list this is fine; on 200 items with 7 plugins it is 1400 DB reads/minute | Add item-URL-to-plugin routing cache in orchestrator; only re-fetch when DB write occurs | More than ~50 items across all plugins |
+| nodriver `tab.select()` with `timeout=10` called sequentially for every selector | Each miss waits 10s; a 5-selector checkout path can take 50s on a broken DOM | Short timeout (2-3s) for optional elements; long timeout (10-15s) for required ones | Any drop where checkout window is under 60s |
+| Single write-queue drain for all plugins | Current design serializes all DB writes; 7 plugins checking simultaneously causes write queue backlog during drops | Acceptable for v4.0 scope (SQLite single-writer); monitor queue depth; escalate to WAL mode if backlog exceeds 100 items | More than ~20 simultaneous availability detections |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **Order confirmation:** `auto_buy` returns `True` but confirmation element was NOT verified -- check that `_confirm_order` is called and its return value gates the `True` return.
+- [ ] **BestBuy test_mode gate:** `test_mode: true` in config -- verify `place_order.click()` is NOT called by asserting no "Order placed on BestBuy" log and no `write_queue.put("purchased", ...)` event.
+- [ ] **Monitor-only mode:** all 7 plugins have `auto_buy` enabled in config, `monitor_only: true` is set -- assert zero `auto_buy` calls and zero `purchased` write-queue entries.
+- [ ] **CVV in logs:** after a full checkout run with debug logging at level 5, grep log file for the CVV value -- must return zero matches.
+- [ ] **Relaunch stealth:** after a simulated browser crash and relaunch, assert `apply_stealth` was called on the new tab (check for the `cdp.page.add_script_to_evaluate_on_new_document` CDP command in the nodriver mock).
+- [ ] **Double-buy guard:** simulate `place_order.click()` succeeding but confirmation timeout firing -- assert `purchased` is NOT set and `in_progress` IS set; assert the next poll skips the item.
+- [ ] **Session cookie encryption:** session restoration path -- assert no plaintext `.json` file was written; assert `CredentialStore.set()` was called with the session key.
+- [ ] **Retry policy unification:** grep for `for attempt` or `for i in range` in checkout paths -- any such loop outside `core/retry.py` is a second independent retry implementation.
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Double-buy detected | HIGH | Check retailer order history immediately; cancel second order via retailer cancel page (usually cancellable within 30 min); mark item `purchased=True` in DB manually via `shoppybot items` CLI |
+| False-positive purchased notification | MEDIUM | Set `purchased=False` in DB via CLI; re-enable monitoring; add confirmation selector to CI test to prevent recurrence |
+| CVV in log file | HIGH | Rotate payment card CVV with bank immediately; delete log file; audit for other credential exposure; add SC grep CI check before next run |
+| Browser crash loop (no backoff) | MEDIUM | Kill all Chrome processes (`pkill chrome` / Task Manager); restart bot; backoff implementation is the permanent fix |
+| Session cookie plaintext on disk | HIGH | Delete session file; revoke session via retailer "sign out all devices"; migrate to encrypted session store; add `.gitignore` entry |
+| DB corruption | HIGH | Stop bot; restore from last `data/shop_py_bot.db` backup (or delete and re-seed from config); add `PRAGMA integrity_check` to startup path |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| 1. Double-buy / non-idempotent retry | Acquisition Core: verified-checkout + bounded retry | Test: mock `place_order.click()` succeeds, confirmation times out; assert `purchased=False`, `in_progress=True` |
+| 2. False-positive confirmation | Acquisition Core: order-confirmation capture | Test: mock tab returning "session expired" after click; assert `auto_buy` returns `False` |
+| 3. Fragile checkout selectors | Acquisition Core: checkout form-fill | Test: "all selectors None" mock; assert `auto_buy` returns `False` with WARNING log |
+| 4. CVV / PCI handling | Acquisition Core: checkout profile + form-fill | CI SC grep: no `_cvv` in `writeLog` args; no `CVV`/`CARD_NUMBER` in `SECRET_KEYS` |
+| 5. Time-budget orphaned order | Acquisition Core: per-item/per-step checkout time budget | Test: timeout fires at each checkout stage; assert browser cleanup and correct DB state |
+| 6. Monitor-only gate | Acquisition Core: central monitor-only + test_mode hole | Test: 7 plugins, `monitor_only=True`; assert `auto_buy` never called |
+| 7. Restart crash-loop | Always-On Reliability: per-coroutine supervision + backoff | Test: plugin raises on 3 consecutive setups; assert delay between attempts follows exponential curve |
+| 8. Relaunch forgetting stealth | Always-On Reliability: browser-crash detection + relaunch | Test: mock crash + relaunch; assert `apply_stealth` + `setup_proxy_auth` + `login` all called |
+| 9. Session cookie plaintext | Always-On Reliability: encrypted session/cookie persistence | Test: session save path; assert no plaintext file written; assert `CredentialStore.set()` called |
+| 10. Timeout cancels mid-DB-write | Always-On Reliability: per-item orchestrator timeout | Test: timeout fires after `place_order.click()` but before `write_queue.put`; assert write-queue item still enqueued |
+| 11. DB corruption swallowed silently | Always-On Reliability: DB read-path error isolation | Test: mock `sqlite3.DatabaseError`; assert CRITICAL log and TaskGroup shutdown |
+| 12. Two retry implementations | Always-On Reliability: unified transient retry/backoff | Grep CI assertion: no `for attempt` loop outside `core/retry.py`; both supervisor and cart-retry use `RetryPolicy` |
+
+---
+
+## ToS / Legal / Ethical Cautions
+
+These apply to v4.0 specifically because v4.0 adds *actual purchase execution*, not just
+monitoring.
+
+**Financial Risk (not ToS):** Automated purchase of high-demand items at market price
+carries real financial exposure. A double-buy (Pitfall 1) on a $700 GPU cannot be
+"undone" once the item ships. This is the primary reason Pitfall 1 is Critical.
+
+**Retailer Terms of Service:** Both BestBuy and Amazon prohibit automated purchasing in
+their ToS. Checkout automation that bypasses CAPTCHA and fills CVV fields is explicitly
+in-scope for these prohibitions. Consequences include account suspension, order
+cancellation after fulfillment, and IP/device banning. The bot should document this
+clearly in `SECURITY.md` and `README.md`. Open-source distribution does not reduce
+personal liability for ToS violations.
+
+**Scalefair / Per-Household Limits:** Retailers enforce per-household purchase limits on
+limited-release items. Automated enforcement detection is improving. Purchasing multiple
+units across the configured `quantity` field may trigger order cancellations. Recommend
+defaulting `quantity=1` and documenting the risk of higher values.
+
+**Payment Method Risk:** Using CVV-at-runtime with a stored payment method means that
+anyone who gains access to the bot process (or the OS session) can trigger purchases.
+Document this in `SECURITY.md`. Recommend using a dedicated card with a low credit limit
+or a virtual card number for bot use.
+
+**Open-Source Distribution Warning:** Publishing working checkout automation code creates
+an attractive basis for bulk scalpers. `README.md` and `CONTRIBUTING.md` should include
+a clear statement that mass-scalping, multi-account farming, and resale automation are
+out-of-scope use cases and not supported. This is already partially addressed by the
+project's deferred items (multi-account, API-mode checkout), but should be an explicit
+statement, not just an absence.
+
+**Jurisdiction:** In most jurisdictions, personal use automation is not illegal per se,
+but using it to acquire goods for resale may implicate consumer protection, anti-scalping,
+or unfair competition statutes (California AB 2929 for tickets; analogous laws are being
+considered for electronics in several US states). This is a follow-on risk, not a v4.0
+blocker, but the maintainer should be aware.
 
 ---
 
 ## Sources
 
-- GitHub Issue #228 (WebRTC leak with proxies in undetected-chromedriver):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/228
-- GitHub Issue #309 (WebRTC IP leak on UC):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/309
-- GitHub Discussion #1798 (nodriver proxy with authentication):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/discussions/1798
-- GitHub Issue #1903 (SOCKS5 proxy auth in nodriver):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/1903
-- GitHub Issue #2153 (same fingerprints on every nodriver run):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2153
-- zendriver Issue #108 (canvas + font fingerprints unchanged):
-  https://github.com/cdpdriver/zendriver/issues/108
-- castle.io: From Puppeteer stealth to nodriver — anti-detect framework evolution:
-  https://blog.castle.io/from-puppeteer-stealth-to-nodriver-how-anti-detect-frameworks-evolved-to-evade-bot-detection/
-- ProxyWay (Amazon proxy subnet ban behavior):
-  https://proxyway.com/best/amazon-proxy
-- DataDome (detecting CAPTCHA farm solves vs legitimate human solves):
-  https://datadome.co/guides/captcha/how-to-detect-captcha-farms-and-block-captcha-bots/
-- 2captcha-python official SDK (polling interval, async pattern):
-  https://github.com/2captcha/2captcha-python
-- HasData/ecommerce-price-scraper (JSON-LD > OG > CSS extraction cascade):
-  https://github.com/HasData/ecommerce-price-scraper
-- QuinnEmanuel LLP: Legal landscape of web scraping (CFAA, ToS, DMCA §1201):
-  https://www.quinnemanuel.com/the-firm/publications/the-legal-landscape-of-web-scraping/
-- Tendem.ai: CFAA vs ToS violation distinction in scraping case law:
-  https://tendem.ai/blog/is-web-scraping-legal-compliance-overview
-- Unit42/Paloalto: GitHub Actions supply chain attack (plugin trust boundary):
-  https://unit42.paloaltonetworks.com/github-actions-supply-chain-attack/
-- CISA alert 2026-05-28 (Nx Console VS Code extension compromise):
-  https://www.cisa.gov/news-events/alerts/2026/05/28/supply-chain-compromises-impact-nx-console-and-github-repositories
-- SuperFastPython: asyncio.timeout() best practices (Python 3.11+):
-  https://superfastpython.com/asyncio-timeout-best-practices/
+- Code reading: `core/orchestrator.py`, `core/credentials.py`, `core/stealth.py`,
+  `plugins/shopbot_plugin_bestbuy.py`, `plugins/shopbot_plugin_amazon.py`
+- Project context: `.planning/PROJECT.md`, `.planning/STATE.md` Research Flags
+- Existing pitfall decisions from STATE.md (log `exc.__class__.__name__` never `str(exc)`
+  on credentialed paths -- PITFALLS 6.4; proxy pool exhausted fail-loud -- Pitfall 2;
+  stealth before first navigation -- Pitfall 8)
+- asyncio cancellation semantics: Python 3.11+ `asyncio.timeout()` documentation
+- nodriver architecture: Phase 13 ship experience (CDP Fetch auth, stealth injection,
+  `Browser.stop()` synchronous teardown)
+- PCI DSS scope reference: PCI DSS v4.0 requirements 3.x (card data storage prohibition)
+
+---
+*Pitfalls research for: ShopPyBot v4.0 Win-the-Drop checkout automation + reliability*
+*Researched: 2026-06-10*
