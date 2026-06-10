@@ -296,8 +296,15 @@ async def test_price_alert_disarms_on_recovery(fake_plugin, fake_notifier, tmp_d
 
 
 async def test_price_dedup_independent(fake_plugin, fake_notifier, tmp_data_dir):
-    """Firing a price alert leaves last_seen_available/last_notified untouched."""
+    """T-01: firing a price alert does NOT write stock dedup columns.
+
+    Captures (last_seen_available, last_notified) before a price-only cycle
+    where available=False (no stock rising edge), then asserts those columns
+    are byte-identical after the price_drop fires.  A price-path write to
+    stock dedup columns would fail this test.
+    """
     import asyncio
+    import sqlite3
     import models
     from models import initialize_db, add_items_sync
     from notifications.dispatcher import NotificationDispatcher
@@ -308,45 +315,36 @@ async def test_price_dedup_independent(fake_plugin, fake_notifier, tmp_data_dir)
     add_items_sync([("Widget", link, False, 1, False)])
     models.update_item_price_config_sync(link, 5000, None)
 
-    # Record initial stock dedup state
+    # Snapshot stock dedup state before the cycle
     was_avail_before, last_notified_before = models.get_item_notification_state_sync(link)
+    assert was_avail_before is False
+    assert last_notified_before is None
 
     notifier = fake_notifier()
     dispatcher = NotificationDispatcher([notifier])
-    plugin = fake_plugin(domains=["fake.example.com"], available=True)
+    # available=False: no stock rising-edge so only the price path fires
+    plugin = fake_plugin(domains=["fake.example.com"], available=False)
     plugin.get_price = AsyncMock(return_value=4500)
 
     write_queue = asyncio.Queue()
     await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
 
-    # price_drop event fired
+    # Price alert must have fired
     assert any(e.action == "price_drop" for e in notifier.events)
 
-    # stock dedup columns unchanged (except last_notified which may be set by
-    # the stock "detected" path since available=True and was not available before)
-    # We check that price_last_notified is set but last_notified is NOT set by price path.
+    # price dedup columns updated by price path
     price_armed, price_last_notified = models.get_price_alert_state_sync(link)
     assert price_armed is True
     assert price_last_notified is not None
 
-    # last_seen_available was driven only by the stock path (available=True -> rising edge)
-    # so last_notified will be set by stock path. We just confirm it's not None due to price.
-    # The key invariant: price_last_notified != last_notified (they are separate columns)
+    # Stock dedup columns must be byte-identical to the snapshot (price path must not touch them)
     was_avail_after, last_notified_after = models.get_item_notification_state_sync(link)
-    # Both can be non-None but they are stored in separate columns
-    # Assert price alert state columns are separate (i.e., price_last_notified is its own col)
-    # Check they're independent by reading from DB directly
-    import sqlite3
-    conn = sqlite3.connect(models.DB_PATH)
-    row = conn.execute(
-        "SELECT last_notified, price_last_notified FROM items WHERE link=?", (link,)
-    ).fetchone()
-    conn.close()
-    # last_notified may be set by stock path; price_last_notified set by price path
-    # They must be different columns (not the same value just mirrored)
-    assert row is not None
-    # Confirm price_last_notified was written (price path works in isolation)
-    assert row[1] is not None
+    assert was_avail_after == was_avail_before, (
+        f"price path wrote last_seen_available: was {was_avail_before}, now {was_avail_after}"
+    )
+    assert last_notified_after is last_notified_before or last_notified_after == last_notified_before, (
+        f"price path wrote last_notified: was {last_notified_before!r}, now {last_notified_after!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
