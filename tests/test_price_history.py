@@ -86,6 +86,42 @@ def test_append_and_get_price_history(tmp_data_dir):
     assert scraped_at == "2026-06-09T12:00:00+00:00"
 
 
+def test_get_price_history_limit_and_order(tmp_data_dir):
+    """T-03: get_price_history_sync respects LIMIT and returns rows newest-first (DESC).
+
+    Inserts 3 rows with increasing scraped_at; asserts limit=2 returns exactly 2
+    rows AND rows[0] is the newest entry.
+    """
+    from models import (
+        append_price_history_sync,
+        get_price_history_sync,
+        initialize_db,
+    )
+
+    initialize_db(delete=True)
+    link = "https://example.com/limit-test"
+
+    # Insert oldest -> newest
+    append_price_history_sync(link, 5000, "2026-06-09T10:00:00+00:00")  # oldest
+    append_price_history_sync(link, 4800, "2026-06-09T11:00:00+00:00")  # middle
+    append_price_history_sync(link, 4500, "2026-06-09T12:00:00+00:00")  # newest
+
+    # limit=2 must return exactly 2 rows
+    rows = get_price_history_sync(link, limit=2)
+    assert len(rows) == 2, f"Expected 2 rows with limit=2, got {len(rows)}"
+
+    # First row must be the newest (DESC order)
+    assert rows[0][0] == 4500, f"Expected newest price 4500 first, got {rows[0][0]}"
+    assert rows[0][2] == "2026-06-09T12:00:00+00:00"
+
+    # Second row is the middle entry
+    assert rows[1][0] == 4800, f"Expected middle price 4800 second, got {rows[1][0]}"
+
+    # Confirm oldest row is excluded by the limit
+    all_prices = {r[0] for r in get_price_history_sync(link, limit=10)}
+    assert 5000 in all_prices, "Oldest row must be present when limit=10"
+
+
 def test_get_last_price(tmp_data_dir):
     """get_last_price_sync returns the most recent price_cents or None when no history."""
     from models import (
