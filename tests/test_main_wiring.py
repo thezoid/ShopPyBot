@@ -77,6 +77,7 @@ def test_main_delegates_to_botservice_run():
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
+        patch.object(main_module, "update_item_price_config_sync"),
         patch.object(main_module, "BotService", mock_botservice_cls),
     ):
         main_module.main()
@@ -104,6 +105,7 @@ def test_cvv_not_collected_in_test_mode():
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
+        patch.object(main_module, "update_item_price_config_sync"),
         patch.object(main_module, "collect_cvv") as mock_cvv,
         patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):
@@ -129,6 +131,7 @@ def test_cvv_none_when_test_mode_true_with_bb_item():
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
+        patch.object(main_module, "update_item_price_config_sync"),
         patch.object(main_module, "collect_cvv") as mock_cvv,
         patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):
@@ -159,6 +162,7 @@ def test_cvv_collected_when_needed():
         patch.object(main_module, "AppConfig", return_value=fake_cfg),
         patch.object(main_module, "initialize_db"),
         patch.object(main_module, "add_items"),
+        patch.object(main_module, "update_item_price_config_sync"),
         patch.object(main_module, "collect_cvv", return_value="123") as mock_cvv,
         patch.object(main_module, "BotService", return_value=mock_service_instance),
     ):

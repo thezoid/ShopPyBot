@@ -135,13 +135,16 @@ async def test_last_price_read_before_append(fake_plugin, tmp_data_dir):
 
     write_queue = asyncio.Queue()
 
-    with patch.object(models, "get_last_price_sync", side_effect=spy_get_last), \
-         patch.object(models, "append_price_history_sync", side_effect=spy_append):
+    # Patch the orchestrator module's local bindings (imported at module load via
+    # "from models import ...") so run_in_executor picks up the spies (Pitfall 3).
+    import core.orchestrator as orch_mod
+    with patch.object(orch_mod, "get_last_price_sync", side_effect=spy_get_last), \
+         patch.object(orch_mod, "append_price_history_sync", side_effect=spy_append):
         await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=None)
 
     # get_last must come before append
-    assert "get_last" in call_order
-    assert "append" in call_order
+    assert "get_last" in call_order, f"get_last_price_sync was never called; order: {call_order}"
+    assert "append" in call_order, f"append_price_history_sync was never called; order: {call_order}"
     get_last_idx = call_order.index("get_last")
     append_idx = call_order.index("append")
     assert get_last_idx < append_idx, (
@@ -175,14 +178,15 @@ async def test_price_alert_dedup_fires_once(fake_plugin, fake_notifier, tmp_data
 
     write_queue = asyncio.Queue()
 
-    # First cycle: should dispatch
+    # First cycle: should dispatch one price_drop event
     await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
-    assert len(notifier.events) == 1
-    assert notifier.events[0].action == "price_drop"
+    price_events = [e for e in notifier.events if e.action == "price_drop"]
+    assert len(price_events) == 1
 
-    # Second cycle: armed; should NOT dispatch again
+    # Second cycle: armed; should NOT dispatch another price_drop
     await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
-    assert len(notifier.events) == 1
+    price_events2 = [e for e in notifier.events if e.action == "price_drop"]
+    assert len(price_events2) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -209,10 +213,13 @@ async def test_price_alert_disarms_on_recovery(fake_plugin, fake_notifier, tmp_d
 
     write_queue = asyncio.Queue()
 
+    def price_drop_count():
+        return sum(1 for e in notifier.events if e.action == "price_drop")
+
     # Cycle 1: price below target -> fire + arm
     plugin.get_price = AsyncMock(return_value=4500)
     await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
-    assert len(notifier.events) == 1
+    assert price_drop_count() == 1
     armed, _ = models.get_price_alert_state_sync(link)
     assert armed is True
 
@@ -225,7 +232,7 @@ async def test_price_alert_disarms_on_recovery(fake_plugin, fake_notifier, tmp_d
     # Cycle 3: price drops again -> should fire again (fresh window)
     plugin.get_price = AsyncMock(return_value=4500)
     await _check_and_buy(plugin, "Widget", link, False, write_queue, dispatcher=dispatcher)
-    assert len(notifier.events) == 2
+    assert price_drop_count() == 2
 
 
 # ---------------------------------------------------------------------------
