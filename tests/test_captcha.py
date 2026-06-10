@@ -303,6 +303,100 @@ def test_captcha_not_ready_no_runtime_error():
 
 
 # ---------------------------------------------------------------------------
+# CP-01: solve_recaptcha poll-error (non-CAPTCHA_NOT_READY) raises RuntimeError
+# ---------------------------------------------------------------------------
+
+def test_solve_recaptcha_poll_error_raises_runtimeerror():
+    """CP-01: poll response with status!=1 and non-NOT_READY request raises RuntimeError.
+
+    The _solve_count must still be 1 — the increment happens before network calls
+    so the cap is honoured even when the call raises (captcha.py:72 + increment invariant).
+    """
+    from core.captcha import CaptchaSolver
+
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "cid-cp01"}
+
+    error_poll_resp = MagicMock()
+    error_poll_resp.json.return_value = {"status": 0, "request": "ERROR_CAPTCHA_UNSOLVABLE"}
+
+    solver = CaptchaSolver("test-api-key-cp01", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        mock_req.get.return_value = error_poll_resp
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            with pytest.raises(RuntimeError):
+                solver.solve_recaptcha("site-key", "https://example.com")
+
+    assert solver._solve_count == 1
+
+
+# ---------------------------------------------------------------------------
+# CP-02: solve_recaptcha exceeds _MAX_POLLS raises TimeoutError
+# ---------------------------------------------------------------------------
+
+def test_solve_recaptcha_exceeds_max_polls_raises_timeout():
+    """CP-02: every poll returning CAPTCHA_NOT_READY eventually raises TimeoutError.
+
+    The GET mock must be called exactly _MAX_POLLS times (captcha.py:74).
+    time.sleep is patched to a no-op so the test is instant.
+    """
+    import core.captcha
+    from core.captcha import CaptchaSolver
+
+    submit_resp = MagicMock()
+    submit_resp.json.return_value = {"status": 1, "request": "cid-cp02"}
+
+    not_ready_resp = MagicMock()
+    not_ready_resp.json.return_value = {"status": 0, "request": "CAPTCHA_NOT_READY"}
+
+    solver = CaptchaSolver("test-api-key-cp02", max_solves=10, low_threshold=1.0)
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.post.return_value = submit_resp
+        mock_req.get.return_value = not_ready_resp
+        with patch("core.captcha.time") as mock_time:
+            mock_time.sleep = MagicMock()
+            with pytest.raises(TimeoutError):
+                solver.solve_recaptcha("site-key", "https://example.com")
+
+    assert mock_req.get.call_count == core.captcha._MAX_POLLS
+
+
+# ---------------------------------------------------------------------------
+# CP-03: generic ERROR_ balance response disables solver; api key never logged
+# ---------------------------------------------------------------------------
+
+def test_balance_check_error_response_disables_solver(caplog):
+    """CP-03: a generic ERROR_ text from getbalance raises inside _check_balance (captcha.py:89).
+
+    check_balance_at_startup catches it, sets balance_ok=False, and logs only
+    exc.__class__.__name__ -- the sentinel api key must never appear in any log record.
+    """
+    import logging
+    from core.captcha import CaptchaSolver
+
+    sentinel_key = "sentinel-api-key-cp03-xyzzy"
+    solver = CaptchaSolver(sentinel_key, max_solves=10, low_threshold=1.0)
+
+    error_resp = MagicMock()
+    error_resp.text = "ERROR_KEY_DOES_NOT_EXIST"
+
+    with patch("core.captcha.requests") as mock_req:
+        mock_req.get.return_value = error_resp
+        with caplog.at_level(logging.WARNING):
+            solver.check_balance_at_startup()
+
+    assert solver.balance_ok is False
+    for record in caplog.records:
+        assert sentinel_key not in record.message, (
+            f"API key leaked in log record: {record.message!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # WR-02 regression: solve_amazon_waf respects can_solve() guard
 # ---------------------------------------------------------------------------
 
