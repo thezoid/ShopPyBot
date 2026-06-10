@@ -29,6 +29,12 @@ from models import (
     set_item_available_sync,
     clear_item_available_sync,
     get_item_notification_state_sync,
+    append_price_history_sync,
+    get_last_price_sync,
+    get_item_price_config_sync,
+    get_price_alert_state_sync,
+    set_price_alert_armed_sync,
+    clear_price_alert_armed_sync,
 )
 
 
@@ -46,6 +52,85 @@ def _build_event(name: str, link: str, plugin_name: str, action: str):
         timestamp=datetime.now(timezone.utc),
         action=action,
     )
+
+
+def _cents_to_display(cents: int) -> str:
+    """Format integer cents as a dollar string, e.g. 4999 -> '$49.99'."""
+    return f"${cents / 100:.2f}"
+
+
+def _pct_from_target(price_cents: int, target_cents: int) -> float:
+    """Return percentage price is below target (0.0 when price >= target)."""
+    if target_cents <= 0:
+        return 0.0
+    return max(0.0, round((target_cents - price_cents) / target_cents * 100, 1))
+
+
+def _pct_drop_from_last(current_cents: int, last_cents: int) -> float:
+    """Return percentage drop from last_cents to current_cents (0.0 when price rose)."""
+    if last_cents <= 0:
+        return 0.0
+    return max(0.0, round((last_cents - current_cents) / last_cents * 100, 1))
+
+
+def _check_price_triggers(
+    price_cents: int,
+    target_price: int | None,
+    price_drop_pct: float | None,
+    prev_price: int | None,
+) -> bool:
+    """Return True if absolute target OR percentage-drop trigger fires.
+
+    Guards each trigger with is-not-None check (Pitfall 4).
+    """
+    if target_price is not None and price_cents <= target_price:
+        return True
+    if price_drop_pct is not None and prev_price is not None:
+        if _pct_drop_from_last(price_cents, prev_price) >= price_drop_pct:
+            return True
+    return False
+
+
+def _build_price_drop_event(name: str, link: str, plugin_name: str, price_cents: int, target_price: int | None):
+    """Build a NotificationEvent with action=price_drop and PRICE-04 payload."""
+    from notifications.base import NotificationEvent
+    pct = _pct_from_target(price_cents, target_price) if target_price is not None else None
+    return NotificationEvent(
+        item_name=name,
+        item_url=link,
+        platform=plugin_name,
+        timestamp=datetime.now(timezone.utc),
+        action="price_drop",
+        price_cents=price_cents,
+        target_price_cents=target_price,
+        pct_from_target=pct,
+    )
+
+
+async def _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, dispatcher, loop) -> None:
+    """Evaluate absolute + pct triggers; dispatch a single price_drop alert per dedup window."""
+    item_row = await loop.run_in_executor(None, get_item_price_config_sync, link)
+    if item_row is None:
+        return
+    target_price, price_drop_pct = item_row
+    if target_price is None and price_drop_pct is None:
+        return
+
+    triggered = _check_price_triggers(price_cents, target_price, price_drop_pct, prev_price)
+    if not triggered:
+        await loop.run_in_executor(None, clear_price_alert_armed_sync, link)
+        return
+
+    armed, _ = await loop.run_in_executor(None, get_price_alert_state_sync, link)
+    if armed:
+        return
+
+    if dispatcher is not None:
+        event = _build_price_drop_event(name, link, plugin.__class__.__name__, price_cents, target_price)
+        await dispatcher.notify(event)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await loop.run_in_executor(None, set_price_alert_armed_sync, link, now_iso)
 
 
 def _get_plugin_sleep(plugin, poll_interval: float) -> float:
@@ -107,6 +192,20 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
     except Exception as exc:
         writeLog(f"[{plugin.__class__.__name__}] check error: {exc}", "ERROR")
         return
+
+    # Price monitoring path (PRICE-02): called only after check_availability succeeds.
+    price_cents = None
+    try:
+        price_cents = await plugin.get_price(link)
+    except Exception as exc:
+        writeLog(f"[{plugin.__class__.__name__}] get_price error: {exc.__class__.__name__}", "ERROR")
+
+    if price_cents is not None and price_cents > 0:
+        # Read previous price BEFORE appending current one (Pitfall 3)
+        prev_price = await loop.run_in_executor(None, get_last_price_sync, link)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await loop.run_in_executor(None, append_price_history_sync, link, price_cents, now_iso)
+        await _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, dispatcher, loop)
 
     was_available, _ = await loop.run_in_executor(None, get_item_notification_state_sync, link)
 
