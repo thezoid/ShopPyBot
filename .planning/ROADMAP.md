@@ -199,7 +199,7 @@ Plans:
 | 13. Anti-Detection Layer 1 — Fingerprint + Proxy | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 14. Anti-Detection Layer 2 — CAPTCHA Solving | v3.0 | 3/3 | Complete    | 2026-06-09 |
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete    | 2026-06-09 |
-| 16. Price Monitoring | v3.0 | 4/4 | Complete   | 2026-06-10 |
+| 16. Price Monitoring | v3.0 | 4/4 | Complete    | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 0/TBD | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17.
