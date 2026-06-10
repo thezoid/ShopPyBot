@@ -20,7 +20,7 @@ from core.credentials import init_store
 from core.orchestrator import async_main
 from core.stealth import ProxyPool
 from logger import writeLog
-from models import add_items_sync, get_items_sync, remove_item_sync
+from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync
 
 _log = logging.getLogger(__name__)
 
@@ -72,6 +72,19 @@ class BotService:
     def list_items(self) -> list:
         """Return all DB rows as plain tuples (no bot start required)."""
         return get_items_sync()
+
+    def get_price_history(self, name: str, limit: int = 10) -> list:
+        """Return last N (price_cents, currency, scraped_at) rows for the named item.
+
+        Resolves name to link via exact case-sensitive match. Returns [] if not found.
+        No bot start required (read-only, no network). MOD-02: CLI calls only BotService.
+        """
+        rows = get_items_sync()
+        match = next((r for r in rows if r[0] == name), None)
+        if match is None:
+            return []
+        link = match[1]
+        return get_price_history_sync(link, limit)
 
     def list_plugins(self) -> list[dict]:
         """Return one dict per discovered plugin from _all_plugins.

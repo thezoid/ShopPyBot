@@ -1,6 +1,6 @@
 import sys
 import getpass
-from models import initialize_db, add_items
+from models import initialize_db, add_items, update_item_price_config_sync
 from pydantic import ValidationError
 from core.config_schema import AppConfig
 from core.service import BotService
@@ -36,6 +36,11 @@ def main():
         for item in cfg.available.items
     ]
     add_items(items)
+
+    # Seed per-item price monitoring config into items table (PRICE-01, PRICE-05, Pitfall 7).
+    # Idempotent: NULL overwrites NULL when no price targets are configured.
+    for item in cfg.available.items:
+        update_item_price_config_sync(item.link, item.target_price, item.price_drop_pct)
 
     # SEC-01/02: collect BestBuy CVV from getpass BEFORE the service run (D-03 / Pitfall 6).
     # Only prompt if not in test_mode AND at least one BestBuy item has auto_buy enabled.
