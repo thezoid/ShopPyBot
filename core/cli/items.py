@@ -54,3 +54,33 @@ def handle_items_remove(args, svc: BotService) -> int:
     svc.remove_item(args.url)
     print(f"Removed: {match[0]}")
     return 0
+
+
+def _format_price_history_table(name: str, rows: list) -> str:
+    """Return a left-justified aligned text table for price history rows.
+
+    Each row is a 3-tuple: (price_cents, currency, recorded_at).
+    Returns a no-history message when rows is empty.
+    """
+    if not rows:
+        return f"No price history recorded for: {name}"
+    headers = ("Price", "Currency", "Recorded At")
+    formatted = [
+        (f"${r[0] / 100:.2f}", r[1], r[2])
+        for r in rows
+    ]
+    widths = [
+        max(len(h), max(len(row[i]) for row in formatted))
+        for i, h in enumerate(headers)
+    ]
+    fmt = "  ".join(f"{{:<{w}}}" for w in widths)
+    lines = [fmt.format(*headers), "  ".join("-" * w for w in widths)]
+    for row in formatted:
+        lines.append(fmt.format(*row))
+    return "\n".join(lines)
+
+
+def handle_items_price_history(args, svc: BotService) -> int:
+    """Print a table of recorded prices for the named item."""
+    print(_format_price_history_table(args.name, svc.get_price_history(args.name, args.limit)))
+    return 0
