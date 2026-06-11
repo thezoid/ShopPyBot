@@ -114,3 +114,27 @@ def test_setup_migrate_nothing_to_migrate(tmp_data_dir, reset_credential_store, 
     out, err = capsys.readouterr()
     assert "0 key(s)" in out
     assert "No env-var" in err
+
+
+def test_setup_checkout_profile_subaction_routes_to_handler():
+    """BUY-07 criterion 1: `setup checkout-profile` sub-action routes to handle_setup_checkout_profile.
+
+    Also verifies the flag form `setup --checkout-profile` still routes to handle_setup.
+    """
+    from core.cli import build_parser
+    from core.cli.setup import handle_setup, handle_setup_checkout_profile
+
+    p = build_parser()
+
+    # Sub-action form: shoppybot setup checkout-profile
+    args_sub = p.parse_args(["setup", "checkout-profile"])
+    assert args_sub.func is handle_setup_checkout_profile, (
+        "setup checkout-profile must route to handle_setup_checkout_profile"
+    )
+
+    # Flag form: shoppybot setup --checkout-profile (back-compat)
+    args_flag = p.parse_args(["setup", "--checkout-profile"])
+    assert args_flag.func is handle_setup, (
+        "setup --checkout-profile must still route to handle_setup (flag form)"
+    )
+    assert args_flag.checkout_profile is True

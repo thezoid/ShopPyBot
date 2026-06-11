@@ -63,6 +63,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     setup_p.set_defaults(func=handle_setup)
 
+    # BUY-07 criterion 1: accept `shoppybot setup checkout-profile` (sub-action form).
+    # The --checkout-profile flag above continues to work (both forms are valid).
+    setup_sub = setup_p.add_subparsers(dest="setup_command")
+    cp_p = setup_sub.add_parser(
+        "checkout-profile",
+        help="Configure shipping/billing address profile (9 address keys; no card/CVV).",
+    )
+    cp_p.set_defaults(func=handle_setup_checkout_profile)
+
     def _require_subcommand(parent_parser):
         """Return a func handler that prints parent usage and exits 2.
 
