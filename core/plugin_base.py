@@ -78,6 +78,15 @@ class RetailerPlugin(ABC):
         """
         return None
 
+    def get_active_tab(self):
+        """Return the live tab for confirmation detection after auto_buy().
+
+        Default returns driver.main_tab. Override in plugins that store the
+        last-navigated tab explicitly (Amazon, BestBuy).
+        PLUGIN_API_VERSION stays 2 -- additive concrete method (BUY-03).
+        """
+        return getattr(self.driver, "main_tab", None)
+
     async def place_order_guarded(self, click_fn) -> bool:
         """Invoke click_fn only when test_mode and monitor_only are both False.
 
