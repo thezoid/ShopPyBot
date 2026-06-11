@@ -69,6 +69,15 @@ def initialize_db(delete=False):
             )
         if "price_last_notified" not in existing:
             conn.execute("ALTER TABLE items ADD COLUMN price_last_notified TEXT")
+        # Phase 19: confirmation columns (BUY-03, BUY-04).
+        if "order_id" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN order_id TEXT")
+        if "confirmed_at" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN confirmed_at TEXT")
+        if "checkout_attempts" not in existing:
+            conn.execute(
+                "ALTER TABLE items ADD COLUMN checkout_attempts INTEGER NOT NULL DEFAULT 0"
+            )
         # Phase 16: append-only price history table (PRICE-02).
         conn.execute('''
             CREATE TABLE IF NOT EXISTS price_history (
@@ -93,6 +102,19 @@ def update_item_purchased_sync(link):
     """Set purchased=1 for the item with the given link."""
     with get_db_connection() as conn:
         conn.execute("UPDATE items SET purchased=1 WHERE link=?", (link,))
+
+
+def update_item_confirmed_sync(link: str, order_id: str, confirmed_at: str) -> None:
+    """Set purchased=1, order_id, and confirmed_at together (BUY-03/BUY-04).
+
+    The order_id column is the idempotency anchor for Phase 21 retry (BUY-05).
+    Does not touch checkout_attempts (increment is Phase 21 scope).
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET purchased=1, order_id=?, confirmed_at=? WHERE link=?",
+            (order_id, confirmed_at, link),
+        )
 
 
 def add_items_sync(items):
