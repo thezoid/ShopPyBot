@@ -223,15 +223,21 @@ def test_orchestrator_injection_skipped_when_no_plugin():
 def test_cvv_not_in_writelog_or_print_args():
     """Assert _cvv is never passed as a variable to writeLog or print in threading files.
 
-    Scans core/orchestrator.py, core/cli/run.py, and plugins/shopbot_plugin_amazon.py.
+    Scope: orchestration + CLI path (core/orchestrator.py, core/cli/run.py) plus both
+    plugins (shopbot_plugin_amazon.py, shopbot_plugin_bestbuy.py).
+    Companion test test_no_cvv_in_logs.py covers the same plugin files with writeLog-only
+    scanning; this test adds print() coverage and uses the same keyword-complete scan.
+
     The static prompt string "Enter CVV (input hidden): " is a constant -- excluded.
     Only variable references (ast.Name containing 'cvv') are flagged.
+    Keyword args (e.g., print(file=..., end=cvv)) are also checked (CR-02 / WR-03).
     """
     repo_root = Path(__file__).parent.parent
     threading_files = [
         repo_root / "core" / "orchestrator.py",
         repo_root / "core" / "cli" / "run.py",
         repo_root / "plugins" / "shopbot_plugin_amazon.py",
+        repo_root / "plugins" / "shopbot_plugin_bestbuy.py",
     ]
     violations = []
     for path in threading_files:
@@ -249,11 +255,19 @@ def test_cvv_not_in_writelog_or_print_args():
                 name = ""
             if name not in ("writeLog", "print"):
                 continue
+            # Positional args
             for arg in node.args:
                 arg_src = ast.unparse(arg)
                 # Flag bare variable references containing 'cvv' (not string literals)
                 if "_cvv" in arg_src and not isinstance(arg, ast.Constant):
                     violations.append(
                         f"{path.name}:{node.lineno}: {name}() arg contains '_cvv' variable: {arg_src!r}"
+                    )
+            # Keyword arg values (e.g., print(file=sys.stderr, end=self._cvv))
+            for kw in node.keywords:
+                kw_src = ast.unparse(kw.value)
+                if "_cvv" in kw_src and not isinstance(kw.value, ast.Constant):
+                    violations.append(
+                        f"{path.name}:{node.lineno}: {name}() kwarg contains '_cvv' variable: {kw_src!r}"
                     )
     assert not violations, "CVV variable found in writeLog/print():\n" + "\n".join(violations)
