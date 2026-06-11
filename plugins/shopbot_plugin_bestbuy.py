@@ -305,7 +305,12 @@ class BestBuyPlugin(RetailerPlugin):
             if not place_order:
                 writeLog("Place order button not found", "ERROR")
                 return False
+            self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
             return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(f"Error during BestBuy auto-buy: {exc.__class__.__name__}", "ERROR")
             return False
+
+    def get_active_tab(self):
+        """Return the tab last navigated by auto_buy(), or fall back to main_tab."""
+        return getattr(self, "_last_tab", None) or getattr(self.driver, "main_tab", None)
