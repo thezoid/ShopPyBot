@@ -48,13 +48,59 @@ def _write_backend(chosen: str) -> None:
     _atomic_yaml_write(path, data)
 
 
+def _prompt_visible(prompt: str) -> str | None:
+    """Return visible (echoed) input string or None if empty / EOF.
+
+    Mirrors _prompt_backend but returns the value for caller use. Uses
+    sys.stdin.readline() per ASYNC-03 (no input() builtin).
+    """
+    print(prompt, end="", flush=True)
+    try:
+        val = sys.stdin.readline().strip()
+    except (EOFError, OSError):
+        return None
+    return val or None
+
+
+def handle_setup_checkout_profile(args, svc) -> int:  # noqa: ARG001
+    """Interactively prompt the 9 CHECKOUT_PROFILE_KEYS with VISIBLE input.
+
+    Confirmation output contains key NAMES only -- never values (T-20-03).
+    CHECKOUT_ADDRESS_LINE2 is optional; empty input skips store.set for that key.
+    No card number or CVV is ever prompted or stored here.
+    """
+    from core.credentials import get_store
+    from core.checkout_profile import CHECKOUT_PROFILE_KEYS
+
+    store = get_store()
+    stored_count = 0
+    print("\nCheckout profile setup (address keys only -- no card/CVV).")
+    for key in CHECKOUT_PROFILE_KEYS:
+        if key == "CHECKOUT_ADDRESS_LINE2":
+            label = f"  {key} (optional, Enter to skip): "
+        else:
+            label = f"  {key} (Enter to skip): "
+        val = _prompt_visible(label)
+        if val is not None:
+            store.set(key, val)
+            print(f"  Stored: {key}")  # key NAME only -- never the value (T-20-03)
+            stored_count += 1
+
+    print(f"\nCheckout profile setup complete. {stored_count} key(s) stored.")
+    return 0
+
+
 def handle_setup(args, svc) -> int:
     """Credential setup wizard.
 
     --migrate: import env-var secrets into the active backend (back-compat alias).
+    --checkout-profile: populate the 9 shipping address keys (Option B routing).
     Interactive: prompt each SECRET_KEY via getpass (no echo); confirm by KEY NAME only.
     Writes chosen credentials.backend to config.yml via _atomic_yaml_write.
     """
+    if getattr(args, "checkout_profile", False) is True:
+        return handle_setup_checkout_profile(args, svc)
+
     if getattr(args, "migrate", False):
         store = get_store()
         migrated = migrate_from_env(store)
