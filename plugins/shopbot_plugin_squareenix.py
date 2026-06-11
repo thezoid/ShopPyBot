@@ -200,10 +200,7 @@ class SquareEnixPlugin(RetailerPlugin):
             if not place_order:
                 writeLog("Place order button not found on Square Enix store", "ERROR")
                 return False
-            await place_order.click()
-            writeLog("Order placed on Square Enix store", "SUCCESS")
-            # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
-            return True
+            return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(f"Error during Square Enix auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

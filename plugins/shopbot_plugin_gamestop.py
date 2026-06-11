@@ -193,10 +193,7 @@ class GameStopPlugin(RetailerPlugin):
             if not place_order:
                 writeLog("Place order button not found on GameStop (CAPTCHA may have blocked)", "ERROR")
                 return False
-            await place_order.click()
-            writeLog("Order placed on GameStop", "SUCCESS")
-            # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
-            return True
+            return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(f"Error during GameStop auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

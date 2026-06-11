@@ -388,8 +388,7 @@ class AmazonPlugin(RetailerPlugin):
                 return False
             await qty_option.click()
 
-            test_mode = self.config.debug.test_mode if self.config else True
-            if test_mode:
+            if self.config and self.config.debug.test_mode:
                 writeLog("Test mode active: pausing before buy-now", "DEBUG")
                 await self._wait_user_action(
                     self.test_pause_event,
@@ -409,20 +408,7 @@ class AmazonPlugin(RetailerPlugin):
                 writeLog("Place order button not found", "ERROR")
                 return False
 
-            if not test_mode:
-                await place_order.click()
-                writeLog("Order placed on Amazon", "SUCCESS")
-                return True
-            else:
-                writeLog(
-                    "Test mode active: skipping submitOrderButton click",
-                    "SUCCESS",
-                )
-                await self._wait_user_action(
-                    self.test_pause_event,
-                    "TEST MODE: order review complete. Press Enter to continue.",
-                )
-                return False
+            return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(f"Error during Amazon auto-buy: {exc.__class__.__name__}", "ERROR")
             return False

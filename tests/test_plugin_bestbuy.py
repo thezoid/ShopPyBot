@@ -37,9 +37,11 @@ BestBuyPlugin = _bestbuy_module.BestBuyPlugin
 from core.plugin_base import RetailerPlugin  # noqa: E402
 
 
-def _make_config(items=None):
+def _make_config(items=None, test_mode=True, monitor_only=False):
     cfg = MagicMock()
     cfg.available.items = items or []
+    cfg.debug.test_mode = test_mode
+    cfg.debug.monitor_only = monitor_only
     return cfg
 
 
@@ -149,7 +151,9 @@ async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
     """
     item_url = "https://www.bestbuy.com/site/test/1234.p"
 
-    plugin = BestBuyPlugin(config=_make_config())
+    # Use test_mode=False, monitor_only=False so place_order_guarded allows the click
+    # (simulating a live-mode run that should return True on success).
+    plugin = BestBuyPlugin(config=_make_config(test_mode=False, monitor_only=False))
     plugin.driver = fake_browser
     plugin._cvv = "123"  # set as main.py would after setup()
 

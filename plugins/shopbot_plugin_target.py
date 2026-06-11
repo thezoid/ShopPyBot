@@ -192,10 +192,7 @@ class TargetPlugin(RetailerPlugin):
             if not place_order:
                 writeLog("Place order button not found on Target", "ERROR")
                 return False
-            await place_order.click()
-            writeLog("Order placed on Target", "SUCCESS")
-            # ASYNC-05: return True; orchestrator enqueues write_queue.put(url).
-            return True
+            return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(f"Error during Target auto-buy: {exc.__class__.__name__}", "ERROR")
             return False
