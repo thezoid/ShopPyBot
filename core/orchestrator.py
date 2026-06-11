@@ -234,6 +234,13 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
         return
 
     if auto_buy:
+        debug_cfg = getattr(plugin.config, "debug", None) if plugin.config is not None else None
+        if getattr(debug_cfg, "monitor_only", False):
+            writeLog(
+                f"[{plugin.__class__.__name__}] monitor-only: skipping auto_buy for {name}",
+                "INFO",
+            )
+            return
         await _try_auto_buy(plugin, name, link, write_queue, dispatcher)
 
 
