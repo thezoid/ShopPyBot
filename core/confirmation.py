@@ -20,6 +20,17 @@ from datetime import datetime, timezone
 
 _SETTLE_SECS = 3.0
 
+# Prefix used when the confirmation URL matches but no order ID is extractable from
+# query params or DOM.  The "CONFIRMED-" prefix makes sentinel values distinguishable
+# from real Amazon order IDs (format XXX-XXXXXXX) and real BestBuy order numbers.
+# Phase 21 retry (BUY-05) MUST NOT treat a sentinel as an idempotency key -- sentinel-
+# prefixed order_id values indicate the order MAY have failed silently (e.g., Amazon
+# /gp/buy/thankyou reached after a payment failure).  Live UAT must validate this path.
+# UAT debt: a payment-failure page that still redirects to the thankyou URL will produce
+# a sentinel-marked purchase with purchased=1 but no confirmed order.  Phase 21 must
+# treat sentinel order_ids as requiring manual review.
+_CONFIRMED_SENTINEL_PREFIX = "CONFIRMED-"
+
 # ---------------------------------------------------------------------------
 # Platform confirmation map
 # Keys are plugin class names.  url_fragment is the PRIMARY signal (URL-first,
@@ -128,10 +139,13 @@ async def detect_order_confirmation(tab, platform: str) -> str | None:
 
     # URL matched but no order id extractable -- use sentinel so the
     # orchestrator still writes purchased on a real confirmation (BUY-03).
+    # UAT debt: a payment-failure page reaching the thankyou URL also produces this
+    # sentinel.  Phase 21 retry must treat _CONFIRMED_SENTINEL_PREFIX values as
+    # requiring manual review, not as confirmed idempotency keys.
     ts = datetime.now(timezone.utc).isoformat()
     writeLog(
         f"[confirmation] URL matched for {platform} but no order id found -- "
-        f"using sentinel CONFIRMED-{ts}",
+        f"using sentinel {_CONFIRMED_SENTINEL_PREFIX}{ts}",
         "WARNING",
     )
-    return f"CONFIRMED-{ts}"
+    return f"{_CONFIRMED_SENTINEL_PREFIX}{ts}"
