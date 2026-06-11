@@ -60,7 +60,7 @@ Full phase detail archived in `.planning/milestones/v3.0-ROADMAP.md`.
 ### v4.0 Win-the-Drop (Phases 18-24)
 
 - [x] **Phase 18: Safety Gate + Config Foundation** — Central monitor-only mode, `place_order_guarded()` ABC method closing the 6-of-7 plugin safety hole, and `CheckoutConfig` schema as the foundation every downstream phase depends on (completed 2026-06-11)
-- [ ] **Phase 19: DB Schema + Confirmation Detection** — Add `order_id`/`confirmed_at`/`checkout_attempts` columns and build `core/confirmation.py` so `purchased` is only written on a real confirmed order number, never on a button click
+- [x] **Phase 19: DB Schema + Confirmation Detection** — Add `order_id`/`confirmed_at`/`checkout_attempts` columns and build `core/confirmation.py` so `purchased` is only written on a real confirmed order number, never on a button click (completed 2026-06-11)
 - [ ] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime
 - [ ] **Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry** — One `RetryPolicy` in `core/retry.py` shared by both supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; idempotency guard reads DB before every attempt
 - [ ] **Phase 22: Supervisor + Browser Relaunch + Server Safety** — Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full relaunch sequence (teardown, proxy, stealth, login); DB read isolation; per-item orchestrator timeout; SIGTERM/SIGINT teardown bridge
@@ -251,7 +251,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 19-04-PLAN.md — orchestrator wiring (_try_auto_buy detect + confirmed/legacy fallback outside any timeout; _dispatch_write confirmed branch) + Amazon/BestBuy _last_tab + get_active_tab override + orchestrator tests (BUY-03, BUY-04)
+- [x] 19-04-PLAN.md — orchestrator wiring (_try_auto_buy detect + confirmed/legacy fallback outside any timeout; _dispatch_write confirmed branch) + Amazon/BestBuy _last_tab + get_active_tab override + orchestrator tests (BUY-03, BUY-04)
 
 **Research flag** (RESOLVED via 19-RESEARCH.md): per-retailer confirmation URL patterns (Amazon `/gp/buy/thankyou`, BestBuy `/checkout/r/thank-you`) are HIGH confidence and hardcoded in `core/confirmation.py`; backup DOM selectors (`#confirmedOrderId`, `.thank-you-order-number`) are MEDIUM confidence — live UAT on a test_mode buy is tracked as UAT debt (STATE.md Deferred Items).
 
@@ -355,7 +355,7 @@ Plans:
 | 16. Price Monitoring | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 19. DB Schema + Confirmation Detection | v4.0 | 3/4 | In Progress|  |
+| 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete   | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |

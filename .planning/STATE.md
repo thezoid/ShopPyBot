@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: executing
-last_updated: "2026-06-11T20:51:34.355Z"
+status: verifying
+last_updated: "2026-06-11T21:02:38.296Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 7
-  percent: 8
+  completed_plans: 8
+  percent: 15
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 19 (DB Schema + Confirmation Detection) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-11
 
 ## Phase Status
@@ -122,12 +122,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 19 P19-01 | 4min | 3 tasks | 2 files |
 | Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
 | Phase 19 P19-03 | 3min | 1 task | 2 files |
+| Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
 
 ## Session Continuity
 
-**Last action**: Phase 19 Plan 03 complete -- get_active_tab() sync concrete default on RetailerPlugin ABC (BUY-03); 585 tests passing.
-**Next action**: Execute Phase 19 Plan 04.
-**Context to carry**: get_active_tab default returns getattr(self.driver, "main_tab", None). Amazon and BestBuy must override in Plan 04 to return self._last_tab (set before place_order_guarded call). Non-checkout plugins inherit the safe None default unchanged.
+**Last action**: Phase 19 Plan 04 complete -- confirmation wiring end-to-end (BUY-03, BUY-04); 597 tests passing.
+**Next action**: Execute Phase 20 (Checkout Profile + Form-Fill).
+**Context to carry**: _try_auto_buy calls detect_order_confirmation after auto_buy() success; confirmed tag routes to update_item_confirmed_sync; Amazon + BestBuy override get_active_tab() to return self._last_tab; other 5 plugins use ABC default (None). write_queue.put() stays outside any timeout context (PITFALLS #10).
 
 ---
 
