@@ -46,8 +46,14 @@ _PLATFORM_MAP: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 
-async def _extract_order_id(tab, cfg: dict) -> str | None:
+async def _extract_order_id(tab, cfg: dict, current_url: str) -> str | None:
     """Try URL query params first, then DOM selectors.
+
+    current_url must be the already-settled URL snapshot from detect_order_confirmation.
+    Receiving it as an argument (rather than re-reading tab.target.url) ensures that the
+    fragment check and the query-param extraction operate on the SAME URL -- preventing a
+    stale-read race where a post-confirmation redirect moves the tab to a page where the
+    orderID param no longer appears (CR-02).
 
     Returns the first non-empty string found, or None if nothing matches.
     Selector exceptions are logged at DEBUG with exc.__class__.__name__ only
@@ -56,7 +62,6 @@ async def _extract_order_id(tab, cfg: dict) -> str | None:
     from logger import writeLog
 
     # URL query param extraction (Amazon orderID -- HIGH confidence)
-    current_url = tab.target.url
     for param in cfg.get("url_query_params", []):
         try:
             qs = urllib.parse.parse_qs(
@@ -117,7 +122,7 @@ async def detect_order_confirmation(tab, platform: str) -> str | None:
     if cfg["url_fragment"] not in current_url:
         return None  # not on confirmation page
 
-    order_id = await _extract_order_id(tab, cfg)
+    order_id = await _extract_order_id(tab, cfg, current_url)
     if order_id:
         return order_id
 

@@ -100,3 +100,29 @@ async def test_unknown_platform():
     )
     result = await detect_order_confirmation(tab, "WalmartPlugin")
     assert result is None
+
+
+async def test_extract_order_id_uses_settled_url_snapshot():
+    """CR-02: _extract_order_id uses the current_url parameter, not tab.target.url.
+
+    tab.target.url is set to a redirect URL with no orderID.  The confirmation URL
+    (with orderID) is passed directly as current_url.  If _extract_order_id re-read
+    tab.target.url instead of using the parameter, it would return None (sentinel path).
+    The fix ensures the snapshot from detect_order_confirmation is used.
+    """
+    from core.confirmation import _extract_order_id, _PLATFORM_MAP
+
+    settled_url = "https://www.amazon.com/gp/buy/thankyou?orderID=302-RACETEST"
+    redirect_url = "https://www.amazon.com/home"  # no orderID
+
+    # tab.target.url returns the redirect (post-confirmation navigation)
+    tab = FakeTab(url=redirect_url, selector_map={})
+    cfg = _PLATFORM_MAP["AmazonPlugin"]
+
+    # Pass the settled URL snapshot directly (the CR-02 fix contract)
+    result = await _extract_order_id(tab, cfg, settled_url)
+    assert result == "302-RACETEST", (
+        f"Expected orderID from settled URL snapshot, got {result!r}. "
+        "Likely cause: _extract_order_id re-read tab.target.url ('{redirect_url}') "
+        "instead of using the passed current_url snapshot."
+    )
