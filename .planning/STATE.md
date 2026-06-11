@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T22:09:27.919Z"
+last_updated: "2026-06-11T22:20:20.002Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
   percent: 15
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 20 (Checkout Profile + Form-Fill) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-11
 
@@ -124,16 +124,17 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 19 P19-03 | 3min | 1 task | 2 files |
 | Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
 | Phase 20 P20-01 | 8min | 2 tasks | 3 files |
+| Phase 20 P20-02 | 6min | 2 tasks | 3 files |
 
 ## Session Continuity
 
-**Last action**: Phase 19 Plan 04 complete -- confirmation wiring end-to-end (BUY-03, BUY-04); 597 tests passing.
-**Next action**: Execute Phase 20 (Checkout Profile + Form-Fill).
-**Context to carry**: _try_auto_buy calls detect_order_confirmation after auto_buy() success; confirmed tag routes to update_item_confirmed_sync; Amazon + BestBuy override get_active_tab() to return self._last_tab; other 5 plugins use ABC default (None). write_queue.put() stays outside any timeout context (PITFALLS #10).
+**Last action**: Phase 20 Plan 02 complete -- setup --checkout-profile CLI handler + 4 tests; 607 tests passing.
+**Next action**: Execute Phase 20 Plan 03 (plugin_base + orchestrator checkout profile loading).
+**Context to carry**: Option B (--checkout-profile flag) chosen; handle_setup branches via `is True` guard; _prompt_visible uses sys.stdin.readline (ASYNC-03); key-name-only stdout output (T-20-03); CHECKOUT_ADDRESS_LINE2 optional. write_queue.put() stays outside any timeout context (PITFALLS #10).
 
 ---
 
-*Last updated: 2026-06-11 -- Phase 19 Plan 03 complete*
+*Last updated: 2026-06-11 -- Phase 20 Plan 02 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 
