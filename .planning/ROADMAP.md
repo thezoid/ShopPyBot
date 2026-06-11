@@ -219,7 +219,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 18-01-PLAN.md — DebugConfig.monitor_only + CheckoutConfig model + AppConfig wiring (BUY-01, BUY-02)
+- [x] 18-01-PLAN.md — DebugConfig.monitor_only + CheckoutConfig model + AppConfig wiring (BUY-01, BUY-02)
 - [ ] 18-02-PLAN.md — place_order_guarded() concrete method on RetailerPlugin ABC + unit tests (BUY-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -341,7 +341,7 @@ Plans:
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
-| 18. Safety Gate + Config Foundation | v4.0 | 0/4 | Planned | - |
+| 18. Safety Gate + Config Foundation | v4.0 | 1/4 | In Progress|  |
 | 19. DB Schema + Confirmation Detection | v4.0 | 0/TBD | Not started | - |
 | 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T14:44:29.750Z"
-last_activity: 2026-06-11 -- Phase 18 planning complete
+last_updated: "2026-06-11T14:55:33.508Z"
+last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap defined, ready for Phase 18 planning)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 18 planning complete
+Phase: 18 (Safety Gate + Config Foundation) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 18
+Last activity: 2026-06-11 -- Phase 18 Plan 01 complete (CheckoutConfig + monitor_only)
 
 ## Phase Status
 
@@ -76,6 +76,9 @@ Last activity: 2026-06-11 -- Phase 18 planning complete
 - [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
 - [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
 - [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
+- [Phase 18-01]: monitor_only: bool = False in DebugConfig; default is False per CONTEXT.md (STATE.md was stale; CONTEXT.md wins)
+- [Phase 18-01]: CheckoutConfig uses Field(ge=) scalar bounds only; no @field_validator needed (scalar numeric bounds sufficient)
+- [Phase 18-01]: checkout: CheckoutConfig = CheckoutConfig() declared as explicit AppConfig class attribute; extra=ignore cannot drop a declared field (T-18-03 mitigated)
 
 ### Research Flags (carry into planning — v4.0)
 
@@ -115,13 +118,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Session Continuity
 
-**Last action**: v4.0 roadmap created — 7 phases (18-24), 17 requirements mapped, all coverage validated.
-**Next action**: Run `/gsd:plan-phase 18` to begin Phase 18 (Safety Gate + Config Foundation).
-**Context to carry**: Phase 18 is a prerequisite for all downstream phases. It closes the confirmed 6-of-7 plugin safety hole (BestBuy has no `test_mode` guard; 5 others will have none when checkout is added). `DebugConfig.monitor_only` defaults to `True` (safe default). `place_order_guarded()` is a concrete ABC method — all future community plugins get the gate automatically without per-plugin effort.
+**Last action**: Phase 18 Plan 01 complete — CheckoutConfig schema + DebugConfig.monitor_only added; 556 tests passing.
+**Next action**: Execute Phase 18 Plan 02 (place_order_guarded ABC method + orchestrator gate).
+**Context to carry**: CheckoutConfig is wired into AppConfig.checkout. monitor_only defaults to False (not True; CONTEXT.md decision). All downstream phases (21/22/24) can consume checkout.* fields without schema churn.
 
 ---
 
-*Last updated: 2026-06-10 — v4.0 roadmap created by gsd-roadmapper*
+*Last updated: 2026-06-11 — Phase 18 Plan 01 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 

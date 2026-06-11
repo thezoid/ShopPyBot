@@ -13,8 +13,8 @@ This file scopes v4.0 only.
 
 ### Acquisition — Verified Checkout
 
-- [ ] **BUY-01**: User can run the bot in a monitor-only mode (config flag and/or `--monitor-only`) that performs stock checks and fires alerts but never places an order, enforced once at the orchestrator before `auto_buy` so it applies to every plugin uniformly.
-- [ ] **BUY-02**: Every plugin routes its final place-order action through a single `place_order_guarded()` concrete method on the RetailerPlugin ABC that honors `test_mode`/monitor-only, so all 7 bundled plugins (and future community plugins) cannot place a live order under test/monitor mode by default. (Closes the confirmed hole where BestBuy and 5 others ignore `test_mode`.)
+- [x] **BUY-01**: User can run the bot in a monitor-only mode (config flag and/or `--monitor-only`) that performs stock checks and fires alerts but never places an order, enforced once at the orchestrator before `auto_buy` so it applies to every plugin uniformly.
+- [x] **BUY-02**: Every plugin routes its final place-order action through a single `place_order_guarded()` concrete method on the RetailerPlugin ABC that honors `test_mode`/monitor-only, so all 7 bundled plugins (and future community plugins) cannot place a live order under test/monitor mode by default. (Closes the confirmed hole where BestBuy and 5 others ignore `test_mode`.)
 - [ ] **BUY-03**: After `auto_buy` returns, the orchestrator verifies a real placed order using a primary confirmation-URL signal plus an order-number backup signal (with a settle delay), capturing the order id; `purchased` is written only on a confirmed order, never on a button click.
 - [ ] **BUY-04**: The bot records each checkout outcome (confirmed / failed / timed-out) with the captured order id and a timestamp in the database, providing the idempotency anchor and a basis for future outcome analytics.
 - [ ] **BUY-05**: On a non-confirmed checkout, the bot retries up to a configurable maximum with backoff, re-reading the persisted `purchased`/outcome state before each attempt so a succeeded-but-misdetected order is never re-submitted (no double-buy).
@@ -64,8 +64,8 @@ This file scopes v4.0 only.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUY-01 | Phase 18 | Pending |
-| BUY-02 | Phase 18 | Pending |
+| BUY-01 | Phase 18 | Complete |
+| BUY-02 | Phase 18 | Complete |
 | BUY-03 | Phase 19 | Pending |
 | BUY-04 | Phase 19 | Pending |
 | BUY-05 | Phase 21 | Pending |
