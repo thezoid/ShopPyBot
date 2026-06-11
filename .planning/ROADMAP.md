@@ -267,7 +267,19 @@ Plans:
   3. A CI grep assertion confirms no `_cvv` value appears in any `writeLog()` call argument on checkout code paths
   4. If a shipping form field selector returns None (DOM drift), the plugin logs a WARNING with the selector name and returns False without submitting an incomplete form
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1** *(parallel-safe; no file overlap)*
+
+- [ ] 20-01-PLAN.md — core/checkout_profile.py: CHECKOUT_PROFILE_KEYS (9, NOT in SECRET_KEYS) + CheckoutProfile model + load_checkout_profile() incomplete detection + tests (BUY-07)
+- [ ] 20-02-PLAN.md — `setup checkout-profile` CLI: visible-prompt 9 keys, key-NAME-only output, optional ADDRESS_LINE2, no card/CVV stored (BUY-07)
+- [ ] 20-03-PLAN.md — CVV threading: Amazon __init__ _cvv=None + orchestrator amz injection (mirrors BestBuy 411-414) + run.py needs_cvv includes amazon.com (BUY-07)
+
+**Wave 2** *(blocked on 20-01 + 20-03)*
+
+- [ ] 20-04-PLAN.md — Form-fill: _checkout_profile load at setup() + _fill_field + BestBuy shipping fill before place_order_guarded (missing-selector WARN+False) + Amazon CVV skip-if-absent + CVV-not-in-logs AST test (BUY-07)
 
 ### Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry
 
