@@ -57,6 +57,13 @@ class CheckoutProfile(BaseModel):
 def load_checkout_profile() -> CheckoutProfile | None:
     """Read address keys from the CredentialStore and return a CheckoutProfile.
 
+    Requires init_store(cfg) to have been called before this function; otherwise
+    get_store() returns a fresh EnvVarBackend (reads from os.environ). In normal
+    bot operation BotService.__init__ calls init_store(cfg) before any plugin
+    setup(), so this dependency is always satisfied at runtime. If called in a
+    test or tool context without init_store(), keyring/file-stored keys will be
+    absent and None is returned (WR-02).
+
     Returns None and emits a WARNING (key NAMES only, never values) if any of the
     8 required keys are absent or empty. CHECKOUT_ADDRESS_LINE2 is optional; its
     absence does not cause a None return.
