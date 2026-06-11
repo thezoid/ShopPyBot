@@ -75,6 +75,9 @@ SECRET_KEYS: list[str] = [
     # 2captcha
     "TWOCAPTCHA_API_KEY",
 ]
+# CHECKOUT_PROFILE_KEYS lives in core/checkout_profile.py and must NEVER be merged
+# into SECRET_KEYS. migrate_from_env, EnvVarBackend.list, and KeyringBackend.list all
+# iterate SECRET_KEYS only -- widening this list would silently change their behaviour.
 
 
 # ---------------------------------------------------------------------------
