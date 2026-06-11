@@ -753,7 +753,7 @@ def _make_amazon_plugin(bought: bool):
     return instance
 
 
-async def test_orchestrator_confirmed_path(tmp_data_dir):
+async def test_orchestrator_confirmed_path():
     """auto_buy success + confirmation URL -> single ("confirmed", ...) 4-tuple enqueued."""
     from core.orchestrator import _try_auto_buy
 
@@ -774,7 +774,7 @@ async def test_orchestrator_confirmed_path(tmp_data_dir):
     assert item[2] is not None, "order_id must be non-None on confirmed path"
 
 
-async def test_orchestrator_fallback_path(tmp_data_dir):
+async def test_orchestrator_fallback_path():
     """auto_buy success + non-confirmation URL -> single ("purchased", link) enqueued, WARNING logged."""
     from core.orchestrator import _try_auto_buy
 
@@ -800,7 +800,7 @@ async def test_orchestrator_fallback_path(tmp_data_dir):
     assert warning_msgs, "A WARNING must be logged on confirmation fallback path"
 
 
-async def test_no_double_buy_single_put(tmp_data_dir):
+async def test_no_double_buy_single_put():
     """Confirmed path enqueues exactly one item (no double-buy, Pitfall 5)."""
     from core.orchestrator import _try_auto_buy
 
