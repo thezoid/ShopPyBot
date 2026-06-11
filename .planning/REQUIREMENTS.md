@@ -62,22 +62,22 @@ This file scopes v4.0 only.
 
 ## Traceability
 
-| Requirement | Phase |
-|-------------|-------|
-| BUY-01 | TBD (roadmap) |
-| BUY-02 | TBD (roadmap) |
-| BUY-03 | TBD (roadmap) |
-| BUY-04 | TBD (roadmap) |
-| BUY-05 | TBD (roadmap) |
-| BUY-06 | TBD (roadmap) |
-| BUY-07 | TBD (roadmap) |
-| REL-01 | TBD (roadmap) |
-| REL-02 | TBD (roadmap) |
-| REL-03 | TBD (roadmap) |
-| REL-04 | TBD (roadmap) |
-| REL-05 | TBD (roadmap) |
-| REL-06 | TBD (roadmap) |
-| REL-07 | TBD (roadmap) |
-| REL-08 | TBD (roadmap) |
-| SRV-01 | TBD (roadmap) |
-| SRV-02 | TBD (roadmap) |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| BUY-01 | Phase 18 | Pending |
+| BUY-02 | Phase 18 | Pending |
+| BUY-03 | Phase 19 | Pending |
+| BUY-04 | Phase 19 | Pending |
+| BUY-05 | Phase 21 | Pending |
+| BUY-06 | Phase 21 | Pending |
+| BUY-07 | Phase 20 | Pending |
+| REL-01 | Phase 22 | Pending |
+| REL-02 | Phase 22 | Pending |
+| REL-03 | Phase 22 | Pending |
+| REL-04 | Phase 23 | Pending |
+| REL-05 | Phase 22 | Pending |
+| REL-06 | Phase 22 | Pending |
+| REL-07 | Phase 24 | Pending |
+| REL-08 | Phase 21 | Pending |
+| SRV-01 | Phase 24 | Pending |
+| SRV-02 | Phase 22 | Pending |

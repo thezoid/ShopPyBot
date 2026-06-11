@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-06-10T14:13:21.058Z"
 last_activity: 2026-06-10
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,37 +20,38 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v3.0 Resilience + Ecosystem
-**Total Phases**: 6 (Phases 12-17)
-**Total Requirements**: 18
+**Milestone**: v4.0 Win-the-Drop (Acquisition Core + Reliability)
+**Total Phases**: 7 (Phases 18-24)
+**Total Requirements**: 17
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined, ready for Phase 18 planning)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-10 — Milestone v4.0 started
+Status: Roadmap created
+Last activity: 2026-06-10 — v4.0 roadmap created
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 12 — Stability Foundation | Close v2.0 deferred OS checks + 4 audit tech-debt items | Not started | 2 |
-| 13 — Anti-Detection Layer 1 (Fingerprint + Proxy) | JS stealth patch + proxy rotation with ban detection | Not started | 3 |
-| 14 — Anti-Detection Layer 2 (CAPTCHA Solving) | 2captcha opt-in with balance check, async executor, spend cap | Not started | 2 |
-| 15 — Plugin Ecosystem Registry | ABC difficulty attrs, GitHub wiki table, plugins list CLI, updated contributor docs | Complete | 4 |
-| 16 — Price Monitoring | Per-item target price, price history table, fan-out alerts, price-history CLI | Complete | 6 |
-| 17 — Test Hardening | Unit + integration coverage for all v3.0 features | Complete | 1 |
+| 18 — Safety Gate + Config Foundation | monitor-only mode + place_order_guarded() ABC + CheckoutConfig schema | Not started | BUY-01, BUY-02 |
+| 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Not started | BUY-03, BUY-04 |
+| 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Not started | BUY-07 |
+| 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Not started | BUY-05, BUY-06, REL-08 |
+| 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Not started | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
+| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Not started | REL-04 |
+| 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Not started | REL-07, SRV-01 |
 
 ---
 
 ## Performance Metrics
 
-**Plans completed**: 12 of 13
-**Requirements completed**: REG-01, REG-02, REG-03, REG-04 (Phase 15 all closed)
-**Phases completed**: Phase 15 complete
+**Plans completed**: 0 of TBD
+**Requirements completed**: (none yet)
+**Phases completed**: 0 of 7
 **Blockers resolved**: 0
 
 ---
@@ -68,24 +69,27 @@ Last activity: 2026-06-10 — Milestone v4.0 started
 - CVV via `getpass` at runtime; credentials via env vars only — must be complete before open source launch
 - SMS/Twilio is opt-in disabled by default to prevent accidental charges
 - nodriver preferred over Selenium for new plugins (async-native, bot-detection resistant); Selenium retained for Phase 1/2 refactor continuity
+- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
+- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
+- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
+- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern
+- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
+- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
+- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
 
-### Research Flags (carry into planning)
+### Research Flags (carry into planning — v4.0)
 
-- Phase 13 (proxy): Authenticated proxy support is broken in nodriver via `--proxy-server`; must use CDP `Fetch.continueWithAuth` or IP-allowlisted proxies only — fail loudly, never silently fall back to direct connection (PITFALLS 1.1)
-- Phase 13 (proxy): WebRTC leaks real IP through proxied sessions; inject three Chrome prefs at browser launch to disable non-proxied UDP (PITFALLS 1.2)
-- Phase 13 (proxy): Proxy selection must be per plugin instance (`self._proxy`), never a module-level singleton (PITFALLS 1.6)
-- Phase 13 (fingerprint): Apply fingerprint overrides in `setup()` before first navigation only; test against CreepJS before merging; Chrome-only UAs in rotation pool (PITFALLS 3.2, 3.3)
-- Phase 14 (CAPTCHA): Add `CAPTCHA_API_KEY` to `SECRET_KEYS` before writing any CAPTCHA code; no `captcha.api_key` field in Pydantic schema (PITFALLS 2.2)
-- Phase 14 (CAPTCHA): Wrap solve call with `run_in_executor` + `asyncio.timeout(120)` mandatory — sync SDK blocks event loop (PITFALLS 2.3)
-- Phase 16 (price): Use JSON-LD > OG > CSS extraction cascade; store raw price text alongside parsed float to enable debugging (PITFALLS 4.1)
-- Phase 16 (price): Price alert state uses dedicated columns (`price_alert_armed`, `price_last_notified`) — do not reuse `last_notified` which tracks stock dedup (PITFALLS 7.2)
-- Phase 16 (price): Idempotent `ALTER TABLE` with `PRAGMA table_info` check for every new column; CI migration fixture test against v2.0 DB (PITFALLS 4.4)
-- Phase 15 (registry): GitHub wiki is directory listing only; all API contract docs live in `PLUGIN_DEV.md` in-repo (PITFALLS 5.1)
-- All phases: Log only `exc.__class__.__name__` on proxy/CAPTCHA exception paths — never `str(exc)` which may contain credential strings in URLs (PITFALLS 6.4)
+- Phase 19 (confirmation selectors): Per-retailer confirmation URL patterns are HIGH confidence (Amazon `/gp/buy/thankyou`, BestBuy `/checkout/r/thank-you`). Backup DOM selectors (`#confirmedOrderId`, `#widget-purchaseConfirmationStatus` for Amazon; `.thank-you-order-number`, `[data-testid="order-number"]` for BestBuy) are MEDIUM confidence and require live UAT on a `test_mode` buy before hardcoding in `core/confirmation.py`. Flag: `--research-phase` during Phase 19 planning.
+- Phase 21 (checkout_attempts semantics): The DB schema adds `checkout_attempts INTEGER DEFAULT 0` but the increment strategy is unresolved: on every `auto_buy()` call entry, on every cart-add attempt, or only on confirmed orders. Must be an explicit decision in Phase 21 planning to avoid ambiguous double-buy detection.
+- Phase 22 (nodriver relaunch + CDP stealth): Whether `add_script_to_evaluate_on_new_document` persists across `Browser.stop()` + restart or must be re-injected needs validation against installed `nodriver==0.50.3` before finalizing `plugin.relaunch()`. Flag: `--research-phase` during Phase 22 planning.
+- Phase 23 (nodriver CDP cookie API): `cdp.storage.set_cookies()` exact import path and `CookieParam` constructor signature should be verified against installed `nodriver==0.50.3` before committing the restore path. The workaround is confirmed from nodriver issues #1816/#2020 but the exact API shape needs local verification. Flag: `--research-phase` during Phase 23 planning.
+- All checkout phases: Never log `self._cvv`; use `exc.__class__.__name__` not `str(exc)` on checkout exception paths; never add CVV/CARD_NUMBER to SECRET_KEYS. Add CI grep assertion blocking `_cvv` in any `writeLog` argument (carry-forward from v3.0 policy per PITFALLS 6.4).
+- Phase 22 (double-buy guard): Per-item timeout must wrap only the `check_availability` + `auto_buy` portion of `_check_and_buy`; `write_queue.put()` calls must be OUTSIDE the timeout context so a timed-out item cannot orphan a pending DB write (PITFALLS #10).
+- Phase 22 (DB error isolation): Distinguish `sqlite3.OperationalError` (transient locked — skip poll cycle, continue) from `sqlite3.DatabaseError` (fatal corruption — log CRITICAL, propagate) on read path (PITFALLS #11).
 
 ### Active Todos
 
-- Run `/gsd:plan-phase 12` to begin Phase 12 planning
+- Run `/gsd:plan-phase 18` to begin Phase 18 planning
 
 ### Blockers
 
@@ -95,7 +99,7 @@ Last activity: 2026-06-10 — Milestone v4.0 started
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Phase 12 closes all of these.
+Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Phase 12 closed all of these.
 
 | Category | Item | Status |
 |----------|------|--------|
@@ -105,41 +109,21 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | verification | Phase 11 — live cross-OS path + backend matrix | human_needed |
 | uat | Phase 11 — 11-HUMAN-UAT.md (6 live cross-OS scenarios) | partial (6 pending) |
 | uat | Phase 01 — 01-UAT.md | partial (0 pending) |
+| uat | Phase 19 — per-retailer confirmation selectors (Amazon + BestBuy) | UAT required before Phase 19 finalizes selectors |
 
 ---
-| Phase 13 P01 | 7min | 2 tasks | 2 files |
-| Phase 13 P02 | 5min | 2 tasks | 3 files |
-| Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
-| Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
-| Phase 12 P03 | 4min | - tasks | - files |
-| Phase 12 P04 | 5min | 2 tasks | 1 files |
-| Phase 13 P03 | 13min | 3 tasks | 11 files |
-| Phase 14 P01 | 10min | 2 tasks | 7 files |
-| Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
-| Phase 14-anti-detection-layer-2-captcha-solving P03 | 18min | 2 tasks | 4 files |
-| Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
-| Phase 15-plugin-ecosystem-registry P02 | 12min | 3 tasks | 4 files |
-| Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
-| Phase 16-price-monitoring P01 | 5min | 2 tasks | 3 files |
-| Phase 16 P02 | 8min | 4 tasks | 6 files |
-| Phase 16-price-monitoring P03 | 8min | 3 tasks | 5 files |
-| Phase 16-price-monitoring P04 | 5min | 3 tasks | 3 files |
-| Phase 17-test-hardening P01 | 15 | 2 tasks | 3 files |
-| Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
-| Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
-| Phase 17-test-hardening P04 | 4min | 1 tasks | 1 files |
 
 ## Session Continuity
 
-**Last action**: Phase 17 Plan 04 complete -- AB-03 (requires_captcha+easy override) + AB-04 (_handle_ban ban->cooldown bridge, branch 53->55 all 3 sub-cases); 548 passed, 2 skipped. Phase 17 COMPLETE. Milestone v3.0 COMPLETE.
-**Next action**: None -- milestone v3.0 fully closed
-**Context to carry**: Phase 16 fully closed (PRICE-01 through PRICE-06). price-history CLI: `shoppybot items price-history <name> [--limit N]` via BotService.get_price_history; $X.XX table formatting. Phase 15 fully closed (REG-01 through REG-04).
+**Last action**: v4.0 roadmap created — 7 phases (18-24), 17 requirements mapped, all coverage validated.
+**Next action**: Run `/gsd:plan-phase 18` to begin Phase 18 (Safety Gate + Config Foundation).
+**Context to carry**: Phase 18 is a prerequisite for all downstream phases. It closes the confirmed 6-of-7 plugin safety hole (BestBuy has no `test_mode` guard; 5 others will have none when checkout is added). `DebugConfig.monitor_only` defaults to `True` (safe default). `place_order_guarded()` is a concrete ABC method — all future community plugins get the gate automatically without per-plugin effort.
 
 ---
 
-*Last updated: 2026-06-07 — v3.0 roadmap created by gsd-roadmapper*
+*Last updated: 2026-06-10 — v4.0 roadmap created by gsd-roadmapper*
 
-## Performance Metrics (v1 + v2.0 history)
+## Performance Metrics (v1 + v2.0 + v3.0 history)
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
@@ -186,6 +170,27 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 11 P02 | 8min | 3 tasks | 5 files |
 | Phase 11 P03 | 7m | 3 tasks | 3 files |
 | Phase 11 P04 | 8m | 2 tasks | 2 files |
+| Phase 13 P01 | 7min | 2 tasks | 2 files |
+| Phase 13 P02 | 5min | 2 tasks | 3 files |
+| Phase 12-stability-foundation P01 | 3min | 2 tasks | 2 files |
+| Phase 12-stability-foundation P02 | 237 | 2 tasks | 2 files |
+| Phase 12 P03 | 4min | - tasks | - files |
+| Phase 12 P04 | 5min | 2 tasks | 1 files |
+| Phase 13 P03 | 13min | 3 tasks | 11 files |
+| Phase 14 P01 | 10min | 2 tasks | 7 files |
+| Phase 14-anti-detection-layer-2-captcha-solving P02 | 8min | 2 tasks | 4 files |
+| Phase 14-anti-detection-layer-2-captcha-solving P03 | 18min | 2 tasks | 4 files |
+| Phase 15-plugin-ecosystem-registry P01 | 8min | 2 tasks | 2 files |
+| Phase 15-plugin-ecosystem-registry P02 | 12min | 3 tasks | 4 files |
+| Phase 15-plugin-ecosystem-registry P03 | 9min | 3 tasks | 5 files |
+| Phase 16-price-monitoring P01 | 5min | 2 tasks | 3 files |
+| Phase 16 P02 | 8min | 4 tasks | 6 files |
+| Phase 16-price-monitoring P03 | 8min | 3 tasks | 5 files |
+| Phase 16-price-monitoring P04 | 5min | 3 tasks | 3 files |
+| Phase 17-test-hardening P01 | 15 | 2 tasks | 3 files |
+| Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
+| Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
+| Phase 17-test-hardening P04 | 4min | 1 tasks | 1 files |
 
 ## Decisions
 
@@ -282,4 +287,4 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd:new-milestone
+- Run `/gsd:plan-phase 18` to begin Phase 18 (Safety Gate + Config Foundation)
