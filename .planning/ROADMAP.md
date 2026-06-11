@@ -59,7 +59,7 @@ Full phase detail archived in `.planning/milestones/v3.0-ROADMAP.md`.
 
 ### v4.0 Win-the-Drop (Phases 18-24)
 
-- [ ] **Phase 18: Safety Gate + Config Foundation** — Central monitor-only mode, `place_order_guarded()` ABC method closing the 6-of-7 plugin safety hole, and `CheckoutConfig` schema as the foundation every downstream phase depends on
+- [x] **Phase 18: Safety Gate + Config Foundation** — Central monitor-only mode, `place_order_guarded()` ABC method closing the 6-of-7 plugin safety hole, and `CheckoutConfig` schema as the foundation every downstream phase depends on (completed 2026-06-11)
 - [ ] **Phase 19: DB Schema + Confirmation Detection** — Add `order_id`/`confirmed_at`/`checkout_attempts` columns and build `core/confirmation.py` so `purchased` is only written on a real confirmed order number, never on a button click
 - [ ] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime
 - [ ] **Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry** — One `RetryPolicy` in `core/retry.py` shared by both supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; idempotency guard reads DB before every attempt
@@ -225,7 +225,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 18-03-PLAN.md — orchestrator monitor_only gate + --monitor-only CLI flag + CVV short-circuit + ALLOWLIST (BUY-01)
-- [ ] 18-04-PLAN.md — reroute all 7 plugins through place_order_guarded + test_safety_gate.py (7-plugin zero-write + grep) (BUY-02)
+- [x] 18-04-PLAN.md — reroute all 7 plugins through place_order_guarded + test_safety_gate.py (7-plugin zero-write + grep) (BUY-02)
 
 ### Phase 19: DB Schema + Confirmation Detection
 
@@ -341,7 +341,7 @@ Plans:
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
-| 18. Safety Gate + Config Foundation | v4.0 | 3/4 | In Progress|  |
+| 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete   | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 0/TBD | Not started | - |
 | 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
