@@ -273,7 +273,7 @@ Plans:
 
 **Wave 1** *(parallel-safe; no file overlap)*
 
-- [ ] 20-01-PLAN.md — core/checkout_profile.py: CHECKOUT_PROFILE_KEYS (9, NOT in SECRET_KEYS) + CheckoutProfile model + load_checkout_profile() incomplete detection + tests (BUY-07)
+- [x] 20-01-PLAN.md — core/checkout_profile.py: CHECKOUT_PROFILE_KEYS (9, NOT in SECRET_KEYS) + CheckoutProfile model + load_checkout_profile() incomplete detection + tests (BUY-07)
 - [ ] 20-02-PLAN.md — `setup checkout-profile` CLI: visible-prompt 9 keys, key-NAME-only output, optional ADDRESS_LINE2, no card/CVV stored (BUY-07)
 - [ ] 20-03-PLAN.md — CVV threading: Amazon __init__ _cvv=None + orchestrator amz injection (mirrors BestBuy 411-414) + run.py needs_cvv includes amazon.com (BUY-07)
 
@@ -368,7 +368,7 @@ Plans:
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
+| 20. Checkout Profile + Form-Fill | v4.0 | 1/4 | In Progress|  |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |

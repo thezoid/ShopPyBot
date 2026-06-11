@@ -19,7 +19,7 @@ This file scopes v4.0 only.
 - [x] **BUY-04**: The bot records each checkout outcome (confirmed / failed / timed-out) with the captured order id and a timestamp in the database, providing the idempotency anchor and a basis for future outcome analytics.
 - [ ] **BUY-05**: On a non-confirmed checkout, the bot retries up to a configurable maximum with backoff, re-reading the persisted `purchased`/outcome state before each attempt so a succeeded-but-misdetected order is never re-submitted (no double-buy).
 - [ ] **BUY-06**: Each checkout runs under a per-step time budget with checkout-stage tracking and a hard per-item ceiling, so a slow step aborts cleanly (no half-submitted order, no orphaned browser state) rather than starving the drop window.
-- [ ] **BUY-07**: User can configure a shipping/billing profile that the bot fills during checkout on BestBuy and Amazon; payment uses the retailer-saved method plus CVV entered at runtime, and no full card number is persisted to disk or logs.
+- [x] **BUY-07**: User can configure a shipping/billing profile that the bot fills during checkout on BestBuy and Amazon; payment uses the retailer-saved method plus CVV entered at runtime, and no full card number is persisted to disk or logs.
 
 ### Always-On Reliability
 
@@ -70,7 +70,7 @@ This file scopes v4.0 only.
 | BUY-04 | Phase 19 | Complete |
 | BUY-05 | Phase 21 | Pending |
 | BUY-06 | Phase 21 | Pending |
-| BUY-07 | Phase 20 | Pending |
+| BUY-07 | Phase 20 | Complete |
 | REL-01 | Phase 22 | Pending |
 | REL-02 | Phase 22 | Pending |
 | REL-03 | Phase 22 | Pending |
