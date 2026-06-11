@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T15:08:04.486Z"
+last_updated: "2026-06-11T15:21:21.180Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 18 (Safety Gate + Config Foundation) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-11
 
@@ -117,16 +117,17 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ---
 | Phase 18 P02 | 267 | 2 tasks | 2 files |
+| Phase 18 P18-03 | 8m | 2 tasks | 6 files |
 
 ## Session Continuity
 
-**Last action**: Phase 18 Plan 02 complete -- place_order_guarded concrete async method on RetailerPlugin ABC; 3 unit tests added; 559 tests passing.
-**Next action**: Execute Phase 18 Plan 03.
-**Context to carry**: place_order_guarded reads self.config.debug getattr-safe (test_mode default True, monitor_only default False). All 7 plugins (Plan 04) will route through this method. PLUGIN_API_VERSION stays 2.
+**Last action**: Phase 18 Plan 03 complete -- monitor_only gate in _check_and_buy (BUY-01), --monitor-only CLI flag, CVV short-circuit, ALLOWLIST entry; 567 tests passing.
+**Next action**: Execute Phase 18 Plan 04.
+**Context to carry**: monitor_only gate uses getattr-safe access (config may be None in tests). The gate is inside if auto_buy: so detected alerts always fire. Plan 04 will route all 7 plugins through place_order_guarded; monitor_only is already enforced at the orchestrator level.
 
 ---
 
-*Last updated: 2026-06-11 -- Phase 18 Plan 02 complete*
+*Last updated: 2026-06-11 -- Phase 18 Plan 03 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 
@@ -289,6 +290,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 16-02]: Amazon price selector list is site-specific and maintenance-required; documented in SUMMARY
 - [Phase 16-02]: _build_email_body() and _build_sms_body() extracted as testable module-level helpers; send() delegates to them
 - [Phase ?]: CDP assertion pattern
+- [Phase ?]: [Phase 18-03]: monitor_only gate uses getattr-safe access (plugin.config may be None in tests); defaults to False
+- [Phase ?]: [Phase 18-03]: --monitor-only CLI flag mutates cfg.debug.monitor_only on existing AppConfig instance; pydantic v2 mutable BaseModel, no reconstruction
+- [Phase ?]: [Phase 18-03]: needs_cvv adds not cfg.debug.monitor_only so CVV prompt never shown in monitor-only mode (T-18-09 mitigated)
 
 ## Operator Next Steps
 
