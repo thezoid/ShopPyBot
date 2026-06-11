@@ -181,31 +181,45 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
 
 
 async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
-    """Attempt auto-buy; detect confirmation and enqueue confirmed or legacy purchased."""
+    """Attempt auto-buy; detect confirmation and enqueue confirmed or legacy purchased.
+
+    Invariant (WR-02): auto_buy True => exactly one enqueue (confirmed or legacy purchased).
+    The confirmation-detection block has its own inner try/except so an exception there
+    never swallows a completed buy -- which would leave the item available, causing the
+    next poll to re-attempt auto_buy and place a duplicate order (real money).
+    """
     from core.confirmation import detect_order_confirmation
     try:
         success = await plugin.auto_buy(link)
-        if success:
-            if dispatcher is not None:
-                await dispatcher.notify(
-                    _build_event(name, link, plugin.__class__.__name__, "purchased")
-                )
-            tab = plugin.get_active_tab()
-            platform = plugin.__class__.__name__
-            order_id = None
-            if tab is not None:
-                order_id = await detect_order_confirmation(tab, platform)
-            if order_id is not None:
-                ts = datetime.now(timezone.utc).isoformat()
-                await write_queue.put(("confirmed", link, order_id, ts))
-            else:
-                writeLog(
-                    f"[{platform}] confirmation not detected -- falling back to legacy purchased write",
-                    "WARNING",
-                )
-                await write_queue.put(("purchased", link))
     except Exception as exc:
         writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
+        return
+    if not success:
+        return
+    if dispatcher is not None:
+        await dispatcher.notify(
+            _build_event(name, link, plugin.__class__.__name__, "purchased")
+        )
+    tab = plugin.get_active_tab()
+    platform = plugin.__class__.__name__
+    order_id = None
+    if tab is not None:
+        try:
+            order_id = await detect_order_confirmation(tab, platform)
+        except Exception as exc:
+            writeLog(
+                f"[{platform}] confirmation detection error: {exc.__class__.__name__}",
+                "ERROR",
+            )
+    if order_id is not None:
+        ts = datetime.now(timezone.utc).isoformat()
+        await write_queue.put(("confirmed", link, order_id, ts))
+    else:
+        writeLog(
+            f"[{platform}] confirmation not detected -- falling back to legacy purchased write",
+            "WARNING",
+        )
+        await write_queue.put(("purchased", link))
 
 
 async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):

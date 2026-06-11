@@ -844,3 +844,34 @@ async def test_dispatch_confirmed_tag(tmp_data_dir):
     assert row[0] == 1, "purchased must be 1 after confirmed dispatch"
     assert row[1] == order_id, f"order_id mismatch: {row[1]!r}"
     assert row[2] == ts, f"confirmed_at mismatch: {row[2]!r}"
+
+
+async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
+    """WR-02: auto_buy True + detect_order_confirmation raises -> legacy ("purchased", link)
+    enqueued exactly once. Never zero enqueues (which would leave item available and
+    trigger a re-attempt on the next poll, potentially placing a duplicate real order).
+    """
+    from core.orchestrator import _try_auto_buy
+
+    plugin = _make_amazon_plugin(bought=True)
+    # Tab is present so confirmation detection is attempted; it raises an exception.
+    fake_tab = _FakeTab(url="https://www.amazon.com/gp/buy/thankyou?orderID=999", selector_map={})
+    plugin.get_active_tab = lambda: fake_tab
+
+    q: asyncio.Queue = asyncio.Queue()
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch(
+            "core.confirmation.detect_order_confirmation",
+            new=AsyncMock(side_effect=RuntimeError("tab closed")),
+        ),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
+
+    assert q.qsize() == 1, (
+        f"Expected exactly 1 queue item (legacy purchased write), got {q.qsize()} -- "
+        "zero means item stays available and next poll re-places order (double-buy)"
+    )
+    item = q.get_nowait()
+    assert item[0] == "purchased", f"Expected legacy 'purchased' tag, got {item[0]!r}"
+    assert item[1] == "https://amazon.com/item", f"Link mismatch: {item[1]!r}"
