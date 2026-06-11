@@ -152,17 +152,10 @@ def test_setup_stores_no_card_or_cvv(reset_credential_store, monkeypatch):
     handle_setup_checkout_profile(_make_args(), MagicMock())
 
     forbidden = ("CVV", "CARD", "PAN")
+    # Assert no key in CHECKOUT_PROFILE_KEYS contains a forbidden fragment.
+    # (The prior or-shortcircuit form was tautological -- IN-01.)
     for key in CHECKOUT_PROFILE_KEYS:
         for fragment in forbidden:
-            assert fragment not in key.upper() or key in CHECKOUT_PROFILE_KEYS, (
-                f"key {key!r} contains forbidden fragment {fragment!r}"
-            )
-    # Belt-and-suspenders: confirm no key with those fragments exists in the store
-    # (would only fail if CHECKOUT_PROFILE_KEYS itself was wrong -- caught by the
-    # must_haves check, but good to assert explicitly here too).
-    for key in CHECKOUT_PROFILE_KEYS:
-        upper = key.upper()
-        for fragment in forbidden:
-            assert fragment not in upper, (
-                f"Stored key {key!r} contains forbidden fragment {fragment!r}"
+            assert fragment not in key.upper(), (
+                f"CHECKOUT_PROFILE_KEYS contains key {key!r} with forbidden fragment {fragment!r}"
             )
