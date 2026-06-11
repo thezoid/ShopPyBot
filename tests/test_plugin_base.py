@@ -297,3 +297,36 @@ async def test_place_order_guarded_suppressed_when_debug_absent():
 
     assert result is False
     click_fn.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# BUY-03: get_active_tab() -- additive concrete hook on RetailerPlugin ABC
+# ---------------------------------------------------------------------------
+
+
+def test_get_active_tab_default_returns_main_tab():
+    """get_active_tab() returns driver.main_tab when driver has that attribute."""
+    p = MinimalPlugin(config=None)
+    fake_tab = object()
+    fake_driver = MagicMock()
+    fake_driver.main_tab = fake_tab
+    p.driver = fake_driver
+
+    result = p.get_active_tab()
+
+    assert result is fake_tab
+
+
+def test_get_active_tab_none_driver():
+    """get_active_tab() returns None when self.driver is None (no AttributeError)."""
+    p = MinimalPlugin(config=None)
+    assert p.driver is None
+
+    result = p.get_active_tab()
+
+    assert result is None
+
+
+def test_plugin_api_version_stays_2_after_get_active_tab():
+    """PLUGIN_API_VERSION must remain 2 after adding get_active_tab (additive BUY-03)."""
+    assert PLUGIN_API_VERSION == 2
