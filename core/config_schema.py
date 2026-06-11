@@ -61,6 +61,7 @@ class AvailableConfig(BaseModel):
 class DebugConfig(BaseModel):
     logging_level: int = 5
     test_mode: bool = True
+    monitor_only: bool = False  # BUY-01: default False per CONTEXT.md
 
 
 class AmazonPlatformConfig(BaseModel):
@@ -260,6 +261,17 @@ class ProxyConfig(BaseModel):
         return v
 
 
+class CheckoutConfig(BaseModel):
+    """Checkout timing and retry tuning. Consumed by Phases 21/22/24."""
+
+    item_timeout_secs: int = Field(default=120, ge=1)
+    step_timeout_secs: int = Field(default=30, ge=1)
+    max_cart_retries: int = Field(default=3, ge=0)
+    backoff_base: float = Field(default=2.0, ge=0.0)
+    backoff_jitter: float = Field(default=0.5, ge=0.0)
+    alert_on_errors: int = Field(default=3, ge=0)
+
+
 class AppConfig(BaseSettings):
     # yaml_file is NOT in model_config; path is injected in settings_customise_sources.
     # Test injection: pass yaml_file=<Path> as a constructor kwarg.
@@ -279,6 +291,7 @@ class AppConfig(BaseSettings):
     credentials: CredentialsConfig = CredentialsConfig()
     proxy: ProxyConfig = ProxyConfig()
     captcha: CaptchaConfig = CaptchaConfig()
+    checkout: CheckoutConfig = CheckoutConfig()
 
     def __init__(self, yaml_file: Path | str | None = None, **values):
         # Store path in thread-local so settings_customise_sources (a classmethod)
