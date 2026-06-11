@@ -18,8 +18,11 @@ def handle_run(args, svc) -> int:
     - EOFError/GetPassWarning (non-interactive stdin) returns 1 (T-09-02).
     """
     cfg = svc.get_config()
+    if getattr(args, "monitor_only", False):
+        cfg.debug.monitor_only = True
     needs_cvv = (
         not cfg.debug.test_mode
+        and not cfg.debug.monitor_only
         and any(
             "bestbuy.com" in item.link and item.auto_buy
             for item in cfg.available.items

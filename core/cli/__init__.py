@@ -39,6 +39,13 @@ def build_parser() -> argparse.ArgumentParser:
     # --- run ---
     run_p = sub.add_parser("run", help="Start the bot (default).")
     run_p.set_defaults(func=handle_run)
+    run_p.add_argument(
+        "--monitor-only",
+        action="store_true",
+        default=False,
+        dest="monitor_only",
+        help="Run in monitor-only mode: check availability and alert but never place orders.",
+    )
 
     # --- setup ---
     setup_p = sub.add_parser("setup", help="Store credentials and select backend.")

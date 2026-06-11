@@ -17,6 +17,7 @@ from core.config_schema import _DEFAULT_YAML_PATH
 ALLOWLIST: dict[str, tuple[str, type]] = {
     "test_mode": ("debug", bool),
     "logging_level": ("debug", int),
+    "monitor_only": ("debug", bool),
 }
 
 
