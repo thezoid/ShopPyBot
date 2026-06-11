@@ -216,6 +216,10 @@ class AmazonPlugin(RetailerPlugin):
         if proxy and proxy.username:
             await setup_proxy_auth(self.driver.main_tab, proxy.username, proxy.password)
 
+        # BUY-07: load checkout profile once per bot run; None when unconfigured.
+        from core.checkout_profile import load_checkout_profile
+        self._checkout_profile = load_checkout_profile()
+
     async def teardown(self) -> None:
         if self.driver:
             # Browser.stop() is synchronous; it terminates the subprocess and
@@ -420,6 +424,16 @@ class AmazonPlugin(RetailerPlugin):
             if not place_order:
                 writeLog("Place order button not found", "ERROR")
                 return False
+
+            # BUY-07: enter CVV from self._cvv when set.
+            # Amazon's CVV field only appears in some sessions (Pitfall 4 / T-20-10):
+            # absent CVV field is a valid state (payment pre-verified) -- do NOT return False.
+            if self._cvv:
+                cvv_field = await tab.select("#addCreditCardCvvInput", timeout=5)
+                if cvv_field:
+                    # SEC-02: CVV sourced from self._cvv; never logged.
+                    await cvv_field.send_keys(self._cvv)
+                # CVV field absent: skip gracefully, continue to place_order_guarded
 
             self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
             return await self.place_order_guarded(place_order.click)

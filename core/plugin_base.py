@@ -40,6 +40,11 @@ class RetailerPlugin(ABC):
         self.config = config   # typed AppConfig passed by registry
         self.driver = None     # set by setup(); never in __init__ (nodriver constraint:
                                # Browser.__init__ raises RuntimeError with no running loop)
+        # BUY-07: checkout profile loaded by setup() via load_checkout_profile().
+        # Default None so plugins that do not call load_checkout_profile() still have
+        # the attribute and raise no AttributeError on access. Non-breaking additive
+        # default; PLUGIN_API_VERSION stays 2.
+        self._checkout_profile = None
 
     def _handle_ban(self, body_text: str) -> bool:
         """Check body_text for ban signals and record proxy failure if banned (CR-02).

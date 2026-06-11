@@ -178,6 +178,10 @@ class BestBuyPlugin(RetailerPlugin):
         if proxy and proxy.username:
             await setup_proxy_auth(self.driver.main_tab, proxy.username, proxy.password)
 
+        # BUY-07: load checkout profile once per bot run; None when unconfigured.
+        from core.checkout_profile import load_checkout_profile
+        self._checkout_profile = load_checkout_profile()
+
     async def teardown(self) -> None:
         if self.driver:
             # Browser.stop() is synchronous; handles subprocess termination
@@ -246,6 +250,26 @@ class BestBuyPlugin(RetailerPlugin):
         except Exception as exc:
             writeLog(f"Error during BestBuy sign-in: {exc.__class__.__name__}", "ERROR")
 
+    async def _fill_field(self, tab, selector: str, value: str) -> bool:
+        """Fill one required form field via clear_input + send_keys.
+
+        Returns True on success. Returns False and logs a WARNING naming the selector
+        if the element is absent (DOM drift guard -- T-20-09). Never logs the value.
+        """
+        el = await tab.select(selector, timeout=10)
+        if el is None:
+            writeLog(f"[BestBuyPlugin] Form field not found: {selector!r}", "WARNING")
+            return False
+        await el.clear_input()
+        await el.send_keys(value)
+        # Best-effort SPA onChange dispatch (Pitfall 7 / UAT-gated).
+        # Fires input event so React/Vue onChange handlers update form state.
+        try:
+            await el.apply("(e) => e.dispatchEvent(new Event('input', {bubbles: true}))")
+        except Exception:
+            pass  # non-fatal; skip gracefully if apply is unsupported
+        return True
+
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
 
@@ -301,6 +325,34 @@ class BestBuyPlugin(RetailerPlugin):
             writeLog("Proceeded to checkout on BestBuy", "INFO")
 
             await self.login()
+
+            # BUY-07: fill shipping address fields from checkout profile before CVV.
+            # Missing profile: log WARNING and abort (no partial order -- T-20-09/Pitfall 6).
+            if self._checkout_profile is None:
+                writeLog(
+                    "[BestBuyPlugin] checkout profile not configured -- skipping address fill",
+                    "WARNING",
+                )
+                return False
+            profile = self._checkout_profile
+            # Required fields: any absent selector aborts without submitting.
+            for selector, value in [
+                ("#first-name", profile.first_name),
+                ("#last-name", profile.last_name),
+                ("#street", profile.address_line1),
+                ("#city", profile.city),
+                ("#state", profile.state),
+                ("#zip", profile.zip_code),
+                ("#phone", profile.phone),
+            ]:
+                if not await self._fill_field(tab, selector, value):
+                    return False  # WARNING already logged by _fill_field
+            # Optional field: address_line2 -- skip gracefully when absent or selector None.
+            if profile.address_line2:
+                el = await tab.select("#street2", timeout=5)
+                if el is not None:
+                    await el.clear_input()
+                    await el.send_keys(profile.address_line2)
 
             cvv_field = await tab.select("#credit-card-cvv", timeout=10)
             if cvv_field and self._cvv:
