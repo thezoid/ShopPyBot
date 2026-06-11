@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T20:44:54.170Z"
+last_updated: "2026-06-11T20:51:34.355Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 1
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 8
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 19 (DB Schema + Confirmation Detection) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-11
 
@@ -121,16 +121,17 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 18 P04 | 18 | 2 tasks | 9 files |
 | Phase 19 P19-01 | 4min | 3 tasks | 2 files |
 | Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
+| Phase 19 P19-03 | 3min | 1 task | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 18 Plan 03 complete -- monitor_only gate in _check_and_buy (BUY-01), --monitor-only CLI flag, CVV short-circuit, ALLOWLIST entry; 567 tests passing.
-**Next action**: Execute Phase 18 Plan 04.
-**Context to carry**: monitor_only gate uses getattr-safe access (config may be None in tests). The gate is inside if auto_buy: so detected alerts always fire. Plan 04 will route all 7 plugins through place_order_guarded; monitor_only is already enforced at the orchestrator level.
+**Last action**: Phase 19 Plan 03 complete -- get_active_tab() sync concrete default on RetailerPlugin ABC (BUY-03); 585 tests passing.
+**Next action**: Execute Phase 19 Plan 04.
+**Context to carry**: get_active_tab default returns getattr(self.driver, "main_tab", None). Amazon and BestBuy must override in Plan 04 to return self._last_tab (set before place_order_guarded call). Non-checkout plugins inherit the safe None default unchanged.
 
 ---
 
-*Last updated: 2026-06-11 -- Phase 18 Plan 03 complete*
+*Last updated: 2026-06-11 -- Phase 19 Plan 03 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 
@@ -298,6 +299,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 18-03]: needs_cvv adds not cfg.debug.monitor_only so CVV prompt never shown in monitor-only mode (T-18-09 mitigated)
 - [Phase ?]: checkout_attempts added with NOT NULL DEFAULT 0; never incremented in Phase 19 (Phase 21 owns increment)
 - [Phase ?]: update_item_confirmed_sync bind order: (order_id, confirmed_at, link) matching SET clause order
+- [Phase ?]: get_active_tab is sync def (not async); returns getattr(self.driver, 'main_tab', None); PLUGIN_API_VERSION stays 2 (additive BUY-03)
 
 ## Operator Next Steps
 
