@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 from core.stealth import _is_ban_response
+from logger import writeLog
 
 PLUGIN_API_VERSION = 2  # bumped from 1; v1 subclasses are not compatible
 
@@ -76,6 +77,25 @@ class RetailerPlugin(ABC):
         Override in platform plugins that can scrape a live price.
         """
         return None
+
+    async def place_order_guarded(self, click_fn) -> bool:
+        """Invoke click_fn only when test_mode and monitor_only are both False.
+
+        Returns True when the click fires, False when suppressed.
+        Never raises. PLUGIN_API_VERSION stays 2 (additive concrete method, BUY-02).
+
+        Safe-default behavior when config or debug is absent: test_mode defaults to
+        True (suppressed) so a missing/partial config always prevents an order being
+        placed rather than accidentally allowing one.
+        """
+        debug = getattr(self.config, "debug", None) if self.config else None
+        test_mode = getattr(debug, "test_mode", True)
+        monitor_only = getattr(debug, "monitor_only", False)
+        if test_mode or monitor_only:
+            writeLog("place-order suppressed (monitor_only/test_mode)", "INFO")
+            return False
+        await click_fn()
+        return True
 
     async def login(self) -> None:
         """Authenticate with the retail platform. No-op default."""
