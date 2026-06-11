@@ -245,7 +245,7 @@ Plans:
 
 **Wave 1** *(parallel-safe; no file overlap)*
 
-- [ ] 19-01-PLAN.md — models.py: 3 idempotent confirmation columns (order_id/confirmed_at/checkout_attempts DEFAULT 0, NOT incremented) + update_item_confirmed_sync (BUY-04)
+- [x] 19-01-PLAN.md — models.py: 3 idempotent confirmation columns (order_id/confirmed_at/checkout_attempts DEFAULT 0, NOT incremented) + update_item_confirmed_sync (BUY-04)
 - [ ] 19-02-PLAN.md — core/confirmation.py NEW: detect_order_confirmation (URL-first/DOM-backup map, ~3s settle, Amazon orderID URL-param parse, CONFIRMED-<ts> sentinel) + FakeTab tests (BUY-03)
 - [ ] 19-03-PLAN.md — core/plugin_base.py: additive sync get_active_tab() ABC default (returns main_tab; PLUGIN_API_VERSION stays 2) (BUY-03)
 
@@ -355,7 +355,7 @@ Plans:
 | 16. Price Monitoring | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 19. DB Schema + Confirmation Detection | v4.0 | 0/4 | Not started | - |
+| 19. DB Schema + Confirmation Detection | v4.0 | 1/4 | In Progress|  |
 | 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |

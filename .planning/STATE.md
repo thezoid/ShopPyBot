@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T20:29:28.601Z"
-last_activity: 2026-06-11 -- Phase 19 planning complete
+last_updated: "2026-06-11T20:36:16.229Z"
+last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
   percent: 8
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 19
-Plan: Not started
+Phase: 19 (DB Schema + Confirmation Detection) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 19 planning complete
+Last activity: 2026-06-11
 
 ## Phase Status
 
@@ -119,6 +119,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 18 P02 | 267 | 2 tasks | 2 files |
 | Phase 18 P18-03 | 8m | 2 tasks | 6 files |
 | Phase 18 P04 | 18 | 2 tasks | 9 files |
+| Phase 19 P19-01 | 4min | 3 tasks | 2 files |
 
 ## Session Continuity
 
@@ -294,6 +295,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 18-03]: monitor_only gate uses getattr-safe access (plugin.config may be None in tests); defaults to False
 - [Phase ?]: [Phase 18-03]: --monitor-only CLI flag mutates cfg.debug.monitor_only on existing AppConfig instance; pydantic v2 mutable BaseModel, no reconstruction
 - [Phase ?]: [Phase 18-03]: needs_cvv adds not cfg.debug.monitor_only so CVV prompt never shown in monitor-only mode (T-18-09 mitigated)
+- [Phase ?]: checkout_attempts added with NOT NULL DEFAULT 0; never incremented in Phase 19 (Phase 21 owns increment)
+- [Phase ?]: update_item_confirmed_sync bind order: (order_id, confirmed_at, link) matching SET clause order
 
 ## Operator Next Steps
 
