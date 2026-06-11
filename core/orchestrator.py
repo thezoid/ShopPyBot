@@ -26,6 +26,7 @@ from logger import writeLog
 from models import (
     get_items_sync,
     update_item_purchased_sync,
+    update_item_confirmed_sync,
     set_item_available_sync,
     clear_item_available_sync,
     get_item_notification_state_sync,
@@ -180,7 +181,8 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
 
 
 async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
-    """Attempt auto-buy; dispatch purchased event and enqueue on success."""
+    """Attempt auto-buy; detect confirmation and enqueue confirmed or legacy purchased."""
+    from core.confirmation import detect_order_confirmation
     try:
         success = await plugin.auto_buy(link)
         if success:
@@ -188,7 +190,20 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
                 await dispatcher.notify(
                     _build_event(name, link, plugin.__class__.__name__, "purchased")
                 )
-            await write_queue.put(("purchased", link))
+            tab = plugin.get_active_tab()
+            platform = plugin.__class__.__name__
+            order_id = None
+            if tab is not None:
+                order_id = await detect_order_confirmation(tab, platform)
+            if order_id is not None:
+                ts = datetime.now(timezone.utc).isoformat()
+                await write_queue.put(("confirmed", link, order_id, ts))
+            else:
+                writeLog(
+                    f"[{platform}] confirmation not detected -- falling back to legacy purchased write",
+                    "WARNING",
+                )
+                await write_queue.put(("purchased", link))
     except Exception as exc:
         writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
 
@@ -248,9 +263,10 @@ async def _dispatch_write(loop, item) -> None:
     """Execute a single typed write-queue item against the correct models function.
 
     Supported tuple tags:
-      ("purchased", link)            -> update_item_purchased_sync(link)
-      ("set_available", link, ts)    -> set_item_available_sync(link, ts)
-      ("clear_available", link)      -> clear_item_available_sync(link)
+      ("purchased", link)                      -> update_item_purchased_sync(link)
+      ("confirmed", link, order_id, ts)        -> update_item_confirmed_sync(link, order_id, ts)
+      ("set_available", link, ts)              -> set_item_available_sync(link, ts)
+      ("clear_available", link)                -> clear_item_available_sync(link)
     """
     if not isinstance(item, tuple):
         # Legacy bare-link support: treat as purchased
@@ -263,6 +279,10 @@ async def _dispatch_write(loop, item) -> None:
         link = item[1]
         await loop.run_in_executor(None, update_item_purchased_sync, link)
         writeLog(f"Marked purchased: {link}", "INFO")
+    elif tag == "confirmed":
+        link, order_id, ts = item[1], item[2], item[3]
+        await loop.run_in_executor(None, update_item_confirmed_sync, link, order_id, ts)
+        writeLog(f"Order confirmed: {link} order_id={order_id}", "INFO")
     elif tag == "set_available":
         link, ts = item[1], item[2]
         await loop.run_in_executor(None, set_item_available_sync, link, ts)

@@ -6,6 +6,7 @@ Covers:
 - ASYNC-02: _staggered_setup awaits >= 1.5s between successive setup() calls
 - ASYNC-05: write-queue drain serializes all writes (one-at-a-time)
 - ASYNC-03: asyncio.Event wakes a waiting coroutine via call_soon_threadsafe (event_shim)
+- BUY-03/BUY-04: _try_auto_buy confirmation wiring + _dispatch_write confirmed branch
 """
 
 import asyncio
@@ -20,6 +21,30 @@ from core.orchestrator import (
     async_main,
 )
 from core.registry import PluginRegistry
+
+
+# ---------------------------------------------------------------------------
+# FakeTab for confirmation tests (re-declared locally; mirrors test_confirmation.py)
+# ---------------------------------------------------------------------------
+
+
+class _FakeElement:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeTab:
+    """Minimal nodriver Tab stub: sync target.url + async sleep/select."""
+
+    def __init__(self, url: str, selector_map: dict | None = None) -> None:
+        self.target = type("_T", (), {"url": url})()
+        self._selector_map: dict = selector_map or {}
+
+    async def sleep(self, t: float) -> None:
+        pass
+
+    async def select(self, selector: str, timeout: int = 10):
+        return self._selector_map.get(selector)
 
 
 # ---------------------------------------------------------------------------
@@ -702,3 +727,120 @@ async def test_monitor_only_set_available_not_purchased(fake_plugin, fake_notifi
         items.append(await queue.get())
     assert any(isinstance(i, tuple) and i[0] == "set_available" for i in items)
     assert not any(isinstance(i, tuple) and i[0] == "purchased" for i in items)
+
+
+# ---------------------------------------------------------------------------
+# BUY-03/BUY-04: confirmation wiring in _try_auto_buy + _dispatch_write (Plan 19-04)
+# ---------------------------------------------------------------------------
+
+
+def _make_amazon_plugin(bought: bool):
+    """Build a fake plugin whose class name is 'AmazonPlugin' (for platform-map matching)."""
+    from core.plugin_base import RetailerPlugin
+
+    class AmazonPlugin(RetailerPlugin):
+        domain_patterns = ["amazon.com"]
+
+        async def check_availability(self, url: str) -> bool:
+            return True
+
+        async def auto_buy(self, url: str) -> bool:
+            return bought
+
+    instance = AmazonPlugin(config=None)
+    instance.setup = AsyncMock()
+    instance.teardown = AsyncMock()
+    return instance
+
+
+async def test_orchestrator_confirmed_path(tmp_data_dir):
+    """auto_buy success + confirmation URL -> single ("confirmed", ...) 4-tuple enqueued."""
+    from core.orchestrator import _try_auto_buy
+
+    plugin = _make_amazon_plugin(bought=True)
+    plugin.get_active_tab = lambda: _FakeTab(
+        url="https://www.amazon.com/gp/buy/thankyou?orderID=302-999",
+        selector_map={},
+    )
+
+    q: asyncio.Queue = asyncio.Queue()
+    with patch("core.orchestrator.writeLog"):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
+
+    assert q.qsize() == 1, "Exactly one item enqueued on confirmed path"
+    item = q.get_nowait()
+    assert item[0] == "confirmed", f"Expected 'confirmed' tag, got {item[0]!r}"
+    assert len(item) == 4, f"Expected 4-tuple, got {len(item)}-tuple"
+    assert item[2] is not None, "order_id must be non-None on confirmed path"
+
+
+async def test_orchestrator_fallback_path(tmp_data_dir):
+    """auto_buy success + non-confirmation URL -> single ("purchased", link) enqueued, WARNING logged."""
+    from core.orchestrator import _try_auto_buy
+
+    plugin = _make_amazon_plugin(bought=True)
+    plugin.get_active_tab = lambda: _FakeTab(
+        url="https://www.amazon.com/dp/B001",
+        selector_map={},
+    )
+
+    q: asyncio.Queue = asyncio.Queue()
+    log_messages: list[str] = []
+
+    def capture_log(msg, level="INFO", *args, **kwargs):
+        log_messages.append((msg, level))
+
+    with patch("core.orchestrator.writeLog", side_effect=capture_log):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
+
+    assert q.qsize() == 1, "Exactly one item enqueued on fallback path"
+    item = q.get_nowait()
+    assert item[0] == "purchased", f"Expected 'purchased' tag, got {item[0]!r}"
+    warning_msgs = [m for m, lvl in log_messages if lvl == "WARNING"]
+    assert warning_msgs, "A WARNING must be logged on confirmation fallback path"
+
+
+async def test_no_double_buy_single_put(tmp_data_dir):
+    """Confirmed path enqueues exactly one item (no double-buy, Pitfall 5)."""
+    from core.orchestrator import _try_auto_buy
+
+    plugin = _make_amazon_plugin(bought=True)
+    plugin.get_active_tab = lambda: _FakeTab(
+        url="https://www.amazon.com/gp/buy/thankyou?orderID=111",
+        selector_map={},
+    )
+
+    q: asyncio.Queue = asyncio.Queue()
+    with patch("core.orchestrator.writeLog"):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
+
+    assert q.qsize() == 1, f"Expected exactly 1 queue item, got {q.qsize()}"
+
+
+async def test_dispatch_confirmed_tag(tmp_data_dir):
+    """("confirmed", link, order_id, ts) -> update_item_confirmed_sync(link, order_id, ts)."""
+    import sqlite3
+    import models
+    from core.orchestrator import _dispatch_write
+
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://amazon.com/item", True, 1, False)])
+
+    link = "https://amazon.com/item"
+    order_id = "123-456-789"
+    ts = "2026-06-11T00:00:00+00:00"
+
+    loop = asyncio.get_running_loop()
+    with patch("core.orchestrator.writeLog"):
+        await _dispatch_write(loop, ("confirmed", link, order_id, ts))
+
+    conn = sqlite3.connect(models.DB_PATH)
+    row = conn.execute(
+        "SELECT purchased, order_id, confirmed_at FROM items WHERE link=?",
+        (link,),
+    ).fetchone()
+    conn.close()
+
+    assert row[0] == 1, "purchased must be 1 after confirmed dispatch"
+    assert row[1] == order_id, f"order_id mismatch: {row[1]!r}"
+    assert row[2] == ts, f"confirmed_at mismatch: {row[2]!r}"
