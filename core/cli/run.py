@@ -30,7 +30,7 @@ def handle_run(args, svc) -> int:
         not cfg.debug.test_mode
         and not cfg.debug.monitor_only
         and any(
-            "bestbuy.com" in item.link and item.auto_buy
+            ("bestbuy.com" in item.link or "amazon.com" in item.link) and item.auto_buy
             for item in cfg.available.items
         )
     )

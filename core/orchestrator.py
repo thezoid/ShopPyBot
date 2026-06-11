@@ -412,6 +412,10 @@ async def async_main(cfg, cvv) -> None:
         bb_plugin = registry.route("https://www.bestbuy.com/")
         if bb_plugin:
             bb_plugin._cvv = cvv
+    if cvv:
+        amz_plugin = registry.route("https://www.amazon.com/")
+        if amz_plugin:
+            amz_plugin._cvv = cvv
 
     poll_interval = float(getattr(cfg.app, "poll_interval", 30))
     write_queue: asyncio.Queue = asyncio.Queue()

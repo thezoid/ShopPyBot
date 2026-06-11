@@ -71,6 +71,9 @@ class AmazonPlugin(RetailerPlugin):
 
     def __init__(self, config) -> None:
         super().__init__(config)
+        # SEC-02: CVV sourced at runtime via getpass; injected by orchestrator
+        # after setup(). Never logged or written to disk.
+        self._cvv = None
         # One Event per distinct intervention type (ASYNC-03).
         # asyncio.Event() is safe to create before loop start in Python 3.10+.
         self.captcha_event: asyncio.Event = asyncio.Event()
