@@ -90,18 +90,42 @@ def test_no_raw_place_order_click_in_plugins():
     Iterates all shopbot_plugin_*.py files; any file that (a) defines auto_buy AND
     (b) contains a known place-order selector string MUST also contain
     place_order_guarded, or CI fails with the offending file and selector.
+
+    Two-tier check (WR-03):
+    Tier 1 (file-level): selector present but place_order_guarded entirely absent.
+    Tier 2 (line-level): any line that contains BOTH a place-order selector AND a
+    direct .click() call (with parentheses) is a raw unguarded click, even if
+    place_order_guarded exists elsewhere in the file.
+
+    Known limitation: a plugin that retrieves a place-order element on one line and
+    calls .click() on a different line (via a held reference) would not be caught by
+    Tier 2. Full AST-level analysis would be required for complete coverage. This is
+    documented here so future authors do not treat this test as a complete guarantee.
     """
     violations = []
     for plugin_file in sorted(_PLUGINS_DIR.glob("shopbot_plugin_*.py")):
         source = plugin_file.read_text(encoding="utf-8")
         if "auto_buy" not in source:
             continue
+
+        # Tier 1: file has selector but place_order_guarded is entirely absent.
         for selector in _PLACE_ORDER_SELECTORS:
             if selector in source and "place_order_guarded" not in source:
                 violations.append(
                     f"{plugin_file.name}: contains selector {selector!r} "
                     "but does not reference place_order_guarded()"
                 )
+
+        # Tier 2: any line with a place-order selector AND a direct .click() call.
+        for lineno, line in enumerate(source.splitlines(), start=1):
+            if ".click()" in line:
+                for selector in _PLACE_ORDER_SELECTORS:
+                    if selector in line:
+                        violations.append(
+                            f"{plugin_file.name}:{lineno}: raw .click() on "
+                            f"place-order selector {selector!r} -- must use place_order_guarded"
+                        )
+
     assert not violations, (
         "The following plugins have raw place-order selectors outside place_order_guarded:\n"
         + "\n".join(violations)
