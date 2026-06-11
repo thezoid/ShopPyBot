@@ -360,8 +360,17 @@ class AmazonPlugin(RetailerPlugin):
         ASYNC-05: does NOT call update_item_purchased directly. The orchestrator's
         write queue owns the sole write path; auto_buy returns True on success and
         the orchestrator enqueues the DB write.
+
+        Defense-in-depth (CR-02): monitor_only suppresses at method entry before any
+        DOM interaction. test_mode is intentionally NOT suppressed here -- it navigates
+        through to the final place_order_guarded call (which suppresses the actual
+        order), enabling cart inspection before the guarded click.
         """
         writeLog(f"Entering auto_buy for Amazon: {url}", "DEBUG")
+        debug = getattr(self.config, "debug", None) if self.config else None
+        if getattr(debug, "monitor_only", True):
+            writeLog("[AmazonPlugin] auto_buy suppressed (monitor_only)", "INFO")
+            return False
         await self.login()
         try:
             tab = await self.driver.get(url)
