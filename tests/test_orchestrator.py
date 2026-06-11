@@ -606,3 +606,99 @@ async def test_stdin_listener_sets_plugin_events():
 
     assert len(fired) == 1, f"Expected 1 call_soon_threadsafe call, got {len(fired)}"
     assert event.is_set(), "captcha_event should have been set"
+
+
+# ---------------------------------------------------------------------------
+# monitor_only gate in _check_and_buy (Plan 18-03 Task 1 -- BUY-01)
+# ---------------------------------------------------------------------------
+
+
+def _make_plugin_config(monitor_only: bool = False):
+    """Return a MagicMock AppConfig with debug.monitor_only set."""
+    cfg = MagicMock()
+    cfg.debug.monitor_only = monitor_only
+    return cfg
+
+
+async def test_monitor_only_skips_try_auto_buy(fake_plugin, fake_notifier):
+    """monitor_only=True: _try_auto_buy is NOT awaited; detected alert still fires."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    cfg = _make_plugin_config(monitor_only=True)
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True, config=cfg)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue, dispatcher=dispatcher
+        )
+
+    mock_try_buy.assert_not_awaited()
+    actions = [e.action for e in notifier.events]
+    assert "detected" in actions, "detected alert must still fire in monitor_only mode"
+
+    items = []
+    while not queue.empty():
+        items.append(await queue.get())
+    assert any(isinstance(i, tuple) and i[0] == "set_available" for i in items)
+    assert not any(isinstance(i, tuple) and i[0] == "purchased" for i in items)
+
+
+async def test_monitor_only_false_calls_try_auto_buy(fake_plugin, fake_notifier):
+    """monitor_only=False: _try_auto_buy IS awaited (regression guard)."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    cfg = _make_plugin_config(monitor_only=False)
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True, config=cfg)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue, dispatcher=dispatcher
+        )
+
+    mock_try_buy.assert_awaited_once()
+
+
+async def test_monitor_only_set_available_not_purchased(fake_plugin, fake_notifier):
+    """monitor_only=True: set_available is enqueued; purchased is never enqueued."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    cfg = _make_plugin_config(monitor_only=True)
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True, config=cfg)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue, dispatcher=dispatcher
+        )
+
+    items = []
+    while not queue.empty():
+        items.append(await queue.get())
+    assert any(isinstance(i, tuple) and i[0] == "set_available" for i in items)
+    assert not any(isinstance(i, tuple) and i[0] == "purchased" for i in items)
