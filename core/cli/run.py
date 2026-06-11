@@ -19,6 +19,12 @@ def handle_run(args, svc) -> int:
     """
     cfg = svc.get_config()
     if getattr(args, "monitor_only", False):
+        # WR-02: mutates the config instance in-place. This works because
+        # svc.get_config() returns the live internal reference, so svc.run()
+        # sees the mutation via the same object. If BotService.get_config()
+        # is ever changed to return a defensive copy, this mutation would be
+        # silently dropped; the correct fix would be to pass monitor_only as
+        # a parameter to svc.run() instead.
         cfg.debug.monitor_only = True
     needs_cvv = (
         not cfg.debug.test_mode
