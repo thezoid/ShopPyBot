@@ -252,8 +252,15 @@ class BestBuyPlugin(RetailerPlugin):
         ASYNC-05: does NOT call update_item_purchased directly. The orchestrator's
         write queue owns the sole write path; auto_buy returns True on success and
         the orchestrator enqueues the DB write.
+
+        Defense-in-depth (WR-03): monitor_only suppresses at method entry before any
+        DOM interaction, matching the parity guard added to AmazonPlugin in Phase 18.
         """
         writeLog(f"Entering auto_buy for BestBuy: {url}", "DEBUG")
+        debug = getattr(self.config, "debug", None) if self.config else None
+        if getattr(debug, "monitor_only", True):
+            writeLog("[BestBuyPlugin] auto_buy suppressed (monitor_only)", "INFO")
+            return False
         try:
             tab = await self.driver.get(url)
 
