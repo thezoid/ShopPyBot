@@ -341,7 +341,7 @@ Plans:
 | 15. Plugin Ecosystem Registry | v3.0 | 3/3 | Complete | 2026-06-09 |
 | 16. Price Monitoring | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
-| 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete   | 2026-06-11 |
+| 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 0/TBD | Not started | - |
 | 20. Checkout Profile + Form-Fill | v4.0 | 0/TBD | Not started | - |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
