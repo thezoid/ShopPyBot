@@ -169,3 +169,80 @@ def test_amazon_headless_false_loads_as_false(tmp_path):
     f.write_text(yaml.dump(cfg))
     config = AppConfig(yaml_file=f)
     assert config.platforms.amazon.headless is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 18: DebugConfig.monitor_only + CheckoutConfig (BUY-01, BUY-02)
+# ---------------------------------------------------------------------------
+
+
+def test_monitor_only_default_false():
+    """BUY-01: AppConfig().debug.monitor_only defaults to False (CONTEXT.md decision)."""
+    from core.config_schema import AppConfig
+    assert AppConfig().debug.monitor_only is False
+
+
+def test_checkout_config_defaults():
+    """BUY-01: CheckoutConfig() defaults match documented values."""
+    from core.config_schema import CheckoutConfig
+    ck = CheckoutConfig()
+    assert ck.item_timeout_secs == 120
+    assert ck.step_timeout_secs == 30
+    assert ck.max_cart_retries == 3
+    assert ck.backoff_base == 2.0
+    assert ck.backoff_jitter == 0.5
+    assert ck.alert_on_errors == 3
+
+
+def test_appconfig_checkout_is_checkout_config_instance():
+    """BUY-01: AppConfig().checkout is a CheckoutConfig instance with all defaults."""
+    from core.config_schema import AppConfig, CheckoutConfig
+    cfg = AppConfig()
+    assert isinstance(cfg.checkout, CheckoutConfig)
+    assert cfg.checkout.item_timeout_secs == 120
+    assert cfg.checkout.step_timeout_secs == 30
+    assert cfg.checkout.max_cart_retries == 3
+    assert cfg.checkout.backoff_base == 2.0
+    assert cfg.checkout.backoff_jitter == 0.5
+    assert cfg.checkout.alert_on_errors == 3
+
+
+def test_checkout_override_not_dropped(tmp_path):
+    """T-18-03: checkout YAML key is not silently dropped (declared class attribute check)."""
+    cfg = {
+        "available": {"items": []},
+        "checkout": {"item_timeout_secs": 60},
+    }
+    f = tmp_path / "config.yml"
+    f.write_text(yaml.dump(cfg))
+    from core.config_schema import AppConfig
+    config = AppConfig(yaml_file=f)
+    assert config.checkout.item_timeout_secs == 60
+
+
+def test_checkout_item_timeout_zero_rejected():
+    """T-18-01: item_timeout_secs=0 (below ge=1 bound) raises ValidationError."""
+    from core.config_schema import CheckoutConfig
+    with pytest.raises(ValidationError):
+        CheckoutConfig(item_timeout_secs=0)
+
+
+def test_checkout_step_timeout_zero_rejected():
+    """T-18-01: step_timeout_secs=0 (below ge=1 bound) raises ValidationError."""
+    from core.config_schema import CheckoutConfig
+    with pytest.raises(ValidationError):
+        CheckoutConfig(step_timeout_secs=0)
+
+
+def test_checkout_max_cart_retries_negative_rejected():
+    """T-18-01: max_cart_retries=-1 (below ge=0 bound) raises ValidationError."""
+    from core.config_schema import CheckoutConfig
+    with pytest.raises(ValidationError):
+        CheckoutConfig(max_cart_retries=-1)
+
+
+def test_checkout_backoff_base_negative_rejected():
+    """T-18-01: backoff_base=-0.1 (below ge=0.0 bound) raises ValidationError."""
+    from core.config_schema import CheckoutConfig
+    with pytest.raises(ValidationError):
+        CheckoutConfig(backoff_base=-0.1)
