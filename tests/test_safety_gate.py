@@ -17,7 +17,7 @@ import asyncio
 import importlib
 import inspect
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -155,6 +155,10 @@ async def test_monitor_only_gate_via_orchestrator(fake_plugin):
 
     The orchestrator's monitor_only gate in _check_and_buy fires before _try_auto_buy,
     so the write queue never receives a "purchased" tuple even when auto_buy=True.
+
+    WR-01: DB sync functions called by _check_and_buy are patched so the test
+    genuinely asserts the monitor_only gate rather than relying on exception-swallowing
+    from missing tables.
     """
     cfg = MagicMock()
     cfg.debug.monitor_only = True
@@ -169,9 +173,16 @@ async def test_monitor_only_gate_via_orchestrator(fake_plugin):
     )
 
     write_queue = asyncio.Queue()
-    await _check_and_buy(
-        plugin, "Test Item", "https://fake.example.com/item", True, write_queue
-    )
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_last_price_sync", return_value=None),
+        patch("core.orchestrator.append_price_history_sync"),
+        patch("core.orchestrator.get_item_price_config_sync", return_value=None),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Test Item", "https://fake.example.com/item", True, write_queue
+        )
 
     # Drain the queue and assert no ("purchased", ...) tuple was enqueued.
     enqueued = []
