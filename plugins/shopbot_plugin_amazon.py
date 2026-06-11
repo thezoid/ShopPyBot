@@ -374,8 +374,11 @@ class AmazonPlugin(RetailerPlugin):
         order), enabling cart inspection before the guarded click.
         """
         writeLog(f"Entering auto_buy for Amazon: {url}", "DEBUG")
-        debug = getattr(self.config, "debug", None) if self.config else None
-        if getattr(debug, "monitor_only", True):
+        if self.config is None:
+            writeLog("[AmazonPlugin] auto_buy called with no config -- suppressing", "WARNING")
+            return False
+        debug = getattr(self.config, "debug", None)
+        if getattr(debug, "monitor_only", False):
             writeLog("[AmazonPlugin] auto_buy suppressed (monitor_only)", "INFO")
             return False
         await self.login()
