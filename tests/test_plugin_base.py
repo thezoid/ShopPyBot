@@ -270,3 +270,30 @@ async def test_place_order_guarded_allows_click():
 
     assert result is True
     click_fn.assert_awaited_once()
+
+
+async def test_place_order_guarded_suppressed_when_config_none():
+    """CR-01: place_order_guarded suppresses when config is None (fail-safe default)."""
+    plugin = MinimalPlugin(config=None)
+    click_fn = AsyncMock()
+
+    result = await plugin.place_order_guarded(click_fn)
+
+    assert result is False
+    click_fn.assert_not_called()
+
+
+async def test_place_order_guarded_suppressed_when_debug_absent():
+    """CR-01: place_order_guarded suppresses when debug attribute is missing from config.
+
+    A legacy config object or partial mock that lacks a debug attribute should
+    fail-safe to suppression rather than accidentally allowing an order.
+    """
+    cfg = object()  # plain object -- no debug attribute
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    result = await plugin.place_order_guarded(click_fn)
+
+    assert result is False
+    click_fn.assert_not_called()

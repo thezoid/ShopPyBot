@@ -84,13 +84,18 @@ class RetailerPlugin(ABC):
         Returns True when the click fires, False when suppressed.
         Never raises. PLUGIN_API_VERSION stays 2 (additive concrete method, BUY-02).
 
-        Safe-default behavior when config or debug is absent: test_mode defaults to
-        True (suppressed) so a missing/partial config always prevents an order being
-        placed rather than accidentally allowing one.
+        Safe-default behavior when config or debug is absent:
+        - test_mode defaults to True (suppressed): missing config prevents an order.
+        - monitor_only defaults to True (suppressed): missing/legacy config also
+          suppresses. DebugConfig.monitor_only defaults to False in the schema, so
+          normal configs are unaffected; only pathological/legacy configs benefit
+          from this fail-safe (CR-01).
+        - If self.config is None or has no debug attribute, both flags default to
+          True and the guard always suppresses.
         """
         debug = getattr(self.config, "debug", None) if self.config else None
         test_mode = getattr(debug, "test_mode", True)
-        monitor_only = getattr(debug, "monitor_only", False)
+        monitor_only = getattr(debug, "monitor_only", True)   # CR-01: was False; fail-safe must suppress
         if test_mode or monitor_only:
             writeLog("place-order suppressed (monitor_only/test_mode)", "INFO")
             return False
