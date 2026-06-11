@@ -397,7 +397,8 @@ class AmazonPlugin(RetailerPlugin):
                 return False
             await qty_option.click()
 
-            if self.config and self.config.debug.test_mode:
+            debug = getattr(self.config, "debug", None) if self.config else None
+            if getattr(debug, "test_mode", False):
                 writeLog("Test mode active: pausing before buy-now", "DEBUG")
                 await self._wait_user_action(
                     self.test_pause_event,
