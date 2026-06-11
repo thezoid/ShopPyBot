@@ -61,7 +61,7 @@ Full phase detail archived in `.planning/milestones/v3.0-ROADMAP.md`.
 
 - [x] **Phase 18: Safety Gate + Config Foundation** — Central monitor-only mode, `place_order_guarded()` ABC method closing the 6-of-7 plugin safety hole, and `CheckoutConfig` schema as the foundation every downstream phase depends on (completed 2026-06-11)
 - [x] **Phase 19: DB Schema + Confirmation Detection** — Add `order_id`/`confirmed_at`/`checkout_attempts` columns and build `core/confirmation.py` so `purchased` is only written on a real confirmed order number, never on a button click (completed 2026-06-11)
-- [ ] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime
+- [x] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime (completed 2026-06-11)
 - [ ] **Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry** — One `RetryPolicy` in `core/retry.py` shared by both supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; idempotency guard reads DB before every attempt
 - [ ] **Phase 22: Supervisor + Browser Relaunch + Server Safety** — Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full relaunch sequence (teardown, proxy, stealth, login); DB read isolation; per-item orchestrator timeout; SIGTERM/SIGINT teardown bridge
 - [ ] **Phase 23: Encrypted Session Persistence** — Fernet-encrypted cookie save/restore via `core/session_store.py` (reuses `EncryptedFileBackend` pattern); raw CDP restore path that bypasses the confirmed `set_all()` bug; replaces Phase 22's no-op stub
@@ -279,7 +279,7 @@ Plans:
 
 **Wave 2** *(blocked on 20-01 + 20-03)*
 
-- [ ] 20-04-PLAN.md — Form-fill: _checkout_profile load at setup() + _fill_field + BestBuy shipping fill before place_order_guarded (missing-selector WARN+False) + Amazon CVV skip-if-absent + CVV-not-in-logs AST test (BUY-07)
+- [x] 20-04-PLAN.md — Form-fill: _checkout_profile load at setup() + _fill_field + BestBuy shipping fill before place_order_guarded (missing-selector WARN+False) + Amazon CVV skip-if-absent + CVV-not-in-logs AST test (BUY-07)
 
 ### Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry
 
@@ -368,7 +368,7 @@ Plans:
 | 17. Test Hardening | v3.0 | 4/4 | Complete | 2026-06-10 |
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 20. Checkout Profile + Form-Fill | v4.0 | 3/4 | In Progress|  |
+| 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete   | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |

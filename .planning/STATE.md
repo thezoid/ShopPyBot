@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: executing
-last_updated: "2026-06-11T22:32:29.359Z"
+status: verifying
+last_updated: "2026-06-11T22:54:10.766Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 11
-  percent: 15
+  completed_plans: 12
+  percent: 23
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 20 (Checkout Profile + Form-Fill) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-11
 
 ## Phase Status
@@ -126,16 +126,17 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 20 P20-01 | 8min | 2 tasks | 3 files |
 | Phase 20 P20-02 | 6min | 2 tasks | 3 files |
 | Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
+| Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
 
 ## Session Continuity
 
-**Last action**: Phase 20 Plan 03 complete -- Amazon CVV threading (AmazonPlugin._cvv, orchestrator injection, needs_cvv extended); 617 tests passing.
-**Next action**: Execute Phase 20 Plan 04 (BestBuy + Amazon form-fill with checkout profile).
-**Context to carry**: AmazonPlugin._cvv initialized; orchestrator injects cvv for both retailers; needs_cvv fires for amazon.com items; AST scan confirms cvv never logged (T-20-05 closed). Option B (--checkout-profile flag) chosen; CHECKOUT_ADDRESS_LINE2 optional.
+**Last action**: Phase 20 Plan 04 complete -- BestBuy form-fill + Amazon CVV fill + AST CVV-not-in-logs CI guard; 625 tests passing. BUY-07 fully covered.
+**Next action**: Run /gsd:verify-work for Phase 20, then proceed to Phase 21 (per-step timeouts + cart retry).
+**Context to carry**: _fill_field helper pattern established in BestBuy; conftest fake_element has clear_input = AsyncMock(); Amazon shipping form-fill deferred to UAT (Open Question 1); BestBuy shipping selectors MEDIUM/LOW confidence -- UAT required before production.
 
 ---
 
-*Last updated: 2026-06-11 -- Phase 20 Plan 02 complete*
+*Last updated: 2026-06-11 -- Phase 20 Plan 04 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 
@@ -304,6 +305,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: checkout_attempts added with NOT NULL DEFAULT 0; never incremented in Phase 19 (Phase 21 owns increment)
 - [Phase ?]: update_item_confirmed_sync bind order: (order_id, confirmed_at, link) matching SET clause order
 - [Phase ?]: get_active_tab is sync def (not async); returns getattr(self.driver, 'main_tab', None); PLUGIN_API_VERSION stays 2 (additive BUY-03)
+- [Phase ?]: [Phase 20-04]: _fill_field logs selector name only never field value
+- [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
 
 ## Operator Next Steps
 
