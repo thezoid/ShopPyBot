@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from core.plugin_base import RetailerPlugin, PLUGIN_API_VERSION
@@ -223,3 +223,50 @@ def test_handle_ban_records_failure_on_proxy_when_banned():
 
     no_proxy_result = fresh_plugin._handle_ban("access denied")
     assert no_proxy_result is True  # ban detected; safe no-op on missing proxy (branch 53->55)
+
+
+# ---------------------------------------------------------------------------
+# BUY-02: place_order_guarded -- suppression and allow-through gates
+# ---------------------------------------------------------------------------
+
+
+async def test_place_order_guarded_suppressed_test_mode():
+    """place_order_guarded returns False + does not call click_fn when test_mode=True."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = True
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    result = await plugin.place_order_guarded(click_fn)
+
+    assert result is False
+    click_fn.assert_not_called()
+
+
+async def test_place_order_guarded_suppressed_monitor_only():
+    """place_order_guarded returns False + does not call click_fn when monitor_only=True."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = True
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    result = await plugin.place_order_guarded(click_fn)
+
+    assert result is False
+    click_fn.assert_not_called()
+
+
+async def test_place_order_guarded_allows_click():
+    """place_order_guarded awaits click_fn and returns True when both flags are False."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    result = await plugin.place_order_guarded(click_fn)
+
+    assert result is True
+    click_fn.assert_awaited_once()
