@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-11T22:20:20.002Z"
+last_updated: "2026-06-11T22:32:29.359Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 15
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 20 (Checkout Profile + Form-Fill) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-11
 
@@ -125,12 +125,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
 | Phase 20 P20-01 | 8min | 2 tasks | 3 files |
 | Phase 20 P20-02 | 6min | 2 tasks | 3 files |
+| Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
 
 ## Session Continuity
 
-**Last action**: Phase 20 Plan 02 complete -- setup --checkout-profile CLI handler + 4 tests; 607 tests passing.
-**Next action**: Execute Phase 20 Plan 03 (plugin_base + orchestrator checkout profile loading).
-**Context to carry**: Option B (--checkout-profile flag) chosen; handle_setup branches via `is True` guard; _prompt_visible uses sys.stdin.readline (ASYNC-03); key-name-only stdout output (T-20-03); CHECKOUT_ADDRESS_LINE2 optional. write_queue.put() stays outside any timeout context (PITFALLS #10).
+**Last action**: Phase 20 Plan 03 complete -- Amazon CVV threading (AmazonPlugin._cvv, orchestrator injection, needs_cvv extended); 617 tests passing.
+**Next action**: Execute Phase 20 Plan 04 (BestBuy + Amazon form-fill with checkout profile).
+**Context to carry**: AmazonPlugin._cvv initialized; orchestrator injects cvv for both retailers; needs_cvv fires for amazon.com items; AST scan confirms cvv never logged (T-20-05 closed). Option B (--checkout-profile flag) chosen; CHECKOUT_ADDRESS_LINE2 optional.
 
 ---
 
