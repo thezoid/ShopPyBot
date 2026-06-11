@@ -74,7 +74,7 @@ def handle_setup_checkout_profile(args, svc) -> int:  # noqa: ARG001
 
     store = get_store()
     stored_count = 0
-    print("\nCheckout profile setup (address keys only -- no card/CVV).")
+    print("\nCheckout profile setup (address keys only -- no card/CVV). Input is visible.")
     for key in CHECKOUT_PROFILE_KEYS:
         if key == "CHECKOUT_ADDRESS_LINE2":
             label = f"  {key} (optional, Enter to skip): "
