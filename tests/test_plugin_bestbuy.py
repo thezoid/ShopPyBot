@@ -157,6 +157,15 @@ async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
     plugin.driver = fake_browser
     plugin._cvv = "123"  # set as main.py would after setup()
 
+    # BUY-07: provide a complete checkout profile so the form-fill guard passes.
+    # Without this, auto_buy returns False before place_order_guarded (expected behavior).
+    from core.checkout_profile import CheckoutProfile
+    plugin._checkout_profile = CheckoutProfile(
+        first_name="Jane", last_name="Doe",
+        address_line1="123 Main St", city="Springfield",
+        state="IL", zip_code="62701", country="US", phone="5551234567",
+    )
+
     # update_item_purchased must not be importable from the plugin module (ASYNC-05).
     assert not hasattr(_bestbuy_module, "update_item_purchased"), (
         "BestBuyPlugin module must not import update_item_purchased (ASYNC-05)"

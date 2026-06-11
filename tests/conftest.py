@@ -80,6 +80,7 @@ def fake_browser():
     fake_element = MagicMock()
     fake_element.click = AsyncMock()
     fake_element.send_keys = AsyncMock()
+    fake_element.clear_input = AsyncMock()   # BUY-07: _fill_field awaits clear_input before send_keys
 
     fake_tab = MagicMock()
     fake_tab.select = AsyncMock(return_value=fake_element)
