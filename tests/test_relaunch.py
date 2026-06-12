@@ -34,16 +34,23 @@ def _make_recording_plugin():
 
     plugin = _RecordingPlugin(config=None)
 
-    async def _record(name):
-        call_order.append(name)
+    async def _teardown_side_effect():
+        call_order.append("teardown")
 
-    plugin.teardown = AsyncMock(side_effect=lambda: _record("teardown"))
-    plugin.setup = AsyncMock(side_effect=lambda: _record("setup"))
-    plugin.restore_session = AsyncMock(
-        return_value=False,
-        side_effect=lambda: _record("restore_session"),
-    )
-    plugin.login = AsyncMock(side_effect=lambda: _record("login"))
+    async def _setup_side_effect():
+        call_order.append("setup")
+
+    async def _restore_session_side_effect():
+        call_order.append("restore_session")
+        return False
+
+    async def _login_side_effect():
+        call_order.append("login")
+
+    plugin.teardown = AsyncMock(side_effect=_teardown_side_effect)
+    plugin.setup = AsyncMock(side_effect=_setup_side_effect)
+    plugin.restore_session = AsyncMock(side_effect=_restore_session_side_effect)
+    plugin.login = AsyncMock(side_effect=_login_side_effect)
 
     return plugin, call_order
 

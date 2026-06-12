@@ -128,3 +128,45 @@ class RetailerPlugin(ABC):
     async def teardown(self) -> None:
         """Close the browser. Registry calls at shutdown."""
         ...
+
+    async def relaunch(self) -> None:
+        """Cold-restart the browser: teardown -> setup (stealth + proxy) -> restore_session -> login.
+
+        Called by supervise() on browser-death detection. Sequence is fixed:
+        1. teardown() -- close the dead browser process (safe to call if already dead)
+        2. setup() -- Browser.create() + apply_stealth() + setup_proxy_auth()
+           (stealth MUST re-inject: CDP add_script_to_evaluate_on_new_document is
+           session-scoped and NOT persisted across Browser.stop() + Browser.create().
+           setup() is the single injection point. [VERIFIED nodriver 0.50.3])
+        3. restore_session() -- no-op stub in Phase 22; Phase 23 replaces (REL-04)
+        4. login() -- re-authenticate if restore_session returned False
+
+        proxy re-assignment (assign_proxy) is the supervisor's responsibility BEFORE
+        calling relaunch(); relaunch() takes no registry reference.
+        PLUGIN_API_VERSION stays 2 -- additive concrete method (REL-03).
+        """
+        plugin_name = self.__class__.__name__
+        writeLog(f"[{plugin_name}] relaunch: tearing down", "INFO")
+        try:
+            await self.teardown()
+        except Exception as exc:
+            writeLog(
+                f"[{plugin_name}] teardown error during relaunch: {exc.__class__.__name__}",
+                "WARNING",
+            )
+        writeLog(f"[{plugin_name}] relaunch: starting new browser", "INFO")
+        await self.setup()
+        session_restored = await self.restore_session()
+        if not session_restored:
+            writeLog(f"[{plugin_name}] restore_session=False; re-logging in", "INFO")
+            await self.login()
+        else:
+            writeLog(f"[{plugin_name}] relaunch: session restored; skipping login", "INFO")
+
+    async def restore_session(self) -> bool:
+        """Restore browser session from encrypted cookies. No-op stub for Phase 22.
+
+        Returns False always. Phase 23 (REL-04) replaces with Fernet cookie restore.
+        PLUGIN_API_VERSION stays 2 -- additive non-abstract method.
+        """
+        return False
