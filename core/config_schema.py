@@ -73,6 +73,7 @@ class AmazonPlatformConfig(BaseModel):
     # SC3: declared field so extra="ignore" does not silently drop it from YAML.
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class BestBuyPlatformConfig(BaseModel):
@@ -82,6 +83,7 @@ class BestBuyPlatformConfig(BaseModel):
     # SC3: declared field so extra="ignore" does not silently drop it from YAML.
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class WalmartPlatformConfig(BaseModel):
@@ -91,6 +93,7 @@ class WalmartPlatformConfig(BaseModel):
     max_delay: float = Field(default=15.0, ge=0.0)  # ANTI-01: jitter upper bound
     headless: bool = True                            # ANTI-03: per-platform headless toggle
     user_agents: list[str] = Field(default_factory=list)  # ANTI-02: empty = global default pool
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class TargetPlatformConfig(BaseModel):
@@ -100,6 +103,7 @@ class TargetPlatformConfig(BaseModel):
     max_delay: float = Field(default=15.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class GameStopPlatformConfig(BaseModel):
@@ -109,6 +113,7 @@ class GameStopPlatformConfig(BaseModel):
     max_delay: float = Field(default=15.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class SquareEnixPlatformConfig(BaseModel):
@@ -121,6 +126,7 @@ class SquareEnixPlatformConfig(BaseModel):
     max_delay: float = Field(default=15.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class NeweggPlatformConfig(BaseModel):
@@ -130,6 +136,7 @@ class NeweggPlatformConfig(BaseModel):
     max_delay: float = Field(default=15.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
+    session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
 
 class PlatformsConfig(BaseModel):
