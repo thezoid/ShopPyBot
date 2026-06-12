@@ -239,11 +239,9 @@ class RetailerPlugin(ABC):
         """
         if not self._session_enabled():
             return False
-        store = build_session_store()
-        if store._passphrase is None:
-            return False
         key = self._session_platform_key()
-        cookies = store.restore(key)
+        store = build_session_store()
+        cookies = store.restore(key)   # returns None on no passphrase, missing file, bad token
         if not cookies:
             return False
         tab = self.get_active_tab()
