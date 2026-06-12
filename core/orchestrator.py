@@ -16,13 +16,15 @@ import asyncio
 import random
 import sqlite3
 import sys
+import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
 from core.captcha import CaptchaSolver
 from core.credentials import get_store
 from core.registry import PluginRegistry
-from core.retry import RetryPolicy, with_retry
+from core.retry import RetryPolicy, compute_delay, with_retry
 from core.stealth import ProxyPool
 from logger import writeLog
 from models import (
@@ -45,6 +47,103 @@ from models import (
 
 _STAGGER_SECS = 1.5
 _KNOWN_EVENTS = ("captcha_event", "passkey_event", "otp_event", "test_pause_event")
+_FAILURE_WINDOW_SECS = 600  # rolling failure-budget window (REL-02)
+
+
+def _is_browser_dead_exc(exc: Exception) -> bool:
+    """Return True if exc indicates a dead/disconnected Chrome process.
+
+    Exception surface from nodriver 0.50.3 connection.py:
+    - RuntimeError("WebSocket is not connected") -- socket is None
+    - ConnectionError("Connection closed") / ("Connection closing")
+    - websockets.exceptions.ConnectionClosed -- ws.send() failure
+    - OSError/ConnectionRefusedError -- port not yet available on relaunch
+    """
+    if isinstance(exc, (ConnectionError, OSError)):
+        return True
+    if isinstance(exc, RuntimeError) and "WebSocket" in str(exc):
+        return True
+    try:
+        import websockets.exceptions as _ws_exc
+        if isinstance(exc, _ws_exc.ConnectionClosed):
+            return True
+    except ImportError:
+        pass
+    return False
+
+
+async def _park_plugin(plugin, n_budget: int, dispatcher) -> None:
+    """Log and notify that a plugin has been parked after exceeding its failure budget."""
+    writeLog(
+        f"[{plugin.__class__.__name__}] failure budget exceeded ({n_budget} failures) -- parked",
+        "ERROR",
+    )
+    if dispatcher is not None:
+        await dispatcher.notify(_build_event("", "", plugin.__class__.__name__, "plugin_parked"))
+
+
+async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registry=None) -> None:
+    """Wrap run_plugin in a restart loop; absorb all Exceptions before TaskGroup boundary.
+
+    CancelledError is re-raised so clean shutdown propagates (CancelledError inherits
+    BaseException, not Exception -- RESEARCH Pitfall 1 verified on Python 3.13).
+
+    Failure budget: alert_on_errors crashes within _FAILURE_WINDOW_SECS=600s parks the
+    plugin and dispatches a "plugin_parked" notification (REL-02).
+
+    Browser-death path: assigns a new proxy via registry.assign_proxy(plugin) then calls
+    plugin.relaunch() before re-entering run_plugin (REL-03).
+
+    Backoff uses compute_delay from core/retry.py (REL-08 single source).
+    """
+    checkout_cfg = getattr(cfg, "checkout", None)
+    n_budget = getattr(checkout_cfg, "alert_on_errors", 3)
+    policy = RetryPolicy(
+        max_attempts=999,
+        backoff_base=getattr(checkout_cfg, "backoff_base", 2.0),
+        backoff_jitter=getattr(checkout_cfg, "backoff_jitter", 0.5),
+    )
+    failure_times: deque = deque()
+    attempt = 0
+
+    while True:
+        try:
+            await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg)
+        except asyncio.CancelledError:
+            raise  # MUST propagate -- clean shutdown via TaskGroup cancel
+        except Exception as exc:
+            now = time.monotonic()
+            failure_times.append(now)
+            # Evict failures outside the rolling window
+            while failure_times and (now - failure_times[0]) > _FAILURE_WINDOW_SECS:
+                failure_times.popleft()
+            writeLog(
+                f"[{plugin.__class__.__name__}] crashed: {exc.__class__.__name__} "
+                f"({len(failure_times)} in window)",
+                "ERROR",
+            )
+            if len(failure_times) >= n_budget:
+                await _park_plugin(plugin, n_budget, dispatcher)
+                return  # clean exit; TaskGroup task ends normally
+
+            if _is_browser_dead_exc(exc):
+                if registry is not None:
+                    registry.assign_proxy(plugin)
+                try:
+                    await plugin.relaunch()
+                except Exception as rel_exc:
+                    writeLog(
+                        f"[{plugin.__class__.__name__}] relaunch error: {rel_exc.__class__.__name__}",
+                        "WARNING",
+                    )
+
+            delay = compute_delay(attempt, policy)
+            writeLog(
+                f"[{plugin.__class__.__name__}] restart in {delay:.1f}s (attempt {attempt + 1})",
+                "WARNING",
+            )
+            await asyncio.sleep(delay)
+            attempt += 1
 
 
 def _build_event(name: str, link: str, plugin_name: str, action: str):
