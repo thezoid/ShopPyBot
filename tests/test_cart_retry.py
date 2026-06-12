@@ -51,6 +51,7 @@ def _make_plugin(auto_buy_returns):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_attempt_buy_false_returns_false_none():
     plugin, _ = _make_plugin([False])
     with patch("core.confirmation.detect_order_confirmation", new=AsyncMock()):
@@ -59,6 +60,7 @@ async def test_attempt_buy_false_returns_false_none():
     plugin.auto_buy.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 async def test_attempt_buy_true_with_order_id():
     plugin, tab = _make_plugin([True])
     order_id = "ORDER-123"
@@ -70,6 +72,7 @@ async def test_attempt_buy_true_with_order_id():
     assert result == (True, order_id)
 
 
+@pytest.mark.asyncio
 async def test_attempt_buy_true_detection_error_returns_true_none():
     plugin, _ = _make_plugin([True])
     with patch(
@@ -80,6 +83,7 @@ async def test_attempt_buy_true_detection_error_returns_true_none():
     assert result == (True, None)
 
 
+@pytest.mark.asyncio
 async def test_attempt_buy_auto_buy_exception_returns_false_none():
     plugin, _ = _make_plugin([])
     plugin.auto_buy = AsyncMock(side_effect=RuntimeError("crash"))
@@ -93,6 +97,7 @@ async def test_attempt_buy_auto_buy_exception_returns_false_none():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_confirmed_order_in_db_zero_auto_buy_calls(tmp_data_dir):
     """BUY-05: if order_id already in DB, auto_buy must never be called."""
     plugin, _ = _make_plugin([True])
@@ -111,6 +116,7 @@ async def test_confirmed_order_in_db_zero_auto_buy_calls(tmp_data_dir):
     assert write_queue.empty()
 
 
+@pytest.mark.asyncio
 async def test_retries_up_to_max_then_stops(tmp_data_dir):
     """With max_cart_retries=2, total=3 attempts; all fail -> no enqueue."""
     plugin, _ = _make_plugin([False, False, False])
@@ -130,6 +136,7 @@ async def test_retries_up_to_max_then_stops(tmp_data_dir):
     assert write_queue.empty()
 
 
+@pytest.mark.asyncio
 async def test_max_cart_retries_zero_single_attempt(tmp_data_dir):
     """max_cart_retries=0 -> total attempts=1; failure does NOT retry."""
     plugin, _ = _make_plugin([False])
@@ -149,6 +156,7 @@ async def test_max_cart_retries_zero_single_attempt(tmp_data_dir):
     assert write_queue.empty()
 
 
+@pytest.mark.asyncio
 async def test_checkout_attempts_increments_before_each_attempt(tmp_data_dir):
     """checkout_attempts increments once per attempt, before the attempt."""
     plugin, _ = _make_plugin([False, True])
@@ -185,6 +193,7 @@ async def test_checkout_attempts_increments_before_each_attempt(tmp_data_dir):
     assert call_order[3] == "auto_buy"
 
 
+@pytest.mark.asyncio
 async def test_single_enqueue_on_success_confirmed(tmp_data_dir):
     """Exactly one enqueue per successful buy; confirmed path (WR-02)."""
     plugin, _ = _make_plugin([True])
@@ -210,6 +219,7 @@ async def test_single_enqueue_on_success_confirmed(tmp_data_dir):
     assert item[2] == order_id
 
 
+@pytest.mark.asyncio
 async def test_single_enqueue_on_success_legacy(tmp_data_dir):
     """Exactly one legacy purchased enqueue when order_id is None (WR-02)."""
     plugin, _ = _make_plugin([True])
@@ -232,6 +242,7 @@ async def test_single_enqueue_on_success_legacy(tmp_data_dir):
     assert item == ("purchased", "https://fake.com/item")
 
 
+@pytest.mark.asyncio
 async def test_backoff_sleep_called_between_failed_attempts(tmp_data_dir):
     """asyncio.sleep is called with a positive delay between failed attempts."""
     plugin, _ = _make_plugin([False, True])
@@ -261,6 +272,7 @@ async def test_backoff_sleep_called_between_failed_attempts(tmp_data_dir):
     assert sleep_calls[0] >= 1.0  # backoff_base**0 = 1.0 + jitter(0) = 1.0
 
 
+@pytest.mark.asyncio
 async def test_second_attempt_sees_confirmed_order_from_first(tmp_data_dir):
     """If first attempt confirms, second on_attempt sees the order_id and exits."""
     plugin, _ = _make_plugin([True, True])
@@ -293,6 +305,7 @@ async def test_second_attempt_sees_confirmed_order_from_first(tmp_data_dir):
     assert write_queue.qsize() == 1
 
 
+@pytest.mark.asyncio
 async def test_no_retry_loop_in_orchestrator():
     """Structural: orchestrator must not contain `for attempt in range(` loops.
 
