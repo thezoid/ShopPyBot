@@ -378,7 +378,7 @@ Plans:
 
 **Wave 1** *(parallel-safe; disjoint files)*
 
-- [ ] 24-01-PLAN.md — core/health.py HealthRegistry (per-plugin status/heartbeat/consecutive_errors/items_checked/orders_confirmed) + JSON-safe snapshot + in-memory armed/disarmed dedup + tests (REL-07)
+- [x] 24-01-PLAN.md — core/health.py HealthRegistry (per-plugin status/heartbeat/consecutive_errors/items_checked/orders_confirmed) + JSON-safe snapshot + in-memory armed/disarmed dedup + tests (REL-07)
 - [ ] 24-02-PLAN.md — utils.py pygame headless guard: _initialize_audio()/_AUDIO_AVAILABLE, play_sound no-op when no device, redundant mixer.init removed + tests (SRV-01)
 
 **Wave 2** *(blocked on 24-01; disjoint files service/orchestrator/cli)*
@@ -418,7 +418,7 @@ Plans:
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 23. Encrypted Session Persistence | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
+| 24. Health Surface + Server Safety | v4.0 | 1/5 | In Progress|  |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17. v4.0: 17 requirements mapped across Phases 18-24.
 
