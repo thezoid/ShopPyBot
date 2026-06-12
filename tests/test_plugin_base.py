@@ -330,3 +330,37 @@ def test_get_active_tab_none_driver():
 def test_plugin_api_version_stays_2_after_get_active_tab():
     """PLUGIN_API_VERSION must remain 2 after adding get_active_tab (additive BUY-03)."""
     assert PLUGIN_API_VERSION == 2
+
+
+# ---------------------------------------------------------------------------
+# BUY-06: _checkout_stage default on RetailerPlugin ABC
+# ---------------------------------------------------------------------------
+
+
+def test_checkout_stage_default_empty_string():
+    """RetailerPlugin.__init__ must set _checkout_stage to '' (BUY-06 -- always readable on timeout)."""
+    p = MinimalPlugin(config=None)
+    assert hasattr(p, "_checkout_stage"), "RetailerPlugin must expose _checkout_stage after construction"
+    assert p._checkout_stage == "", f"_checkout_stage must default to '' got {p._checkout_stage!r}"
+
+
+def test_checkout_stage_default_no_attribute_error_on_read():
+    """Reading _checkout_stage before auto_buy must never raise AttributeError (Pitfall 5)."""
+    p = MinimalPlugin(config=None)
+    try:
+        _ = p._checkout_stage
+    except AttributeError as exc:
+        pytest.fail(f"AttributeError reading _checkout_stage on fresh instance: {exc}")
+
+
+def test_checkout_stage_is_str_type():
+    """_checkout_stage must be a str (not None or any other type) on a fresh instance."""
+    p = MinimalPlugin(config=None)
+    assert isinstance(p._checkout_stage, str), (
+        f"_checkout_stage must be str, got {type(p._checkout_stage)}"
+    )
+
+
+def test_api_version_unchanged_after_checkout_stage():
+    """PLUGIN_API_VERSION must remain 2 after adding _checkout_stage (BUY-06 additive default)."""
+    assert PLUGIN_API_VERSION == 2

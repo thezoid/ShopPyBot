@@ -45,6 +45,7 @@ class RetailerPlugin(ABC):
         # the attribute and raise no AttributeError on access. Non-breaking additive
         # default; PLUGIN_API_VERSION stays 2.
         self._checkout_profile = None
+        self._checkout_stage: str = ""  # BUY-06: set before each DOM stage; readable on CancelledError
 
     def _handle_ban(self, body_text: str) -> bool:
         """Check body_text for ban signals and record proxy failure if banned (CR-02).
