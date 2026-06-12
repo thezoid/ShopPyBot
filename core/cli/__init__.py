@@ -13,6 +13,7 @@ from core.cli.items import handle_items_list, handle_items_add, handle_items_rem
 from core.cli.config_cmd import handle_config_show, handle_config_set
 from core.cli.web import handle_web
 from core.cli.plugins import handle_plugins_list
+from core.cli.status import handle_status
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -163,6 +164,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Bare `shoppybot plugins` (no leaf) must print usage and exit 2, not start the bot.
     plugins_p.set_defaults(func=_require_subcommand(plugins_p))
+
+    # --- status ---
+    status_p = sub.add_parser(
+        "status",
+        help=(
+            "Show per-plugin health status (in-process state; "
+            "use /status endpoint for the live running process)."
+        ),
+    )
+    status_p.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit output as JSON instead of a text table.",
+    )
+    status_p.set_defaults(func=handle_status)
 
     # --- web ---
     web_p = sub.add_parser(
