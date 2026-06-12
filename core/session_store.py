@@ -88,7 +88,8 @@ class SessionStore:
         try:
             plaintext = Fernet(key).decrypt(token)
             return json.loads(plaintext)
-        except (InvalidToken, Exception) as exc:
+        except Exception as exc:
+            # Includes Fernet.InvalidToken (wrong passphrase or truncated data)
             writeLog(
                 f"SessionStore: {exc.__class__.__name__} restoring {platform};"
                 " falling back to login",
