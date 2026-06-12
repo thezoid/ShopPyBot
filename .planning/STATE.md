@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: executing
-last_updated: "2026-06-12T05:17:09.916Z"
+status: verifying
+last_updated: "2026-06-12T05:24:24.202Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 19
-  percent: 31
+  completed_plans: 20
+  percent: 38
 ---
 
 # ShopPyBot — State
@@ -28,9 +28,9 @@ progress:
 
 ## Current Position
 
-Phase: 22 (Supervisor + Browser Relaunch + Server Safety) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
+Phase: 22 (Supervisor + Browser Relaunch + Server Safety) — COMPLETE
+Plan: 4 of 4 (all plans complete)
+Status: Phase complete — ready for verification
 Last activity: 2026-06-12
 
 ## Phase Status
@@ -41,7 +41,7 @@ Last activity: 2026-06-12
 | 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Not started | BUY-03, BUY-04 |
 | 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Not started | BUY-07 |
 | 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Not started | BUY-05, BUY-06, REL-08 |
-| 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Not started | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
+| 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Complete | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
 | 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Not started | REL-04 |
 | 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Not started | REL-07, SRV-01 |
 
@@ -49,9 +49,9 @@ Last activity: 2026-06-12
 
 ## Performance Metrics
 
-**Plans completed**: 0 of TBD
-**Requirements completed**: (none yet)
-**Phases completed**: 0 of 7
+**Plans completed**: 20 of 20
+**Requirements completed**: SRV-02 (plus all prior phases)
+**Phases completed**: 5 of 7
 **Blockers resolved**: 0
 
 ---
@@ -321,6 +321,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 22-02]: asyncio.timeout wraps only _check_and_buy; write_queue.put stays inside _check_and_buy after result is known, outside timeout context (REL-06)
 - [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
 - [Phase ?]: supervise() catches Exception (not BaseException) so CancelledError propagates for clean shutdown; registry.assign_proxy called by supervisor before plugin.relaunch() (Phase 22 REL-01/REL-03)
+- [Phase 22-04]: _register_signals uses loop.add_signal_handler (POSIX) with NotImplementedError fallback to signal.signal (Windows); both paths cancel root_task via call_soon_threadsafe; _flush_write_queue drains queue before teardown_all so no pending DB write is lost on SIGTERM (SRV-02)
 
 ## Operator Next Steps
 

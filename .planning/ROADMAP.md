@@ -63,7 +63,7 @@ Full phase detail archived in `.planning/milestones/v3.0-ROADMAP.md`.
 - [x] **Phase 19: DB Schema + Confirmation Detection** — Add `order_id`/`confirmed_at`/`checkout_attempts` columns and build `core/confirmation.py` so `purchased` is only written on a real confirmed order number, never on a button click (completed 2026-06-11)
 - [x] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime (completed 2026-06-11)
 - [x] **Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry** — One `RetryPolicy` in `core/retry.py` shared by both supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; idempotency guard reads DB before every attempt (completed 2026-06-12)
-- [ ] **Phase 22: Supervisor + Browser Relaunch + Server Safety** — Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full relaunch sequence (teardown, proxy, stealth, login); DB read isolation; per-item orchestrator timeout; SIGTERM/SIGINT teardown bridge
+- [x] **Phase 22: Supervisor + Browser Relaunch + Server Safety** — Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full relaunch sequence (teardown, proxy, stealth, login); DB read isolation; per-item orchestrator timeout; SIGTERM/SIGINT teardown bridge (completed 2026-06-12)
 - [ ] **Phase 23: Encrypted Session Persistence** — Fernet-encrypted cookie save/restore via `core/session_store.py` (reuses `EncryptedFileBackend` pattern); raw CDP restore path that bypasses the confirmed `set_all()` bug; replaces Phase 22's no-op stub
 - [ ] **Phase 24: Health Surface + Server Safety** — `core/health.py` HealthRegistry, expanded `BotService.get_status()` with per-plugin liveness/heartbeat, `health_degraded` notification event, updated FastAPI `/status` endpoint, headless pygame crash guard
 
@@ -342,7 +342,7 @@ Plans:
 
 **Wave 4** *(blocked on 22-03)*
 
-- [ ] 22-04-PLAN.md — _register_signals (POSIX add_signal_handler / Windows signal.signal fallback) + _flush_write_queue manual drain + async_main signal registration + pre-teardown flush (SRV-02)
+- [x] 22-04-PLAN.md — _register_signals (POSIX add_signal_handler / Windows signal.signal fallback) + _flush_write_queue manual drain + async_main signal registration + pre-teardown flush (SRV-02)
 
 **Research flag** (RESOLVED via 22-RESEARCH.md): the nodriver stealth-persistence question is answered — `add_script_to_evaluate_on_new_document` is a per-session CDP command that is NOT persisted across `Browser.stop()` + `Browser.create()`; every plugin’s setup() re-injects stealth via apply_stealth, so relaunch() calling setup() is sufficient (HIGH confidence, confirmed against installed nodriver 0.50.3 source).
 
@@ -402,7 +402,7 @@ Plans:
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 3/4 | In Progress|  |
+| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete   | 2026-06-12 |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 
