@@ -108,3 +108,73 @@ def test_update_item_confirmed(tmp_data_dir):
     assert row[0] == 1
     assert row[1] == "123-456"
     assert row[2] == "2026-06-11T00:00:00+00:00"
+
+
+# ---------------------------------------------------------------------------
+# Phase 21: increment_checkout_attempts_sync + get_item_order_state_sync (BUY-05)
+# ---------------------------------------------------------------------------
+
+
+def test_increment_checkout_attempts_by_one(tmp_data_dir):
+    """increment_checkout_attempts_sync increments by exactly 1 per call, never resets."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/buy1", True, 1, False)])
+
+    # First increment: 0 -> 1
+    models.increment_checkout_attempts_sync("https://ex.com/buy1")
+    conn = sqlite3.connect(models.DB_PATH)
+    row = conn.execute(
+        "SELECT checkout_attempts FROM items WHERE link=?",
+        ("https://ex.com/buy1",),
+    ).fetchone()
+    conn.close()
+    assert row[0] == 1
+
+    # Second increment: 1 -> 2
+    models.increment_checkout_attempts_sync("https://ex.com/buy1")
+    conn = sqlite3.connect(models.DB_PATH)
+    row = conn.execute(
+        "SELECT checkout_attempts FROM items WHERE link=?",
+        ("https://ex.com/buy1",),
+    ).fetchone()
+    conn.close()
+    assert row[0] == 2
+
+
+def test_get_item_order_state_fresh(tmp_data_dir):
+    """get_item_order_state_sync returns (False, None) for a freshly added item."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/buy2", True, 1, False)])
+
+    purchased, order_id = models.get_item_order_state_sync("https://ex.com/buy2")
+
+    assert purchased is False
+    assert order_id is None
+
+
+def test_get_item_order_state_after_confirm(tmp_data_dir):
+    """get_item_order_state_sync returns (True, order_id) after update_item_confirmed_sync."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/buy3", True, 1, False)])
+    models.update_item_confirmed_sync(
+        "https://ex.com/buy3", "ORDER123", "2026-06-11T00:00:00+00:00"
+    )
+
+    purchased, order_id = models.get_item_order_state_sync("https://ex.com/buy3")
+
+    assert purchased is True
+    assert order_id == "ORDER123"
+
+
+def test_get_item_order_state_missing_row(tmp_data_dir):
+    """get_item_order_state_sync returns (False, None) for a missing link without raising."""
+    import models
+    models.initialize_db(delete=True)
+
+    purchased, order_id = models.get_item_order_state_sync("https://no-such-item")
+
+    assert purchased is False
+    assert order_id is None
