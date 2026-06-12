@@ -246,3 +246,51 @@ def test_checkout_backoff_base_negative_rejected():
     from core.config_schema import CheckoutConfig
     with pytest.raises(ValidationError):
         CheckoutConfig(backoff_base=-0.1)
+
+
+# ---------------------------------------------------------------------------
+# Phase 23: session_persistence per-platform opt-in flag (REL-04)
+# ---------------------------------------------------------------------------
+
+
+def test_session_persistence_defaults_false_all_platforms():
+    """T-23-06: session_persistence defaults to False on all 7 platform models (opt-in, off by default)."""
+    from core.config_schema import PlatformsConfig
+    p = PlatformsConfig()
+    assert p.amazon.session_persistence is False
+    assert p.bestbuy.session_persistence is False
+    assert p.walmart.session_persistence is False
+    assert p.target.session_persistence is False
+    assert p.gamestop.session_persistence is False
+    assert p.squareenix.session_persistence is False
+    assert p.newegg.session_persistence is False
+
+
+def test_session_persistence_override_true(tmp_path):
+    """T-23-05: session_persistence: true in YAML survives extra='ignore' (declared field, not dropped)."""
+    cfg = {
+        "available": {"items": []},
+        "platforms": {"amazon": {"session_persistence": True}},
+    }
+    f = tmp_path / "config.yml"
+    f.write_text(yaml.dump(cfg))
+    config = AppConfig(yaml_file=f)
+    assert config.platforms.amazon.session_persistence is True
+
+
+def test_session_persistence_legacy_config_loads(tmp_path):
+    """REL-04: platform config dict without session_persistence key loads with default False (additive, non-breaking)."""
+    cfg = {
+        "available": {"items": []},
+        "platforms": {
+            "amazon": {"delay_seconds": 30.0, "headless": True},
+            "bestbuy": {"delay_seconds": 30.0},
+            "walmart": {"min_delay": 8.0, "max_delay": 15.0},
+        },
+    }
+    f = tmp_path / "config.yml"
+    f.write_text(yaml.dump(cfg))
+    config = AppConfig(yaml_file=f)
+    assert config.platforms.amazon.session_persistence is False
+    assert config.platforms.bestbuy.session_persistence is False
+    assert config.platforms.walmart.session_persistence is False
