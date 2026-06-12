@@ -324,8 +324,27 @@ Plans:
   5. Each item's check/buy cycle runs under `asyncio.timeout(item_timeout_secs)`; the `write_queue.put()` calls are placed OUTSIDE the timeout context so a timed-out item cannot orphan a pending DB write
   6. SIGTERM and SIGINT trigger cooperative teardown (write-queue flush + browser teardown) via a platform-appropriate signal bridge (`sys.platform` branch handles Windows `NotImplementedError` on `loop.add_signal_handler`)
 
-**Plans**: TBD
-**Research flag**: NEEDS PLAN-PHASE RESEARCH — nodriver relaunch sequence interaction with CDP stealth script state should be validated against installed 0.50.3 before finalizing `plugin.relaunch()`. Specifically: whether `add_script_to_evaluate_on_new_document` persists across a `Browser.stop()` + restart or must be re-injected.
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1** *(parallel-safe; disjoint file)*
+
+- [ ] 22-01-PLAN.md — core/plugin_base.py: concrete relaunch() (teardown→setup→restore_session→login; stealth re-injected via setup) + restore_session() no-op stub returns False; PLUGIN_API_VERSION stays 2 (REL-03)
+
+**Wave 2** *(orchestrator.py edits serialize — same-file, no parallel)*
+
+- [ ] 22-02-PLAN.md — run_plugin hardening: cfg param + sqlite3.OperationalError read isolation on items read + per-item asyncio.timeout(item_timeout_secs); write_queue.put stays outside (REL-05, REL-06)
+
+**Wave 3** *(blocked on 22-01 + 22-02)*
+
+- [ ] 22-03-PLAN.md — supervise() wrapper + _is_browser_dead_exc + failure budget (alert_on_errors / 600s deque) + park notify + browser-dead assign_proxy→relaunch + async_main create_task wiring (REL-01, REL-02)
+
+**Wave 4** *(blocked on 22-03)*
+
+- [ ] 22-04-PLAN.md — _register_signals (POSIX add_signal_handler / Windows signal.signal fallback) + _flush_write_queue manual drain + async_main signal registration + pre-teardown flush (SRV-02)
+
+**Research flag** (RESOLVED via 22-RESEARCH.md): the nodriver stealth-persistence question is answered — `add_script_to_evaluate_on_new_document` is a per-session CDP command that is NOT persisted across `Browser.stop()` + `Browser.create()`; every plugin’s setup() re-injects stealth via apply_stealth, so relaunch() calling setup() is sufficient (HIGH confidence, confirmed against installed nodriver 0.50.3 source).
 
 ### Phase 23: Encrypted Session Persistence
 
@@ -383,7 +402,7 @@ Plans:
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
+| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/4 | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 

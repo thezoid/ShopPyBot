@@ -569,7 +569,7 @@ Not applicable -- this is a greenfield feature phase (new code paths, no renames
 
 **If this table is empty:** No -- two low-risk assumptions noted above. Both are implementation-detail choices for the planner.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How does supervise() get a reference for assign_proxy?**
    - What we know: `registry.assign_proxy(plugin)` must be called before `setup()` in `relaunch()`. The `registry` object exists in `async_main`'s scope but not in `plugin_base.py`.
