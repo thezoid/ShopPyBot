@@ -17,7 +17,9 @@ _VALID_DIFFICULTY = frozenset({"easy", "medium", "hard"})
 def _dicts_to_cookie_params(dicts: list[dict]) -> list[cdp_network.CookieParam]:
     """Convert serialized cookie dicts to CookieParam objects for CDP set_cookies.
 
-    Filters out expired cookies (expires < time.time()).
+    Filters out expired cookies (expires is a positive value < time.time()).
+    Treats expires=None or expires=0 as a session cookie (no expiry) -- some CDPs
+    serialize session cookies as 0 rather than None (WR-01).
     Maps same_site string to CookieSameSite enum (None on unknown value).
     Wraps expires as TimeSinceEpoch (float subclass) per Pitfall 2.
 
@@ -28,7 +30,9 @@ def _dicts_to_cookie_params(dicts: list[dict]) -> list[cdp_network.CookieParam]:
     params: list[cdp_network.CookieParam] = []
     for d in dicts:
         exp = d.get("expires")
-        if exp is not None and float(exp) < now:
+        # expires=None or expires=0 means session cookie (no real expiry) -- keep it.
+        # Only drop cookies whose expires is a positive timestamp already in the past.
+        if exp is not None and float(exp) != 0.0 and float(exp) < now:
             continue  # skip expired cookies (Pitfall 3 / T-23-10)
         same_site = None
         if d.get("same_site"):
@@ -36,7 +40,12 @@ def _dicts_to_cookie_params(dicts: list[dict]) -> list[cdp_network.CookieParam]:
                 same_site = cdp_network.CookieSameSite(d["same_site"])
             except ValueError:
                 same_site = None
-        expires_param = cdp_network.TimeSinceEpoch(float(exp)) if exp is not None else None
+        # Treat expires=0 same as None (session cookie; do not pass 0 as a timestamp).
+        expires_param = (
+            cdp_network.TimeSinceEpoch(float(exp))
+            if exp is not None and float(exp) != 0.0
+            else None
+        )
         params.append(
             cdp_network.CookieParam(
                 name=d["name"],

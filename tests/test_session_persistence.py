@@ -118,6 +118,28 @@ def test_cookie_param_all_expired_returns_empty():
     assert params == []
 
 
+def test_cookie_param_expires_zero_kept_as_session_cookie():
+    """expires=0 is treated as a session cookie (not expired) and expires param is None.
+
+    Some CDPs serialize session cookies as expires=0 instead of None (WR-01).
+    Dropping them silently would break logged-in persistence for Amazon et al.
+    """
+    dicts = [{"name": "sid", "value": "tok", "expires": 0}]
+    params = _dicts_to_cookie_params(dicts)
+    assert len(params) == 1, "expires=0 cookie must NOT be filtered out"
+    assert params[0].name == "sid"
+    # expires should be None, not TimeSinceEpoch(0) -- 0 is not a valid future timestamp
+    assert params[0].expires is None, "expires=0 must map to None (session cookie)"
+
+
+def test_cookie_param_past_positive_expiry_is_filtered():
+    """A positive expires value in the past is filtered out (not a session cookie)."""
+    past_ts = time.time() - 60.0
+    dicts = [{"name": "old", "value": "x", "expires": past_ts}]
+    params = _dicts_to_cookie_params(dicts)
+    assert params == [], "Past positive expiry must be filtered"
+
+
 def test_cookie_param_no_expires():
     """Cookies with expires=None pass through without TimeSinceEpoch wrapping."""
     dicts = [{"name": "session", "value": "s", "expires": None}]
