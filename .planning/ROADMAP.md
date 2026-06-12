@@ -330,7 +330,7 @@ Plans:
 
 **Wave 1** *(parallel-safe; disjoint file)*
 
-- [ ] 22-01-PLAN.md — core/plugin_base.py: concrete relaunch() (teardown→setup→restore_session→login; stealth re-injected via setup) + restore_session() no-op stub returns False; PLUGIN_API_VERSION stays 2 (REL-03)
+- [x] 22-01-PLAN.md — core/plugin_base.py: concrete relaunch() (teardown→setup→restore_session→login; stealth re-injected via setup) + restore_session() no-op stub returns False; PLUGIN_API_VERSION stays 2 (REL-03)
 
 **Wave 2** *(orchestrator.py edits serialize — same-file, no parallel)*
 
@@ -402,7 +402,7 @@ Plans:
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/4 | Not started | - |
+| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 1/4 | In Progress|  |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 

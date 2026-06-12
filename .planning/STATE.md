@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T04:33:55.750Z"
-last_activity: 2026-06-12 -- Phase 22 planning complete
+last_updated: "2026-06-12T04:42:13.918Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 17
   percent: 31
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
+Phase: 22 (Supervisor + Browser Relaunch + Server Safety) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-12 -- Phase 22 planning complete
+Last activity: 2026-06-12
 
 ## Phase Status
 
@@ -130,6 +130,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 21 P21-02 | 7min | 1 tasks | 2 files |
 | Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
 | Phase 21 P04 | 20min | 1 tasks | 3 files |
+| Phase 22 P01 | 8min | 2 tasks | 3 files |
 
 ## Session Continuity
 
@@ -312,6 +313,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
 - [Phase ?]: 21-03
 - [Phase ?]: _AlreadyConfirmed sentinel to abort with_retry; WR-02 enqueue outside loop (21-04)
+- [Phase ?]: relaunch() proxy re-assignment is supervisor's responsibility before calling relaunch(); method takes no registry reference (REL-03)
+- [Phase ?]: setup() is the single stealth injection point in relaunch(); teardown errors swallowed with WARNING using exc.__class__.__name__ (Phase 22 REL-03)
 
 ## Operator Next Steps
 
