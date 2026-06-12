@@ -416,7 +416,7 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
     try:
         available = await plugin.check_availability(link)
     except Exception as exc:
-        writeLog(f"[{plugin.__class__.__name__}] check error: {exc}", "ERROR")
+        writeLog(f"[{plugin.__class__.__name__}] check error: {exc.__class__.__name__}", "ERROR")
         return
 
     # Price monitoring path (PRICE-02): called only after check_availability succeeds.
