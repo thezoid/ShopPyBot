@@ -403,7 +403,7 @@ Plans:
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 23. Encrypted Session Persistence | v4.0 | 2/4 | In Progress|  |
+| 23. Encrypted Session Persistence | v4.0 | 3/4 | In Progress|  |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17. v4.0: 17 requirements mapped across Phases 18-24.
