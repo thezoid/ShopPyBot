@@ -305,6 +305,59 @@ async def test_second_attempt_sees_confirmed_order_from_first(tmp_data_dir):
     assert write_queue.qsize() == 1
 
 
+
+
+@pytest.mark.asyncio
+async def test_no_retry_on_success_with_no_order_id(tmp_data_dir):
+    """CR-01 regression: auto_buy success + undetected order_id must NOT cause a retry.
+
+    When auto_buy returns True but confirmation detection returns None, should_retry
+    must evaluate to False (only retry on auto_buy failure). Retrying here would
+    re-click place-order and double-buy. Assert auto_buy called exactly once, and
+    exactly one legacy purchased enqueue emitted (no double-buy, no double-enqueue).
+    """
+    plugin, _ = _make_plugin([True, True, True])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+        patch(
+            "core.confirmation.detect_order_confirmation",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    assert plugin.auto_buy.await_count == 1, "Must not retry when auto_buy succeeded"
+    assert write_queue.qsize() == 1
+    item = await write_queue.get()
+    assert item == ("purchased", "https://fake.com/item"), "Must enqueue exactly one legacy purchased"
+
+
+@pytest.mark.asyncio
+async def test_legacy_purchased_item_zero_auto_buy_calls(tmp_data_dir):
+    """CR-02 regression: item purchased via legacy path (purchased=1, order_id=NULL)
+    must cause auto_buy to be called 0 times (idempotency guard covers legacy state).
+    """
+    plugin, _ = _make_plugin([True])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(True, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    plugin.auto_buy.assert_not_awaited()
+    assert mock_inc.call_count == 0
+    assert write_queue.empty()
+
 @pytest.mark.asyncio
 async def test_no_retry_loop_in_orchestrator():
     """Structural: orchestrator must not contain `for attempt in range(` loops.
