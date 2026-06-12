@@ -384,7 +384,7 @@ Plans:
 **Wave 2** *(blocked on 24-01; disjoint files service/orchestrator/cli)*
 
 - [x] 24-03-PLAN.md — core/service.py get_status() locked shape {running,uptime_secs,plugins{...}} + _start_time uptime + single HealthRegistry ref wired into async_main; /status endpoint unchanged + JSON-serializable test (REL-07)
-- [ ] 24-04-PLAN.md — core/orchestrator.py wiring: health=None kwarg through async_main/supervise/run_plugin; heartbeat/items_checked/status transitions/orders_confirmed; health_degraded fire-once+re-arm dedup via existing dispatcher, distinct from plugin_parked + tests (REL-07)
+- [x] 24-04-PLAN.md — core/orchestrator.py wiring: health=None kwarg through async_main/supervise/run_plugin; heartbeat/items_checked/status transitions/orders_confirmed; health_degraded fire-once+re-arm dedup via existing dispatcher, distinct from plugin_parked + tests (REL-07)
 - [ ] 24-05-PLAN.md — core/cli/status.py shoppybot status subcommand (per-plugin table + --json, no network, in-process-state note) + subparser registration + tests (REL-07)
 
 **UI hint**: yes
@@ -418,7 +418,7 @@ Plans:
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 23. Encrypted Session Persistence | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 24. Health Surface + Server Safety | v4.0 | 3/5 | In Progress|  |
+| 24. Health Surface + Server Safety | v4.0 | 4/5 | In Progress|  |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17. v4.0: 17 requirements mapped across Phases 18-24.
 
