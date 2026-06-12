@@ -624,6 +624,8 @@ async def async_main(cfg, cvv) -> None:
     proxy_pool = _build_proxy_pool(cfg)
     captcha_solver = _build_captcha_solver(cfg)
     loop = asyncio.get_running_loop()
+    root_task = asyncio.current_task()
+    _register_signals(loop, root_task)
 
     if captcha_solver is not None:
         await loop.run_in_executor(None, captcha_solver.check_balance_at_startup)
@@ -658,8 +660,9 @@ async def async_main(cfg, cvv) -> None:
     except* KeyboardInterrupt:
         pass
     finally:
+        await _flush_write_queue(write_queue, loop)
         try:
-            await asyncio.wait_for(write_queue.join(), timeout=10)
+            await asyncio.wait_for(write_queue.join(), timeout=5)
         except asyncio.TimeoutError:
-            writeLog("Write queue flush timed out on shutdown", "WARNING")
+            writeLog("Write queue join timed out after manual flush", "WARNING")
         await registry.teardown_all()
