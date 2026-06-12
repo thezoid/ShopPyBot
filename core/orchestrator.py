@@ -140,8 +140,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
                 # Threshold: max(1, n_budget-1) so degraded precedes park (distinct signals).
                 # Re-arms on healthy run via disarm_degraded above.
                 degraded_threshold = max(1, n_budget - 1)
-                snap = health.get_snapshot()
-                consecutive = snap.get(plugin_name, {}).get("consecutive_errors", 0)
+                consecutive = health.get_consecutive_errors(plugin_name)
                 if (consecutive >= degraded_threshold
                         and not health.is_degraded_armed(plugin_name)
                         and dispatcher is not None):

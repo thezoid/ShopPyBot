@@ -63,6 +63,11 @@ class HealthRegistry:
         self._ensure(name)
         self._plugins[name]["_degraded_armed"] = False
 
+    def get_consecutive_errors(self, name: str) -> int:
+        """Return the live consecutive_errors counter for the named plugin."""
+        self._ensure(name)
+        return self._plugins[name]["consecutive_errors"]
+
     def get_snapshot(self) -> dict[str, dict]:
         """Return a deep copy of per-plugin records with private keys stripped."""
         return {
