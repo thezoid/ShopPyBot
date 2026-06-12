@@ -308,7 +308,8 @@ async def test_save_session_writes_encrypted_file(tmp_path, monkeypatch):
     monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpass")
     monkeypatch.setenv("SHOPBOT_DATA_DIR", str(tmp_path))
 
-    fake_cookie = _make_fake_cookie("session-id", "abc123", domain=".amazon.com")
+    # domain must match _TestPlugin.domain_patterns (["test.example.com"]) for WR-02 filter
+    fake_cookie = _make_fake_cookie("session-id", "abc123", domain=".test.example.com")
     fake_tab = _make_fake_tab()
     fake_tab.send = AsyncMock(return_value=[fake_cookie])
 
@@ -353,3 +354,53 @@ async def test_save_session_noop_no_passphrase(tmp_path, monkeypatch):
 
     session_file = tmp_path / "sessions" / "amazon.bin"
     assert not session_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# WR-02: save_session domain scoping
+# ---------------------------------------------------------------------------
+
+async def test_save_session_domain_filter_keeps_matching_cookies(tmp_path, monkeypatch):
+    """save_session() only persists cookies whose domain matches domain_patterns (WR-02)."""
+    monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpass")
+    monkeypatch.setenv("SHOPBOT_DATA_DIR", str(tmp_path))
+
+    matching_cookie = _make_fake_cookie("auth", "tok", domain=".test.example.com")
+    unrelated_cookie = _make_fake_cookie("tracker", "xyz", domain=".ad-tracker.io")
+    fake_tab = _make_fake_tab()
+    fake_tab.send = AsyncMock(return_value=[matching_cookie, unrelated_cookie])
+
+    config = _make_config(session_persistence=True)
+    plugin = _make_plugin(config, fake_tab)  # domain_patterns=["test.example.com"]
+
+    await plugin.save_session()
+
+    session_file = tmp_path / "sessions" / "amazon.bin"
+    assert session_file.exists(), "Session file must be created (matching cookie present)"
+
+    # Restore and verify only the domain-matching cookie was persisted
+    from core.session_store import SessionStore
+    store = SessionStore(sessions_dir=tmp_path / "sessions", passphrase=b"testpass")
+    saved = store.restore("amazon")
+    assert saved is not None
+    names = [c["name"] for c in saved]
+    assert "auth" in names, "Domain-matching cookie must be saved"
+    assert "tracker" not in names, "Unrelated-domain cookie must NOT be saved"
+
+
+async def test_save_session_noop_when_no_domain_matching_cookies(tmp_path, monkeypatch):
+    """save_session() skips write when all cookies are filtered by domain (WR-03)."""
+    monkeypatch.setenv("SHOPBOT_STORE_PASSPHRASE", "testpass")
+    monkeypatch.setenv("SHOPBOT_DATA_DIR", str(tmp_path))
+
+    unrelated_cookie = _make_fake_cookie("tracker", "xyz", domain=".ad-tracker.io")
+    fake_tab = _make_fake_tab()
+    fake_tab.send = AsyncMock(return_value=[unrelated_cookie])
+
+    config = _make_config(session_persistence=True)
+    plugin = _make_plugin(config, fake_tab)  # domain_patterns=["test.example.com"]
+
+    await plugin.save_session()
+
+    session_file = tmp_path / "sessions" / "amazon.bin"
+    assert not session_file.exists(), "No session file when no domain-matching cookies (WR-03)"

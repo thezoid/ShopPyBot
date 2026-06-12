@@ -291,8 +291,12 @@ class RetailerPlugin(ABC):
         if tab is None:
             return
         key = self._session_platform_key()
+        domain_patterns = getattr(self, "domain_patterns", [])
         try:
             raw_cookies = await tab.send(cdp_storage.get_cookies())
+            # WR-02: scope to plugin's domain to avoid persisting unrelated CDN/tracker cookies.
+            # A cookie is included if its domain contains any of the plugin's domain_patterns
+            # (substring/suffix match). If domain_patterns is empty, all cookies are kept.
             dicts = [
                 {
                     "name": c.name,
@@ -305,7 +309,19 @@ class RetailerPlugin(ABC):
                     "same_site": c.same_site.value if c.same_site is not None else None,
                 }
                 for c in raw_cookies
+                if not domain_patterns or any(p in (c.domain or "") for p in domain_patterns)
             ]
+            # WR-03: skip saving if no domain-matching cookies; avoids persisting an empty/
+            # unauthenticated session after a failed login.
+            # NOTE: full post-login success verification (logged-in DOM signal) is out of
+            # scope for this phase and tracked as UAT debt.
+            if not dicts:
+                writeLog(
+                    f"[{self.__class__.__name__}] save_session: no domain-matching cookies;"
+                    " skipping save (possible failed login)",
+                    "DEBUG",
+                )
+                return
             build_session_store().save(key, dicts)
             writeLog(
                 f"[{self.__class__.__name__}] save_session: {len(dicts)} cookies saved",
