@@ -34,7 +34,7 @@ This file scopes v4.0 only.
 
 ### Server Safety (opportunistic)
 
-- [ ] **SRV-01**: The sound notifier degrades to a silent no-op on a headless host with no audio device instead of crashing at import, so the bot runs unattended on a server.
+- [x] **SRV-01**: The sound notifier degrades to a silent no-op on a headless host with no audio device instead of crashing at import, so the bot runs unattended on a server.
 - [x] **SRV-02**: SIGTERM and SIGINT trigger cooperative teardown (write-queue flush + browser teardown) so a container/systemd stop does not orphan Chrome; the signal bridge uses a platform-appropriate path (Windows has no `loop.add_signal_handler`).
 
 ---
@@ -79,5 +79,5 @@ This file scopes v4.0 only.
 | REL-06 | Phase 22 | Complete |
 | REL-07 | Phase 24 | Complete |
 | REL-08 | Phase 21 | Complete |
-| SRV-01 | Phase 24 | Pending |
+| SRV-01 | Phase 24 | Complete |
 | SRV-02 | Phase 22 | Complete |
