@@ -338,7 +338,7 @@ Plans:
 
 **Wave 3** *(blocked on 22-01 + 22-02)*
 
-- [ ] 22-03-PLAN.md — supervise() wrapper + _is_browser_dead_exc + failure budget (alert_on_errors / 600s deque) + park notify + browser-dead assign_proxy→relaunch + async_main create_task wiring (REL-01, REL-02)
+- [x] 22-03-PLAN.md — supervise() wrapper + _is_browser_dead_exc + failure budget (alert_on_errors / 600s deque) + park notify + browser-dead assign_proxy→relaunch + async_main create_task wiring (REL-01, REL-02)
 
 **Wave 4** *(blocked on 22-03)*
 
@@ -402,7 +402,7 @@ Plans:
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 2/4 | In Progress|  |
+| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 3/4 | In Progress|  |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 

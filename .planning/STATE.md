@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T04:49:34.922Z"
+last_updated: "2026-06-12T05:17:09.916Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
   percent: 31
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 22 (Supervisor + Browser Relaunch + Server Safety) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-12
 
@@ -132,6 +132,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 21 P04 | 20min | 1 tasks | 3 files |
 | Phase 22 P01 | 8min | 2 tasks | 3 files |
 | Phase 22 P02 | 6min | 2 tasks | 2 files |
+| Phase 22 P03 | 21min | 3 tasks | 2 files |
 
 ## Session Continuity
 
@@ -319,6 +320,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
 - [Phase 22-02]: asyncio.timeout wraps only _check_and_buy; write_queue.put stays inside _check_and_buy after result is known, outside timeout context (REL-06)
 - [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
+- [Phase ?]: supervise() catches Exception (not BaseException) so CancelledError propagates for clean shutdown; registry.assign_proxy called by supervisor before plugin.relaunch() (Phase 22 REL-01/REL-03)
 
 ## Operator Next Steps
 
