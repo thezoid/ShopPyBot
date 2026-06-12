@@ -614,7 +614,7 @@ async def async_main(cfg, cvv) -> None:
             tg.create_task(_write_queue_drain(write_queue), name="write-queue-drain")
             for plugin in registry._active_plugins:
                 tg.create_task(
-                    run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher),
+                    supervise(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, registry=registry),
                     name=f"poll-{plugin.__class__.__name__}",
                 )
     except* KeyboardInterrupt:
