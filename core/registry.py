@@ -155,6 +155,21 @@ class PluginRegistry:
             try:
                 await plugin.setup()
                 self._active_plugins.append(plugin)
+                # Startup restore mirrors relaunch() sequence (RESEARCH Pitfall 7 / Open Question 1).
+                # Unlike relaunch(), startup keeps login LAZY (each plugin's auto_buy calls
+                # login() internally -- Amazon line 387, BestBuy line 347). Calling login()
+                # here unconditionally would double-login or block on MFA at startup.
+                session_restored = await plugin.restore_session()
+                if session_restored:
+                    writeLog(
+                        f"[{plugin.__class__.__name__}] startup: session restored; skipping login",
+                        "INFO",
+                    )
+                else:
+                    writeLog(
+                        f"[{plugin.__class__.__name__}] startup: no session restored; login on demand",
+                        "INFO",
+                    )
             except Exception as exc:
                 writeLog(f"Plugin setup failed: {exc} -- skipping", "WARNING")
 

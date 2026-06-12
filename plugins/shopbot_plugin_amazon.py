@@ -68,6 +68,7 @@ class AmazonPlugin(RetailerPlugin):
     """Amazon platform plugin; owns one isolated nodriver Browser process."""
 
     domain_patterns = ["amazon.com", "amazon.co.uk", "amazon.ca"]
+    platform_key = "amazon"  # matches config.platforms.amazon
 
     def __init__(self, config) -> None:
         super().__init__(config)
@@ -358,6 +359,7 @@ class AmazonPlugin(RetailerPlugin):
                 )
 
             writeLog("Signed in to Amazon", "INFO")
+            await self.save_session()
         except Exception as exc:
             writeLog(f"Error during Amazon sign-in: {exc.__class__.__name__}", "ERROR")
 

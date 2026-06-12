@@ -38,6 +38,7 @@ class BestBuyPlugin(RetailerPlugin):
     """
 
     domain_patterns = ["bestbuy.com"]
+    platform_key = "bestbuy"  # matches config.platforms.bestbuy
 
     def __init__(self, config) -> None:
         super().__init__(config)
@@ -247,6 +248,7 @@ class BestBuyPlugin(RetailerPlugin):
                 await submit.click()
 
             writeLog("Signed in to BestBuy", "INFO")
+            await self.save_session()
         except Exception as exc:
             writeLog(f"Error during BestBuy sign-in: {exc.__class__.__name__}", "ERROR")
 
