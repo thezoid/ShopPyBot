@@ -1,12 +1,55 @@
+import time
 from abc import ABC, abstractmethod
 from typing import Literal
 
+from nodriver.cdp import network as cdp_network
+from nodriver.cdp import storage as cdp_storage
+
+from core.session_store import build_session_store
 from core.stealth import _is_ban_response
 from logger import writeLog
 
 PLUGIN_API_VERSION = 2  # bumped from 1; v1 subclasses are not compatible
 
 _VALID_DIFFICULTY = frozenset({"easy", "medium", "hard"})
+
+
+def _dicts_to_cookie_params(dicts: list[dict]) -> list[cdp_network.CookieParam]:
+    """Convert serialized cookie dicts to CookieParam objects for CDP set_cookies.
+
+    Filters out expired cookies (expires < time.time()).
+    Maps same_site string to CookieSameSite enum (None on unknown value).
+    Wraps expires as TimeSinceEpoch (float subclass) per Pitfall 2.
+
+    NEVER passes network.Cookie objects -- those have extra fields that Chrome
+    CDP rejects (nodriver bug #1816/#2020). Always builds fresh CookieParam.
+    """
+    now = time.time()
+    params: list[cdp_network.CookieParam] = []
+    for d in dicts:
+        exp = d.get("expires")
+        if exp is not None and float(exp) < now:
+            continue  # skip expired cookies (Pitfall 3 / T-23-10)
+        same_site = None
+        if d.get("same_site"):
+            try:
+                same_site = cdp_network.CookieSameSite(d["same_site"])
+            except ValueError:
+                same_site = None
+        expires_param = cdp_network.TimeSinceEpoch(float(exp)) if exp is not None else None
+        params.append(
+            cdp_network.CookieParam(
+                name=d["name"],
+                value=d["value"],
+                domain=d.get("domain"),  # preserve domain/path exactly (Pitfall 4)
+                path=d.get("path"),
+                expires=expires_param,
+                http_only=d.get("http_only"),
+                secure=d.get("secure"),
+                same_site=same_site,
+            )
+        )
+    return params
 
 
 class RetailerPlugin(ABC):
@@ -163,10 +206,106 @@ class RetailerPlugin(ABC):
         else:
             writeLog(f"[{plugin_name}] relaunch: session restored; skipping login", "INFO")
 
-    async def restore_session(self) -> bool:
-        """Restore browser session from encrypted cookies. No-op stub for Phase 22.
+    def _session_platform_key(self) -> str | None:
+        """Return platform_key attribute if defined on the subclass, else None."""
+        return getattr(self, "platform_key", None)
 
-        Returns False always. Phase 23 (REL-04) replaces with Fernet cookie restore.
-        PLUGIN_API_VERSION stays 2 -- additive non-abstract method.
+    def _session_enabled(self) -> bool:
+        """Return True when session_persistence is enabled for this platform.
+
+        Uses getattr-safe reads (mirrors place_order_guarded idiom) so plugins
+        without a platform_key or a matching platforms config never raise.
         """
-        return False
+        key = self._session_platform_key()
+        if key is None:
+            return False
+        platform_cfg = getattr(getattr(self.config, "platforms", None), key, None)
+        return bool(getattr(platform_cfg, "session_persistence", False))
+
+    async def restore_session(self) -> bool:
+        """Restore browser session from encrypted cookies via raw CDP set_cookies.
+
+        Returns True when cookies were successfully restored (login can be skipped).
+        Returns False on: session_persistence disabled, no passphrase, no tab,
+        missing/corrupt session file, or expired-only cookie list.
+
+        Uses tab.send(cdp_storage.set_cookies([CookieParam(...)])) directly.
+        NEVER passes network.Cookie objects and NEVER calls CookieJar.set_all()
+        -- those paths trigger the confirmed nodriver bug (issues #1816/#2020)
+        where extra Cookie fields (size, session, sourceScheme, sourcePort) cause
+        Chrome to silently reject the restore.
+
+        PLUGIN_API_VERSION stays 2 -- additive non-abstract method (REL-04).
+        """
+        if not self._session_enabled():
+            return False
+        store = build_session_store()
+        if store._passphrase is None:
+            return False
+        key = self._session_platform_key()
+        cookies = store.restore(key)
+        if not cookies:
+            return False
+        tab = self.get_active_tab()
+        if tab is None:
+            return False
+        params = _dicts_to_cookie_params(cookies)
+        if not params:
+            return False
+        try:
+            await tab.send(cdp_storage.set_cookies(params))
+            writeLog(
+                f"[{self.__class__.__name__}] restore_session: {len(params)} cookies restored",
+                "INFO",
+            )
+            return True
+        except Exception as exc:
+            writeLog(
+                f"[{self.__class__.__name__}] restore_session CDP error:"
+                f" {exc.__class__.__name__}; falling back to login",
+                "WARNING",
+            )
+            return False
+
+    async def save_session(self) -> None:
+        """Save browser cookies after successful login when session_persistence enabled.
+
+        No-op when session_persistence is False, passphrase absent, or tab unavailable.
+        Reads cookies via tab.send(cdp_storage.get_cookies()), serializes the 8
+        CookieParam-compatible fields, and persists via SessionStore.save.
+        Exceptions are caught and logged by class name -- save failure must never
+        break the login flow.
+
+        PLUGIN_API_VERSION stays 2 -- additive non-abstract method (REL-04).
+        """
+        if not self._session_enabled():
+            return
+        tab = self.get_active_tab()
+        if tab is None:
+            return
+        key = self._session_platform_key()
+        try:
+            raw_cookies = await tab.send(cdp_storage.get_cookies())
+            dicts = [
+                {
+                    "name": c.name,
+                    "value": c.value,
+                    "domain": c.domain,
+                    "path": c.path,
+                    "expires": float(c.expires) if c.expires is not None else None,
+                    "http_only": c.http_only,
+                    "secure": c.secure,
+                    "same_site": c.same_site.value if c.same_site is not None else None,
+                }
+                for c in raw_cookies
+            ]
+            build_session_store().save(key, dicts)
+            writeLog(
+                f"[{self.__class__.__name__}] save_session: {len(dicts)} cookies saved",
+                "INFO",
+            )
+        except Exception as exc:
+            writeLog(
+                f"[{self.__class__.__name__}] save_session error: {exc.__class__.__name__}",
+                "WARNING",
+            )
