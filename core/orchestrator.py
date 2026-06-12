@@ -505,7 +505,7 @@ async def _write_queue_drain(queue: asyncio.Queue) -> None:
         try:
             await _dispatch_write(loop, item)
         except Exception as exc:
-            writeLog(f"DB write failed for {item!r}: {exc}", "ERROR")
+            writeLog(f"DB write failed for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
             queue.task_done()
 
@@ -548,7 +548,7 @@ async def _staggered_setup(registry, items, stagger_secs: float = _STAGGER_SECS)
             registry._active_plugins.append(plugin)
         except Exception as exc:
             writeLog(
-                f"Plugin {plugin.__class__.__name__} setup failed: {exc} -- skipping",
+                f"Plugin {plugin.__class__.__name__} setup failed: {exc.__class__.__name__} -- skipping",
                 "WARNING",
             )
 
