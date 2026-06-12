@@ -382,7 +382,7 @@ Plans:
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete   | 2026-06-12 |
+| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
