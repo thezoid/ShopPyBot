@@ -243,10 +243,11 @@ async def _pre_attempt_check(loop, link: str, platform: str) -> None:
     """Re-read DB state before each attempt; raise _AlreadyConfirmed or increment counter.
 
     Called via on_attempt in _try_auto_buy. Raises _AlreadyConfirmed to abort the retry
-    loop when a prior confirmed order_id is found in DB (BUY-05 no-double-buy).
-    Otherwise increments checkout_attempts once before the attempt.
+    loop when a prior confirmed order_id is found OR item was already purchased via the
+    legacy path (BUY-05 no-double-buy). Covers both purchased=True/order_id=NULL (legacy)
+    and purchased=True/order_id=<value> (confirmed) states.
     """
-    _, existing_order_id = await loop.run_in_executor(
+    purchased, existing_order_id = await loop.run_in_executor(
         None, get_item_order_state_sync, link
     )
     if existing_order_id is not None:
@@ -255,6 +256,12 @@ async def _pre_attempt_check(loop, link: str, platform: str) -> None:
             "INFO",
         )
         raise _AlreadyConfirmed(existing_order_id)
+    if purchased:
+        writeLog(
+            f"[{platform}] item already purchased (legacy path) -- skipping retry",
+            "INFO",
+        )
+        raise _AlreadyConfirmed("")
     await loop.run_in_executor(None, increment_checkout_attempts_sync, link)
 
 
@@ -273,7 +280,7 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
         result = await with_retry(
             lambda: _attempt_buy(plugin, link),
             policy,
-            should_retry=lambda r: not r[0] or r[1] is None,
+            should_retry=lambda r: not r[0],  # only retry on auto_buy failure; True+no-order_id flows to legacy enqueue (no-double-buy)
             on_attempt=lambda _: _pre_attempt_check(loop, link, platform),
         )
     except _AlreadyConfirmed as confirmed:
