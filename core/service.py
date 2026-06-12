@@ -199,13 +199,12 @@ class BotService:
         Routes through async_main's existing cancellation path so teardown_all runs.
         Calling stop() when not running is a no-op.
         """
-        if not self._running or self._loop is None:
+        loop = self._loop   # capture before any race with daemon thread
+        task = self._task   # capture before any race with daemon thread
+        if not self._running or loop is None:
             return
 
-        loop = self._loop
-        task = self._task
-
-        if task is not None and loop is not None:
+        if task is not None:
             loop.call_soon_threadsafe(task.cancel)
 
         if self._thread is not None:
