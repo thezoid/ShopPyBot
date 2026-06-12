@@ -372,7 +372,21 @@ Plans:
   2. When a plugin's `consecutive_errors` exceeds the configured `alert_on_errors` threshold, a `health_degraded` event is dispatched through the existing notification fan-out channels
   3. On a headless host with no audio device, the sound notifier degrades to a silent no-op at import time rather than crashing; the bot starts and runs normally without pygame
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+
+**Wave 1** *(parallel-safe; disjoint files)*
+
+- [ ] 24-01-PLAN.md — core/health.py HealthRegistry (per-plugin status/heartbeat/consecutive_errors/items_checked/orders_confirmed) + JSON-safe snapshot + in-memory armed/disarmed dedup + tests (REL-07)
+- [ ] 24-02-PLAN.md — utils.py pygame headless guard: _initialize_audio()/_AUDIO_AVAILABLE, play_sound no-op when no device, redundant mixer.init removed + tests (SRV-01)
+
+**Wave 2** *(blocked on 24-01; disjoint files service/orchestrator/cli)*
+
+- [ ] 24-03-PLAN.md — core/service.py get_status() locked shape {running,uptime_secs,plugins{...}} + _start_time uptime + single HealthRegistry ref wired into async_main; /status endpoint unchanged + JSON-serializable test (REL-07)
+- [ ] 24-04-PLAN.md — core/orchestrator.py wiring: health=None kwarg through async_main/supervise/run_plugin; heartbeat/items_checked/status transitions/orders_confirmed; health_degraded fire-once+re-arm dedup via existing dispatcher, distinct from plugin_parked + tests (REL-07)
+- [ ] 24-05-PLAN.md — core/cli/status.py shoppybot status subcommand (per-plugin table + --json, no network, in-process-state note) + subparser registration + tests (REL-07)
+
 **UI hint**: yes
 
 ---
@@ -410,4 +424,4 @@ All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phase
 
 ---
 
-*Last updated: 2026-06-10 — v4.0 Win-the-Drop roadmap created (Phases 18-24)*
+*Last updated: 2026-06-12 — Phase 24 planned (5 plans, 2 waves)*

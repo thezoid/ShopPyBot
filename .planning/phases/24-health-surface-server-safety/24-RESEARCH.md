@@ -774,7 +774,9 @@ def play_sound(file_name):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> RESOLVED (per CONTEXT decision + plan-check): **Q1** — fire `health_degraded` at `max(1, alert_on_errors - 1)` consecutive errors (one crash BEFORE the park/windowed-budget threshold) so degraded is a distinct early-warning that precedes park; armed-once, re-arm on recovery. **Q2** — `HealthRegistry.consecutive_errors` mirrors `len(failure_times)` (windowed), reset on window eviction / healthy run. **Q3** — `orders_confirmed` increments on BOTH the confirmed and legacy (`"purchased"`) paths (yes).
 
 1. **health_degraded threshold: exactly when relative to park?**
    - What we know: CONTEXT.md says "fires BEFORE park" and "distinct from plugin_parked"
