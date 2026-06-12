@@ -532,7 +532,7 @@ async def _flush_write_queue(queue: asyncio.Queue, loop) -> None:
         try:
             await _dispatch_write(loop, item)
         except Exception as exc:
-            writeLog(f"Write-queue flush error for {item!r}: {exc}", "ERROR")
+            writeLog(f"Write-queue flush error for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
             queue.task_done()
 
