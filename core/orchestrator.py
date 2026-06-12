@@ -14,6 +14,7 @@ Design constraints:
 
 import asyncio
 import random
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,17 +170,33 @@ def _get_plugin_sleep(plugin, poll_interval: float) -> float:
         return poll_interval
 
 
-async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None) -> None:
+async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None, cfg=None) -> None:
     """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
     loop = asyncio.get_running_loop()
+    item_timeout = getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120)
     while True:
-        items = await loop.run_in_executor(None, get_items_sync)
+        try:
+            items = await loop.run_in_executor(None, get_items_sync)
+        except sqlite3.OperationalError as exc:
+            writeLog(
+                f"[{plugin.__class__.__name__}] items read error: {exc.__class__.__name__} -- skipping poll cycle",
+                "WARNING",
+            )
+            await asyncio.sleep(_get_plugin_sleep(plugin, poll_interval))
+            continue
         for name, link, auto_buy, quantity, purchased in items:
             if purchased:
                 continue
             if not any(p in (link or "") for p in plugin.domain_patterns):
                 continue
-            await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
+            try:
+                async with asyncio.timeout(item_timeout):
+                    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
+            except TimeoutError:
+                writeLog(
+                    f"[{plugin.__class__.__name__}] item timeout ({item_timeout}s): {name} -- skipping",
+                    "WARNING",
+                )
         await asyncio.sleep(_get_plugin_sleep(plugin, poll_interval))
 
 

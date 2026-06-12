@@ -991,12 +991,16 @@ async def test_item_timeout_continues_to_next(fake_plugin):
 
     REL-06: asyncio.timeout(item_timeout_secs) around _check_and_buy; TimeoutError caught
     at item level; for-loop continues to the next item.
+
+    Uses a fake asyncio.timeout context manager that raises TimeoutError for the slow item
+    and acts as a no-op for the fast item, then cancels via asyncio.sleep after one cycle.
     """
     from core.orchestrator import run_plugin
+    from contextlib import asynccontextmanager
 
     plugin = fake_plugin(domains=["ex.example.com"], available=False)
     cfg = MagicMock()
-    cfg.checkout.item_timeout_secs = 0.05  # very short timeout
+    cfg.checkout.item_timeout_secs = 30
 
     queue: asyncio.Queue = asyncio.Queue()
     log_messages: list[tuple] = []
@@ -1007,29 +1011,36 @@ async def test_item_timeout_continues_to_next(fake_plugin):
     ]
 
     check_and_buy_calls: list[str] = []
-    sleep_calls: list = []
 
     async def fake_executor(executor, fn, *args):
         return items
 
     async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
         check_and_buy_calls.append(name)
-        if name == "SlowItem":
-            # Sleep longer than the timeout to trigger TimeoutError
-            await asyncio.sleep(10)
 
     async def fake_sleep(secs):
-        sleep_calls.append(secs)
+        # Cancel after the item loop completes (end of one cycle)
         raise asyncio.CancelledError
 
     def capture_log(msg, level="INFO", *args, **kwargs):
         log_messages.append((msg, level))
+
+    # Fake asyncio.timeout: raises TimeoutError for SlowItem, no-op for FastItem
+    timeout_call_count = [0]
+
+    @asynccontextmanager
+    async def fake_timeout(secs):
+        timeout_call_count[0] += 1
+        if timeout_call_count[0] == 1:
+            raise TimeoutError("fake item timeout")
+        yield
 
     loop = asyncio.get_running_loop()
     with (
         patch.object(loop, "run_in_executor", side_effect=fake_executor),
         patch("core.orchestrator._check_and_buy", side_effect=fake_check_and_buy),
         patch("core.orchestrator.asyncio.sleep", side_effect=fake_sleep),
+        patch("core.orchestrator.asyncio.timeout", side_effect=fake_timeout),
         patch("core.orchestrator.writeLog", side_effect=capture_log),
         patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
     ):
