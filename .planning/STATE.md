@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T02:09:24.175Z"
+last_updated: "2026-06-12T02:29:04.099Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 23
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 21 (Per-Step Timeouts + Unified Retry + Cart-Retry) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-12
 
@@ -128,6 +128,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
 | Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
 | Phase 21 P21-02 | 7min | 1 tasks | 2 files |
+| Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
 
 ## Session Continuity
 
@@ -308,6 +309,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: get_active_tab is sync def (not async); returns getattr(self.driver, 'main_tab', None); PLUGIN_API_VERSION stays 2 (additive BUY-03)
 - [Phase ?]: [Phase 20-04]: _fill_field logs selector name only never field value
 - [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
+- [Phase ?]: 21-03
 
 ## Operator Next Steps
 
