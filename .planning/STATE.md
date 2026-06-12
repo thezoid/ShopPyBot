@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: executing
-last_updated: "2026-06-12T02:29:04.099Z"
+status: verifying
+last_updated: "2026-06-12T02:52:06.595Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 16
-  completed_plans: 15
-  percent: 23
+  completed_plans: 16
+  percent: 31
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 21 (Per-Step Timeouts + Unified Retry + Cart-Retry) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-12
 
 ## Phase Status
@@ -129,6 +129,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
 | Phase 21 P21-02 | 7min | 1 tasks | 2 files |
 | Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
+| Phase 21 P04 | 20min | 1 tasks | 3 files |
 
 ## Session Continuity
 
@@ -310,6 +311,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: [Phase 20-04]: _fill_field logs selector name only never field value
 - [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
 - [Phase ?]: 21-03
+- [Phase ?]: _AlreadyConfirmed sentinel to abort with_retry; WR-02 enqueue outside loop (21-04)
 
 ## Operator Next Steps
 
