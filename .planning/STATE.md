@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T17:26:08.963Z"
+last_updated: "2026-06-12T17:35:37.524Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 5
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 38
 ---
 
@@ -29,9 +29,9 @@ progress:
 ## Current Position
 
 Phase: 23 (Encrypted Session Persistence) — EXECUTING
-Plan: 2 of 4
-Status: Executing Phase 23
-Last activity: 2026-06-12 -- Phase 23 Plan 01 complete (SessionStore Fernet cookie persistence)
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-06-12 -- Phase 23 Plan 02 complete (session_persistence config schema field, all 7 platforms)
 
 ## Phase Status
 
@@ -134,12 +134,13 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 22 P02 | 6min | 2 tasks | 2 files |
 | Phase 22 P03 | 21min | 3 tasks | 2 files |
 | Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 23 Plan 01 complete -- SessionStore Fernet cookie persistence (REL-04); 643 tests passing.
-**Next action**: Execute Phase 23 Plan 02 (plugin ABC save_session/restore_session implementation).
-**Context to carry**: SessionStore uses [salt][Fernet token] layout mirroring EncryptedFileBackend; build_session_store() is the factory for plugin ABC callers; restore() returns None (not raises) on InvalidToken per REL-04 contract.
+**Last action**: Phase 23 Plan 02 complete -- session_persistence: bool = False added to all 7 platform config models; 702 tests passing.
+**Next action**: Execute Phase 23 Plan 03 (plugin ABC save_session/restore_session implementation).
+**Context to carry**: SessionStore uses [salt][Fernet token] layout mirroring EncryptedFileBackend; build_session_store() is the factory for plugin ABC callers; restore() returns None (not raises) on InvalidToken per REL-04 contract; session_persistence field is now a declared field on all 7 platform models, readable via getattr-safe platform_cfg pattern.
 
 ---
 
