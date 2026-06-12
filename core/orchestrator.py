@@ -14,6 +14,7 @@ Design constraints:
 
 import asyncio
 import random
+import signal
 import sqlite3
 import sys
 import time
@@ -509,6 +510,23 @@ async def _write_queue_drain(queue: asyncio.Queue) -> None:
             queue.task_done()
 
 
+async def _flush_write_queue(queue: asyncio.Queue, loop) -> None:
+    """Drain remaining items after TaskGroup exits (drain task was cancelled).
+
+    The _write_queue_drain task may have an in-flight item with task_done() not yet
+    called (queue.join() would hang). Manual get_nowait() + task_done() drains it.
+    Errors are logged; task_done() is always called so join() does not deadlock (T-22-06).
+    """
+    while not queue.empty():
+        item = queue.get_nowait()
+        try:
+            await _dispatch_write(loop, item)
+        except Exception as exc:
+            writeLog(f"Write-queue flush error for {item!r}: {exc}", "ERROR")
+        finally:
+            queue.task_done()
+
+
 async def _staggered_setup(registry, items, stagger_secs: float = _STAGGER_SECS) -> None:
     """Init only matched plugins; 1.5s apart (ASYNC-02). Logs each init."""
     needed = registry.plugins_for_items(items)
@@ -576,6 +594,26 @@ def _build_captcha_solver(cfg):
     if not getattr(getattr(cfg, "captcha", None), "enabled", False):
         return None
     return CaptchaSolver.from_config(cfg.captcha, get_store())
+
+
+def _register_signals(loop, root_task) -> None:
+    """Register SIGTERM/SIGINT handlers for cooperative teardown (SRV-02).
+
+    POSIX: loop.add_signal_handler (thread-safe, runs in event loop).
+    Windows ProactorEventLoop: raises NotImplementedError; fallback to signal.signal.
+    Both paths use loop.call_soon_threadsafe (mirrors BotService.stop() pattern).
+    """
+    def _shutdown(*_) -> None:
+        writeLog("Shutdown signal received -- initiating teardown", "INFO")
+        loop.call_soon_threadsafe(root_task.cancel)
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, _shutdown)
+        loop.add_signal_handler(signal.SIGINT, _shutdown)
+    except NotImplementedError:
+        # Windows ProactorEventLoop does not support add_signal_handler
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
 
 
 async def async_main(cfg, cvv) -> None:
