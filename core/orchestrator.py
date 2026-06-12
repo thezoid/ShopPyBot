@@ -21,6 +21,7 @@ from pathlib import Path
 from core.captcha import CaptchaSolver
 from core.credentials import get_store
 from core.registry import PluginRegistry
+from core.retry import RetryPolicy, with_retry
 from core.stealth import ProxyPool
 from logger import writeLog
 from models import (
@@ -30,6 +31,8 @@ from models import (
     set_item_available_sync,
     clear_item_available_sync,
     get_item_notification_state_sync,
+    get_item_order_state_sync,
+    increment_checkout_attempts_sync,
     append_price_history_sync,
     get_last_price_sync,
     get_item_price_config_sync,
@@ -180,26 +183,24 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
         await asyncio.sleep(_get_plugin_sleep(plugin, poll_interval))
 
 
-async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
-    """Attempt auto-buy; detect confirmation and enqueue confirmed or legacy purchased.
+async def _attempt_buy(plugin, link) -> tuple[bool, str | None]:
+    """Retryable unit: run auto_buy + confirmation detection; return (success, order_id).
 
-    Invariant (WR-02): auto_buy True => exactly one enqueue (confirmed or legacy purchased).
-    The confirmation-detection block has its own inner try/except so an exception there
-    never swallows a completed buy -- which would leave the item available, causing the
-    next poll to re-attempt auto_buy and place a duplicate order (real money).
+    No enqueue here -- callers keep write_queue.put() outside the retry loop (WR-02).
+    Returns (False, None) on auto_buy failure or exception so the retry loop can decide.
+    Returns (True, None) on confirmation detection error: order placed but id undetected.
     """
     from core.confirmation import detect_order_confirmation
     try:
         success = await plugin.auto_buy(link)
     except Exception as exc:
-        writeLog(f"[{plugin.__class__.__name__}] auto_buy error: {exc}", "ERROR")
-        return
-    if not success:
-        return
-    if dispatcher is not None:
-        await dispatcher.notify(
-            _build_event(name, link, plugin.__class__.__name__, "purchased")
+        writeLog(
+            f"[{plugin.__class__.__name__}] auto_buy error: {exc.__class__.__name__}",
+            "ERROR",
         )
+        return False, None
+    if not success:
+        return False, None
     tab = plugin.get_active_tab()
     platform = plugin.__class__.__name__
     order_id = None
@@ -211,6 +212,22 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
                 f"[{platform}] confirmation detection error: {exc.__class__.__name__}",
                 "ERROR",
             )
+    return True, order_id
+
+
+class _AlreadyConfirmed(Exception):
+    """Sentinel: raised inside on_attempt to abort retry when order already confirmed."""
+    def __init__(self, order_id: str) -> None:
+        self.order_id = order_id
+
+
+async def _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher) -> None:
+    """Enqueue confirmation or legacy-purchased after a successful buy (WR-02).
+
+    Called OUTSIDE the retry loop: ensures exactly one enqueue per successful buy.
+    """
+    if dispatcher is not None:
+        await dispatcher.notify(_build_event(name, link, platform, "purchased"))
     if order_id is not None:
         ts = datetime.now(timezone.utc).isoformat()
         await write_queue.put(("confirmed", link, order_id, ts))
@@ -220,6 +237,53 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
             "WARNING",
         )
         await write_queue.put(("purchased", link))
+
+
+async def _pre_attempt_check(loop, link: str, platform: str) -> None:
+    """Re-read DB state before each attempt; raise _AlreadyConfirmed or increment counter.
+
+    Called via on_attempt in _try_auto_buy. Raises _AlreadyConfirmed to abort the retry
+    loop when a prior confirmed order_id is found in DB (BUY-05 no-double-buy).
+    Otherwise increments checkout_attempts once before the attempt.
+    """
+    _, existing_order_id = await loop.run_in_executor(
+        None, get_item_order_state_sync, link
+    )
+    if existing_order_id is not None:
+        writeLog(
+            f"[{platform}] prior confirmed order_id={existing_order_id} -- skipping retry",
+            "INFO",
+        )
+        raise _AlreadyConfirmed(existing_order_id)
+    await loop.run_in_executor(None, increment_checkout_attempts_sync, link)
+
+
+async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
+    """Cart-retry wrapper; enqueue OUTSIDE loop (WR-02). total=1+max_cart_retries."""
+    from core.config_schema import CheckoutConfig
+    loop = asyncio.get_running_loop()
+    platform = plugin.__class__.__name__
+    cfg = getattr(plugin.config, "checkout", None) or CheckoutConfig()
+    policy = RetryPolicy(
+        max_attempts=cfg.max_cart_retries + 1,
+        backoff_base=cfg.backoff_base,
+        backoff_jitter=cfg.backoff_jitter,
+    )
+    try:
+        result = await with_retry(
+            lambda: _attempt_buy(plugin, link),
+            policy,
+            should_retry=lambda r: not r[0] or r[1] is None,
+            on_attempt=lambda _: _pre_attempt_check(loop, link, platform),
+        )
+    except _AlreadyConfirmed as confirmed:
+        writeLog(f"[{platform}] idempotency exit: order_id={confirmed.order_id}", "INFO")
+        return
+    success, order_id = result
+    if not success:
+        writeLog(f"[{platform}] cart-retry exhausted (stage={plugin._checkout_stage})", "WARNING")
+        return
+    await _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher)
 
 
 async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):

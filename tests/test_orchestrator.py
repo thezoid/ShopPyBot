@@ -542,6 +542,8 @@ async def test_check_and_buy_purchase_dispatches_purchased_event(fake_plugin, fa
 
     with (
         patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch("core.orchestrator.writeLog"),
     ):
         await _check_and_buy(plugin, "Widget", link, auto_buy=True, write_queue=queue, dispatcher=dispatcher)
@@ -764,7 +766,11 @@ async def test_orchestrator_confirmed_path():
     )
 
     q: asyncio.Queue = asyncio.Queue()
-    with patch("core.orchestrator.writeLog"):
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
 
     assert q.qsize() == 1, "Exactly one item enqueued on confirmed path"
@@ -790,7 +796,11 @@ async def test_orchestrator_fallback_path():
     def capture_log(msg, level="INFO", *args, **kwargs):
         log_messages.append((msg, level))
 
-    with patch("core.orchestrator.writeLog", side_effect=capture_log):
+    with (
+        patch("core.orchestrator.writeLog", side_effect=capture_log),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
 
     assert q.qsize() == 1, "Exactly one item enqueued on fallback path"
@@ -811,7 +821,11 @@ async def test_no_double_buy_single_put():
     )
 
     q: asyncio.Queue = asyncio.Queue()
-    with patch("core.orchestrator.writeLog"):
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
 
     assert q.qsize() == 1, f"Expected exactly 1 queue item, got {q.qsize()}"
@@ -861,6 +875,8 @@ async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     q: asyncio.Queue = asyncio.Queue()
     with (
         patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
             new=AsyncMock(side_effect=RuntimeError("tab closed")),
