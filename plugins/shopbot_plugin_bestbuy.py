@@ -341,6 +341,9 @@ class BestBuyPlugin(RetailerPlugin):
                 await checkout.click()
                 writeLog("Proceeded to checkout on BestBuy", "INFO")
 
+            # login() is intentionally NOT wrapped in asyncio.timeout: BestBuy login
+            # may require manual OTP/passkey entry -- a human-gated step that must not
+            # be killed by a step timer. See _wait_user_action for the 300s unattended guard.
             await self.login()
 
             # BUY-07: fill shipping address fields from checkout profile before CVV.

@@ -381,6 +381,9 @@ class AmazonPlugin(RetailerPlugin):
         if getattr(debug, "monitor_only", False):
             writeLog("[AmazonPlugin] auto_buy suppressed (monitor_only)", "INFO")
             return False
+        # login() is intentionally NOT wrapped in asyncio.timeout: Amazon requires
+        # manual passkey dismissal and OTP entry -- a human-gated step that must not
+        # be killed by a step timer. See _wait_user_action for the 300s unattended guard.
         await self.login()
         try:
             step_timeout_secs = getattr(
