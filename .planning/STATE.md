@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T04:42:13.918Z"
+last_updated: "2026-06-12T04:49:34.922Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 18
   percent: 31
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 22 (Supervisor + Browser Relaunch + Server Safety) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-12
 
@@ -131,10 +131,11 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
 | Phase 21 P04 | 20min | 1 tasks | 3 files |
 | Phase 22 P01 | 8min | 2 tasks | 3 files |
+| Phase 22 P02 | 6min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 20 Plan 04 complete -- BestBuy form-fill + Amazon CVV fill + AST CVV-not-in-logs CI guard; 625 tests passing. BUY-07 fully covered.
+**Last action**: Phase 22 Plan 02 complete -- run_plugin sqlite read isolation (REL-05) + per-item asyncio.timeout (REL-06) + cfg param; 680 tests passing.
 **Next action**: Run /gsd:verify-work for Phase 20, then proceed to Phase 21 (per-step timeouts + cart retry).
 **Context to carry**: _fill_field helper pattern established in BestBuy; conftest fake_element has clear_input = AsyncMock(); Amazon shipping form-fill deferred to UAT (Open Question 1); BestBuy shipping selectors MEDIUM/LOW confidence -- UAT required before production.
 
@@ -315,6 +316,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase ?]: _AlreadyConfirmed sentinel to abort with_retry; WR-02 enqueue outside loop (21-04)
 - [Phase ?]: relaunch() proxy re-assignment is supervisor's responsibility before calling relaunch(); method takes no registry reference (REL-03)
 - [Phase ?]: setup() is the single stealth injection point in relaunch(); teardown errors swallowed with WARNING using exc.__class__.__name__ (Phase 22 REL-03)
+- [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
+- [Phase 22-02]: asyncio.timeout wraps only _check_and_buy; write_queue.put stays inside _check_and_buy after result is known, outside timeout context (REL-06)
+- [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
 
 ## Operator Next Steps
 

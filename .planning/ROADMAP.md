@@ -334,7 +334,7 @@ Plans:
 
 **Wave 2** *(orchestrator.py edits serialize — same-file, no parallel)*
 
-- [ ] 22-02-PLAN.md — run_plugin hardening: cfg param + sqlite3.OperationalError read isolation on items read + per-item asyncio.timeout(item_timeout_secs); write_queue.put stays outside (REL-05, REL-06)
+- [x] 22-02-PLAN.md — run_plugin hardening: cfg param + sqlite3.OperationalError read isolation on items read + per-item asyncio.timeout(item_timeout_secs); write_queue.put stays outside (REL-05, REL-06)
 
 **Wave 3** *(blocked on 22-01 + 22-02)*
 
@@ -402,7 +402,7 @@ Plans:
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 1/4 | In Progress|  |
+| 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 2/4 | In Progress|  |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 
