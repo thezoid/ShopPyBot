@@ -26,7 +26,7 @@ This file scopes v4.0 only.
 - [x] **REL-01**: A supervisor wraps each plugin task so an unhandled exception in one plugin is absorbed before the asyncio TaskGroup boundary and that plugin restarts with exponential backoff, while every other plugin keeps running.
 - [x] **REL-02**: A plugin that exceeds a failure budget (N failures within a time window) is parked instead of crash-looping, and the operator is notified through the existing dispatcher.
 - [x] **REL-03**: The bot detects a dead or disconnected Chrome process and cold-restarts that plugin's browser, re-applying stealth, proxy assignment, and login before resuming checks.
-- [ ] **REL-04**: User can opt in to encrypted session/cookie persistence so the bot restores browser cookies across restarts (skipping re-login/MFA); cookies are encrypted via the existing CredentialStore machinery (never plaintext) and restored via the CDP path that avoids the nodriver `set_all()` bug.
+- [x] **REL-04**: User can opt in to encrypted session/cookie persistence so the bot restores browser cookies across restarts (skipping re-login/MFA); cookies are encrypted via the existing CredentialStore machinery (never plaintext) and restored via the CDP path that avoids the nodriver `set_all()` bug.
 - [x] **REL-05**: Transient SQLite errors on the read path (item reads, notification-state reads, price reads) are caught and isolated so a single failed read degrades gracefully instead of crashing the poll loop.
 - [x] **REL-06**: Each item's check/buy cycle runs under an overall orchestrator timeout, so a stalled page or a long captcha pause on one item cannot freeze the other items on that retailer.
 - [ ] **REL-07**: `BotService.get_status()` returns a structured per-plugin health surface (liveness, last-activity, last-error) queryable from the CLI and web UI, and sustained degradation is signaled through the notification dispatcher.
@@ -74,7 +74,7 @@ This file scopes v4.0 only.
 | REL-01 | Phase 22 | Complete |
 | REL-02 | Phase 22 | Complete |
 | REL-03 | Phase 22 | Complete |
-| REL-04 | Phase 23 | Pending |
+| REL-04 | Phase 23 | Complete |
 | REL-05 | Phase 22 | Complete |
 | REL-06 | Phase 22 | Complete |
 | REL-07 | Phase 24 | Pending |

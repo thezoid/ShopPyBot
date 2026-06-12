@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
 status: executing
-last_updated: "2026-06-12T17:19:07.082Z"
-last_activity: 2026-06-12 -- Phase 23 planning complete
+last_updated: "2026-06-12T17:26:08.963Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 5
   total_plans: 24
-  completed_plans: 20
+  completed_plans: 21
   percent: 38
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 23
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-12 -- Phase 23 planning complete
+Phase: 23 (Encrypted Session Persistence) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 23
+Last activity: 2026-06-12 -- Phase 23 Plan 01 complete (SessionStore Fernet cookie persistence)
 
 ## Phase Status
 
@@ -42,7 +42,7 @@ Last activity: 2026-06-12 -- Phase 23 planning complete
 | 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Not started | BUY-07 |
 | 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Not started | BUY-05, BUY-06, REL-08 |
 | 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Complete | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
-| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Not started | REL-04 |
+| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | In Progress (1/4 plans) | REL-04 |
 | 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Not started | REL-07, SRV-01 |
 
 ---
@@ -133,16 +133,17 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 22 P01 | 8min | 2 tasks | 3 files |
 | Phase 22 P02 | 6min | 2 tasks | 2 files |
 | Phase 22 P03 | 21min | 3 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 22 Plan 02 complete -- run_plugin sqlite read isolation (REL-05) + per-item asyncio.timeout (REL-06) + cfg param; 680 tests passing.
-**Next action**: Run /gsd:verify-work for Phase 20, then proceed to Phase 21 (per-step timeouts + cart retry).
-**Context to carry**: _fill_field helper pattern established in BestBuy; conftest fake_element has clear_input = AsyncMock(); Amazon shipping form-fill deferred to UAT (Open Question 1); BestBuy shipping selectors MEDIUM/LOW confidence -- UAT required before production.
+**Last action**: Phase 23 Plan 01 complete -- SessionStore Fernet cookie persistence (REL-04); 643 tests passing.
+**Next action**: Execute Phase 23 Plan 02 (plugin ABC save_session/restore_session implementation).
+**Context to carry**: SessionStore uses [salt][Fernet token] layout mirroring EncryptedFileBackend; build_session_store() is the factory for plugin ABC callers; restore() returns None (not raises) on InvalidToken per REL-04 contract.
 
 ---
 
-*Last updated: 2026-06-11 -- Phase 20 Plan 04 complete*
+*Last updated: 2026-06-12 -- Phase 23 Plan 01 complete*
 
 ## Performance Metrics (v1 + v2.0 + v3.0 history)
 
@@ -322,6 +323,8 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
 - [Phase ?]: supervise() catches Exception (not BaseException) so CancelledError propagates for clean shutdown; registry.assign_proxy called by supervisor before plugin.relaunch() (Phase 22 REL-01/REL-03)
 - [Phase 22-04]: _register_signals uses loop.add_signal_handler (POSIX) with NotImplementedError fallback to signal.signal (Windows); both paths cancel root_task via call_soon_threadsafe; _flush_write_queue drains queue before teardown_all so no pending DB write is lost on SIGTERM (SRV-02)
+- [Phase ?]: [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
+- [Phase ?]: [Phase 23-01]: build_session_store() factory centralizes _resolve_passphrase() so plugin ABC callers (Plan 23-04) never duplicate env-var resolution
 
 ## Operator Next Steps
 
