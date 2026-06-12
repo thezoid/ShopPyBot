@@ -355,6 +355,73 @@ async def test_browser_dead_triggers_relaunch():
 
 
 # ---------------------------------------------------------------------------
+# WR-02: attempt counter resets after healthy run
+# ---------------------------------------------------------------------------
+
+
+async def test_attempt_resets_after_healthy_run():
+    """Backoff attempt resets to 0 after run_plugin returns normally (WR-02).
+
+    Scenario:
+    1. run_plugin raises N times (accumulates attempt counter)
+    2. run_plugin returns normally (healthy run) -> attempt must reset to 0
+    3. run_plugin raises again -> compute_delay called with attempt=0, not attempt=N
+
+    Without the fix, the 3rd crash's delay would be compute_delay(N, ...) which grows
+    unboundedly. With the fix it is compute_delay(0, ...).
+    """
+    from core.orchestrator import supervise
+
+    cfg = _make_cfg(alert_on_errors=10, backoff_base=2.0, backoff_jitter=0.0)
+
+    plugin = _make_plugin("PluginWR02")
+    registry = _make_registry_with_plugins(plugin)
+
+    call_count = 0
+    delay_attempts: list[int] = []
+    reached_third_crash = asyncio.Event()
+
+    async def controlled_run(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("crash before healthy run")
+        if call_count == 2:
+            return  # healthy run: run_plugin returns normally
+        if call_count == 3:
+            reached_third_crash.set()
+            raise RuntimeError("crash after healthy run -- attempt must be 0")
+        await asyncio.get_running_loop().create_future()
+
+    def tracking_compute_delay(attempt, policy):
+        delay_attempts.append(attempt)
+        return 0.0
+
+    with patch("core.orchestrator.run_plugin", side_effect=controlled_run), \
+         patch("core.orchestrator.compute_delay", side_effect=tracking_compute_delay), \
+         _instant_sleep_ctx():
+
+        task = asyncio.create_task(
+            supervise(plugin, asyncio.Queue(), 30, _make_dispatcher(), cfg, registry)
+        )
+        await reached_third_crash.wait()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    # delay_attempts[0]: backoff after crash #1 (attempt=0 before increment)
+    # delay_attempts[1]: backoff after crash #3 (must be attempt=0 because healthy run reset it)
+    assert len(delay_attempts) >= 2, f"Expected >=2 delay calls, got {delay_attempts}"
+    # After the healthy run, attempt resets to 0 so the next crash must start at attempt=0
+    assert delay_attempts[-1] == 0, (
+        f"Expected attempt=0 after reset by healthy run, got {delay_attempts[-1]}. "
+        f"All delay calls: {delay_attempts}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helper: _is_browser_dead_exc classification
 # ---------------------------------------------------------------------------
 

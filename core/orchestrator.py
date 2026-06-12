@@ -114,6 +114,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     while True:
         try:
             await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg)
+            attempt = 0  # healthy run completed; reset backoff so future failures start fresh (WR-02)
         except asyncio.CancelledError:
             raise  # MUST propagate -- clean shutdown via TaskGroup cancel
         except Exception as exc:
