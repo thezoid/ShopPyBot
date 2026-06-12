@@ -301,7 +301,7 @@ Plans:
 **Wave 1** *(parallel-safe; no file overlap)*
 
 - [x] 21-01-PLAN.md — core/retry.py NEW: RetryPolicy dataclass + pure compute_delay (seedable jitter) + with_retry async helper; tests/test_no_retry_loops.py AST guard (no `for attempt in range(` outside core/retry.py) (REL-08)
-- [ ] 21-02-PLAN.md — models.py: increment_checkout_attempts_sync (+1 per call) + get_item_order_state_sync (purchased, order_id idempotency anchor); no schema change (BUY-05)
+- [x] 21-02-PLAN.md — models.py: increment_checkout_attempts_sync (+1 per call) + get_item_order_state_sync (purchased, order_id idempotency anchor); no schema change (BUY-05)
 - [ ] 21-03-PLAN.md — per-step asyncio.timeout: self._checkout_stage default on RetailerPlugin ABC + 6 Amazon / 8 BestBuy DOM stages each under their own asyncio.timeout(step_timeout_secs); no outer timeout; per-item ceiling deferred to P22 (BUY-06)
 
 **Wave 2** *(blocked on 21-01 + 21-02 + 21-03)*
@@ -382,7 +382,7 @@ Plans:
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 1/4 | In Progress|  |
+| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 2/4 | In Progress|  |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
