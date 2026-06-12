@@ -104,6 +104,34 @@ def update_item_purchased_sync(link):
         conn.execute("UPDATE items SET purchased=1 WHERE link=?", (link,))
 
 
+def increment_checkout_attempts_sync(link: str) -> None:
+    """Increment checkout_attempts by exactly 1 for the given link (BUY-05/REL-08).
+
+    Uses a relative SQL increment so each call adds 1 without knowing the current value.
+    Never resets the counter; monotonic per-attempt accounting for double-buy detection.
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET checkout_attempts = checkout_attempts + 1 WHERE link=?",
+            (link,),
+        )
+
+
+def get_item_order_state_sync(link: str) -> tuple[bool, str | None]:
+    """Return (purchased as bool, order_id) for the cart-retry idempotency check (BUY-05).
+
+    Returns (False, None) when the item row is missing (safe no-op for retry guard).
+    """
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT purchased, order_id FROM items WHERE link=?",
+            (link,),
+        ).fetchone()
+    if row is None:
+        return False, None
+    return bool(row[0]), row[1]
+
+
 def update_item_confirmed_sync(link: str, order_id: str, confirmed_at: str) -> None:
     """Set purchased=1, order_id, and confirmed_at together (BUY-03/BUY-04).
 
