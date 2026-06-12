@@ -12,11 +12,13 @@ and passed in (T-07-04, ASYNC-03).
 import asyncio
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
 from core.config_schema import AppConfig
 from core.credentials import init_store
+from core.health import HealthRegistry
 from core.orchestrator import async_main
 from core.stealth import ProxyPool
 from logger import writeLog
@@ -39,6 +41,9 @@ class BotService:
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._task: Optional[asyncio.Task] = None
+        self._start_time: Optional[float] = None
+        # Single HealthRegistry created here so get_status() is safe before start() (REL-07).
+        self._health_registry: HealthRegistry = HealthRegistry()
         # Initialize the credential store before the daemon thread launches
         # so the store is available without a race (RESEARCH thread-safety note).
         init_store(self._cfg)
@@ -66,8 +71,18 @@ class BotService:
         return self._cfg
 
     def get_status(self) -> dict:
-        """Return plain running-state dict. Safe to call before start()."""
-        return {"running": self._running}
+        """Return structured health surface. Safe to call before start() (REL-07).
+
+        Cheap and non-blocking: all reads are in-memory only.
+        """
+        uptime = 0.0
+        if self._start_time is not None and self._running:
+            uptime = time.monotonic() - self._start_time
+        return {
+            "running": self._running,
+            "uptime_secs": uptime,
+            "plugins": self._health_registry.get_snapshot(),
+        }
 
     def list_items(self) -> list:
         """Return all DB rows as plain tuples (no bot start required)."""
@@ -140,6 +155,7 @@ class BotService:
             return
 
         self._running = True
+        self._start_time = time.monotonic()
         ready = threading.Event()
 
         def _run_loop() -> None:
@@ -151,7 +167,7 @@ class BotService:
                 self._task = asyncio.current_task()
                 ready.set()
                 try:
-                    await async_main(self._cfg, cvv)
+                    await async_main(self._cfg, cvv, health_registry=self._health_registry)
                 except asyncio.CancelledError:
                     pass
                 except Exception as exc:
@@ -161,6 +177,7 @@ class BotService:
                     )
                 finally:
                     self._running = False
+                    self._start_time = None
                     self._task = None
 
             try:
@@ -200,7 +217,11 @@ class BotService:
         Equivalent to asyncio.run(async_main(cfg, cvv)). Used by main.py shim
         and CLI (Phase 9) where blocking is acceptable.
         """
-        asyncio.run(async_main(self._cfg, cvv))
+        self._start_time = time.monotonic()
+        try:
+            asyncio.run(async_main(self._cfg, cvv, health_registry=self._health_registry))
+        finally:
+            self._start_time = None
 
 
 # ---------------------------------------------------------------------------

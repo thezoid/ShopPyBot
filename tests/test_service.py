@@ -69,6 +69,35 @@ def test_get_status_before_start_reports_not_running(service):
     assert status["running"] is False
 
 
+def test_get_status_shape_before_start(service):
+    """get_status() returns the locked 3-key shape before start(); plugins is empty dict; uptime 0.0."""
+    status = service.get_status()
+    assert "running" in status
+    assert "uptime_secs" in status
+    assert "plugins" in status
+    assert isinstance(status["plugins"], dict)
+    assert status["plugins"] == {}
+    assert status["uptime_secs"] == 0.0
+
+
+def test_get_status_shape_with_registry(service):
+    """After a heartbeat, get_status()['plugins'] contains the plugin with the five public keys."""
+    service._health_registry.heartbeat("FakePlugin")
+    status = service.get_status()
+    assert "FakePlugin" in status["plugins"]
+    plugin_rec = status["plugins"]["FakePlugin"]
+    for key in ("status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed"):
+        assert key in plugin_rec, f"Missing key: {key}"
+
+
+def test_get_status_is_json_serializable(service):
+    """get_status() with registry data is JSON-serializable (REL-07)."""
+    import json
+    service._health_registry.heartbeat("FakePlugin")
+    result = json.dumps(service.get_status())
+    assert isinstance(result, str)
+
+
 def test_list_items_before_start_returns_rows(service, tmp_data_dir):
     """list_items() returns DB rows without starting the bot."""
     from models import initialize_db, add_items_sync
@@ -107,7 +136,7 @@ def test_remove_item_delegates_to_remove_item_sync(service):
 
 async def test_start_sets_status_to_running(service, minimal_cfg):
     """start() launches background run; get_status() then reports running=True."""
-    async def _noop(cfg, cvv):
+    async def _noop(cfg, cvv, **kwargs):
         await asyncio.sleep(3600)
 
     with patch("core.service.async_main", new=_noop):
@@ -128,7 +157,7 @@ async def test_start_sets_status_to_running(service, minimal_cfg):
 
 async def test_stop_sets_status_to_not_running(service, minimal_cfg):
     """stop() flips running to False after start()."""
-    async def _noop(cfg, cvv):
+    async def _noop(cfg, cvv, **kwargs):
         await asyncio.sleep(3600)
 
     with patch("core.service.async_main", new=_noop):
@@ -147,7 +176,7 @@ async def test_stop_triggers_teardown(service, minimal_cfg):
     """stop() causes teardown_all to be called on the registry."""
     teardown_called = asyncio.Event()
 
-    async def _mock_main(cfg, cvv):
+    async def _mock_main(cfg, cvv, **kwargs):
         # Simulate what async_main does: run until cancelled, then teardown
         try:
             await asyncio.sleep(3600)
@@ -180,7 +209,7 @@ def test_run_calls_asyncio_run_with_async_main(service, minimal_cfg):
     """run() wraps asyncio.run(async_main(cfg, cvv)) (blocking convenience)."""
     sentinel = object()
 
-    def _fake_async_main(cfg, cvv):
+    def _fake_async_main(cfg, cvv, **kwargs):
         return sentinel  # return a non-coroutine so asyncio.run receives a plain value
 
     with patch("core.service.async_main", new=_fake_async_main):
