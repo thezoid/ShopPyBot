@@ -383,7 +383,13 @@ class AmazonPlugin(RetailerPlugin):
             return False
         await self.login()
         try:
-            tab = await self.driver.get(url)
+            step_timeout_secs = getattr(
+                getattr(self.config, "checkout", None), "step_timeout_secs", 30
+            )
+
+            self._checkout_stage = "navigate"
+            async with asyncio.timeout(step_timeout_secs):
+                tab = await self.driver.get(url)
 
             # Resolve quantity from config items by matching url; default to 1.
             quantity = 1
@@ -394,18 +400,20 @@ class AmazonPlugin(RetailerPlugin):
                         break
 
             writeLog("Attempting to find quantity dropdown", "INFO")
-            qty_dropdown = await tab.select(".a-button-dropdown", timeout=10)
-            if not qty_dropdown:
-                writeLog("Quantity dropdown not found", "ERROR")
-                return False
-            await qty_dropdown.click()
+            self._checkout_stage = "quantity-select"
+            async with asyncio.timeout(step_timeout_secs):
+                qty_dropdown = await tab.select(".a-button-dropdown", timeout=10)
+                if not qty_dropdown:
+                    writeLog("Quantity dropdown not found", "ERROR")
+                    return False
+                await qty_dropdown.click()
 
-            writeLog(f"Attempting to find quantity option for {quantity}", "INFO")
-            qty_option = await tab.select(f"#quantity_{quantity - 1}", timeout=10)
-            if not qty_option:
-                writeLog(f"Quantity option {quantity} not found", "ERROR")
-                return False
-            await qty_option.click()
+                writeLog(f"Attempting to find quantity option for {quantity}", "INFO")
+                qty_option = await tab.select(f"#quantity_{quantity - 1}", timeout=10)
+                if not qty_option:
+                    writeLog(f"Quantity option {quantity} not found", "ERROR")
+                    return False
+                await qty_option.click()
 
             debug = getattr(self.config, "debug", None) if self.config else None
             if getattr(debug, "test_mode", False):
@@ -416,32 +424,43 @@ class AmazonPlugin(RetailerPlugin):
                 )
 
             writeLog("Attempting to find buy-now button", "INFO")
-            buy_now = await tab.select("#buy-now-button", timeout=10)
-            if not buy_now:
-                writeLog("Buy-now button not found", "ERROR")
-                return False
-            await buy_now.click()
+            self._checkout_stage = "buy-now"
+            async with asyncio.timeout(step_timeout_secs):
+                buy_now = await tab.select("#buy-now-button", timeout=10)
+                if not buy_now:
+                    writeLog("Buy-now button not found", "ERROR")
+                    return False
+                await buy_now.click()
 
             writeLog("Attempting to find place order button", "INFO")
-            place_order = await tab.select("#submitOrderButtonId", timeout=10)
-            if not place_order:
-                writeLog("Place order button not found", "ERROR")
-                return False
+            self._checkout_stage = "place-order-select"
+            async with asyncio.timeout(step_timeout_secs):
+                place_order = await tab.select("#submitOrderButtonId", timeout=10)
+                if not place_order:
+                    writeLog("Place order button not found", "ERROR")
+                    return False
 
             # BUY-07: enter CVV from self._cvv when set.
             # Amazon's CVV field only appears in some sessions (Pitfall 4 / T-20-10):
             # absent CVV field is a valid state (payment pre-verified) -- do NOT return False.
-            if self._cvv:
-                cvv_field = await tab.select("#addCreditCardCvvInput", timeout=5)
-                if cvv_field:
-                    # SEC-02: CVV sourced from self._cvv; never logged.
-                    await cvv_field.send_keys(self._cvv)
-                # CVV field absent: skip gracefully, continue to place_order_guarded
+            self._checkout_stage = "cvv-entry"
+            async with asyncio.timeout(step_timeout_secs):
+                if self._cvv:
+                    cvv_field = await tab.select("#addCreditCardCvvInput", timeout=5)
+                    if cvv_field:
+                        # SEC-02: CVV sourced from self._cvv; never logged.
+                        await cvv_field.send_keys(self._cvv)
+                    # CVV field absent: skip gracefully, continue to place_order_guarded
 
-            self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
-            return await self.place_order_guarded(place_order.click)
+            self._checkout_stage = "place-order"
+            async with asyncio.timeout(step_timeout_secs):
+                self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
+                return await self.place_order_guarded(place_order.click)
         except Exception as exc:
-            writeLog(f"Error during Amazon auto-buy: {exc.__class__.__name__}", "ERROR")
+            writeLog(
+                f"Error during Amazon auto-buy at stage {self._checkout_stage!r}: {exc.__class__.__name__}",
+                "ERROR",
+            )
             return False
 
     def get_active_tab(self):

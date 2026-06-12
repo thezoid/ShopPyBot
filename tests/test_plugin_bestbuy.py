@@ -7,6 +7,7 @@ Key test: test_autobuy_calls_update_purchased asserts the PLG-02 fix is present 
 update_item_purchased must be called once with the item url after a successful buy.
 """
 
+import asyncio
 import importlib.util
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -42,6 +43,7 @@ def _make_config(items=None, test_mode=True, monitor_only=False):
     cfg.available.items = items or []
     cfg.debug.test_mode = test_mode
     cfg.debug.monitor_only = monitor_only
+    cfg.checkout.step_timeout_secs = 30  # BUY-06: required for asyncio.timeout in auto_buy
     return cfg
 
 
@@ -286,3 +288,106 @@ async def test_sc3_mixed_mode_amazon_visible_bestbuy_headless(mock_nodriver_star
 
     # Verify both calls were recorded -- different headless values in same run (SC3)
     assert len(mock_nodriver_start.calls) >= 2, "Both plugins must have called nodriver.start"
+
+
+# ---------------------------------------------------------------------------
+# BUY-06: per-step asyncio.timeout + _checkout_stage tracking (Plan 21-03)
+# ---------------------------------------------------------------------------
+
+
+def test_bestbuy_auto_buy_has_eight_timeout_blocks():
+    """BestBuy auto_buy must contain exactly 8 asyncio.timeout(step_timeout_secs) blocks (BUY-06)."""
+    import ast
+
+    source = _PLUGIN_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(_PLUGIN_PATH))
+
+    count = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncWith):
+            for item in node.items:
+                ctx = item.context_expr
+                if isinstance(ctx, ast.Call):
+                    func = ctx.func
+                    func_name = ""
+                    if isinstance(func, ast.Name):
+                        func_name = func.id
+                    elif isinstance(func, ast.Attribute):
+                        func_name = func.attr
+                    if func_name == "timeout" and ctx.args:
+                        arg_src = ast.unparse(ctx.args[0])
+                        if "step_timeout_secs" in arg_src:
+                            count += 1
+
+    assert count == 8, (
+        f"BestBuy auto_buy must have exactly 8 asyncio.timeout(step_timeout_secs) blocks, found {count}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_auto_buy_returns_false_on_step_timeout(fake_browser):
+    """BUY-06: when a DOM stage exceeds step_timeout_secs, auto_buy returns False.
+
+    Simulates a hung navigate stage by making driver.get raise asyncio.TimeoutError.
+    """
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = BestBuyPlugin(config=cfg)
+    plugin.driver = fake_browser
+
+    fake_browser.get = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=None)):
+        result = await plugin.auto_buy("https://www.bestbuy.com/site/test/1234.p")
+
+    assert result is False, "auto_buy must return False when a step timeout fires"
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_auto_buy_logs_stage_name_on_timeout(fake_browser):
+    """BUY-06: the error log on step timeout must include the stage name and exc class name.
+
+    Verifies _checkout_stage is readable on timeout and exc.__class__.__name__ is used
+    (not str(exc) -- T-21-07).
+    """
+    import asyncio as _asyncio
+
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = BestBuyPlugin(config=cfg)
+    plugin.driver = fake_browser
+
+    fake_browser.get = AsyncMock(side_effect=_asyncio.TimeoutError())
+
+    log_calls: list[tuple] = []
+
+    def _capture_log(msg, level):
+        log_calls.append((msg, level))
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
+         patch.object(_bestbuy_module, "writeLog", _capture_log):
+        await plugin.auto_buy("https://www.bestbuy.com/site/test/1234.p")
+
+    error_logs = [msg for msg, lvl in log_calls if lvl == "ERROR"]
+    assert any("navigate" in m for m in error_logs), (
+        f"Error log must contain stage name 'navigate'; got: {error_logs}"
+    )
+    assert any("TimeoutError" in m for m in error_logs), (
+        f"Error log must contain exc.__class__.__name__ 'TimeoutError'; got: {error_logs}"
+    )
+
+
+def test_bestbuy_checkout_stage_default_is_empty_string():
+    """_checkout_stage must default to '' on BestBuyPlugin (inherits from RetailerPlugin base)."""
+    plugin = BestBuyPlugin(config=None)
+    assert plugin._checkout_stage == "", (
+        f"_checkout_stage must default to '' on BestBuyPlugin, got {plugin._checkout_stage!r}"
+    )

@@ -42,6 +42,7 @@ def _make_config(test_mode=True, items=None):
     cfg = MagicMock()
     cfg.debug.test_mode = test_mode
     cfg.available.items = items or []
+    cfg.checkout.step_timeout_secs = 30  # BUY-06: required for asyncio.timeout in auto_buy
     return cfg
 
 
@@ -306,3 +307,105 @@ def test_amazon_event_attrs_preserved_after_setup_change():
     for attr in ("captcha_event", "passkey_event", "otp_event", "test_pause_event"):
         assert hasattr(plugin, attr), f"AmazonPlugin still must have attribute: {attr}"
         assert isinstance(getattr(plugin, attr), asyncio.Event)
+
+
+# ---------------------------------------------------------------------------
+# BUY-06: per-step asyncio.timeout + _checkout_stage tracking (Plan 21-03)
+# ---------------------------------------------------------------------------
+
+
+def test_amazon_auto_buy_has_six_timeout_blocks():
+    """Amazon auto_buy must contain exactly 6 asyncio.timeout(step_timeout_secs) blocks (BUY-06)."""
+    import ast
+
+    source = _PLUGIN_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(_PLUGIN_PATH))
+
+    count = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncWith):
+            for item in node.items:
+                ctx = item.context_expr
+                if isinstance(ctx, ast.Call):
+                    func = ctx.func
+                    func_name = ""
+                    if isinstance(func, ast.Name):
+                        func_name = func.id
+                    elif isinstance(func, ast.Attribute):
+                        func_name = func.attr
+                    if func_name == "timeout" and ctx.args:
+                        arg_src = ast.unparse(ctx.args[0])
+                        if "step_timeout_secs" in arg_src:
+                            count += 1
+
+    assert count == 6, (
+        f"Amazon auto_buy must have exactly 6 asyncio.timeout(step_timeout_secs) blocks, found {count}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_amazon_auto_buy_returns_false_on_step_timeout(fake_browser):
+    """BUY-06: when a DOM stage exceeds step_timeout_secs, auto_buy returns False.
+
+    Simulates a hung navigate stage by making driver.get raise asyncio.TimeoutError,
+    which is what asyncio.timeout() raises when the deadline expires.
+    """
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+
+    fake_browser.get = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=None)):
+        result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    assert result is False, "auto_buy must return False when a step timeout fires"
+
+
+@pytest.mark.asyncio
+async def test_amazon_auto_buy_logs_stage_name_on_timeout(fake_browser):
+    """BUY-06: the error log on step timeout must include the stage name and exc class name.
+
+    Verifies _checkout_stage is readable on timeout and exc.__class__.__name__ is used
+    (not str(exc), which could leak sensitive data -- T-21-07).
+    """
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+
+    fake_browser.get = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    log_calls: list[tuple] = []
+
+    def _capture_log(msg, level):
+        log_calls.append((msg, level))
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
+         patch.object(_amazon_module, "writeLog", _capture_log):
+        await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    error_logs = [msg for msg, lvl in log_calls if lvl == "ERROR"]
+    assert any("navigate" in m for m in error_logs), (
+        f"Error log must contain stage name 'navigate'; got: {error_logs}"
+    )
+    assert any("TimeoutError" in m for m in error_logs), (
+        f"Error log must contain exc.__class__.__name__ 'TimeoutError'; got: {error_logs}"
+    )
+
+
+def test_amazon_checkout_stage_default_is_empty_string():
+    """_checkout_stage must default to '' on AmazonPlugin (inherits from RetailerPlugin base)."""
+    plugin = AmazonPlugin(config=None)
+    assert plugin._checkout_stage == "", (
+        f"_checkout_stage must default to '' on AmazonPlugin, got {plugin._checkout_stage!r}"
+    )

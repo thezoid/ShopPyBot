@@ -289,43 +289,57 @@ class BestBuyPlugin(RetailerPlugin):
             writeLog("[BestBuyPlugin] auto_buy suppressed (monitor_only)", "INFO")
             return False
         try:
-            tab = await self.driver.get(url)
+            step_timeout_secs = getattr(
+                getattr(self.config, "checkout", None), "step_timeout_secs", 30
+            )
 
-            add_to_cart = await tab.select(".add-to-cart-button", timeout=10)
-            if not add_to_cart:
-                writeLog("Add-to-cart button not found", "ERROR")
-                return False
-            await add_to_cart.click()
-            writeLog("Added to cart on BestBuy", "INFO")
+            self._checkout_stage = "navigate"
+            async with asyncio.timeout(step_timeout_secs):
+                tab = await self.driver.get(url)
 
-            tab = await self.driver.get("https://www.bestbuy.com/cart")
+            self._checkout_stage = "add-to-cart"
+            async with asyncio.timeout(step_timeout_secs):
+                add_to_cart = await tab.select(".add-to-cart-button", timeout=10)
+                if not add_to_cart:
+                    writeLog("Add-to-cart button not found", "ERROR")
+                    return False
+                await add_to_cart.click()
+                writeLog("Added to cart on BestBuy", "INFO")
+
+            self._checkout_stage = "cart-navigate"
+            async with asyncio.timeout(step_timeout_secs):
+                tab = await self.driver.get("https://www.bestbuy.com/cart")
 
             # TODO: verify ".a-dropdown-prompt" is correct for BestBuy cart
             # (Open Question 2 -- suspicious Amazon-prefix class name, ports as-is
             # from bestbuy_bot.py which was validated in Phase-1 UAT).
-            qty_dropdown = await tab.select(".a-dropdown-prompt", timeout=10)
-            if qty_dropdown:
-                await qty_dropdown.click()
+            self._checkout_stage = "quantity-select"
+            async with asyncio.timeout(step_timeout_secs):
+                qty_dropdown = await tab.select(".a-dropdown-prompt", timeout=10)
+                if qty_dropdown:
+                    await qty_dropdown.click()
 
-            # Resolve quantity from config items by matching url; default to 1.
-            quantity = 1
-            if self.config and hasattr(self.config, "available"):
-                for item in self.config.available.items:
-                    if item.link == url:
-                        quantity = item.quantity
-                        break
+                # Resolve quantity from config items by matching url; default to 1.
+                quantity = 1
+                if self.config and hasattr(self.config, "available"):
+                    for item in self.config.available.items:
+                        if item.link == url:
+                            quantity = item.quantity
+                            break
 
-            # BestBuy quantity selector: #quantity_{n} (not n-1 like Amazon).
-            qty_option = await tab.select(f"#quantity_{quantity}", timeout=10)
-            if qty_option:
-                await qty_option.click()
+                # BestBuy quantity selector: #quantity_{n} (not n-1 like Amazon).
+                qty_option = await tab.select(f"#quantity_{quantity}", timeout=10)
+                if qty_option:
+                    await qty_option.click()
 
-            checkout = await tab.select(".checkout-buttons__checkout", timeout=10)
-            if not checkout:
-                writeLog("Checkout button not found", "ERROR")
-                return False
-            await checkout.click()
-            writeLog("Proceeded to checkout on BestBuy", "INFO")
+            self._checkout_stage = "checkout-proceed"
+            async with asyncio.timeout(step_timeout_secs):
+                checkout = await tab.select(".checkout-buttons__checkout", timeout=10)
+                if not checkout:
+                    writeLog("Checkout button not found", "ERROR")
+                    return False
+                await checkout.click()
+                writeLog("Proceeded to checkout on BestBuy", "INFO")
 
             await self.login()
 
@@ -338,39 +352,48 @@ class BestBuyPlugin(RetailerPlugin):
                 )
                 return False
             profile = self._checkout_profile
-            # Required fields: any absent selector aborts without submitting.
-            for selector, value in [
-                ("#first-name", profile.first_name),
-                ("#last-name", profile.last_name),
-                ("#street", profile.address_line1),
-                ("#city", profile.city),
-                ("#state", profile.state),
-                ("#zip", profile.zip_code),
-                ("#phone", profile.phone),
-            ]:
-                if not await self._fill_field(tab, selector, value):
-                    return False  # WARNING already logged by _fill_field
-            # Optional field: address_line2 -- skip gracefully when absent or selector None.
-            if profile.address_line2:
-                el = await tab.select("#street2", timeout=5)
-                if el is not None:
-                    await el.clear_input()
-                    await el.send_keys(profile.address_line2)
+            self._checkout_stage = "address-fill"
+            async with asyncio.timeout(step_timeout_secs):
+                # Required fields: any absent selector aborts without submitting.
+                for selector, value in [
+                    ("#first-name", profile.first_name),
+                    ("#last-name", profile.last_name),
+                    ("#street", profile.address_line1),
+                    ("#city", profile.city),
+                    ("#state", profile.state),
+                    ("#zip", profile.zip_code),
+                    ("#phone", profile.phone),
+                ]:
+                    if not await self._fill_field(tab, selector, value):
+                        return False  # WARNING already logged by _fill_field
+                # Optional field: address_line2 -- skip gracefully when absent or selector None.
+                if profile.address_line2:
+                    el = await tab.select("#street2", timeout=5)
+                    if el is not None:
+                        await el.clear_input()
+                        await el.send_keys(profile.address_line2)
 
-            cvv_field = await tab.select("#credit-card-cvv", timeout=10)
-            if cvv_field and self._cvv:
-                # SEC-02: CVV sourced from self._cvv (set by main.py via getpass).
-                # Never logged or written to disk.
-                await cvv_field.send_keys(self._cvv)
+            self._checkout_stage = "cvv-entry"
+            async with asyncio.timeout(step_timeout_secs):
+                cvv_field = await tab.select("#credit-card-cvv", timeout=10)
+                if cvv_field and self._cvv:
+                    # SEC-02: CVV sourced from self._cvv (set by main.py via getpass).
+                    # Never logged or written to disk.
+                    await cvv_field.send_keys(self._cvv)
 
-            place_order = await tab.select(".button--place-order", timeout=10)
-            if not place_order:
-                writeLog("Place order button not found", "ERROR")
-                return False
-            self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
-            return await self.place_order_guarded(place_order.click)
+            self._checkout_stage = "place-order"
+            async with asyncio.timeout(step_timeout_secs):
+                place_order = await tab.select(".button--place-order", timeout=10)
+                if not place_order:
+                    writeLog("Place order button not found", "ERROR")
+                    return False
+                self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
+                return await self.place_order_guarded(place_order.click)
         except Exception as exc:
-            writeLog(f"Error during BestBuy auto-buy: {exc.__class__.__name__}", "ERROR")
+            writeLog(
+                f"Error during BestBuy auto-buy at stage {self._checkout_stage!r}: {exc.__class__.__name__}",
+                "ERROR",
+            )
             return False
 
     def get_active_tab(self):

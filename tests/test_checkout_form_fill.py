@@ -77,6 +77,7 @@ def _no_op_config():
     cfg = MagicMock()
     cfg.debug = debug
     cfg.available.items = []
+    cfg.checkout.step_timeout_secs = 30  # BUY-06: required for asyncio.timeout in auto_buy
     return cfg
 
 
