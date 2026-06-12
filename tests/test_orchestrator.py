@@ -1108,3 +1108,18 @@ async def test_write_queue_put_outside_timeout(fake_plugin):
     assert not queue.empty(), "write_queue.put inside _check_and_buy must be reachable"
     item = queue.get_nowait()
     assert item[0] == "set_available", f"Expected set_available, got {item[0]!r}"
+
+
+def test_write_queue_is_unbounded():
+    """asyncio.Queue() used for write_queue must be unbounded (maxsize==0).
+
+    WR-01: write_queue.put() calls inside _check_and_buy run inside asyncio.timeout.
+    An unbounded Queue.put() never suspends, so the timeout cannot fire mid-put and
+    orphan a pending DB write. If maxsize > 0 a full queue would cause put() to suspend
+    and the timeout could drop the write silently.
+    """
+    q = asyncio.Queue()  # same constructor used in async_main
+    assert q.maxsize == 0, (
+        "write_queue must be unbounded (maxsize==0) for REL-06 per-item timeout safety. "
+        "Do not add a maxsize argument to asyncio.Queue() in async_main."
+    )

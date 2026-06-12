@@ -295,6 +295,11 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
             if not any(p in (link or "") for p in plugin.domain_patterns):
                 continue
             try:
+                # write_queue.put() calls inside _check_and_buy are safe here because
+                # write_queue is UNBOUNDED (maxsize==0, asserted in async_main). An unbounded
+                # asyncio.Queue.put() never suspends, so the timeout cannot fire mid-put and
+                # orphan a pending DB write (REL-06). If the item times out before reaching
+                # put(), the write is simply not reached -- no orphan (WR-01).
                 async with asyncio.timeout(item_timeout):
                     await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
             except TimeoutError:
@@ -650,6 +655,7 @@ async def async_main(cfg, cvv) -> None:
 
     poll_interval = float(getattr(cfg.app, "poll_interval", 30))
     write_queue: asyncio.Queue = asyncio.Queue()
+    assert write_queue.maxsize == 0, "write_queue must remain unbounded (REL-06): bounded queue + asyncio.timeout = orphaned writes"
     dispatcher = build_dispatcher(cfg)
 
     _start_stdin_listener(registry._active_plugins, loop)
