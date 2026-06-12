@@ -7,9 +7,12 @@ Covers:
 - ASYNC-05: write-queue drain serializes all writes (one-at-a-time)
 - ASYNC-03: asyncio.Event wakes a waiting coroutine via call_soon_threadsafe (event_shim)
 - BUY-03/BUY-04: _try_auto_buy confirmation wiring + _dispatch_write confirmed branch
+- REL-05: sqlite3.OperationalError on items read skips cycle; DatabaseError propagates
+- REL-06: per-item asyncio.timeout continues to next item; write_queue.put outside timeout
 """
 
 import asyncio
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
@@ -891,3 +894,206 @@ async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     item = q.get_nowait()
     assert item[0] == "purchased", f"Expected legacy 'purchased' tag, got {item[0]!r}"
     assert item[1] == "https://amazon.com/item", f"Link mismatch: {item[1]!r}"
+
+
+# ---------------------------------------------------------------------------
+# REL-05: SQLite read isolation in run_plugin
+# REL-06: Per-item asyncio.timeout + write_queue.put outside timeout
+# ---------------------------------------------------------------------------
+
+
+async def test_read_isolation_operational_error(fake_plugin):
+    """sqlite3.OperationalError on items read -> WARNING logged, cycle skipped, loop survives.
+
+    REL-05: transient DB lock on the items-list read must degrade gracefully (skip one poll
+    cycle) rather than crash run_plugin. The loop continues to asyncio.sleep after the error.
+    """
+    from core.orchestrator import run_plugin
+
+    plugin = fake_plugin(domains=["ex.example.com"], available=False)
+    cfg = MagicMock()
+    cfg.checkout.item_timeout_secs = 30
+
+    queue: asyncio.Queue = asyncio.Queue()
+    sleep_calls: list[float] = []
+    log_messages: list[tuple] = []
+
+    # Executor: first call raises OperationalError; second call returns [] (empty items)
+    call_count = 0
+
+    async def fake_executor(executor, fn, *args):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return []
+
+    async def fake_sleep(secs):
+        sleep_calls.append(secs)
+        # After two sleeps (error-path sleep + normal-path sleep), cancel the loop
+        if len(sleep_calls) >= 2:
+            raise asyncio.CancelledError
+
+    def capture_log(msg, level="INFO", *args, **kwargs):
+        log_messages.append((msg, level))
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "run_in_executor", side_effect=fake_executor),
+        patch("core.orchestrator.asyncio.sleep", side_effect=fake_sleep),
+        patch("core.orchestrator.writeLog", side_effect=capture_log),
+        patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
+    ):
+        try:
+            await run_plugin(plugin, queue, poll_interval=0.01, cfg=cfg)
+        except asyncio.CancelledError:
+            pass
+
+    # A WARNING must have been logged for the OperationalError
+    warning_msgs = [m for m, lvl in log_messages if lvl == "WARNING"]
+    assert warning_msgs, "Expected a WARNING log for sqlite3.OperationalError"
+    assert any("OperationalError" in m or "locked" in m or "items read" in m for m in warning_msgs), (
+        f"WARNING must mention the error, got: {warning_msgs}"
+    )
+    # The loop must have continued to sleep (cycle skipped, not terminated)
+    assert len(sleep_calls) >= 1, "run_plugin must have called asyncio.sleep (cycle skipped, not crash)"
+
+
+async def test_read_isolation_database_error_propagates(fake_plugin):
+    """sqlite3.DatabaseError (not OperationalError) must propagate out of run_plugin.
+
+    REL-05: corruption-class errors are NOT swallowed. The except clause covers only
+    sqlite3.OperationalError so a DatabaseError escalates normally.
+    """
+    from core.orchestrator import run_plugin
+
+    plugin = fake_plugin(domains=["ex.example.com"], available=False)
+    cfg = MagicMock()
+    cfg.checkout.item_timeout_secs = 30
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def fake_executor_db_error(executor, fn, *args):
+        raise sqlite3.DatabaseError("malformed database disk image")
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "run_in_executor", side_effect=fake_executor_db_error),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
+    ):
+        with pytest.raises(sqlite3.DatabaseError):
+            await run_plugin(plugin, queue, poll_interval=0.01, cfg=cfg)
+
+
+async def test_item_timeout_continues_to_next(fake_plugin):
+    """Per-item timeout: first item times out -> WARNING logged -> second item still runs.
+
+    REL-06: asyncio.timeout(item_timeout_secs) around _check_and_buy; TimeoutError caught
+    at item level; for-loop continues to the next item.
+    """
+    from core.orchestrator import run_plugin
+
+    plugin = fake_plugin(domains=["ex.example.com"], available=False)
+    cfg = MagicMock()
+    cfg.checkout.item_timeout_secs = 0.05  # very short timeout
+
+    queue: asyncio.Queue = asyncio.Queue()
+    log_messages: list[tuple] = []
+
+    items = [
+        ("SlowItem", "https://ex.example.com/slow", False, 1, False),
+        ("FastItem", "https://ex.example.com/fast", False, 1, False),
+    ]
+
+    check_and_buy_calls: list[str] = []
+    sleep_calls: list = []
+
+    async def fake_executor(executor, fn, *args):
+        return items
+
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
+        check_and_buy_calls.append(name)
+        if name == "SlowItem":
+            # Sleep longer than the timeout to trigger TimeoutError
+            await asyncio.sleep(10)
+
+    async def fake_sleep(secs):
+        sleep_calls.append(secs)
+        raise asyncio.CancelledError
+
+    def capture_log(msg, level="INFO", *args, **kwargs):
+        log_messages.append((msg, level))
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "run_in_executor", side_effect=fake_executor),
+        patch("core.orchestrator._check_and_buy", side_effect=fake_check_and_buy),
+        patch("core.orchestrator.asyncio.sleep", side_effect=fake_sleep),
+        patch("core.orchestrator.writeLog", side_effect=capture_log),
+        patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
+    ):
+        try:
+            await run_plugin(plugin, queue, poll_interval=0.01, cfg=cfg)
+        except asyncio.CancelledError:
+            pass
+
+    # FastItem must have been called (loop continued past timed-out SlowItem)
+    assert "FastItem" in check_and_buy_calls, (
+        f"FastItem's _check_and_buy must have been called; got calls: {check_and_buy_calls}"
+    )
+    # A WARNING must have been logged for the timeout
+    warning_msgs = [m for m, lvl in log_messages if lvl == "WARNING"]
+    assert any("timeout" in m.lower() or "SlowItem" in m for m in warning_msgs), (
+        f"Expected a timeout WARNING for SlowItem, got: {warning_msgs}"
+    )
+
+
+async def test_write_queue_put_outside_timeout(fake_plugin):
+    """write_queue.put inside _check_and_buy is reachable when item completes before timeout.
+
+    REL-06: A fake _check_and_buy that puts to the queue and returns quickly (before timeout)
+    must result in the queue containing the item. This verifies that the put call is NOT
+    wrapped inside the timeout context in a way that prevents it from executing.
+    """
+    from core.orchestrator import run_plugin
+
+    plugin = fake_plugin(domains=["ex.example.com"], available=False)
+    cfg = MagicMock()
+    cfg.checkout.item_timeout_secs = 30  # large timeout; item completes before it
+
+    queue: asyncio.Queue = asyncio.Queue()
+    sleep_calls: list = []
+
+    items = [
+        ("QuickItem", "https://ex.example.com/quick", False, 1, False),
+    ]
+
+    async def fake_executor(executor, fn, *args):
+        return items
+
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
+        # Simulate _check_and_buy placing a write (as set_available would)
+        await write_queue.put(("set_available", link, "2026-01-01T00:00:00+00:00"))
+
+    async def fake_sleep(secs):
+        sleep_calls.append(secs)
+        raise asyncio.CancelledError
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "run_in_executor", side_effect=fake_executor),
+        patch("core.orchestrator._check_and_buy", side_effect=fake_check_and_buy),
+        patch("core.orchestrator.asyncio.sleep", side_effect=fake_sleep),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
+    ):
+        try:
+            await run_plugin(plugin, queue, poll_interval=0.01, cfg=cfg)
+        except asyncio.CancelledError:
+            pass
+
+    # The queue must contain the item that _check_and_buy put
+    assert not queue.empty(), "write_queue.put inside _check_and_buy must be reachable"
+    item = queue.get_nowait()
+    assert item[0] == "set_available", f"Expected set_available, got {item[0]!r}"
