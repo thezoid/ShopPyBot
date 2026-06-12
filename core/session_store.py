@@ -59,7 +59,7 @@ class SessionStore:
         token = Fernet(key).encrypt(json.dumps(cookies).encode())
         path = self._session_path(platform)
         self._dir.mkdir(parents=True, exist_ok=True)   # BEFORE mkstemp (Pitfall 6)
-        fd, tmp = tempfile.mkstemp(dir=str(self._dir))
+        fd, tmp = tempfile.mkstemp(dir=str(self._dir), suffix=".tmp")
         try:
             with os.fdopen(fd, "wb") as f:
                 f.write(salt + token)

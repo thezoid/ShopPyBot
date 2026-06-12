@@ -31,7 +31,9 @@ def test_no_committed_session_files():
         pytest.skip(f"git ls-files exited {result.returncode}: {result.stderr.strip()}")
 
     # Empty stdout from a successful git call means no tracked files -- that is correct.
-    tracked = [line for line in result.stdout.splitlines() if line.endswith(".bin")]
+    # Match ANY file under data/sessions/ (not only .bin): orphaned .tmp files from a
+    # crashed mkstemp write would also not be gitignored and must be caught.
+    tracked = [line for line in result.stdout.splitlines() if line.strip()]
     assert tracked == [], (
         f"Session files are git-tracked (must never be committed): {tracked}"
     )
