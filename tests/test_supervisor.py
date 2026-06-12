@@ -360,10 +360,27 @@ async def test_browser_dead_triggers_relaunch():
 
 
 def test_is_browser_dead_exc_classification():
-    """_is_browser_dead_exc returns True for browser-dead exceptions (REL-03)."""
+    """_is_browser_dead_exc matches exactly the 3 nodriver browser-death surfaces (CR-02).
+
+    True cases: ConnectionError variants, RuntimeError("WebSocket..."),
+    websockets.exceptions.ConnectionClosed.
+    False cases: bare OSError, PermissionError, FileNotFoundError (disk/fs errors must NOT
+    trigger a browser relaunch -- CR-02 fix).
+    """
+    # True: all three confirmed nodriver surfaces
     assert _is_browser_dead_exc(ConnectionError("Connection closed")) is True
-    assert _is_browser_dead_exc(OSError("OS error")) is True
+    assert _is_browser_dead_exc(ConnectionError("Connection closing")) is True
+    assert _is_browser_dead_exc(ConnectionRefusedError("refused")) is True  # ConnectionError subclass
+    assert _is_browser_dead_exc(ConnectionResetError("reset")) is True  # ConnectionError subclass
     assert _is_browser_dead_exc(RuntimeError("WebSocket is not connected")) is True
+
+    # False: bare OSError and disk/fs subclasses must NOT be browser-dead (CR-02)
+    assert _is_browser_dead_exc(OSError("generic OS error")) is False
+    assert _is_browser_dead_exc(PermissionError("permission denied")) is False
+    assert _is_browser_dead_exc(FileNotFoundError("no such file")) is False
+    assert _is_browser_dead_exc(IsADirectoryError("is a dir")) is False
+
+    # False: other non-browser exceptions
     assert _is_browser_dead_exc(RuntimeError("some other error")) is False
     assert _is_browser_dead_exc(ValueError("not a browser error")) is False
     assert _is_browser_dead_exc(TypeError("type error")) is False

@@ -54,13 +54,17 @@ _FAILURE_WINDOW_SECS = 600  # rolling failure-budget window (REL-02)
 def _is_browser_dead_exc(exc: Exception) -> bool:
     """Return True if exc indicates a dead/disconnected Chrome process.
 
-    Exception surface from nodriver 0.50.3 connection.py:
-    - RuntimeError("WebSocket is not connected") -- socket is None
-    - ConnectionError("Connection closed") / ("Connection closing")
+    Matches exactly the three exception surfaces confirmed from nodriver 0.50.3
+    connection.py -- no more, no less:
+    - RuntimeError("WebSocket is not connected") -- socket is None (L424)
+    - ConnectionError("Connection closed") / ("Connection closing") -- _fail_pending_futures
     - websockets.exceptions.ConnectionClosed -- ws.send() failure
-    - OSError/ConnectionRefusedError -- port not yet available on relaunch
+
+    ConnectionError is an OSError subclass and is intentionally specific.
+    Bare OSError is NOT matched: disk/fs errors (PermissionError, FileNotFoundError, etc.)
+    must NOT trigger a browser relaunch (CR-02).
     """
-    if isinstance(exc, (ConnectionError, OSError)):
+    if isinstance(exc, ConnectionError):
         return True
     if isinstance(exc, RuntimeError) and "WebSocket" in str(exc):
         return True
