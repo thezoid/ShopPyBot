@@ -87,7 +87,7 @@ async def _park_plugin(plugin, n_budget: int, dispatcher) -> None:
         await dispatcher.notify(_build_event("", "", plugin.__class__.__name__, "plugin_parked"))
 
 
-async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registry=None) -> None:
+async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registry=None, health=None) -> None:
     """Wrap run_plugin in a restart loop; absorb all Exceptions before TaskGroup boundary.
 
     CancelledError is re-raised so clean shutdown propagates (CancelledError inherits
@@ -113,8 +113,13 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
 
     while True:
         try:
-            await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg)
+            await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, health=health)
             attempt = 0  # healthy run completed; reset backoff so future failures start fresh (WR-02)
+            if health is not None:
+                plugin_name = plugin.__class__.__name__
+                health.set_status(plugin_name, "running")
+                health.reset_errors(plugin_name)
+                health.disarm_degraded(plugin_name)
         except asyncio.CancelledError:
             raise  # MUST propagate -- clean shutdown via TaskGroup cancel
         except Exception as exc:
@@ -128,11 +133,31 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
                 f"({len(failure_times)} in window)",
                 "ERROR",
             )
+            if health is not None:
+                plugin_name = plugin.__class__.__name__
+                health.record_error(plugin_name)
+                # health_degraded: consecutive-error early-warning, fires ONCE per episode.
+                # Threshold: max(1, n_budget-1) so degraded precedes park (distinct signals).
+                # Re-arms on healthy run via disarm_degraded above.
+                degraded_threshold = max(1, n_budget - 1)
+                snap = health.get_snapshot()
+                consecutive = snap.get(plugin_name, {}).get("consecutive_errors", 0)
+                if (consecutive >= degraded_threshold
+                        and not health.is_degraded_armed(plugin_name)
+                        and dispatcher is not None):
+                    await dispatcher.notify(
+                        _build_event("", "", plugin_name, "health_degraded")
+                    )
+                    health.arm_degraded(plugin_name)
             if len(failure_times) >= n_budget:
+                if health is not None:
+                    health.set_status(plugin.__class__.__name__, "parked")
                 await _park_plugin(plugin, n_budget, dispatcher)
                 return  # clean exit; TaskGroup task ends normally
 
             if _is_browser_dead_exc(exc):
+                if health is not None:
+                    health.set_status(plugin.__class__.__name__, "relaunching")
                 if registry is not None:
                     registry.assign_proxy(plugin)
                 try:
@@ -275,7 +300,7 @@ def _get_plugin_sleep(plugin, poll_interval: float) -> float:
         return poll_interval
 
 
-async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None, cfg=None) -> None:
+async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None, cfg=None, health=None) -> None:
     """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
     loop = asyncio.get_running_loop()
     item_timeout = getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120)
@@ -289,11 +314,17 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
             )
             await asyncio.sleep(_get_plugin_sleep(plugin, poll_interval))
             continue
+        if health is not None:
+            plugin_name = plugin.__class__.__name__
+            health.heartbeat(plugin_name)
+            health.set_status(plugin_name, "running")
         for name, link, auto_buy, quantity, purchased in items:
             if purchased:
                 continue
             if not any(p in (link or "") for p in plugin.domain_patterns):
                 continue
+            if health is not None:
+                health.inc_items_checked(plugin.__class__.__name__)
             try:
                 # write_queue.put() calls inside _check_and_buy are safe here because
                 # write_queue is UNBOUNDED (maxsize==0, asserted in async_main). An unbounded
@@ -301,7 +332,7 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
                 # orphan a pending DB write (REL-06). If the item times out before reaching
                 # put(), the write is simply not reached -- no orphan (WR-01).
                 async with asyncio.timeout(item_timeout):
-                    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
+                    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher, health=health)
             except TimeoutError:
                 writeLog(
                     f"[{plugin.__class__.__name__}] item timeout ({item_timeout}s): {name} -- skipping",
@@ -392,7 +423,7 @@ async def _pre_attempt_check(loop, link: str, platform: str) -> None:
     await loop.run_in_executor(None, increment_checkout_attempts_sync, link)
 
 
-async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
+async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None) -> None:
     """Cart-retry wrapper; enqueue OUTSIDE loop (WR-02). total=1+max_cart_retries."""
     from core.config_schema import CheckoutConfig
     loop = asyncio.get_running_loop()
@@ -418,9 +449,11 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher) -> None:
         writeLog(f"[{platform}] cart-retry exhausted (stage={plugin._checkout_stage})", "WARNING")
         return
     await _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher)
+    if health is not None:
+        health.inc_orders_confirmed(platform)
 
 
-async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
+async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
     """Check one item and optionally buy it. Logs and continues on any error."""
     loop = asyncio.get_running_loop()
     try:
@@ -468,7 +501,7 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
                 "INFO",
             )
             return
-        await _try_auto_buy(plugin, name, link, write_queue, dispatcher)
+        await _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=health)
 
 
 async def _dispatch_write(loop, item) -> None:
@@ -626,7 +659,7 @@ def _register_signals(loop, root_task) -> None:
         signal.signal(signal.SIGINT, _shutdown)
 
 
-async def async_main(cfg, cvv) -> None:
+async def async_main(cfg, cvv, health_registry=None) -> None:
     """Entry point: stagger setup, run TaskGroup, teardown cleanly."""
     from notifications import build_dispatcher
 
@@ -665,7 +698,7 @@ async def async_main(cfg, cvv) -> None:
             tg.create_task(_write_queue_drain(write_queue), name="write-queue-drain")
             for plugin in registry._active_plugins:
                 tg.create_task(
-                    supervise(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, registry=registry),
+                    supervise(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, registry=registry, health=health_registry),
                     name=f"poll-{plugin.__class__.__name__}",
                 )
     except* KeyboardInterrupt:

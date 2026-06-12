@@ -1015,7 +1015,7 @@ async def test_item_timeout_continues_to_next(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
         check_and_buy_calls.append(name)
 
     async def fake_sleep(secs):
@@ -1083,7 +1083,7 @@ async def test_write_queue_put_outside_timeout(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
         # Simulate _check_and_buy placing a write (as set_available would)
         await write_queue.put(("set_available", link, "2026-01-01T00:00:00+00:00"))
 
