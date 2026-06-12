@@ -57,3 +57,27 @@ def test_get_logs_returns_list(client):
     data = resp.json()
     assert "logs" in data
     assert isinstance(data["logs"], list)
+
+
+def test_status_endpoint_richer_shape(mock_svc, client):
+    """GET /api/status with full health dict returns uptime_secs and plugins keys."""
+    mock_svc.get_status.return_value = {
+        "running": True,
+        "uptime_secs": 10.5,
+        "plugins": {
+            "AmazonPlugin": {
+                "status": "running",
+                "last_heartbeat": 100.0,
+                "consecutive_errors": 0,
+                "items_checked": 5,
+                "orders_confirmed": 1,
+            }
+        },
+    }
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "uptime_secs" in data
+    assert "plugins" in data
+    assert data["uptime_secs"] == 10.5
+    assert "AmazonPlugin" in data["plugins"]
