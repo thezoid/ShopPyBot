@@ -260,6 +260,11 @@ class RetailerPlugin(ABC):
         if not params:
             return False
         try:
+            # WR-04: Chrome may silently discard cookies it considers expired at injection
+            # time (narrow async window between Python filter and CDP processing). If that
+            # happens restore_session returns True but the session is empty, and the next
+            # authenticated action will fail. relaunch() handles this via re-login on error.
+            # UAT must confirm the restored session is accepted end-to-end (tracked as debt).
             await tab.send(cdp_storage.set_cookies(params))
             writeLog(
                 f"[{self.__class__.__name__}] restore_session: {len(params)} cookies restored",
