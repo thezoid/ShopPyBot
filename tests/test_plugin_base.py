@@ -364,3 +364,21 @@ def test_checkout_stage_is_str_type():
 def test_api_version_unchanged_after_checkout_stage():
     """PLUGIN_API_VERSION must remain 2 after adding _checkout_stage (BUY-06 additive default)."""
     assert PLUGIN_API_VERSION == 2
+
+
+# ---------------------------------------------------------------------------
+# REL-03 / REL-04: restore_session() no-op default + PLUGIN_API_VERSION gate
+# ---------------------------------------------------------------------------
+
+
+async def test_restore_session_noop_returns_false():
+    """restore_session() no-op default must return False (Phase 23 replaces with real restore)."""
+    p = MinimalPlugin(config=None)
+    result = await p.restore_session()
+    assert result is False
+
+
+def test_plugin_api_version_unchanged():
+    """PLUGIN_API_VERSION must stay 2 after adding relaunch() + restore_session() (additive REL-03)."""
+    import core.plugin_base
+    assert core.plugin_base.PLUGIN_API_VERSION == 2
