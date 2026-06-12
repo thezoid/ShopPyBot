@@ -64,7 +64,7 @@ Full phase detail archived in `.planning/milestones/v3.0-ROADMAP.md`.
 - [x] **Phase 20: Checkout Profile + Form-Fill** — Shipping/billing profile stored in CredentialStore (9 keys, no card data), BestBuy and Amazon form-fill, CVV getpass-only at runtime (completed 2026-06-11)
 - [x] **Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry** — One `RetryPolicy` in `core/retry.py` shared by both supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; idempotency guard reads DB before every attempt (completed 2026-06-12)
 - [x] **Phase 22: Supervisor + Browser Relaunch + Server Safety** — Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full relaunch sequence (teardown, proxy, stealth, login); DB read isolation; per-item orchestrator timeout; SIGTERM/SIGINT teardown bridge (completed 2026-06-12)
-- [ ] **Phase 23: Encrypted Session Persistence** — Fernet-encrypted cookie save/restore via `core/session_store.py` (reuses `EncryptedFileBackend` pattern); raw CDP restore path that bypasses the confirmed `set_all()` bug; replaces Phase 22's no-op stub
+- [x] **Phase 23: Encrypted Session Persistence** — Fernet-encrypted cookie save/restore via `core/session_store.py` (reuses `EncryptedFileBackend` pattern); raw CDP restore path that bypasses the confirmed `set_all()` bug; replaces Phase 22's no-op stub (completed 2026-06-12)
 - [ ] **Phase 24: Health Surface + Server Safety** — `core/health.py` HealthRegistry, expanded `BotService.get_status()` with per-plugin liveness/heartbeat, `health_degraded` notification event, updated FastAPI `/status` endpoint, headless pygame crash guard
 
 ---
@@ -403,7 +403,7 @@ Plans:
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 23. Encrypted Session Persistence | v4.0 | 3/4 | In Progress|  |
+| 23. Encrypted Session Persistence | v4.0 | 4/4 | Complete   | 2026-06-12 |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17. v4.0: 17 requirements mapped across Phases 18-24.

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: executing
-last_updated: "2026-06-12T17:41:09.846Z"
+status: verifying
+last_updated: "2026-06-12T17:55:30.426Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 13
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 24
-  completed_plans: 23
-  percent: 38
+  completed_plans: 24
+  percent: 46
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 23 (Encrypted Session Persistence) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-12
 
 ## Phase Status
@@ -136,6 +136,7 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
 | Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
 | Phase 23-encrypted-session-persistence P23-03 | 3min | 1 task | 1 file |
+| Phase 23-encrypted-session-persistence P23-04 | 12min | 3 tasks | 5 files |
 
 ## Session Continuity
 
@@ -327,6 +328,9 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 - [Phase 22-04]: _register_signals uses loop.add_signal_handler (POSIX) with NotImplementedError fallback to signal.signal (Windows); both paths cancel root_task via call_soon_threadsafe; _flush_write_queue drains queue before teardown_all so no pending DB write is lost on SIGTERM (SRV-02)
 - [Phase ?]: [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
 - [Phase ?]: [Phase 23-01]: build_session_store() factory centralizes _resolve_passphrase() so plugin ABC callers (Plan 23-04) never duplicate env-var resolution
+- [Phase ?]: restore_session() fast-guards on store._passphrase is None directly; build_session_store() still used for actual ops
+- [Phase ?]: Startup registry loop calls restore_session() but NOT login() -- login stays lazy inside auto_buy() to avoid double-login or MFA block at startup
+- [Phase ?]: Raw CDP cookie restore via cdp_storage.set_cookies([CookieParam(...)]) -- never CookieJar.set_all() (nodriver bug #1816/#2020)
 
 ## Operator Next Steps
 
