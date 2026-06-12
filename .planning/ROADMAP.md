@@ -418,7 +418,7 @@ Plans:
 | 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 4/4 | Complete    | 2026-06-12 |
 | 23. Encrypted Session Persistence | v4.0 | 4/4 | Complete    | 2026-06-12 |
-| 24. Health Surface + Server Safety | v4.0 | 5/5 | Complete   | 2026-06-12 |
+| 24. Health Surface + Server Safety | v4.0 | 5/5 | Complete    | 2026-06-12 |
 
 All 66 v1+v2.0 requirements satisfied. v3.0: 18 requirements mapped across Phases 12-17. v4.0: 17 requirements mapped across Phases 18-24.
 
