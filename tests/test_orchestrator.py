@@ -1123,3 +1123,99 @@ def test_write_queue_is_unbounded():
         "write_queue must be unbounded (maxsize==0) for REL-06 per-item timeout safety. "
         "Do not add a maxsize argument to asyncio.Queue() in async_main."
     )
+
+
+# ---------------------------------------------------------------------------
+# REL-07: run_plugin heartbeat/items_checked + orders_confirmed
+# ---------------------------------------------------------------------------
+
+
+async def test_run_plugin_heartbeat_and_items_checked(fake_plugin):
+    """After one poll cycle over a matching item, registry shows heartbeat>0 and items_checked>=1."""
+    from core.orchestrator import run_plugin
+    from core.health import HealthRegistry
+
+    plugin = fake_plugin(domains=["ex.example.com"], available=False)
+    cfg = MagicMock()
+    cfg.checkout.item_timeout_secs = 30
+
+    health = HealthRegistry()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    items = [
+        ("Widget", "https://ex.example.com/item1", False, 1, False),
+    ]
+
+    async def fake_executor(executor, fn, *args):
+        return items
+
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+        pass
+
+    async def fake_sleep(secs):
+        raise asyncio.CancelledError
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "run_in_executor", side_effect=fake_executor),
+        patch("core.orchestrator._check_and_buy", side_effect=fake_check_and_buy),
+        patch("core.orchestrator.asyncio.sleep", side_effect=fake_sleep),
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._get_plugin_sleep", return_value=0.01),
+    ):
+        try:
+            await run_plugin(plugin, queue, poll_interval=0.01, cfg=cfg, health=health)
+        except asyncio.CancelledError:
+            pass
+
+    snap = health.get_snapshot()
+    plugin_name = plugin.__class__.__name__
+    assert plugin_name in snap, f"Plugin not registered in health snapshot; snap={snap}"
+    assert snap[plugin_name]["last_heartbeat"] > 0.0, "last_heartbeat must be set after one cycle"
+    assert snap[plugin_name]["items_checked"] >= 1, "items_checked must be >= 1 after one matching item"
+
+
+async def test_orders_confirmed_increments_on_confirmed_and_legacy():
+    """_try_auto_buy increments orders_confirmed for both confirmed (order_id) and legacy paths."""
+    from core.orchestrator import _try_auto_buy
+    from core.health import HealthRegistry
+
+    # --- confirmed path (order_id present) ---
+    health_c = HealthRegistry()
+    plugin_c = _make_amazon_plugin(bought=True)
+    plugin_c.get_active_tab = lambda: _FakeTab(
+        url="https://www.amazon.com/gp/buy/thankyou?orderID=302-999",
+        selector_map={},
+    )
+    q_c: asyncio.Queue = asyncio.Queue()
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
+        await _try_auto_buy(plugin_c, "Widget", "https://amazon.com/item", q_c, None, health=health_c)
+
+    snap_c = health_c.get_snapshot()
+    assert snap_c.get("AmazonPlugin", {}).get("orders_confirmed", 0) == 1, (
+        f"orders_confirmed must be 1 on confirmed path; snap={snap_c}"
+    )
+
+    # --- legacy path (order_id None / non-confirmation URL) ---
+    health_l = HealthRegistry()
+    plugin_l = _make_amazon_plugin(bought=True)
+    plugin_l.get_active_tab = lambda: _FakeTab(
+        url="https://www.amazon.com/dp/B001",
+        selector_map={},
+    )
+    q_l: asyncio.Queue = asyncio.Queue()
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
+        await _try_auto_buy(plugin_l, "Widget", "https://amazon.com/item", q_l, None, health=health_l)
+
+    snap_l = health_l.get_snapshot()
+    assert snap_l.get("AmazonPlugin", {}).get("orders_confirmed", 0) == 1, (
+        f"orders_confirmed must be 1 on legacy path; snap={snap_l}"
+    )

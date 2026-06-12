@@ -451,3 +451,198 @@ def test_is_browser_dead_exc_classification():
     assert _is_browser_dead_exc(RuntimeError("some other error")) is False
     assert _is_browser_dead_exc(ValueError("not a browser error")) is False
     assert _is_browser_dead_exc(TypeError("type error")) is False
+
+
+# ---------------------------------------------------------------------------
+# REL-07: health_degraded fire-once, dedup, re-arm, distinct-from-parked
+# ---------------------------------------------------------------------------
+
+
+async def test_health_degraded_fires_once():
+    """health_degraded fires exactly once when consecutive_errors first crosses threshold.
+
+    alert_on_errors=3 -> threshold = max(1, 2) = 2. Crash twice then block.
+    Expect exactly 1 health_degraded in dispatcher call list.
+    """
+    from core.orchestrator import supervise
+    from core.health import HealthRegistry
+
+    cfg = _make_cfg(alert_on_errors=3, backoff_base=1.0, backoff_jitter=0.0)
+    dispatcher = _make_dispatcher()
+    health = HealthRegistry()
+    plugin = _make_plugin("PluginDegraded")
+    registry = _make_registry_with_plugins(plugin)
+
+    call_count = 0
+    reached_third = asyncio.Event()
+
+    async def controlled_run(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            raise RuntimeError("crash")
+        reached_third.set()
+        await asyncio.get_running_loop().create_future()
+
+    with patch("core.orchestrator.run_plugin", side_effect=controlled_run), \
+         patch("core.orchestrator.compute_delay", return_value=0.0), \
+         _instant_sleep_ctx():
+
+        task = asyncio.create_task(
+            supervise(plugin, asyncio.Queue(), 30, dispatcher, cfg, registry, health=health)
+        )
+        await reached_third.wait()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    actions = [c.args[0].action for c in dispatcher.notify.call_args_list]
+    assert actions.count("health_degraded") == 1, (
+        f"Expected exactly 1 health_degraded, got {actions.count('health_degraded')}; actions={actions}"
+    )
+
+
+async def test_health_degraded_dedup():
+    """Continued crashes after arming do NOT add more health_degraded (count stays 1).
+
+    Uses alert_on_errors=5 (park threshold=5, degraded threshold=4) to allow multiple
+    crashes after arming without triggering park, verifying dedup holds.
+    """
+    from core.orchestrator import supervise
+    from core.health import HealthRegistry
+
+    # alert_on_errors=5: park threshold=5, degraded threshold=max(1,4)=4
+    cfg = _make_cfg(alert_on_errors=5, backoff_base=1.0, backoff_jitter=0.0)
+    dispatcher = _make_dispatcher()
+    health = HealthRegistry()
+    plugin = _make_plugin("PluginDedup")
+    registry = _make_registry_with_plugins(plugin)
+
+    # Crash 4 times (health_degraded fires on crash 4), then block before park threshold (5)
+    call_count = 0
+    reached_fifth = asyncio.Event()
+
+    async def controlled_run(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 4:
+            raise RuntimeError("crash")
+        reached_fifth.set()
+        await asyncio.get_running_loop().create_future()
+
+    with patch("core.orchestrator.run_plugin", side_effect=controlled_run), \
+         patch("core.orchestrator.compute_delay", return_value=0.0), \
+         _instant_sleep_ctx():
+
+        task = asyncio.create_task(
+            supervise(plugin, asyncio.Queue(), 30, dispatcher, cfg, registry, health=health)
+        )
+        await reached_fifth.wait()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    actions = [c.args[0].action for c in dispatcher.notify.call_args_list]
+    assert actions.count("health_degraded") == 1, (
+        f"Dedup failed: health_degraded fired {actions.count('health_degraded')} times; actions={actions}"
+    )
+
+
+async def test_health_degraded_rearms():
+    """Crash -> recover (healthy run) -> crash again => health_degraded fires twice total.
+
+    Uses time patching to expire the first episode's failure_times window so the second
+    episode starts fresh (failure_times deque evicts old entries beyond _FAILURE_WINDOW_SECS).
+    """
+    from core.orchestrator import supervise
+    from core.health import HealthRegistry
+
+    # alert_on_errors=3: park threshold=3, degraded threshold=max(1,2)=2
+    cfg = _make_cfg(alert_on_errors=3, backoff_base=1.0, backoff_jitter=0.0)
+    dispatcher = _make_dispatcher()
+    health = HealthRegistry()
+    plugin = _make_plugin("PluginRearm")
+    registry = _make_registry_with_plugins(plugin)
+
+    # Monotonic times: first 2 crashes at t=0, healthy run (no time used), then
+    # second 2 crashes at t=700 (beyond the 600s window so first episode evicts).
+    # Sequence: crash1(t=0), crash2(t=0), healthy_return, crash3(t=700), crash4(t=700), block
+    mono_vals = iter([0.0, 0.0, 700.0, 700.0])
+    def fake_mono():
+        try:
+            return next(mono_vals)
+        except StopIteration:
+            return 700.0
+
+    call_count = 0
+    reached_blocked = asyncio.Event()
+
+    async def controlled_run(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count in (1, 2):
+            raise RuntimeError("first episode crash")
+        if call_count == 3:
+            return  # healthy run: disarms degraded, resets errors
+        if call_count in (4, 5):
+            raise RuntimeError("second episode crash")
+        reached_blocked.set()
+        await asyncio.get_running_loop().create_future()
+
+    with patch("core.orchestrator.run_plugin", side_effect=controlled_run), \
+         patch("core.orchestrator.compute_delay", return_value=0.0), \
+         patch("core.orchestrator.time") as mock_time, \
+         _instant_sleep_ctx():
+
+        mock_time.monotonic = fake_mono
+
+        task = asyncio.create_task(
+            supervise(plugin, asyncio.Queue(), 30, dispatcher, cfg, registry, health=health)
+        )
+        await reached_blocked.wait()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    actions = [c.args[0].action for c in dispatcher.notify.call_args_list]
+    assert actions.count("health_degraded") == 2, (
+        f"Expected 2 health_degraded (re-arm after recovery), got {actions.count('health_degraded')}; actions={actions}"
+    )
+
+
+async def test_health_degraded_distinct_from_parked():
+    """When plugin parks, dispatcher sees both health_degraded (early warning) AND plugin_parked.
+
+    alert_on_errors=3 -> park threshold=3; degraded threshold=max(1,2)=2.
+    Both appear in action list; health_degraded must precede plugin_parked in call order.
+    """
+    from core.orchestrator import supervise
+    from core.health import HealthRegistry
+
+    cfg = _make_cfg(alert_on_errors=3, backoff_base=1.0, backoff_jitter=0.0)
+    dispatcher = _make_dispatcher()
+    health = HealthRegistry()
+    plugin = _make_plugin("PluginDistinct")
+    registry = _make_registry_with_plugins(plugin)
+
+    with patch("core.orchestrator.run_plugin", side_effect=RuntimeError("boom")), \
+         patch("core.orchestrator.compute_delay", return_value=0.0), \
+         _instant_sleep_ctx():
+
+        await supervise(plugin, asyncio.Queue(), 30, dispatcher, cfg, registry, health=health)
+
+    actions = [c.args[0].action for c in dispatcher.notify.call_args_list]
+    assert "health_degraded" in actions, f"health_degraded missing; actions={actions}"
+    assert "plugin_parked" in actions, f"plugin_parked missing; actions={actions}"
+    # temporal ordering: health_degraded must appear BEFORE plugin_parked
+    idx_degraded = actions.index("health_degraded")
+    idx_parked = actions.index("plugin_parked")
+    assert idx_degraded < idx_parked, (
+        f"health_degraded must fire before plugin_parked; positions: degraded={idx_degraded}, parked={idx_parked}"
+    )
