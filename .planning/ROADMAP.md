@@ -294,8 +294,21 @@ Plans:
   4. Cart-retry reads the DB `order_id` column before each attempt; if a prior attempt already wrote a confirmed order, the retry loop exits immediately without re-submitting
   5. Cart-retry is bounded by `CheckoutConfig.max_cart_retries` (default 3) with exponential backoff; the retry never re-enters the place-order click stage on an already-attempted order
 
-**Plans**: TBD
-**Research flag**: NEEDS PLAN-PHASE RESEARCH (carry-forward from Phase 19) — the `checkout_attempts` column increment strategy must be resolved during planning: increment on every `auto_buy()` call entry, on every cart-add attempt, or only on confirmed orders. Ambiguous semantics here affect double-buy detection accuracy.
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1** *(parallel-safe; no file overlap)*
+
+- [ ] 21-01-PLAN.md — core/retry.py NEW: RetryPolicy dataclass + pure compute_delay (seedable jitter) + with_retry async helper; tests/test_no_retry_loops.py AST guard (no `for attempt in range(` outside core/retry.py) (REL-08)
+- [ ] 21-02-PLAN.md — models.py: increment_checkout_attempts_sync (+1 per call) + get_item_order_state_sync (purchased, order_id idempotency anchor); no schema change (BUY-05)
+- [ ] 21-03-PLAN.md — per-step asyncio.timeout: self._checkout_stage default on RetailerPlugin ABC + 6 Amazon / 8 BestBuy DOM stages each under their own asyncio.timeout(step_timeout_secs); no outer timeout; per-item ceiling deferred to P22 (BUY-06)
+
+**Wave 2** *(blocked on 21-01 + 21-02 + 21-03)*
+
+- [ ] 21-04-PLAN.md — orchestrator cart-retry: extract _attempt_buy(plugin, link)->(bool, str|None) + with_retry/RetryPolicy from CheckoutConfig; DB re-read + checkout_attempts increment before each attempt; confirmed order_id short-circuit (no double-buy); single enqueue outside loop (BUY-05, REL-08)
+
+**Research flag** (RESOLVED via 21-CONTEXT.md + 21-RESEARCH.md): the `checkout_attempts` increment strategy is resolved — increment once per retry ATTEMPT, BEFORE each attempt (not per-cart-add, not confirmed-only). max_cart_retries semantics documented: it is the number of RETRIES after the first attempt, so total attempts = 1 + max_cart_retries (max_cart_retries=0 → single attempt, no retry).
 
 ### Phase 22: Supervisor + Browser Relaunch + Server Safety
 
@@ -369,7 +382,7 @@ Plans:
 | 18. Safety Gate + Config Foundation | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 19. DB Schema + Confirmation Detection | v4.0 | 4/4 | Complete    | 2026-06-11 |
 | 20. Checkout Profile + Form-Fill | v4.0 | 4/4 | Complete    | 2026-06-11 |
-| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/TBD | Not started | - |
+| 21. Per-Step Timeouts + Unified Retry + Cart-Retry | v4.0 | 0/4 | Not started | - |
 | 22. Supervisor + Browser Relaunch + Server Safety | v4.0 | 0/TBD | Not started | - |
 | 23. Encrypted Session Persistence | v4.0 | 0/TBD | Not started | - |
 | 24. Health Surface + Server Safety | v4.0 | 0/TBD | Not started | - |

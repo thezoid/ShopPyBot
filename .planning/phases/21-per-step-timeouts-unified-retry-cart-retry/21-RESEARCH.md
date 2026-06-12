@@ -549,22 +549,19 @@ def test_no_for_attempt_in_range_outside_retry():
 | A4 | CI grep targets `for attempt in range(` identifier | CI Assertion Design | If retry.py itself uses a different loop variable, the assertion is still correct |
 | A5 | `attempt` is 0-indexed in `compute_delay` | Pattern 1 | If 1-indexed, `backoff_base**1 = 2.0` as first delay (acceptable either way; planner must be consistent) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`_attempt_buy` helper extraction vs. inline retry in `_try_auto_buy`**
    - What we know: `_try_auto_buy` is currently 40 lines (exceeds 30-line max); restructuring is likely required.
-   - What's unclear: Whether to split into `_attempt_buy` (returns success+order_id) + retry wrapper, or restructure `_try_auto_buy` to embed the loop.
-   - Recommendation: Extract `_attempt_buy(plugin, link) -> tuple[bool, str|None]` — cleaner separation, easier to test.
+   - RESOLVED: Extract `_attempt_buy(plugin, link) -> tuple[bool, str|None]` as the retryable unit (Plan 21-04); the write-queue enqueue stays in the outer wrapper. Cleaner separation, testable, keeps functions under 30 lines.
 
 2. **`asyncio.sleep` in `with_retry` cancel behavior**
    - What we know: `asyncio.sleep` propagates `CancelledError` cleanly (cooperative cancel).
-   - What's unclear: Whether Phase 22's per-item timeout wraps the retry loop — if so, the sleep cancellation should bubble up through `with_retry` to the item-level timeout. This is the correct behavior and requires no special handling.
-   - Recommendation: No action in Phase 21; Phase 22 wraps at a higher level.
+   - RESOLVED: No action in Phase 21. Phase 22 wraps the per-item timeout at a higher level; the sleep cancellation bubbles up through `with_retry` correctly with no special handling.
 
 3. **`max_cart_retries=0` edge case**
    - What we know: `max_cart_retries` has `ge=0`, so 0 is valid.
-   - What's unclear: Does `max_cart_retries=0` mean zero retries (run once, no retry) or zero attempts total (skip buy)?
-   - Recommendation: `max_cart_retries=0` means no retries — buy attempt runs once. `with_retry(..., max_attempts=max_cart_retries + 1)` or document that `max_attempts` equals the number of total attempts. Planner must pick one and document it in a comment.
+   - RESOLVED: `max_cart_retries` is the number of RETRIES after the first attempt → total attempts = `1 + max_cart_retries`; `max_cart_retries=0` means a single attempt, no retry. Documented in the cart-retry wrapper / `core/retry.py` comment (Plans 21-01 / 21-04).
 
 ## Environment Availability
 
