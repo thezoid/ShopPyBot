@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: executing
-last_updated: "2026-06-25T21:06:09.799Z"
-last_activity: 2026-06-25 -- Phase 25 planning complete
+last_updated: "2026-06-25T22:00:48.313Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap defined; ready for Phase 25 planning)
-Plan: —
+Phase: 25 (Design System) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-25 -- Phase 25 planning complete
+Last activity: 2026-06-25
 
 ## Phase Status
 
@@ -119,6 +119,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 **Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
 
 ---
+| Phase 25-design-system P01 | 566s | 2 tasks | 2 files |
 
 ## Session Continuity
 
@@ -222,3 +223,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 ---
 
 *Last updated: 2026-06-25 — v4.1 roadmap created (Phases 25-29)*
+
+## Decisions
+
+- [Phase ?]: Phase 25-01: CSS comment stripping in test_no_external_urls_in_static prevents false positives on dashboard.css header comment text
+- [Phase ?]: Phase 25-01: test_no_innerHTML_with_api_data uses re.DOTALL to catch both XSS violations including the multiline cred.name case at line 255

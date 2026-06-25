@@ -10,10 +10,10 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (25-29).
 
 ### UI — Design System & Redesign
 
-- [ ] **UI-01**: User sees a redesigned dashboard built on a coherent vendored design system (CSS custom-property tokens + reusable component classes) with no external fonts, CDN, or Node build.
-- [ ] **UI-02**: User can switch between light and dark theme — auto via `prefers-color-scheme` plus a persisted manual toggle (`data-theme` on `<html>`) — with no flash-of-unstyled-content on page load.
-- [ ] **UI-03**: All API-sourced values render via safe DOM construction (`textContent`/`createElement`, never `innerHTML`); the existing items-table XSS at `dashboard.html` is fixed.
-- [ ] **UI-04**: The non-local access warning banner and CSRF origin protections remain visible and intact after the redesign (verified by the existing MC-4 test).
+- [x] **UI-01**: User sees a redesigned dashboard built on a coherent vendored design system (CSS custom-property tokens + reusable component classes) with no external fonts, CDN, or Node build.
+- [x] **UI-02**: User can switch between light and dark theme — auto via `prefers-color-scheme` plus a persisted manual toggle (`data-theme` on `<html>`) — with no flash-of-unstyled-content on page load.
+- [x] **UI-03**: All API-sourced values render via safe DOM construction (`textContent`/`createElement`, never `innerHTML`); the existing items-table XSS at `dashboard.html` is fixed.
+- [x] **UI-04**: The non-local access warning banner and CSRF origin protections remain visible and intact after the redesign (verified by the existing MC-4 test).
 
 ### OBS — Observability Surfaces
 
@@ -75,10 +75,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UI-01 | Phase 25 | Pending |
-| UI-02 | Phase 25 | Pending |
-| UI-03 | Phase 25 | Pending |
-| UI-04 | Phase 25 | Pending |
+| UI-01 | Phase 25 | Complete |
+| UI-02 | Phase 25 | Complete |
+| UI-03 | Phase 25 | Complete |
+| UI-04 | Phase 25 | Complete |
 | OBS-01 | Phase 28 | Pending |
 | OBS-02 | Phase 28 | Pending |
 | OBS-03 | Phase 28 | Pending |
@@ -93,6 +93,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SSE-03 | Phase 26 | Pending |
 
 **Coverage:**
+
 - v4.1 requirements: 16 total
 - Mapped to phases: 16
 - Unmapped: 0 ✓
