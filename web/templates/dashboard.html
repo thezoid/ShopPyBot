@@ -135,6 +135,17 @@
   </div>
 
   <script>
+    // --- Theme toggle handler ---
+    const toggleBtn = document.getElementById('theme-toggle');
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.dataset.theme || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+      toggleBtn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      toggleBtn.textContent = next === 'dark' ? '☾' : '☀';
+    });
+
     const POLL_MS = 2000;
     let failCount = 0;
 
