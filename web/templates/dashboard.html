@@ -137,13 +137,19 @@
   <script>
     // --- Theme toggle handler ---
     const toggleBtn = document.getElementById('theme-toggle');
+    function syncThemeToggle() {
+      // Reflect the theme resolved by the FOUC <head> script (localStorage / prefers-color-scheme).
+      const isDark = (document.documentElement.dataset.theme || 'light') === 'dark';
+      toggleBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      toggleBtn.textContent = isDark ? '☾' : '☀';
+    }
+    syncThemeToggle();
     toggleBtn.addEventListener('click', () => {
       const current = document.documentElement.dataset.theme || 'light';
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.dataset.theme = next;
       localStorage.setItem('theme', next);
-      toggleBtn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-      toggleBtn.textContent = next === 'dark' ? '☾' : '☀';
+      syncThemeToggle();
     });
 
     const POLL_MS = 2000;

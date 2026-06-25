@@ -214,25 +214,25 @@ def test_css_link_order_in_head(client):
 
 
 def test_no_innerHTML_with_api_data(client):
-    """CI regression: dashboard.html must not interpolate API data via innerHTML.
+    """CI regression: dashboard.html must not inject interpolated data via HTML sinks.
 
-    Catches the two current violations:
-      line 241: tr.innerHTML = `...${item.name}...`
-      line 255: div.innerHTML = `\\n  ...${cred.name}...`
+    The Phase 25 XSS fix replaced every ``innerHTML``/``insertAdjacentHTML`` sink that
+    embedded API values with ``createElement``/``textContent``. This guard fails if any
+    future change reintroduces a templated HTML-sink assignment, regardless of the source
+    variable name (so a regression in loadConfig, loadItems, loadCredentials, etc. is caught).
 
-    Uses re.DOTALL so the multiline template-literal at line 255 is also matched.
-    This test is RED until Wave 2 replaces both with createElement/textContent.
+    Static ``innerHTML = ''`` clears (no ``${}`` interpolation) remain allowed.
     """
     import re
     import pathlib
 
     html = (pathlib.Path(__file__).parent.parent / "web" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-    pattern = re.compile(
-        r'innerHTML\s*=\s*.*?\$\{(item\.|cred\.|data\.|cfg\.|resp\.)',
-        re.DOTALL,
-    )
-    matches = pattern.findall(html)
-    assert not matches, f"innerHTML with API data found: {matches}"
+    # Any inner/outerHTML assigned a string/template that interpolates a ${...} expression.
+    assign_pattern = re.compile(r'(?:inner|outer)HTML\s*=\s*[`\'"].*?\$\{', re.DOTALL)
+    # insertAdjacentHTML(...) whose argument interpolates a ${...} expression.
+    insert_pattern = re.compile(r'insertAdjacentHTML\s*\([^)]*\$\{', re.DOTALL)
+    matches = assign_pattern.findall(html) + insert_pattern.findall(html)
+    assert not matches, f"interpolated HTML sink (innerHTML/outerHTML/insertAdjacentHTML) found: {matches}"
 
 
 def test_no_external_urls_in_static(client):

@@ -1,8 +1,6 @@
-/* web/static/dashboard.css: layout + @imports for ShopPyBot dashboard */
+/* web/static/dashboard.css: layout for ShopPyBot dashboard */
+/* tokens.css + components.css are loaded via <link> in dashboard.html (do not @import them here — avoids double-loading). */
 /* No CDN. No @import url(). No external fonts. */
-
-@import "tokens.css";
-@import "components.css";
 
 /* --- Reset / Base --- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
