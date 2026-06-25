@@ -1,10 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    (function() {
+      var t = localStorage.getItem('theme');
+      if (t === 'dark' || t === 'light') {
+        document.documentElement.dataset.theme = t;
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ShopPyBot Dashboard</title>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/components.css">
   <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/vendor/uplot.min.css">
 </head>
 <body>
   {% if is_non_local %}
@@ -13,6 +26,13 @@
     on a non-local interface. Use only on a trusted private network.
   </div>
   {% endif %}
+
+  <header class="app-header">
+    <span class="app-header-title">ShopPyBot</span>
+    <span id="header-uptime" class="text-secondary"></span>
+    <button type="button" id="theme-toggle" class="btn"
+            aria-label="Switch to dark mode">&#9728;</button>
+  </header>
 
   <div class="container">
     <h1>ShopPyBot Dashboard</h1>
@@ -365,5 +385,6 @@
     loadCredentials();
     loadConfig();
   </script>
+  <script src="/static/vendor/uplot.iife.min.js"></script>
 </body>
 </html>
