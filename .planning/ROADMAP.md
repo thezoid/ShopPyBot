@@ -12,6 +12,7 @@
 - ✅ **v2.0 Modular Core + Cross-Platform UX** — Phases 7-11 (shipped 2026-06-06)
 - ✅ **v3.0 Resilience + Ecosystem** — Phases 12-17 (shipped 2026-06-10)
 - ✅ **v4.0 Win-the-Drop (Acquisition Core + Reliability)** — Phases 18-24 (shipped 2026-06-25)
+- **v4.1 Dashboard & Observability** — Phases 25-29 (active)
 
 ---
 
@@ -76,9 +77,93 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 
 </details>
 
+### v4.1 Dashboard & Observability (Phases 25-29)
+
+- [ ] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor
+- [ ] **Phase 26: Read-Only API Endpoints** — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion
+- [ ] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail
+- [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
+- [ ] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator
+
+---
+
+## Phase Details
+
+### Phase 25: Design System
+**Goal**: Operators see a redesigned dashboard with a coherent, maintainable vendored design system that supports automatic and manual light/dark theme switching with no external dependencies, no flash of unstyled content, and no regressions to existing security controls.
+**Depends on**: Nothing (pure frontend, zero Python changes)
+**Requirements**: UI-01, UI-02, UI-03, UI-04
+**Success Criteria** (what must be TRUE):
+  1. Dashboard renders with consistent token-driven colors, spacing, and typography in both light and dark mode; no hardcoded hex values remain in component rules.
+  2. Dark mode activates automatically from OS preference (`prefers-color-scheme`) and can be toggled manually; the choice persists across page reloads with no visible flash of the wrong theme on load.
+  3. The existing `loadItems()` XSS vector (`tr.innerHTML` with `item.name`/`item.link`) is replaced with `createElement`/`textContent`; adding an item named `<b>bold</b>` renders as literal text in the items table.
+  4. The non-local access warning banner and CSRF origin gate are visually intact and correctly styled in both themes; the existing MC-4 test passes against the new template.
+  5. uPlot is vendored to `web/static/uplot.min.js` (and companion `uplot.min.css`) with no CDN reference; the file is served by the existing `StaticFiles` mount.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 26: Read-Only API Endpoints
+**Goal**: All observability data the frontend needs is available as curl-testable HTTP endpoints; every sync DB read is wrapped in `asyncio.to_thread` so uvicorn's event loop is never blocked; and a CI assertion confirms the read path never leaks credential-pattern strings.
+**Depends on**: Phase 25 (design system tokens ready; HTML surfaces built next)
+**Requirements**: OBS-08, SSE-03
+**Success Criteria** (what must be TRUE):
+  1. `curl http://localhost:8000/api/history` returns `{"confirmed_orders": [...]}` with `name`, `order_id`, `confirmed_at`, and `checkout_attempts` fields; an empty list is returned when no confirmed orders exist.
+  2. `curl http://localhost:8000/api/price-history/{link_b64}` returns `{"series": [...]}` for an Amazon item and `{"series": []}` for a non-Amazon item; the call completes without error in both cases.
+  3. `GET /api/logs?level=ERROR&search=captcha&n=50` returns only lines matching all supplied filters; omitting all params degrades to the existing `read_recent_logs(50)` behavior.
+  4. A CI test asserts that no SSE data frame or `/api/status` response JSON contains strings matching credential-pattern regexes (`@`, `password`, `token`, `key=`, `cvv`); `get_status()` `last_error` fields are scrubbed to `exc.__class__.__name__` only.
+**Plans**: TBD
+
+### Phase 27: SSE Infrastructure
+**Goal**: A single `/api/events` SSE endpoint delivers live status and log events to browser clients over a clean cross-thread bridge, handles client disconnect without leaking generators, and is validated in complete isolation before any browser involvement.
+
+NOTE: This is the highest-risk phase. A spike is recommended at the start — validate the lifespan + `asyncio.create_task` + `SseHub` wiring against the actual `web/__init__.py` `create_app()` factory before full implementation. The bot daemon thread must never touch `asyncio.Queue` objects directly; uvicorn's `_poll_loop` is the sole SSE producer.
+**Depends on**: Phase 26 (API endpoint patterns established; to_thread wrapping pattern in place)
+**Requirements**: SSE-02
+**Success Criteria** (what must be TRUE):
+  1. `curl -N http://localhost:8000/api/events` receives a `data:` frame approximately every 1 second; a `: keep-alive` comment line is emitted every ~15 seconds during idle periods so the connection stays open through proxy timeouts.
+  2. Closing the curl client causes the server-side generator to exit cleanly (confirmed via a server log line or test assertion); no queue accumulates in `SseHub` after the disconnect.
+  3. Starting and stopping the bot daemon causes `status.running` to flip in the SSE stream within 1-2 seconds; the stream remains open and continues delivering events across bot restarts without a server restart.
+  4. The SSE stream opens with `retry: 3000\n\n` so the browser waits 3 seconds before reconnecting after a server restart, preventing rapid reconnect storms.
+**Plans**: TBD
+
+### Phase 28: Frontend Observability Surfaces
+**Goal**: Operators see all four observability surfaces rendered correctly in the dashboard — per-plugin health cards, confirmed-buys table, price-history charts, and a filtered log viewer with tail controls — all driven by one-shot fetch against Phase 26 endpoints.
+**Depends on**: Phase 25 (design system components), Phase 26 (REST endpoints)
+**Requirements**: OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08 (UI rendering), OBS-09
+**Success Criteria** (what must be TRUE):
+  1. Each plugin shows a health card with its status badge, heartbeat age, consecutive-error count, and items-checked count sourced from `get_status()`; heartbeat age is colored green (<30s), amber (30-60s), or red (>60s) using the monotonic clock.
+  2. Each health card displays a per-plugin confirmed-orders counter drawn from `get_status()`.
+  3. The confirmed-buys table renders rows with item name, order_id, confirmed_at, and checkout_attempts for all purchased items with a real order_id; the table is empty (not absent) when no confirmed orders exist.
+  4. Each item in the items list shows a uPlot price-history chart when price data exists; items with no price history (non-Amazon plugins) show an explicit "No price history available for this plugin" message instead of a blank chart or render error.
+  5. The log viewer renders lines with per-level color coding; the level filter narrows displayed lines; the tail/follow control auto-scrolls to new lines and pauses when the user scrolls up; the DOM buffer is capped at 500 lines.
+  6. Bot uptime (from `get_status()` `uptime_secs`) appears in the global status bar.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 29: SSE Client Wiring
+**Goal**: The dashboard replaces its 2-second polling loop with a single persistent `EventSource('/api/events')` connection; health cards and the log panel update live from SSE events; a polling fallback activates in environments without `EventSource`; a "Live / Reconnecting" indicator shows connection state.
+**Depends on**: Phase 27 (SSE infrastructure), Phase 28 (observability surfaces rendering correctly)
+**Requirements**: SSE-01
+**Success Criteria** (what must be TRUE):
+  1. DevTools Network tab shows one persistent `text/event-stream` connection to `/api/events` replacing the two previous `setInterval` polling requests; no polling requests are made when SSE is connected.
+  2. Health card status and heartbeat age update within 1-2 seconds of bot start/stop without any manual page refresh.
+  3. New log lines appear in the log viewer in real time as the bot runs; each line appears exactly once (no duplicates from repeated full-tail pushes).
+  4. Closing and reopening the browser tab results in a clean `EventSource` reconnect; the dashboard resumes live updates after reconnect without requiring a page reload or server restart.
+  5. In a browser or environment without `EventSource` support, the dashboard falls back to the existing polling behavior; no JavaScript error is thrown.
+**Plans**: TBD
+**UI hint**: yes
+
 ---
 
 ## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 25. Design System | 0/TBD | Not started | - |
+| 26. Read-Only API Endpoints | 0/TBD | Not started | - |
+| 27. SSE Infrastructure | 0/TBD | Not started | - |
+| 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
+| 29. SSE Client Wiring | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Status | Shipped |
 |-----------|--------|-------|--------|---------|
@@ -86,9 +171,10 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 | v2.0 Modular Core + Cross-Platform UX | 7-11 | 20/20 | ✅ Shipped | 2026-06-06 |
 | v3.0 Resilience + Ecosystem | 12-17 | 21/21 | ✅ Shipped | 2026-06-10 |
 | v4.0 Win-the-Drop | 18-24 | 29/29 | ✅ Shipped | 2026-06-25 |
+| v4.1 Dashboard & Observability | 25-29 | 0/TBD | In progress | - |
 
 All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). Per-milestone requirement detail in `.planning/milestones/v*-REQUIREMENTS.md`.
 
 ---
 
-*Last updated: 2026-06-25 — v4.0 Win-the-Drop shipped; ready for next milestone (`/gsd:new-milestone`).*
+*Last updated: 2026-06-25 — v4.1 Dashboard & Observability roadmap created (Phases 25-29).*

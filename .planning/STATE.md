@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: planning
-last_updated: "2026-06-25T05:28:34.396Z"
+last_updated: "2026-06-25T00:00:00.000Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,81 +20,75 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v4.0 Win-the-Drop (Acquisition Core + Reliability)
-**Total Phases**: 7 (Phases 18-24)
-**Total Requirements**: 17
+**Milestone**: v4.1 Dashboard & Observability
+**Total Phases**: 5 (Phases 25-29)
+**Total Requirements**: 16 (UI-01..04, OBS-01..09, SSE-01..03)
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined; ready for Phase 25 planning)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-25 — Milestone v4.1 started
+Status: Roadmap defined
+Last activity: 2026-06-25 — v4.1 roadmap created
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 18 — Safety Gate + Config Foundation | monitor-only mode + place_order_guarded() ABC + CheckoutConfig schema | Complete | BUY-01, BUY-02 |
-| 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Complete | BUY-03, BUY-04 |
-| 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Complete | BUY-07 |
-| 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Complete | BUY-05, BUY-06, REL-08 |
-| 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Complete | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
-| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Complete | REL-04 |
-| 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Complete | REL-07, SRV-01 |
+| 25 — Design System | vendored CSS tokens + components, light/dark FOUC-safe, XSS fix, uPlot vendor, MC-4 preserved | Not started | UI-01, UI-02, UI-03, UI-04 |
+| 26 — Read-Only API Endpoints | GET /api/history, GET /api/price-history, log filter/search params, asyncio.to_thread, secret-scrub CI assertion | Not started | OBS-08, SSE-03 |
+| 27 — SSE Infrastructure | web/sse_hub.py + web/routes/sse.py, cross-thread bridge (SPIKE), keepalive, disconnect cleanup, cursor log tail | Not started | SSE-02 |
+| 28 — Frontend Observability Surfaces | health cards, confirmed-buys table, price-history uPlot charts, log viewer + tail/filter, uptime bar | Not started | OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-09 |
+| 29 — SSE Client Wiring | replace setInterval with EventSource, dispatch by type, live health + log append, fallback, Live indicator | Not started | SSE-01 |
 
 ---
 
 ## Performance Metrics
 
-**Plans completed**: 29 of 29
-**Requirements completed**: 17 of 17 (BUY-01..07, REL-01..08, SRV-01, SRV-02)
-**Phases completed**: 7 of 7
+**Plans completed**: 0 of TBD
+**Requirements completed**: 0 of 16
+**Phases completed**: 0 of 5
 **Blockers resolved**: 0
 
 ---
 
 ## Accumulated Context
 
-### Key Decisions Logged
+### Key Decisions Logged (v4.1)
+
+- [Phase 25 — roadmap]: charting library = uPlot 1.6.32 (MIT, ~52KB IIFE + ~1KB CSS, interactive tooltips, Canvas 2D, time series); vendored to `web/static/uplot.min.js` + `web/static/uplot.min.css`; no CDN, no Node.
+- [Phase 25 — roadmap]: CSS 3-file split: `tokens.css` (`:root` blocks only), `components.css` (component rules via `var(--xxx)` only), `dashboard.css` (layout + `@import`); each file stays under 200 lines.
+- [Phase 25 — roadmap]: FOUC prevention: inline synchronous `<script>` as FIRST child of `<head>` (before any `<link>`); reads `localStorage.getItem("theme")` and sets `document.documentElement.dataset.theme`; executes before browser requests any CSS.
+- [Phase 27 — roadmap]: SSE bridge pattern: uvicorn-side `_poll_loop` background task is the SOLE SSE producer; calls `asyncio.to_thread(svc.get_status)` on uvicorn's event loop; bot daemon thread never touches `asyncio.Queue` objects. BotService is unchanged.
+- [Phase 27 — roadmap]: SPIKE recommended at Phase 27 start — validate lifespan + `asyncio.create_task` + `SseHub` wiring against actual `web/__init__.py` `create_app()` factory before full implementation.
+- [Phase 26 — roadmap]: `get_status()` `last_error` scrubbed to `exc.__class__.__name__` only at the `get_status()` boundary (never `str(exc)`); CI assertion validates SSE frames contain no credential-pattern strings (`@`, `password`, `token`, `key=`, `cvv`).
+- [Phase 26 — roadmap]: No new Python dependencies; raw `StreamingResponse(media_type="text/event-stream")` from starlette (already transitive dep) covers all SSE needs; do NOT add `sse-starlette`; do NOT upgrade FastAPI to 0.135+ in this milestone.
+- [Phase 26 — roadmap]: Log plugin-filter (OBS-08) is contingent — verify `writeLog` consistently tags lines with `[PLUGIN_NAME]` before building; if inconsistent, defer plugin filter sub-feature (not the whole requirement) to post-v4.1.
+
+### Key Decisions Logged (v4.0 carried)
 
 - [Phase 10-01]: create_app() router imports deferred inside factory body to avoid circular import; all fastapi imports confined to web/ package (CLI-04)
 - [Phase 10-01]: WEB_ALLOWLIST extends CLI ALLOWLIST with 4 notifier toggles only (no platform enables -- AppConfig has no enabled field per config-scope-note)
 - [Phase 10-01]: TemplateResponse uses new Starlette API signature: TemplateResponse(request, name, context) to avoid DeprecationWarning
-- Plugin interface: only `check_availability` and `auto_buy` are abstract; `login` and `detect_captcha` get no-op defaults — preserves contributor-friendliness
-- Plugin naming convention enforced: `shopbot_plugin_*.py`; non-matching files get a warning log, not a crash
-- One WebDriver instance per plugin (`self.driver` in `__init__`); no shared global driver — required for async safety
-- CVV via `getpass` at runtime; credentials via env vars only — must be complete before open source launch
-- SMS/Twilio is opt-in disabled by default to prevent accidental charges
-- nodriver preferred over Selenium for new plugins (async-native, bot-detection resistant); Selenium retained for Phase 1/2 refactor continuity
-- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
-- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
-- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
-- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern
-- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
-- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
-- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
-- [Phase 18-01]: monitor_only: bool = False in DebugConfig; default is False per CONTEXT.md (STATE.md was stale; CONTEXT.md wins)
-- [Phase 18-01]: CheckoutConfig uses Field(ge=) scalar bounds only; no @field_validator needed (scalar numeric bounds sufficient)
-- [Phase 18-01]: checkout: CheckoutConfig = CheckoutConfig() declared as explicit AppConfig class attribute; extra=ignore cannot drop a declared field (T-18-03 mitigated)
 - [Phase 18-02]: place_order_guarded is a concrete async method on RetailerPlugin ABC; test_mode default True (fail-safe suppress when config missing); PLUGIN_API_VERSION stays 2 (additive BUY-02)
+- [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
+- [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
 
-### Research Flags (carry into planning — v4.0)
+### Research Flags (v4.1 — carry into planning)
 
-- Phase 19 (confirmation selectors): Per-retailer confirmation URL patterns are HIGH confidence (Amazon `/gp/buy/thankyou`, BestBuy `/checkout/r/thank-you`). Backup DOM selectors (`#confirmedOrderId`, `#widget-purchaseConfirmationStatus` for Amazon; `.thank-you-order-number`, `[data-testid="order-number"]` for BestBuy) are MEDIUM confidence and require live UAT on a `test_mode` buy before hardcoding in `core/confirmation.py`. Flag: `--research-phase` during Phase 19 planning.
-- Phase 21 (checkout_attempts semantics): The DB schema adds `checkout_attempts INTEGER DEFAULT 0` but the increment strategy is unresolved: on every `auto_buy()` call entry, on every cart-add attempt, or only on confirmed orders. Must be an explicit decision in Phase 21 planning to avoid ambiguous double-buy detection.
-- Phase 22 (nodriver relaunch + CDP stealth): Whether `add_script_to_evaluate_on_new_document` persists across `Browser.stop()` + restart or must be re-injected needs validation against installed `nodriver==0.50.3` before finalizing `plugin.relaunch()`. Flag: `--research-phase` during Phase 22 planning.
-- Phase 23 (nodriver CDP cookie API): `cdp.storage.set_cookies()` exact import path and `CookieParam` constructor signature should be verified against installed `nodriver==0.50.3` before committing the restore path. The workaround is confirmed from nodriver issues #1816/#2020 but the exact API shape needs local verification. Flag: `--research-phase` during Phase 23 planning.
-- All checkout phases: Never log `self._cvv`; use `exc.__class__.__name__` not `str(exc)` on checkout exception paths; never add CVV/CARD_NUMBER to SECRET_KEYS. Add CI grep assertion blocking `_cvv` in any `writeLog` argument (carry-forward from v3.0 policy per PITFALLS 6.4).
-- Phase 22 (double-buy guard): Per-item timeout must wrap only the `check_availability` + `auto_buy` portion of `_check_and_buy`; `write_queue.put()` calls must be OUTSIDE the timeout context so a timed-out item cannot orphan a pending DB write (PITFALLS #10).
-- Phase 22 (DB error isolation): Distinguish `sqlite3.OperationalError` (transient locked — skip poll cycle, continue) from `sqlite3.DatabaseError` (fatal corruption — log CRITICAL, propagate) on read path (PITFALLS #11).
+- Phase 25: Run MC-4 test against the new template before closing the phase — non-local banner must remain visible and correctly styled in both themes (Pitfall 9).
+- Phase 26: Verify log line format for `[PLUGIN_NAME]` tag consistency before building plugin filter in `read_logs_filtered()`; if inconsistent, scope OBS-08 to level+search only (plugin filter deferred).
+- Phase 27: Spike at phase start — validate `asyncio.create_task(_poll_loop(...))` inside FastAPI lifespan context manager against installed `fastapi==0.115.8` + `uvicorn==0.30.6` before full implementation (cross-loop race is highest-risk pitfall).
+- Phase 27: `request.is_disconnected()` must be polled inside the SSE generator loop — verify FastAPI 0.115.8 supports this API (HIGH confidence per research, but confirm before implementing).
+- Phase 28: Price data is Amazon-only today (PRICE-02); non-Amazon items get explicit "No price history available for this plugin" message — never a blank chart area.
+- All phases: Zero-Node constraint is hard — no package.json, no CDN references, no external font URLs; all JS/CSS vendored via `web/static/`.
 
 ### Active Todos
 
-- v4.0 complete + archived. Run `/gsd:new-milestone` to scope the next cycle (phase numbering continues from 24).
-- Operator: work the v4.0 live-UAT checklist (Deferred Items below) before the first production live-buy.
+- Execute Phase 25 plan (`/gsd:plan-phase 25`).
+- Operator: complete the v4.0 live-UAT checklist (STATE.md Deferred Items) before first production live-buy.
 
 ### Blockers
 
@@ -104,21 +98,9 @@ Last activity: 2026-06-25 — Milestone v4.1 started
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Phase 12 closed all of these.
+### Carried from v4.0 milestone close (2026-06-25) — 17 items
 
-| Category | Item | Status |
-|----------|------|--------|
-| verification | Phase 08 — keyring/encrypted-file live backend selection + restart persistence | human_needed |
-| verification | Phase 09 — masked-TTY setup entry (Windows PowerShell + Ubuntu) | human_needed |
-| verification | Phase 10 — web dashboard live render / Start-Stop / log poll / 0.0.0.0 warning | human_needed |
-| verification | Phase 11 — live cross-OS path + backend matrix | human_needed |
-| uat | Phase 11 — 11-HUMAN-UAT.md (6 live cross-OS scenarios) | partial (6 pending) |
-| uat | Phase 01 — 01-UAT.md | partial (0 pending) |
-| uat | Phase 19 — per-retailer confirmation selectors (Amazon + BestBuy) | UAT required before Phase 19 finalizes selectors |
-
-### Acknowledged at v4.0 milestone close (2026-06-25) — 17 items
-
-All deferred per the autonomous live-UAT policy; none are code gaps. This is the operator's pre-production live-buy checklist. Source: `gsd-sdk query audit-open` at close.
+All deferred per the autonomous live-UAT policy; none are code gaps. This is the operator's pre-production live-buy checklist.
 
 | Category | Item | Status |
 |----------|------|--------|
@@ -134,43 +116,19 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
 | seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
 
-**Tracked HIGH item (from audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
+**Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
 
 ---
-| Phase 18 P02 | 267 | 2 tasks | 2 files |
-| Phase 18 P18-03 | 8m | 2 tasks | 6 files |
-| Phase 18 P04 | 18 | 2 tasks | 9 files |
-| Phase 19 P19-01 | 4min | 3 tasks | 2 files |
-| Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
-| Phase 19 P19-03 | 3min | 1 task | 2 files |
-| Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
-| Phase 20 P20-01 | 8min | 2 tasks | 3 files |
-| Phase 20 P20-02 | 6min | 2 tasks | 3 files |
-| Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
-| Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
-| Phase 21 P21-02 | 7min | 1 tasks | 2 files |
-| Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
-| Phase 21 P04 | 20min | 1 tasks | 3 files |
-| Phase 22 P01 | 8min | 2 tasks | 3 files |
-| Phase 22 P02 | 6min | 2 tasks | 2 files |
-| Phase 22 P03 | 21min | 3 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-03 | 3min | 1 task | 1 file |
-| Phase 23-encrypted-session-persistence P23-04 | 12min | 3 tasks | 5 files |
-| Phase 24-health-surface-server-safety P24-01 | 8m | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 23 Plan 03 complete -- CI guard test_no_committed_sessions.py; 648 passed, 10 skipped.
-**Next action**: Execute Phase 23 Plan 04 (plugin ABC save_session/restore_session implementation).
-**Context to carry**: SessionStore uses [salt][Fernet token] layout mirroring EncryptedFileBackend; build_session_store() is the factory for plugin ABC callers; restore() returns None (not raises) on InvalidToken per REL-04 contract; session_persistence field declared on all 7 platform models; CI guard asserts no .bin committed and data/* gitignore rule in place.
+**Last action**: v4.1 roadmap defined (Phases 25-29, 16 requirements mapped).
+**Next action**: Execute `/gsd:plan-phase 25` to plan Phase 25 (Design System).
+**Context to carry**: uPlot chosen as charting library (vendored, MIT); 3-file CSS split (tokens/components/layout); FOUC prevention via inline sync script first in `<head>`; SSE bridge pattern is uvicorn-only poll (bot thread never touches queues); Phase 27 spike required before full implementation; MC-4 test must pass at Phase 25 close.
 
 ---
 
-*Last updated: 2026-06-12 -- Phase 23 Plan 03 complete*
-
-## Performance Metrics (v1 + v2.0 + v3.0 history)
+## Performance Metrics (all milestones history)
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
@@ -238,122 +196,29 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
 | Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
 | Phase 17-test-hardening P04 | 4min | 1 tasks | 1 files |
+| Phase 18 P02 | 267 | 2 tasks | 2 files |
+| Phase 18 P18-03 | 8m | 2 tasks | 6 files |
+| Phase 18 P04 | 18 | 2 tasks | 9 files |
+| Phase 19 P19-01 | 4min | 3 tasks | 2 files |
+| Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
+| Phase 19 P19-03 | 3min | 1 task | 2 files |
+| Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
+| Phase 20 P20-01 | 8min | 2 tasks | 3 files |
+| Phase 20 P20-02 | 6min | 2 tasks | 3 files |
+| Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
+| Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
+| Phase 21 P21-02 | 7min | 1 tasks | 2 files |
+| Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
+| Phase 21 P04 | 20min | 1 tasks | 3 files |
+| Phase 22 P01 | 8min | 2 tasks | 3 files |
+| Phase 22 P02 | 6min | 2 tasks | 2 files |
+| Phase 22 P03 | 21min | 3 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-03 | 3min | 1 task | 1 file |
+| Phase 23-encrypted-session-persistence P23-04 | 12min | 3 tasks | 5 files |
+| Phase 24-health-surface-server-safety P24-01 | 8m | 2 tasks | 2 files |
 
-## Decisions
+---
 
-- [Phase ?]: Used importlib.reload + monkeypatch.chdir in tests to isolate config.py module-level load without touching production code
-- [Phase ?]: PLUGIN_API_VERSION defined module-level before class body; importable without instantiation (T-01-VER)
-- [Phase 01-03]: yaml_file= constructor kwarg (not _yaml_file=) used for test injection; _active_yaml_file class sentinel bridges __init__ to classmethod settings_customise_sources
-- [Phase 01-03]: No env_prefix on AppConfig; single-user tool keeps DEBUG__LOGGING_LEVEL format simpler than SHOPBOT_DEBUG__LOGGING_LEVEL
-- [Phase ?]: [Phase 01-04]: Pinned all deps to exact installed versions; added nodriver==0.50.3 and pydantic-settings[yaml]==2.14.0 after human package-legitimacy approval; logger caches level at import (_LOGGING_LEVEL), eliminating per-loop config.yml reads
-- [Phase ?]: Phase-1 SEC-04: navigator.webdriver hidden on the existing Selenium driver via CDP injection; nodriver replaces it in Phase 2
-- [Phase ?]: Credentials sourced from env vars (BB_EMAIL/BB_PASSWORD); CVV via runtime getpass, never persisted or logged
-- [Phase ?]: open_browser hardcoded False pending AppConfig relocation (app block removed for SEC-01)
-- [Phase ?]: pytest-asyncio 1.3.0 with asyncio_mode=auto: no decorators needed on plain async def test_ functions
-- [Phase ?]: _route_all routes against _all_plugins to enable lazy-launch before active list is populated
-- [Phase ?]: D-02 closed: nodriver handles stealth architecturally; Selenium imports gone
-- [Phase ?]: Placeholder email SECURITY_CONTACT_PLACEHOLDER@example.com in SECURITY.md and CODE_OF_CONDUCT.md; maintainer must replace before launch
-- [Phase ?]: Anchored /config.yml in .gitignore to repo root to prevent ISSUE_TEMPLATE/config.yml exclusion
-- [Phase ?]: config.yml contact_links url points to SECURITY.md blob on master branch for private vulnerability reporting
-- [Phase ?]: TaskGroup of per-plugin coroutines with 1.5s stagger and single write-queue drain via asyncio.Queue
-- [Phase ?]: stdin listener thread uses loop.call_soon_threadsafe as the only thread-safe Event bridge; no direct event.set() from non-loop threads (ASYNC-03)
-- [Phase ?]: run_in_executor used only for sqlite3 calls and stdin readline; nodriver browser work stays on the event loop (ASYNC-01 primary model)
-- [Phase ?]: SoundNotifier: synchronous pygame calls (no executor, thread-safety unconfirmed)
-- [Phase ?]: DiscordNotifier: secret-safe error logging (class+status only, never webhook URL or str(exc))
-- [Phase ?]: Discord 429: raises RuntimeError with Retry-After; no retry loop in Phase 5 scope
-- [Phase ?]: build_dispatcher factory selects notifiers from config flags; dedup edge-trigger notifies once per restock via get_item_notification_state_sync
-- [Phase ?]: squareenix (no underscore) chosen for config key
-- [Phase ?]: Naming difference is intentional and documented
-- [Phase ?]: No separate helper module; Option A from RESEARCH Pattern 4
-- [Phase ?]: getattr-chain platform_key lookup: no hardcoded class-name string munging for jitter config
-- [Phase ?]: ANTI-02 UA always active -- falls back to DEFAULT_USER_AGENTS when platform user_agents empty
-- [Phase ?]: SC1 registry gate
-- [Phase 07-01]: BotService uses daemon thread with its own asyncio event loop for non-blocking start/stop from any sync caller
-- [Phase 07-01]: stop() cancels task via loop.call_soon_threadsafe so async_main's finally block runs teardown_all (no orphaned Chrome)
-- [Phase 07-01]: run() = asyncio.run(async_main(cfg, cvv)) identical to v1 behavior; CVV is a parameter only (never logged)
-- [Phase ?]: parse_known_args() in core.service:main() avoids sys.argv contamination when test calls main() directly
-- [Phase ?]: plugins/__init__.py added to make plugins/ a proper setuptools package; Phase 07-02 shoppybot entry point = core.service:main via pyproject.toml [project.scripts]
-- [Phase 07-03]: main.py is now a thin shim: validate+seed+getpass CVV gate then BotService(cfg).run(cvv); asyncio.run and async_main imports removed from main.py (now internal to core/service.py)
-- [Phase ?]: get_store lazy-fallback to EnvVarBackend keeps monkeypatch.setenv tests green (CRED-04)
-- [Phase ?]: _build_store stub returns EnvVarBackend in plan 08-01; auto-detection keyring->file->env deferred to plan 08-03
-- [Phase ?]: KeyringBackend uses SERVICE=shopbot hardcoded; keyring has no enumerate API so list() probes each SECRET_KEY individually (CRED-02)
-- [Phase ?]: EncryptedFileBackend: scrypt n=2**14 + fresh 16B salt per write; fdopen-in-with + os.replace-outside for Windows-safe atomic write; InvalidToken -> ValueError(SHOPBOT_STORE_PASSPHRASE) (CRED-03)
-- [Phase ?]: _build_store: explicit config > real keyring > encrypted-file (passphrase in env) > env-var; getpass deferred to explicit 'file' backend path only
-- [Phase ?]: get_store().get(KEY) replaces all os.environ secret reads in consumers; SC1 grep guard enforces no regression
-- [Phase 09-01]: build_parser() in core/cli/__init__.py owns the parser; core/service.py:main() delegates to it via build_parser() + parse_known_args(argv)
-- [Phase 09-01]: parse_known_args(argv) with explicit argv=None param; tests pass argv=[] to avoid sys.argv contamination in Python 3.13 strict subparser choices
-- [Phase 09-01]: handle_setup stub handles --migrate branch for back-compat; full interactive prompt body deferred to plan 09-02
-- [Phase ?]: [Phase 09-02]: handle_config_set raises SystemExit(2) for unknown keys -- consistent with _coerce pattern, required by test scaffold
-- [Phase ?]: [Phase 09-02]: sys.stdin.readline() in _prompt_backend instead of input() -- ASYNC-03 compliance
-- [Phase ?]: [Phase 09-02]: setup._write_backend reads _DEFAULT_YAML_PATH via import core.cli.config_cmd at call-time for monkeypatch testability
-- [Phase ?]: web.py lazy-import seam was correct from 09-01 stub; CLI-04 guard tests unskipped with SystemExit fix for run subcommand dispatch
-- [Phase ?]: bot_stop uses run_in_executor to dispatch blocking svc.stop() off event loop (T-10-08 mitigation)
-- [Phase ?]: svc.start() called with zero args (no CVV) per locked web-scope decision
-- [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list
-- [Phase 10-03]: import core.credentials as module (not from-import) so patch("core.credentials.get_store") resolves the reference at call time in tests
-- [Phase ?]: [Phase 10-04]: Config routes in web/routes/config.py; WEB_ALLOWLIST gate (notifier toggles only, no platform enabled fields); SC3 HTML-leak guard test green
-- [Phase ?]: [Phase 11-01]: appauthor=False suppresses redundant vendor subdir on Windows for platformdirs
-- [Phase ?]: [Phase 11-01]: data_dir/config_path/log_dir re-read SHOPBOT_DATA_DIR on every call; env override seam keeps 341 tests green
-- [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
-- [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
-- [Phase ?]: [Phase 11-04]: items list smoke pre-initializes DB via initialize_db() -- BotService.__init__ only calls init_store(), not initialize_db()
-- [Phase ?]: Option A (lazy import inside _load_logging_level) chosen over Option B (delete _CONFIG_PATH) to retain the constant for tooling inspection
-- [Phase ?]: [Phase 12-01]: TD-1 test isolation via finally-block reload: both tests restore logger to original import-time state to prevent _LOGGING_LEVEL bleed
-- [Phase ?]: TD-2 closed: Switch all three dirs_to_scan to rglob (not just core/) for future-proofing; companion assertion on core/cli/config_cmd.py proves recursion coverage
-- [Phase ?]: TD-3 closed: Separator guard anchored to Path(__file__).parent.parent with len(src_files)>0 guard; silent empty-list false-pass eliminated
-- [Phase ?]: [Phase 12-03]: TD-4 config seam accepted under MOD-02 -- write_web_config writes directly to _DEFAULT_YAML_PATH; BotService scope covers DB/registry/orchestrator only; WEB_ALLOWLIST is the safety boundary
-- [Phase ?]: [Phase 12-03]: MC-4 is_non_local banner gate proven both ways -- banner present when is_non_local=True, absent when is_non_local=False (Jinja2 conditional enforced in CI)
-- [Phase 12-04]: MC-1..MC-4 Windows variants recorded PENDING in docs/PLATFORMS.md (non-interactive agent env, no real TTY/restart cycle); MC-4 CI-asserted by tests/test_web_dashboard.py Plan 12-03; Ubuntu variants pending Ubuntu access
-- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
-- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
-- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
-- [Phase 13-01]: time.monotonic used for cooldown retired_until timestamps; module-level time attribute patched in tests (not global monotonic) for testability
-- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern; no model_validator or os.environ reads in ProxyConfig (credentials live in config.yml per RESEARCH Open Question 3)
-- [Phase 13-02]: sample.config.yml proxy example uses proxy.example.com placeholder only; real URLs in user's gitignored config.yml
-- [Phase ?]: [Phase 13-03]: Per-instance proxy scoping via registry.assign_proxy; conftest mock_nodriver_start gets AsyncMock on main_tab.send for apply_stealth compatibility
-- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
-- [Phase 14-01]: TWOCAPTCHA_API_KEY is 20th SECRET_KEY; solve_count increments before network calls so cap is respected even when call raises
-- [Phase ?]: _build_captcha_solver helper extracted; assign_solver mirrors assign_proxy; BotService logging.getLogger for caplog-testable CAPTCHA startup log
-- [Phase ?]: _solve_or_pause helper; _wait_user_action always reused on fallback
-- [Phase ?]: Amazon WAF deferred; gokuProps -> manual pause; solve_amazon_waf not called this phase
-- [Phase ?]: PLUGIN_API_VERSION stays 2; no ABC changes; _captcha_solver injected as attribute
-- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
-- [Phase 15-01]: PLUGIN_API_VERSION stays 2; additive class attrs (difficulty/requires_proxy/requires_captcha) are non-breaking per RESEARCH Pattern 1
-- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
-- [Phase 15-03]: PR template Risk Declaration section replaced with Plugin Metadata section (difficulty/requires_proxy/requires_captcha); no duplicate risk section
-- [Phase 15-03]: PLUGIN_DEV.md ABC table column header updated to "Method / Attribute" to accommodate class-attr rows alongside method rows
-- [Phase 15-03]: tests/test_docs.py added with 4 doc-presence tests using Path(__file__).parent.parent as repo root; pattern available for future doc locking
-- [Phase ?]: Separate-update strategy: update_item_price_config_sync is standalone; add_items_sync 5-tuple unchanged
-- [Phase ?]: price_alert_armed/price_last_notified dedup columns strictly isolated from last_seen_available/last_notified (Pitfall 1 mitigated)
-- [Phase ?]: get_last_price_sync reads price_history newest-first; orchestrator must read BEFORE append to get previous price for drop trigger
-- [Phase 16-02]: _cents_to_display defined inline per notifier file; no shared helper module (single use-case per file, no abstraction needed)
-- [Phase 16-02]: get_price() is concrete non-abstract default on RetailerPlugin; PLUGIN_API_VERSION stays 2 (additive non-breaking, PRICE-02)
-- [Phase 16-02]: Amazon price selector list is site-specific and maintenance-required; documented in SUMMARY
-- [Phase 16-02]: _build_email_body() and _build_sms_body() extracted as testable module-level helpers; send() delegates to them
-- [Phase ?]: CDP assertion pattern
-- [Phase ?]: [Phase 18-03]: monitor_only gate uses getattr-safe access (plugin.config may be None in tests); defaults to False
-- [Phase ?]: [Phase 18-03]: --monitor-only CLI flag mutates cfg.debug.monitor_only on existing AppConfig instance; pydantic v2 mutable BaseModel, no reconstruction
-- [Phase ?]: [Phase 18-03]: needs_cvv adds not cfg.debug.monitor_only so CVV prompt never shown in monitor-only mode (T-18-09 mitigated)
-- [Phase ?]: checkout_attempts added with NOT NULL DEFAULT 0; never incremented in Phase 19 (Phase 21 owns increment)
-- [Phase ?]: update_item_confirmed_sync bind order: (order_id, confirmed_at, link) matching SET clause order
-- [Phase ?]: get_active_tab is sync def (not async); returns getattr(self.driver, 'main_tab', None); PLUGIN_API_VERSION stays 2 (additive BUY-03)
-- [Phase ?]: [Phase 20-04]: _fill_field logs selector name only never field value
-- [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
-- [Phase ?]: 21-03
-- [Phase ?]: _AlreadyConfirmed sentinel to abort with_retry; WR-02 enqueue outside loop (21-04)
-- [Phase ?]: relaunch() proxy re-assignment is supervisor's responsibility before calling relaunch(); method takes no registry reference (REL-03)
-- [Phase ?]: setup() is the single stealth injection point in relaunch(); teardown errors swallowed with WARNING using exc.__class__.__name__ (Phase 22 REL-03)
-- [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
-- [Phase 22-02]: asyncio.timeout wraps only _check_and_buy; write_queue.put stays inside _check_and_buy after result is known, outside timeout context (REL-06)
-- [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
-- [Phase ?]: supervise() catches Exception (not BaseException) so CancelledError propagates for clean shutdown; registry.assign_proxy called by supervisor before plugin.relaunch() (Phase 22 REL-01/REL-03)
-- [Phase 22-04]: _register_signals uses loop.add_signal_handler (POSIX) with NotImplementedError fallback to signal.signal (Windows); both paths cancel root_task via call_soon_threadsafe; _flush_write_queue drains queue before teardown_all so no pending DB write is lost on SIGTERM (SRV-02)
-- [Phase ?]: [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
-- [Phase ?]: [Phase 23-01]: build_session_store() factory centralizes _resolve_passphrase() so plugin ABC callers (Plan 23-04) never duplicate env-var resolution
-- [Phase ?]: restore_session() fast-guards on store._passphrase is None directly; build_session_store() still used for actual ops
-- [Phase ?]: Startup registry loop calls restore_session() but NOT login() -- login stays lazy inside auto_buy() to avoid double-login or MFA block at startup
-- [Phase ?]: Raw CDP cookie restore via cdp_storage.set_cookies([CookieParam(...)]) -- never CookieJar.set_all() (nodriver bug #1816/#2020)
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd:new-milestone
+*Last updated: 2026-06-25 — v4.1 roadmap created (Phases 25-29)*
