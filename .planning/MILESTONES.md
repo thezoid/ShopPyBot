@@ -1,5 +1,27 @@
 # Milestones
 
+## v4.0 Win-the-Drop (Shipped: 2026-06-25)
+
+**Phases completed:** 7 phases, 29 plans
+
+**Delivered:** ShopPyBot now completes *verified* orders on limited-release drops and survives multi-hour unattended runs without one fault taking down the rest.
+
+**Key accomplishments:**
+
+- **Safety gate (P18):** Central monitor-only mode + concrete `place_order_guarded()` on the `RetailerPlugin` ABC routes all 7 bundled plugins' place-order clicks through one guard, closing the confirmed 6-of-7 `test_mode` hole (CI grep + zero-write integration test). `CheckoutConfig` schema foundation for downstream phases.
+- **Verified checkout (P19):** URL-first order-confirmation detector (`core/confirmation.py`) plus idempotent `order_id`/`confirmed_at`/`checkout_attempts` columns — `purchased` is written only on a real order number, never a button click.
+- **Checkout profile + form-fill (P20):** 9-key CredentialStore shipping/billing profile, BestBuy + Amazon form-fill, CVV via `getpass` at runtime only, AST CI assertion proving no CVV leaks to logs; no full card data persisted.
+- **Bounded retry (P21):** Single `RetryPolicy` in `core/retry.py` shared by supervisor restart and cart-retry; per-step `asyncio.timeout()` per DOM stage; DB idempotency re-read before each attempt (no double-buy).
+- **Supervisor + relaunch (P22):** Per-coroutine supervision with failure budget absorbs crashes before the TaskGroup boundary; full browser relaunch (teardown→stealth→proxy→login); `sqlite3.OperationalError` read isolation; per-item timeout; cross-platform SIGTERM/SIGINT teardown bridge.
+- **Encrypted sessions (P23):** Fernet-encrypted per-platform cookie persistence (`core/session_store.py`) via raw CDP restore that bypasses the nodriver `set_all()` bug; skips re-login/MFA across restarts, no plaintext on disk.
+- **Health surface + server safety (P24):** `HealthRegistry`, expanded `BotService.get_status()` (per-plugin liveness/heartbeat), `health_degraded` fan-out alert, `shoppybot status` CLI, headless pygame import-crash guard.
+
+**Audit:** `.planning/milestones/v4.0-MILESTONE-AUDIT.md` — 17/17 requirements, 7/7 phases verified, 6/6 integration seams clean, suite 755 passed / 2 skipped. Status `tech_debt` (no blockers).
+
+**Known deferred items at close: 17** (see STATE.md → Deferred Items) — 7 live-environment UAT scenarios + 7 `human_needed` verifications (deferred per autonomous live-UAT policy), 1 todo (Amazon WAF auto-solve), 2 dormant seeds (SEED-001 repo scrub, SEED-002 release-please) — all explicitly Out of Scope for v4.0.
+
+---
+
 ## v3.0 v3.0 (Shipped: 2026-06-10)
 
 **Phases completed:** 6 phases, 21 plans, 32 tasks
