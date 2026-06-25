@@ -79,7 +79,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 
 ### v4.1 Dashboard & Observability (Phases 25-29)
 
-- [ ] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor
+- [x] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor (completed 2026-06-25)
 - [ ] **Phase 26: Read-Only API Endpoints** — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion
 - [ ] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail
 - [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
@@ -108,7 +108,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 
 - [x] 25-01-PLAN.md — Wave 0 test scaffold: CSS static-analysis tests + FOUC/link-order/XSS-regression/uPlot-served template tests
 - [x] 25-02-PLAN.md — Wave 1: split tokens.css/components.css/dashboard.css (token-driven, zero hardcoded hex) + vendor uPlot 1.6.32
-- [ ] 25-03-PLAN.md — Wave 2: dashboard.html FOUC script, sticky header + theme toggle, XSS fix (loadItems/loadCredentials), MC-4 banner preserved
+- [x] 25-03-PLAN.md — Wave 2: dashboard.html FOUC script, sticky header + theme toggle, XSS fix (loadItems/loadCredentials), MC-4 banner preserved
 
 **UI hint**: yes
 
@@ -181,7 +181,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 25. Design System | 2/3 | In Progress|  |
+| 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 0/TBD | Not started | - |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
