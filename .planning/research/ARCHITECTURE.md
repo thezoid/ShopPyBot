@@ -1,533 +1,612 @@
 # Architecture Research
 
-**Domain:** Python shopping bot — asyncio/nodriver plugin framework, v4.0 acquisition + reliability integration
-**Researched:** 2026-06-10 (v4.0 Win-the-Drop integration analysis; supersedes v3.0 research)
-**Confidence:** HIGH (all integration points derived from direct source reads; no inference from training data)
+**Domain:** FastAPI dashboard with SSE live-push + design-system layer + observability surfaces (v4.1 Dashboard & Observability)
+**Researched:** 2026-06-25
+**Confidence:** HIGH (all integration points verified against actual source files and FastAPI 0.115.8 package API)
 
----
+## Standard Architecture
 
-## v4.0 Scope
-
-Two feature clusters integrate into the shipped v3.0 architecture:
-
-1. **Acquisition Core** — checkout profile/form-fill, order-confirmation capture, idempotent retry-on-cart, per-step/per-item time budget, central monitor-only safety gate
-2. **Always-On Reliability** — per-coroutine supervision + backoff restart, browser-crash detection + relaunch, encrypted session/cookie persistence, DB read-path error isolation, per-item asyncio timeout, structured health/heartbeat surface
-
----
-
-## Existing Architecture (v3.0 Baseline)
+### System Overview
 
 ```
-BotService (core/service.py)
-  |-- background daemon thread owns its own asyncio event loop
-  |-- get_status() -> {"running": bool}   <-- extend for health surface
-  +-- async_main (core/orchestrator.py)
-       |-- PluginRegistry (core/registry.py)
-       |    |-- _discover_plugins(): importlib scan of plugins/shopbot_plugin_*.py
-       |    |-- _all_plugins: eager list; no browser yet
-       |    |-- _active_plugins: post-setup; one Browser per plugin instance
-       |    +-- RetailerPlugin ABC (core/plugin_base.py)
-       |         |-- setup() / teardown()
-       |         |-- check_availability(url) -> bool   [abstract]
-       |         |-- auto_buy(url) -> bool             [abstract]
-       |         |-- get_price(url) -> int | None      [concrete, returns None]
-       |         |-- login() / detect_captcha()        [no-op defaults]
-       |         +-- plugins/shopbot_plugin_*.py       [7 concrete plugins]
-       |
-       |-- write_queue (asyncio.Queue)
-       |    +-- _write_queue_drain task  ->  models.py (SQLite WAL CRUD)
-       |
-       |-- run_plugin() per active plugin  [long-lived poll coroutine]
-       |    +-- _check_and_buy()  ->  _try_auto_buy()  ->  plugin.auto_buy()
-       |
-       +-- NotificationDispatcher (notifications/dispatcher.py)
-            +-- fan-out: SoundNotifier, DiscordNotifier, EmailNotifier, SmsNotifier
-
-core/config_schema.py   -- Pydantic AppConfig; debug.test_mode; no checkout/profile section yet
-core/credentials.py     -- CredentialStore (keyring / encrypted-file / env-var); SECRET_KEYS list
-core/stealth.py         -- STEALTH_JS, apply_stealth, ProxyPool, setup_proxy_auth
-models.py               -- SQLite WAL: items + price_history tables; all writes via write_queue
-```
-
-Key constraints that drive all integration decisions below:
-
-- `RetailerPlugin.setup()` is the only place browser args are set. Any relaunch must reproduce the full setup sequence (stealth injection, proxy auth, login).
-- The write-queue is the **sole write path** to SQLite. Any new write (order confirmation, session flush) must go through it or through a dedicated drain, never direct.
-- `debug.test_mode` is the existing config flag for purchase suppression. Only `AmazonPlugin.auto_buy()` reads it; the other 6 plugins bypass it entirely. This is the critical safety hole v4.0 must close.
-- `BotService.get_status()` currently returns only `{"running": bool}`. The health surface expands this dict.
-- `CredentialStore.SECRET_KEYS` is the authoritative list; new secrets (checkout profile fields) must be added.
-
----
-
-## v4.0 Component Map: New vs Modified
-
-### New Modules
-
-| Module | Placement | Responsibility |
-|--------|-----------|----------------|
-| `core/checkout_profile.py` | New module | `CheckoutProfile` dataclass; load from CredentialStore; no plaintext in config or DB |
-| `core/confirmation.py` | New module | `detect_order_confirmation(tab, platform) -> str | None`; per-platform selector map; returns order_id or None |
-| `core/supervisor.py` | New module | `supervise(coro, name, max_retries, backoff)` async wrapper; replaces bare task creation in orchestrator |
-| `core/health.py` | New module | `HealthRegistry`; per-plugin heartbeat dict; queryable via `BotService.get_status()` |
-| `core/session_store.py` | New module | Fernet-encrypted JSON cookie persistence; reuses `EncryptedFileBackend` pattern from `credentials.py` |
-| `core/retry.py` | New module | `RetryPolicy` dataclass + `with_retry(coro, policy)` async helper; one unified backoff implementation |
-
-### Modified Modules
-
-| Module | What Changes | Why |
-|--------|-------------|-----|
-| `core/orchestrator.py` | Replace bare `tg.create_task` with `supervisor`; add per-item `asyncio.timeout`; wrap DB reads in try/except; thread heartbeat updates through `HealthRegistry` | Supervision, timeout, read isolation, heartbeat |
-| `core/plugin_base.py` | Add `monitor_only` property (reads `AppConfig.debug.monitor_only`); add `place_order_guarded()` default that checks `monitor_only` before calling the plugin's actual place-order DOM click | Central safety gate — the ABC intercepts all plugins, not per-plugin code |
-| `core/service.py` | Expand `get_status()` to pull from `HealthRegistry`; accept `monitor_only` param on `start()` | Health surface, monitor-only control |
-| `core/config_schema.py` | Add `DebugConfig.monitor_only: bool = True`; add `CheckoutConfig` sub-model (per-step timeout, max cart retries, item budget); add `CheckoutConfig` to `AppConfig` | Config-driven gates and budgets |
-| `core/credentials.py` | Add checkout profile keys to `SECRET_KEYS`: `CHECKOUT_FIRST_NAME`, `CHECKOUT_LAST_NAME`, `CHECKOUT_ADDRESS_LINE1`, `CHECKOUT_ADDRESS_LINE2`, `CHECKOUT_CITY`, `CHECKOUT_STATE`, `CHECKOUT_ZIP`, `CHECKOUT_COUNTRY`, `CHECKOUT_PHONE` (9 keys; no card numbers; CVV already threaded) | Secure profile storage |
-| `models.py` | Add columns to `items` table: `order_id TEXT`, `confirmed_at TEXT`, `checkout_attempts INTEGER DEFAULT 0`; add new write-queue tag `confirmed` | Verified purchase tracking, retry idempotency |
-| `plugins/shopbot_plugin_amazon.py` | Remove inline `test_mode` check; delegate to `place_order_guarded()` from ABC; add confirmation detection call after place-order | Centralize safety gate; verified purchase |
-| `plugins/shopbot_plugin_bestbuy.py` | Same: delegate to `place_order_guarded()`; add confirmation detection | Same |
-| 5 remaining plugins | Same: delegate to `place_order_guarded()` | Close the 6-of-7 safety hole |
-
----
-
-## Feature-to-Component Placement
-
-### Acquisition Core
-
-**Checkout profile / form-fill**
-
-- Where: `core/checkout_profile.py` (new) + `core/credentials.py` (modified SECRET_KEYS)
-- `CheckoutProfile` is a frozen dataclass with typed fields: `first_name`, `last_name`, `address_line1`, `address_line2`, `city`, `state`, `zip_code`, `country`, `phone`. No card data.
-- Loaded via `CheckoutProfile.from_store(get_store())` at plugin setup time. Values come exclusively from the CredentialStore; never from config.yml or models.
-- Plugins that implement form-fill call `self._profile.fill_shipping_form(tab)` — a method on `CheckoutProfile` that takes a nodriver tab and performs the DOM writes. This keeps the selector logic in the profile helper, not scattered across 7 plugin files.
-
-**Order confirmation capture**
-
-- Where: `core/confirmation.py` (new)
-- `detect_order_confirmation(tab, platform: str) -> str | None` tries a platform-keyed selector map (e.g. Amazon: `#confirmedOrderId`, BestBuy: `.order-confirmation-number`) and returns an order ID string or None.
-- Called inside each plugin's `auto_buy()` AFTER the place-order click. The orchestrator only enqueues the `("confirmed", link, order_id, ts)` write-queue tuple when this returns a non-None value.
-- This is the gate: `purchased=1` is set only on confirmed orders. Returning True from `auto_buy()` without a confirmed order_id logs a warning but does NOT mark purchased.
-- Must come before retry logic in the build order to avoid double-buy on retry.
-
-**Idempotent retry-on-cart**
-
-- Where: `core/retry.py` (new) + orchestrator `_try_auto_buy` (modified)
-- `RetryPolicy(max_attempts: int, backoff_base: float, jitter: float)` dataclass.
-- `with_retry(coro, policy)` async helper: catches the specific "not in cart" / "cart expired" exception class (raised by the plugin), backs off, and re-calls. Does NOT retry on a confirmed order_id (idempotency: checks `items.order_id IS NOT NULL` via the write-queue drain before any retry).
-- Max cart attempts is configurable via `CheckoutConfig.max_cart_retries` in config.yml (default: 3).
-
-**Per-step / per-item checkout time budget**
-
-- Where: `core/config_schema.py` (new `CheckoutConfig` model) + orchestrator `_check_and_buy` (modified)
-- `CheckoutConfig.item_timeout_secs: int = 120` wraps the entire `_check_and_buy` call with `asyncio.timeout(item_timeout_secs)`.
-- `CheckoutConfig.step_timeout_secs: int = 15` is passed to each `tab.select(selector, timeout=step_timeout_secs)` call inside plugins. Plugins currently hardcode `timeout=10`; step_timeout is the config-driven replacement.
-- Both settings live in `AppConfig.checkout` (new sub-model, alongside the existing `debug`, `proxy`, `captcha` sub-models).
-
-**Central monitor-only safety gate**
-
-- Where: `core/plugin_base.py` (modified ABC) + `core/config_schema.py` (modified `DebugConfig`)
-- Problem: `debug.test_mode` is only read by `AmazonPlugin.auto_buy()`. The other 6 plugins call their place-order selector click unconditionally.
-- Solution: add `DebugConfig.monitor_only: bool = True` (default True for safety). Add `RetailerPlugin.place_order_guarded(tab, selector: str) -> bool` as a concrete method on the ABC. This method:
-  1. Checks `self.config.debug.monitor_only` (not `test_mode`; the two are separate: `test_mode` is Amazon-legacy, `monitor_only` is the universal v4.0 gate).
-  2. If `monitor_only=True`: logs "MONITOR-ONLY: skipping place-order click" and returns False.
-  3. If `monitor_only=False`: performs the click and returns True.
-- All 7 plugins replace their direct `await place_order.click()` call with `await self.place_order_guarded(tab, selector)`.
-- `test_mode` in AmazonPlugin is deprecated in the same pass: Amazon reads `monitor_only` going forward; `test_mode` stays in config for backward compat but Amazon stops reading it for the purchase gate.
-- `BotService.start(monitor_only: bool = True)` passes the value into `AppConfig` before calling `async_main`, so the CLI/web UI can override it without editing config.yml.
-
----
-
-### Always-On Reliability
-
-**Per-coroutine supervision + backoff restart**
-
-- Where: `core/supervisor.py` (new) + `core/orchestrator.py` (modified)
-- `supervise(coro_factory, name, policy: RetryPolicy)` is an async wrapper that:
-  1. Runs `coro_factory()` inside `asyncio.shield` to prevent TaskGroup cancellation on a single plugin crash.
-  2. On exception: logs the error with class name and plugin name, waits `policy.backoff_base * 2^attempt + jitter` seconds, then calls `coro_factory()` again up to `policy.max_attempts` times.
-  3. After exhausting retries: marks the plugin as DEAD in `HealthRegistry`, logs ERROR, and returns without raising (the TaskGroup continues running other plugins).
-- The orchestrator replaces `tg.create_task(run_plugin(...))` with `tg.create_task(supervise(lambda: run_plugin(...), name, policy))`.
-- This is the key constraint: `asyncio.TaskGroup` propagates the FIRST unhandled exception to all sibling tasks, tearing down the whole group. The supervisor absorbs exceptions before they reach the TaskGroup boundary.
-
-**Browser-crash detection + relaunch**
-
-- Where: `core/supervisor.py` (new) + `core/plugin_base.py` (modified)
-- Browser crash manifests as `nodriver` raising on `tab.evaluate()` or `driver.get()` with a connection error. The supervisor catches this class of exception specifically.
-- On crash detection: the supervisor calls `plugin.relaunch()` — a new concrete method on the ABC that:
-  1. Calls `plugin.teardown()` (best-effort; ignores errors).
-  2. Re-runs `registry.assign_proxy(plugin)` and `registry.assign_solver(plugin)` to refresh the proxy assignment.
-  3. Calls `plugin.setup()` (re-creates the Browser, re-applies stealth, re-registers proxy auth).
-  4. Calls `plugin.login()` to re-authenticate.
-  5. Calls `session_store.restore(plugin)` if a session file exists (restore cookies before login to minimize re-auth friction).
-- The relaunch sequence order is: teardown → assign_proxy → setup (creates browser, applies stealth) → setup_proxy_auth → restore_session → login.
-- `plugin.relaunch()` is a concrete ABC method. Plugins override only if their relaunch needs custom steps (e.g. Amazon passkey re-dismissal).
-
-**Encrypted session/cookie persistence**
-
-- Where: `core/session_store.py` (new)
-- Pattern mirrors `EncryptedFileBackend` in `credentials.py`: Fernet + scrypt KDF, atomic write via `tempfile.mkstemp + os.replace`.
-- `SessionStore.save(plugin_name: str, cookies: list[dict]) -> None` serializes cookie dicts to JSON, encrypts, writes to `data/sessions/{plugin_name}.bin`.
-- `SessionStore.restore(tab, plugin_name: str) -> bool` decrypts and injects cookies via `tab.send(cdp.network.set_cookies(...))`. Returns True if file existed, False otherwise.
-- Called in the plugin's `setup()` after stealth injection (before first navigation). Also called after relaunch.
-- The passphrase is the same `SHOPBOT_STORE_PASSPHRASE` env var already used by `EncryptedFileBackend` — no new secret.
-- Sessions are **never** written to DB or logged. The `data/sessions/` directory is gitignored.
-- Must come before relaunch in the build order: relaunch calls `restore_session`.
-
-**DB read-path error isolation**
-
-- Where: `core/orchestrator.py` (modified `_check_and_buy` and `run_plugin`)
-- Currently `get_items_sync` is called via `run_in_executor` inside `run_plugin`. If it raises (corrupted DB, locked file), the exception bubbles to the TaskGroup and kills the whole run.
-- Fix: wrap the `run_in_executor(None, get_items_sync)` call in try/except inside `run_plugin`. On failure: log ERROR with the exception class, skip this poll cycle, continue the `while True` loop. Do not re-raise.
-- Same isolation applied to all other `run_in_executor` DB reads in `_check_and_buy` (`get_item_notification_state_sync`, `get_last_price_sync`, `get_item_price_config_sync`).
-- Write-queue drain already has this isolation (the `except Exception` in `_write_queue_drain`). The read path does not.
-
-**Per-item asyncio timeout**
-
-- Where: `core/orchestrator.py` (modified `_check_and_buy`) + `core/config_schema.py` (modified `CheckoutConfig`)
-- Wrap the `await _check_and_buy(...)` call inside `run_plugin` with `async with asyncio.timeout(cfg.checkout.item_timeout_secs)`. On `TimeoutError`: log WARNING with item name and elapsed seconds, continue loop.
-- The existing `asyncio.wait_for(event.wait(), timeout=300)` in `_wait_user_action` is a different guard (manual intervention wait). Both coexist; the outer item timeout is the hard ceiling.
-
-**Structured health/heartbeat surface**
-
-- Where: `core/health.py` (new) + `core/service.py` (modified `get_status`) + `core/orchestrator.py` (modified)
-- `HealthRegistry` is a thread-safe dict wrapper: `{plugin_name: HealthEntry}`.
-- `HealthEntry` fields: `status: Literal["starting", "running", "crashed", "dead", "relaunching"]`, `last_heartbeat: float` (monotonic), `consecutive_errors: int`, `last_error: str | None`, `items_checked: int`, `orders_confirmed: int`.
-- Orchestrator updates `HealthRegistry` at: poll cycle start (heartbeat timestamp), after each successful `check_availability` call (items_checked++), after confirmed order (orders_confirmed++), on exception in supervisor (consecutive_errors++, status="crashed"), after relaunch (status="relaunching"), after relaunch success (status="running").
-- `BotService.get_status()` returns: `{"running": bool, "plugins": {name: entry_dict}, "uptime_secs": float}`.
-- Notifications dispatcher already fans out events for `detected` and `purchased` actions. Add `health_degraded` event type for when `consecutive_errors` exceeds a threshold (configurable via `CheckoutConfig.alert_on_errors: int = 5`).
-- The health dict is queried by the FastAPI web UI (`GET /status`) and the existing notification dispatcher without new IPC — `BotService.get_status()` is thread-safe because `HealthRegistry` uses a `threading.Lock`.
-
----
-
-## Data Flow: v4.0 Acquisition Path
-
-```
-run_plugin (per plugin coroutine, supervised)
+Browser
+  |  EventSource /api/events     (SSE multiplex, replaces 2s poll)
+  |  GET /api/history            (confirmed buys read-only)
+  |  GET /api/price-history/{b}  (per-item price series read-only)
+  |  GET /api/logs?level=...     (enhanced log reader)
+  |  (existing fetch CRUD unchanged)
+  v
+FastAPI / Uvicorn (uvicorn event loop -- single thread)
   |
-  +-- asyncio.timeout(item_timeout_secs)
-  |     |
-  |     +-- _check_and_buy(plugin, name, link, auto_buy, write_queue)
-  |           |
-  |           +-- plugin.check_availability(link) -> bool
-  |           |     [on crash: supervisor catches, relaunch, retry]
-  |           |
-  |           +-- [available=True, auto_buy=True]
-  |                 |
-  |                 +-- _try_auto_buy_with_retry(plugin, name, link, write_queue, policy)
-  |                       |
-  |                       +-- [attempt loop, max_cart_retries]
-  |                       |     |
-  |                       |     +-- checkout_profile.fill_shipping_form(tab)
-  |                       |     +-- plugin.place_order_guarded(tab, selector)
-  |                       |     |     [if monitor_only=True: log, return False, no retry]
-  |                       |     +-- confirmation.detect_order_confirmation(tab, platform)
-  |                       |     |     [returns order_id or None]
-  |                       |     +-- [order_id is not None]:
-  |                       |           write_queue.put(("confirmed", link, order_id, ts))
-  |                       |           -> models: purchased=1, order_id, confirmed_at
-  |                       |           dispatcher.notify("purchased")
-  |                       |     +-- [order_id is None, attempt < max_cart_retries]:
-  |                       |           backoff sleep, retry from cart step
-  |                       |
-  |                       +-- [all attempts exhausted]: log WARNING, return False
+  |-- web/__init__.py  create_app()        [MODIFIED: add sse_router, lifespan, SseHub on app.state]
+  |-- web/routes/api.py                    [MODIFIED: add /history, /price-history]
+  |-- web/routes/sse.py                    [NEW: /api/events StreamingResponse]
+  |-- web/sse_hub.py                       [NEW: SseHub class + _poll_loop background task]
+  |-- web/log_reader.py                    [MODIFIED: add filter + tail-with-cursor]
+  |-- web/static/tokens.css               [NEW: design tokens, light/dark vars]
+  |-- web/static/components.css           [NEW: component library consuming tokens]
+  |-- web/static/dashboard.css            [MODIFIED: layout only, @imports tokens+components]
+  |-- web/static/sparkline.js             [NEW: vendored zero-dep MIT sparkline ~1KB]
+  |-- web/templates/dashboard.html        [MODIFIED: health cards, run-history, price charts,
+  |                                         log filter UI; EventSource client; theme-init script]
   |
-  +-- [TimeoutError]: log WARNING, continue loop
-
-write_queue (asyncio.Queue, drained by _write_queue_drain)
-  +-- ("purchased", link)                  -- legacy, still valid
-  +-- ("confirmed", link, order_id, ts)    -- new v4.0 tag
-  +-- ("set_available", link, ts)          -- existing
-  +-- ("clear_available", link)            -- existing
-```
-
----
-
-## Data Flow: v4.0 Reliability Path
-
-```
-async_main
+  |  asyncio.Queue per SSE client (owned by uvicorn event loop)
+  |  _poll_loop calls asyncio.to_thread(svc.get_status) -- NO cross-loop touching
+  v
+BotService (daemon thread, owns its own asyncio event loop)
   |
-  +-- _staggered_setup (unchanged; adds session restore per plugin after setup)
-  |     +-- plugin.setup()
-  |     +-- session_store.restore(tab, plugin_name)   [new step]
-  |     +-- plugin.login()
-  |
-  +-- asyncio.TaskGroup
-       |
-       +-- _write_queue_drain (unchanged)
-       |
-       +-- supervise(lambda: run_plugin(plugin, ...), name, policy)  [wraps each plugin]
-             |
-             +-- run_plugin [while True loop]
-             |     +-- DB read isolation (try/except around all run_in_executor reads)
-             |     +-- heartbeat update at top of each cycle
-             |
-             +-- [exception in run_plugin]:
-                   supervisor catches
-                   |
-                   +-- [connection/crash exception]: plugin.relaunch()
-                   |     +-- plugin.teardown()
-                   |     +-- registry.assign_proxy(plugin)
-                   |     +-- plugin.setup()  [new browser, stealth, proxy auth]
-                   |     +-- session_store.restore(tab, plugin_name)
-                   |     +-- plugin.login()
-                   |     +-- health.update(plugin_name, status="relaunching")
-                   |
-                   +-- [other exception]: backoff, retry run_plugin
-                   |
-                   +-- [retries exhausted]: health.update(status="dead"), return
+  |-- get_status() [in-memory read, non-blocking, safe to call from any thread]
+  |-- _health_registry.get_snapshot() [deep copy, private keys stripped, thread-safe]
+  v
+SQLite (WAL mode, existing models.py)
+  |-- items table  (read: name, order_id, confirmed_at, checkout_attempts)
+  |-- price_history table  (read: price_cents, currency, scraped_at)
 ```
 
----
+### Component Responsibilities
 
-## Schema Changes (models.py)
+| Component | Status | Responsibility |
+|-----------|--------|----------------|
+| `web/routes/sse.py` | NEW | Single `/api/events` endpoint; per-client asyncio.Queue; SSE text/event-stream generator |
+| `web/sse_hub.py` | NEW | SseHub (set of active queues, broadcast method); `_poll_loop` async background task that drives all events |
+| `web/static/tokens.css` | NEW | CSS custom properties for color, spacing, radius, shadow, type scale; light/dark via `prefers-color-scheme` + `[data-theme]` override |
+| `web/static/components.css` | NEW | Button, card, badge, status-dot, table, form, log-panel rules that only reference token vars |
+| `web/static/dashboard.css` | MODIFIED | Layout-only (container, grid, section order); opens with `@import` of tokens and components |
+| `web/static/sparkline.js` | NEW | Vendored `fnando/sparkline` MIT, ~1KB minified; no CDN, no npm |
+| `web/templates/dashboard.html` | MODIFIED | New sections: health cards, run history, price charts, log viewer with filter; EventSource replaces setInterval; inline theme-init in head |
+| `web/routes/api.py` | MODIFIED | Add `/api/history` and `/api/price-history/{link_b64}` read-only routes |
+| `web/log_reader.py` | MODIFIED | Add `read_logs_filtered(n, level, plugin, search)` and `tail_log_lines(after_line) -> (list, int)` |
+| `web/__init__.py` | MODIFIED | Include `sse_router`; attach `SseHub` to `app.state.sse_hub`; register lifespan for `_poll_loop` |
+| `BotService` / `HealthRegistry` | UNCHANGED | `get_status()` and `get_snapshot()` remain the sole read surface; no new writes or APIs |
+| `models.py` | UNCHANGED | No schema changes; new queries use existing `get_db_connection()` context manager |
 
-```sql
--- Idempotent ALTER TABLE additions (same pattern as v3.0 price columns)
-ALTER TABLE items ADD COLUMN order_id TEXT;
-ALTER TABLE items ADD COLUMN confirmed_at TEXT;
-ALTER TABLE items ADD COLUMN checkout_attempts INTEGER NOT NULL DEFAULT 0;
+## Project Structure Changes
+
 ```
-
-New write-queue tags handled by `_dispatch_write`:
-
-| Tag | Tuple shape | Model operation |
-|-----|------------|-----------------|
-| `confirmed` | `("confirmed", link, order_id, ts)` | `UPDATE items SET purchased=1, order_id=?, confirmed_at=? WHERE link=?`; increments `checkout_attempts` |
-| existing `purchased` | `("purchased", link)` | unchanged; still valid for legacy test paths |
-
-The `purchased` write-queue path is NOT removed. It stays as the write path when `auto_buy()` succeeds but confirmation detection fails (e.g. confirmation page loads too slowly). In that case a WARNING is logged: "purchase click succeeded but confirmation not detected — marking purchased without order_id".
-
----
-
-## Config Schema Changes (config_schema.py)
-
-```python
-class CheckoutConfig(BaseModel):
-    item_timeout_secs: int = 120       # outer asyncio.timeout per item
-    step_timeout_secs: int = 15        # tab.select timeout per DOM step
-    max_cart_retries: int = 3          # retry-on-cart attempts
-    backoff_base: float = 2.0          # seconds; doubles per attempt
-    backoff_jitter: float = 1.0        # random uniform [0, jitter] added
-    alert_on_errors: int = 5           # consecutive errors before health alert
-
-class DebugConfig(BaseModel):
-    logging_level: int = 5
-    test_mode: bool = True             # Amazon legacy; kept for compat
-    monitor_only: bool = True          # v4.0 universal safety gate (default safe)
-
-# AppConfig gains:
-checkout: CheckoutConfig = CheckoutConfig()
+web/
+  __init__.py               (MODIFIED: lifespan, sse_router, SseHub on app.state)
+  sse_hub.py                (NEW)
+  log_reader.py             (MODIFIED)
+  routes/
+    api.py                  (MODIFIED: /history, /price-history)
+    sse.py                  (NEW)
+    credentials.py          (unchanged)
+    config.py               (unchanged)
+    pages.py                (unchanged)
+  static/
+    tokens.css              (NEW)
+    components.css          (NEW)
+    dashboard.css           (MODIFIED: layout only, @imports)
+    sparkline.js            (NEW: vendored)
+  templates/
+    dashboard.html          (MODIFIED)
 ```
-
-New `SECRET_KEYS` additions (9 keys; no card numbers; PCI constraint preserved):
-
-```python
-"CHECKOUT_FIRST_NAME", "CHECKOUT_LAST_NAME",
-"CHECKOUT_ADDRESS_LINE1", "CHECKOUT_ADDRESS_LINE2",
-"CHECKOUT_CITY", "CHECKOUT_STATE", "CHECKOUT_ZIP",
-"CHECKOUT_COUNTRY", "CHECKOUT_PHONE",
-```
-
----
 
 ## Architectural Patterns
 
-### Pattern 1: ABC Concrete Method as Cross-Cutting Gate
+### Pattern 1: CSS Token/Component Split (3-File Design System)
 
-`RetailerPlugin.place_order_guarded()` is a concrete method on the ABC that all 7 plugins call instead of a direct `.click()`. This is the only design that closes the 6-of-7 safety hole without editing each plugin independently. The alternative (per-plugin `if self.config.debug.monitor_only: return False`) would require 7 edit points and would break again on every new community plugin.
+**What:** Split the single `dashboard.css` (182 lines) into three layers. `tokens.css` owns all custom property declarations scoped to `:root`. `components.css` owns component rules that ONLY reference those custom properties (never hardcoded hex values). `dashboard.css` is reduced to layout (container width, section ordering) and opens with `@import url("tokens.css"); @import url("components.css");`.
+
+**When to use:** This project. Keeps concerns separated without any build step; all three are vendored static assets served by the existing `StaticFiles` mount. No Node, no CDN, no build pipeline.
+
+**Trade-offs:** Three HTTP requests instead of one on first load (negligible for a localhost-only app). Each file stays under 200 lines. The existing `dashboard.css` content is partitioned, not discarded; no behavior changes in this step.
+
+**Light/dark without FOUC, no external fonts:**
+
+Use two-layer detection. The `:root` block in `tokens.css` defines light-mode token values. A `@media (prefers-color-scheme: dark)` block on `:root` overrides them to dark values. An `html[data-theme="dark"]` selector allows a JS toggle to override the media query (persisted to `localStorage`). The `:root` inside a `@media` query has lower specificity than `html[data-theme]`, so the explicit toggle always wins.
+
+To prevent FOUC, put a synchronous inline `<script>` in `<head>` BEFORE the `<link>` tags:
+
+```html
+<head>
+  <script>
+    var t = localStorage.getItem("theme");
+    if (t) document.documentElement.dataset.theme = t;
+  </script>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/components.css">
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+```
+
+This script runs synchronously during HTML parse, before the browser issues any style-sheet requests. The `data-theme` attribute is present when the first style sheet is applied, so the correct token values are used from the first paint. No flash.
+
+No external fonts. The existing system font stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`) stays in `tokens.css` as a `--font-family-base` token. Never `@import url(https://fonts.googleapis.com/...)` -- violates the zero-CDN constraint and breaks offline use.
+
+### Pattern 2: SSE Endpoint with Per-Client asyncio.Queue Bridge
+
+**What:** This is the highest-risk component. BotService runs on a daemon thread with its OWN asyncio event loop (`self._loop`). Uvicorn runs FastAPI on a SEPARATE asyncio event loop. These loops are independent; asyncio primitives are not shared between them.
+
+**The correct bridge: uvicorn-side poll task only.**
+
+A background async task running inside uvicorn's event loop polls `BotService.get_status()` using `asyncio.to_thread()`. The result is distributed to all active per-client `asyncio.Queue` objects via `queue.put_nowait()`. All queues, all SSE generators, and the poll task live exclusively in uvicorn's event loop. The bot daemon thread is NEVER aware of the SSE hub.
+
+Key safety properties:
+- `asyncio.Queue` is NOT thread-safe (Python docs confirmed). Never call `put_nowait` from the bot's daemon thread.
+- `asyncio.to_thread()` offloads the sync `svc.get_status()` call to a thread-pool worker, returning the uvicorn event loop immediately. Available in Python 3.9+; confirmed available since the project requires Python 3.11+.
+- `BotService.get_status()` is documented as "cheap and non-blocking: all reads are in-memory only." `HealthRegistry.get_snapshot()` returns a deep copy with private keys stripped. No lock needed from the caller.
+- `self._loop` on BotService is `None` when the bot is not running. The uvicorn-side poll handles the `running=False` case naturally (get_status() is safe before `start()` per REL-07).
+
+**SseHub module (`web/sse_hub.py`):**
 
 ```python
-# core/plugin_base.py (addition to RetailerPlugin)
-async def place_order_guarded(self, tab, selector: str) -> bool:
-    """Click the place-order button unless monitor_only is active.
+import asyncio
 
-    All 7 plugins replace their direct await place_order.click() with this.
-    Returns True if click was performed, False if suppressed.
-    """
-    monitor_only = getattr(getattr(self.config, "debug", None), "monitor_only", True)
-    if monitor_only:
-        writeLog(
-            f"[{self.__class__.__name__}] MONITOR-ONLY: skipping place-order click",
-            "INFO",
-        )
-        return False
-    element = await tab.select(selector, timeout=15)
-    if not element:
-        return False
-    await element.click()
-    return True
+class SseHub:
+    def __init__(self):
+        self._queues: set[asyncio.Queue] = set()
+
+    def subscribe(self, q: asyncio.Queue):
+        self._queues.add(q)
+
+    def unsubscribe(self, q: asyncio.Queue):
+        self._queues.discard(q)
+
+    def broadcast(self, payload: dict):
+        dead = set()
+        for q in self._queues:
+            try:
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
+                dead.add(q)
+        self._queues -= dead
 ```
 
-### Pattern 2: Supervisor-Wrapped Coroutine Factory
-
-The orchestrator passes a factory (not the coroutine itself) to the supervisor so the supervisor can create a fresh coroutine on each restart attempt. Passing the coroutine directly would fail on the second attempt because a consumed coroutine cannot be re-awaited.
+**Background poll task (runs in uvicorn event loop via lifespan):**
 
 ```python
-# core/orchestrator.py (modified tg.create_task call)
-tg.create_task(
-    supervise(
-        coro_factory=lambda: run_plugin(plugin, write_queue, poll_interval, dispatcher),
-        name=f"poll-{plugin.__class__.__name__}",
-        policy=RetryPolicy(max_attempts=5, backoff_base=2.0, jitter=1.0),
-        health=health_registry,
-    ),
-    name=f"supervised-{plugin.__class__.__name__}",
-)
+async def _poll_loop(svc, hub: SseHub, interval: float = 1.0):
+    log_cursor = 0
+    while True:
+        await asyncio.sleep(interval)
+        status = await asyncio.to_thread(svc.get_status)
+        hub.broadcast({"type": "status", "data": status})
+        new_lines, log_cursor = await asyncio.to_thread(tail_log_lines, log_cursor)
+        if new_lines:
+            hub.broadcast({"type": "log", "data": new_lines})
 ```
 
-### Pattern 3: Confirmation-Before-Purchased Write
+**SSE endpoint (`web/routes/sse.py`):**
 
-The orchestrator must NOT enqueue `("purchased", link)` until `detect_order_confirmation()` returns. The existing `_try_auto_buy` returns True immediately after `place_order.click()` without waiting for confirmation. The v4.0 path changes this:
+```python
+@router.get("/events")
+async def sse_events(request: Request):
+    hub = request.app.state.sse_hub
+    queue: asyncio.Queue = asyncio.Queue(maxsize=50)
+    hub.subscribe(queue)
+    async def generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {json.dumps(payload)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            hub.unsubscribe(queue)
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+```
+
+**FastAPI version note:** FastAPI 0.115.8 (the pinned version in `pyproject.toml`) does NOT include `fastapi.sse` or `EventSourceResponse`. That was added in FastAPI 0.135.0. Use `StreamingResponse` directly as shown above. No new dependency needed. Do NOT add `sse-starlette` unless there is a specific reason; raw `StreamingResponse` with `text/event-stream` is the correct zero-dep approach here.
+
+**Client-side (browser):**
+
+Replace `setInterval(pollStatus, 2000)` and `setInterval(pollLogs, 2000)` with a single `EventSource`:
+
+```js
+const es = new EventSource('/api/events');
+es.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'status') updateStatusUI(msg.data);
+  if (msg.type === 'log') appendLogLines(msg.data);
+};
+es.onerror = () => { /* EventSource reconnects automatically */ };
+
+// Polling fallback only for environments without EventSource (extremely rare)
+if (typeof EventSource === 'undefined') {
+  setInterval(pollStatus, 2000);
+  setInterval(pollLogs, 2000);
+}
+```
+
+`EventSource` reconnects automatically on connection loss. No additional reconnection logic needed.
+
+**Lifespan wiring in `web/__init__.py`:**
+
+```python
+from contextlib import asynccontextmanager
+from web.sse_hub import SseHub, _poll_loop
+
+@asynccontextmanager
+async def lifespan(app):
+    hub = SseHub()
+    app.state.sse_hub = hub
+    task = asyncio.create_task(_poll_loop(app.state.svc, hub))
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+def create_app(svc, is_non_local=False):
+    app = FastAPI(..., lifespan=lifespan)
+    app.state.svc = svc
+    ...
+```
+
+### Pattern 3: Read-Only History API Endpoints
+
+**What:** Two new GET routes in `web/routes/api.py`. No schema changes; all columns exist from v4.0 (BUY-04: `order_id`, `confirmed_at`, `checkout_attempts` in `items`; v3.0: `price_history` table).
+
+**Run/buy history (`GET /api/history`):**
+
+Query (add a helper to `models.py` or inline via `get_db_connection()`):
+
+```sql
+SELECT name, link, order_id, confirmed_at, checkout_attempts
+FROM items
+WHERE purchased = 1 AND order_id IS NOT NULL
+ORDER BY confirmed_at DESC
+LIMIT 50
+```
+
+Response shape:
+```json
+{
+  "confirmed_orders": [
+    {
+      "name": "string",
+      "link": "string",
+      "order_id": "string",
+      "confirmed_at": "ISO8601",
+      "checkout_attempts": 1
+    }
+  ]
+}
+```
+
+Wrap the sync DB call in `asyncio.to_thread()` to avoid blocking uvicorn's event loop.
+
+**Price-history series (`GET /api/price-history/{link_b64}`):**
+
+Decode `link_b64` using the same urlsafe-base64 scheme as the existing `/api/items/{link_b64}` DELETE endpoint. Call `get_price_history_sync(link, limit=100)` (already in `models.py`). Series comes back newest-first; convert `price_cents -> price_dollars` at the API boundary.
+
+Response shape:
+```json
+{
+  "item_link": "string",
+  "series": [
+    {"price_cents": 4999, "price_dollars": 49.99, "currency": "USD", "scraped_at": "ISO8601"}
+  ]
+}
+```
+
+Note: price data is Amazon-only today (PRICE-02, Phase 16). Other plugins will return an empty `series`. Surface gracefully: if `series` is empty, the template renders placeholder text "No price history available for this plugin."
+
+### Pattern 4: Enhanced Log Reader
+
+**What:** Two additive functions in `web/log_reader.py`. Existing `read_recent_logs(n)` is NOT changed; the API endpoint gains optional query params.
+
+**`read_logs_filtered(n, level, plugin, search) -> list[str]`:**
+
+Reads the full log file (same `_log_path()` logic), applies filters AND-combined, returns last `n` matching lines:
+- `level`: string like `"ERROR"` -- match lines containing `[ERROR]` (or whatever the logger format emits)
+- `plugin`: substring match on plugin name (e.g. `"amazon"`)
+- `search`: case-insensitive substring match anywhere in the line
+- All params are optional/nullable; when all are None it degrades to `read_recent_logs(n)`
+
+Wire into `GET /api/logs?level=ERROR&plugin=amazon&search=captcha&n=100` with query params on the existing endpoint.
+
+**`tail_log_lines(after_line: int) -> tuple[list[str], int]`:**
+
+Reads the current log file, returns `(lines[after_line:], total_line_count)`. Called by `_poll_loop` every second. When the log file rolls over at midnight (new filename), `after_line` will exceed the new file's line count; detect this (return value `new_cursor < after_line`) and reset the cursor to 0.
+
+```python
+def tail_log_lines(after_line: int) -> tuple[list[str], int]:
+    path = _log_path()
+    if not path.exists():
+        return [], after_line
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    total = len(lines)
+    if after_line > total:
+        after_line = 0  # log rolled
+    return lines[after_line:], total
+```
+
+### Pattern 5: Vendored Sparkline Chart
+
+**What:** Download `sparkline.min.js` from github.com/fnando/sparkline (MIT license, ~1KB minified, zero dependencies). Vendor it to `web/static/sparkline.js`. Include via `<script src="/static/sparkline.js"></script>` in `dashboard.html`.
+
+**Usage:**
+
+```html
+<svg class="price-sparkline" width="200" height="40" stroke-width="2"></svg>
+```
+
+```js
+// series from /api/price-history, reversed to ascending time order
+const values = series.map(s => s.price_dollars).reverse();
+if (values.length > 0) {
+  sparkline(svgEl, values);
+}
+```
+
+Render one sparkline per item in the items table. Empty series: show placeholder text, do not call `sparkline()`.
+
+**Alternative (server-side SVG, zero JS):** Generate sparkline `<polyline>` in Jinja2 using a custom template filter that normalizes the price series to SVG coordinates. Avoids even the vendored JS file. Downsides: Jinja2 math for coordinate normalization is verbose (min/max/normalize across a series); chart is static (no hover tooltip). Recommend vendored JS as the simpler path given the existing inline-JS pattern in `dashboard.html`.
+
+## Data Flow
+
+### SSE Push Flow
 
 ```
-auto_buy(url) -> bool
-  [does DOM interactions up to and including place_order_guarded]
-  [does NOT call confirmation detection -- that stays in orchestrator]
-  returns True = "place-order click was performed and not suppressed"
-
-_try_auto_buy_with_retry (orchestrator):
-  success = await plugin.auto_buy(link)
-  if not success:
-      return
-  order_id = await confirmation.detect_order_confirmation(tab, plugin_name)
-  if order_id:
-      write_queue.put(("confirmed", link, order_id, ts))
-  else:
-      writeLog("WARNING: place-order succeeded but confirmation not detected", "WARNING")
-      write_queue.put(("purchased", link))   # fallback; no order_id persisted
+BotService daemon thread (owns its own asyncio loop)
+  |
+  | get_status() -> {"running": bool, "uptime_secs": float, "plugins": {...}}
+  | [in-memory read, no blocking, thread-safe read of HealthRegistry deep copy]
+  |
+  v
+uvicorn event loop
+  |
+  | _poll_loop() -- background task on uvicorn's loop
+  | await asyncio.to_thread(svc.get_status)  -- offloads to thread-pool worker
+  |
+  v
+SseHub.broadcast({"type": "status", "data": status_dict})
+  |
+  | iterates set of asyncio.Queue objects (all in uvicorn loop)
+  | queue.put_nowait(payload)
+  |
+  v
+SSE generator for each client
+  | await asyncio.wait_for(queue.get(), timeout=15)
+  | yields "data: {...}\n\n"
+  |
+  v
+Browser EventSource
+  | msg.type === "status" -> updateStatusUI()
+  | msg.type === "log"    -> appendLogLines()
 ```
 
-This preserves backward compatibility: a plugin that cannot return the browser tab (e.g. opens a new window) still falls back to the legacy `purchased` write.
+### Log Tail Flow
 
-### Pattern 4: Reuse EncryptedFileBackend for Session Store
+```
+Log file (logs/YYYYMONTHDD.log) -- sync writes by bot via writeLog()
+  |
+  v
+_poll_loop():
+  await asyncio.to_thread(tail_log_lines, cursor)
+  -> (new_lines, new_cursor)
+  |
+  v
+SseHub.broadcast({"type": "log", "data": new_lines})  [if new_lines]
+  |
+  v
+Browser: appends lines to log <pre>; trims to last 500 lines to cap DOM size
+```
 
-`core/session_store.py` does not re-implement encryption. It instantiates `EncryptedFileBackend` with the same `SHOPBOT_STORE_PASSPHRASE` and a per-plugin path. This avoids a second KDF implementation and reuses the already-tested atomic write logic.
+### Price History Flow
 
----
+```
+Browser -- on page load, per item in items list
+  |
+  | fetch GET /api/price-history/{link_b64}
+  v
+web/routes/api.py
+  | await asyncio.to_thread(get_price_history_sync, link, 100)
+  v
+SQLite price_history table (WAL, existing connection pattern)
+  |
+  v
+JSON {series: [{price_cents, price_dollars, currency, scraped_at}, ...]}
+  |
+  v
+Browser: sparkline(svgEl, series.map(s => s.price_dollars).reverse())
+```
+
+### Theme Init Flow (prevents FOUC)
+
+```
+Browser parses <head>
+  |
+  v
+Inline <script> executes synchronously:
+  localStorage.getItem("theme") -> if set, document.documentElement.dataset.theme = value
+  |
+  v
+Browser issues requests for tokens.css, components.css, dashboard.css
+  tokens.css: html[data-theme="dark"] block already matches if dark was stored
+  |
+  v
+First paint uses correct token values -- no flash of wrong theme
+```
+
+## Scaling Considerations
+
+This is a single-user localhost dashboard; scaling is not a design concern. The SseHub `set` holds queues for open browser tabs (typically 1-2). The 1s poll interval is appropriate for operational monitoring. All poll reads (`get_status`, `tail_log_lines`) complete in microseconds to low milliseconds.
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Per-Plugin monitor_only Check
+### Anti-Pattern 1: Pushing from BotService's Thread Directly to asyncio.Queue
 
-**What people do:** Copy the Amazon `test_mode` pattern into each of the 6 other plugins, adding `if self.config.debug.monitor_only: return False` at the top of each `auto_buy()`.
+**What people do:** Call `queue.put_nowait(payload)` from the bot daemon thread, or use `loop.call_soon_threadsafe(queue.put_nowait, payload)` targeting uvicorn's loop from the bot thread.
 
-**Why it's wrong:** Every new community plugin written without this check bypasses the gate. The ABC concrete-method approach makes the safe path the default path.
+**Why it's wrong:** `asyncio.Queue` is NOT thread-safe (Python stdlib docs). Direct cross-thread `put_nowait` is a race condition. `call_soon_threadsafe` would work but requires the bot thread to hold a reference to uvicorn's event loop AND the specific client queues -- tight coupling with no benefit, and breaks when the bot is stopped (`self._loop` is `None`).
 
-**Do this instead:** `place_order_guarded()` on the ABC. Plugins that never reach a place-order step (monitor-only retailers) don't need to call it.
+**Do this instead:** Uvicorn's background `_poll_loop` task reads state via `asyncio.to_thread(svc.get_status)` and distributes to all queues. The bot thread is never aware of SSE infrastructure.
 
-### Anti-Pattern 2: Direct DB Writes from Plugin Code
+### Anti-Pattern 2: Monolithic Token+Component+Layout in One CSS File
 
-**What people do:** Call `update_item_purchased_sync(link)` directly inside `auto_buy()` after confirmation is detected.
+**What people do:** Add `:root { --color-bg: ... }` at the top of `dashboard.css` and keep everything in one file.
 
-**Why it's wrong:** Breaks the write-queue serialization guarantee (ASYNC-05). Two plugins buying the same item (if items overlap) could interleave writes. The write-queue is a single-consumer asyncio.Queue; that guarantee is voided by any out-of-band write.
+**Why it's wrong:** File grows past 300 lines; tokens and component rules are entangled; future theme changes require reading the whole file to find the tokens. The split costs nothing (no build step) and isolates each concern.
 
-**Do this instead:** Return True from `auto_buy()` and let the orchestrator enqueue `("confirmed", ...)`. The confirmation detection also runs in the orchestrator, not in the plugin.
+**Do this instead:** Three-file split. `tokens.css` only has `:root { --xxx: ... }` blocks. `components.css` only references `var(--xxx)`. `dashboard.css` only has layout and `@import` statements.
 
-### Anti-Pattern 3: Tearing Down the TaskGroup on Crash
+### Anti-Pattern 3: Blocking uvicorn's Event Loop in the SSE Generator or Poll Task
 
-**What people do:** Let an exception from a crashed plugin bubble through `run_plugin` up to the TaskGroup. `asyncio.TaskGroup` cancels all sibling tasks on the first unhandled exception.
+**What people do:** Call `svc.get_status()` or `path.read_text()` directly inside the async `_poll_loop` or SSE generator without `asyncio.to_thread()`.
 
-**Why it's wrong:** One BestBuy browser crash at 3am kills Amazon, Walmart, and all other plugins. The `except*` handler in `async_main` only catches `KeyboardInterrupt`, not plugin crashes.
+**Why it's wrong:** Even microsecond-level sync calls accumulated across many poll cycles contribute to event loop latency. File reads under OS file cache miss can take milliseconds. This stalls all concurrent requests and SSE streams.
 
-**Do this instead:** The supervisor absorbs exceptions before the TaskGroup boundary. Each plugin's crash is isolated to that plugin's supervised coroutine.
+**Do this instead:** `await asyncio.to_thread(svc.get_status)` and `await asyncio.to_thread(tail_log_lines, cursor)` for every sync call in async context.
 
-### Anti-Pattern 4: Re-Creating the TaskGroup After a Crash
+### Anti-Pattern 4: Multiple SSE Endpoints (One Per Data Type)
 
-**What people do:** Catch the TaskGroup exception, tear everything down, and restart `async_main` from scratch.
+**What people do:** Create `/api/events/status`, `/api/events/logs`, `/api/events/health` as separate EventSource connections.
 
-**Why it's wrong:** A full restart re-runs `_staggered_setup` (re-launches all browsers with 1.5s stagger), taking 10+ seconds during a drop. The supervisor's per-coroutine restart leaves all other plugins running while only the crashed one relaunches.
+**Why it's wrong:** Browsers limit concurrent connections per origin (6 for HTTP/1.1, 100 for HTTP/2). Multiple SSE connections from a single page consume connection budget and complicate reconnect logic.
 
-**Do this instead:** The supervisor restarts only the failed plugin's coroutine. The TaskGroup and all other coroutines remain unaffected.
+**Do this instead:** Single `/api/events` endpoint with a `type` discriminator in the JSON payload. Browser handler dispatches on `msg.type`. Use named SSE events (`event: status\ndata: ...\n\n`) if per-type filtering at the EventSource API level is desired.
 
----
+### Anti-Pattern 5: Using `fastapi.sse.EventSourceResponse` at FastAPI 0.115
+
+**What people do:** `from fastapi.sse import EventSourceResponse` based on current FastAPI docs.
+
+**Why it's wrong:** `fastapi.sse` module does not exist in FastAPI 0.115.8 (verified against package `__init__.py`). It was introduced in FastAPI 0.135.0. This import raises `ImportError` at startup.
+
+**Do this instead:** `StreamingResponse(generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})`. No extra dependency needed.
+
+### Anti-Pattern 6: Inline FOUC-Prevention Script After the CSS Link Tags
+
+**What people do:** Put the theme-init `<script>` at the bottom of `<head>` or in `<body>` after the CSS links.
+
+**Why it's wrong:** CSS link tags are render-blocking but the browser begins applying styles as soon as the CSS downloads. If the script runs after style application begins, `data-theme` attribute may not be set in time to suppress the flash.
+
+**Do this instead:** Inline `<script>` as the FIRST child of `<head>`, before any `<link>` or `<meta>` tags other than `<meta charset>`. The script is inline (not `src=`, not `type="module"`, not `defer`), so it executes synchronously during HTML parse before the browser requests any CSS.
+
+## Integration Points
+
+### New vs Modified Components
+
+| Component | Status | What Changes |
+|-----------|--------|--------------|
+| `web/routes/sse.py` | NEW | `/api/events` StreamingResponse endpoint |
+| `web/sse_hub.py` | NEW | SseHub class; `_poll_loop` background coroutine |
+| `web/static/tokens.css` | NEW | All CSS custom property declarations, light+dark |
+| `web/static/components.css` | NEW | All component rules consuming token vars |
+| `web/static/sparkline.js` | NEW | Vendored MIT sparkline (~1KB, fnando/sparkline) |
+| `web/templates/dashboard.html` | MODIFIED | Health cards section; run-history table; price charts section; log viewer filter UI; EventSource client; inline theme-init script in head |
+| `web/routes/api.py` | MODIFIED | Add `/api/history` and `/api/price-history/{link_b64}` |
+| `web/log_reader.py` | MODIFIED | Add `read_logs_filtered()` and `tail_log_lines()` |
+| `web/__init__.py` | MODIFIED | Lifespan context; SseHub on app.state; include sse_router |
+| `pyproject.toml` | UNCHANGED | No new deps; raw StreamingResponse needs nothing beyond existing FastAPI+uvicorn |
+| `models.py` | UNCHANGED | No schema changes; existing functions cover all queries |
+| `BotService` / `HealthRegistry` | UNCHANGED | Read-only surface is already sufficient |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| Bot daemon thread to uvicorn SSE | uvicorn-side `asyncio.to_thread(svc.get_status)` poll; bot thread never touches queues | The central architectural risk; resolved by making uvicorn the sole owner of all SSE state |
+| SseHub to SSE generator | `asyncio.Queue` per client; `put_nowait` from poll task; `await queue.get()` in generator | Entirely within uvicorn event loop; no thread crossing |
+| api.py history routes to SQLite | `get_db_connection()` via `asyncio.to_thread()` | WAL mode handles concurrent reads; existing connection pattern |
+| log_reader tail to log file | sync file read via `asyncio.to_thread()` in poll loop | File written by bot's `writeLog()`; safe to read concurrently (no file lock contention under WAL analogy) |
+| Browser to `/api/events` | `EventSource` with JSON multiplex on `type` field | Replaces `setInterval` poll; auto-reconnects on disconnect |
+| Browser to `/api/price-history` | One-time `fetch` per item on page load | Not SSE; price data does not change frequently enough to push |
+| Theme toggle to CSS | `localStorage` + `document.documentElement.dataset.theme` + `[data-theme="dark"]` CSS selector | No server involvement; pure client-side; inline script prevents FOUC |
 
 ## Build Order (Dependency-Ordered)
 
-Dependencies drive the order. Each phase listed below is a candidate for a planning phase in the roadmap:
+Five sequential phases. Each is independently testable before the next begins.
 
-**Phase A: Safety Gate + Config Foundation**
-- Add `DebugConfig.monitor_only` and `CheckoutConfig` to `config_schema.py`
-- Add `place_order_guarded()` concrete method to `RetailerPlugin` ABC
-- Update all 7 plugins to call `place_order_guarded()` (remove per-plugin `test_mode` checks from Amazon; no-op change for the other 6 since they previously had no gate)
-- Add `checkout` sub-model to `AppConfig`
-- Result: monitor-only gate is live for all plugins; config foundation exists for all downstream work
-- No downstream dependencies; this is the safest change to ship first
+**Phase A: Design System (no backend dependencies)**
 
-**Phase B: DB Schema + Write-Queue Tag**
-- Add `order_id`, `confirmed_at`, `checkout_attempts` columns to `items` table (idempotent ALTER TABLE)
-- Add `confirmed` tag handling to `_dispatch_write` in orchestrator
-- Result: DB can receive confirmed-order writes; write-queue drain handles the new tag
-- Required before confirmation detection can persist anything
+Build first. All subsequent HTML work depends on a stable token/component layer. Zero Python changes.
 
-**Phase C: Confirmation Detection**
-- Build `core/confirmation.py` with per-platform selector map (Amazon, BestBuy first; others stub)
-- Wire confirmation call into orchestrator `_try_auto_buy` path
-- Result: confirmed purchases write `order_id` + `confirmed_at`; unconfirmed purchases fall back to legacy `purchased` write with WARNING log
-- Must come before retry logic (confirmation is the idempotency check that prevents double-buy on retry)
+1. Author `tokens.css`: `:root { --color-bg: ...; --color-surface: ...; ... }` for light; override block under `@media (prefers-color-scheme: dark)` and `html[data-theme="dark"]`.
+2. Author `components.css`: migrate all non-layout rules from `dashboard.css` to component classes using `var(--xxx)`.
+3. Reduce `dashboard.css` to layout rules + two `@import` lines.
+4. Add inline theme-init `<script>` as first child of `<head>` in `dashboard.html`.
+5. Vendor `sparkline.js` to `web/static/sparkline.js`.
+6. Test: open dashboard; confirm all existing sections render identically; toggle dark/light in DevTools preferences; verify no FOUC on page reload with dark preference stored.
 
-**Phase D: Checkout Profile + Form-Fill**
-- Add 9 checkout keys to `SECRET_KEYS` in `credentials.py`
-- Build `core/checkout_profile.py` with `CheckoutProfile` dataclass and `fill_shipping_form(tab)` method
-- Implement form-fill in BestBuy plugin first (most reliable selector history); Amazon second
-- Add `shoppybot setup checkout-profile` CLI command to populate keys interactively
-- Result: form-fill works for BestBuy and Amazon; other plugins stub
+Deliverable: design system stable; existing dashboard unchanged in behavior.
 
-**Phase E: Retry-on-Cart**
-- Build `core/retry.py` with `RetryPolicy` and `with_retry`
-- Wire into `_try_auto_buy` in orchestrator (replaces single-attempt call)
-- Idempotency check: reads `items.order_id IS NOT NULL` before any retry attempt
-- Result: transient cart failures retry with backoff without double-buying
+**Phase B: New Read-Only API Endpoints (backend, no SSE)**
 
-**Phase F: Encrypted Session Persistence**
-- Build `core/session_store.py` (reuses `EncryptedFileBackend` pattern)
-- Add `session_store.save()` call at end of successful `login()` in Amazon and BestBuy plugins
-- Add `session_store.restore()` call in `_staggered_setup` after `plugin.setup()` and before `plugin.login()`
-- Result: sessions survive restarts; login frequency reduced
-- Must come before relaunch implementation (relaunch calls restore)
+Build second. Independent of SSE; testable with curl before any frontend work.
 
-**Phase G: Supervisor + Browser Relaunch**
-- Build `core/supervisor.py`
-- Add `plugin.relaunch()` concrete method to ABC
-- Replace bare `tg.create_task(run_plugin(...))` with `tg.create_task(supervise(...))` in orchestrator
-- Add DB read isolation (try/except around all `run_in_executor` read calls in orchestrator)
-- Add per-item `asyncio.timeout` wrapping `_check_and_buy` call in `run_plugin`
-- Result: crashes are isolated; auto-relaunch preserves session; DB read errors are non-fatal
+1. Add `GET /api/history` to `web/routes/api.py` (confirmed orders query, wrapped in `asyncio.to_thread`).
+2. Add `GET /api/price-history/{link_b64}` to `web/routes/api.py` (delegates to `get_price_history_sync`).
+3. Extend `web/log_reader.py` with `read_logs_filtered()`.
+4. Add optional `?level=&plugin=&search=&n=` query params to existing `GET /api/logs` endpoint.
+5. Test: `curl http://localhost:8000/api/history` returns `{"confirmed_orders": [...]}`. `curl http://localhost:8000/api/price-history/{b64}` returns series or empty array. Verify `GET /api/logs?level=ERROR` filters correctly.
 
-**Phase H: Health Surface**
-- Build `core/health.py` with `HealthRegistry` and `HealthEntry`
-- Thread heartbeat updates through supervisor and orchestrator
-- Expand `BotService.get_status()` to return plugin health dict
-- Wire `health_degraded` event type to notification dispatcher
-- Update FastAPI `/status` endpoint to surface the expanded dict
-- Result: queryable health; degraded-plugin alerts via existing notification channels
+Deliverable: all read-only observability data available via HTTP.
 
----
+**Phase C: SSE Infrastructure (backend, no frontend consumption)**
 
-## Integration Points Summary
+Build third. Highest-risk component; validate in complete isolation before wiring browser.
 
-| Feature | Touches ABC | Touches Orchestrator | New Module | Modified Config |
-|---------|-------------|---------------------|------------|-----------------|
-| monitor_only gate | YES (`place_order_guarded`) | NO | NO | `DebugConfig.monitor_only` |
-| Checkout profile | NO (injected at plugin level) | NO | `checkout_profile.py` | `SECRET_KEYS` +9 |
-| Confirmation detection | NO (called from orchestrator) | YES (`_try_auto_buy`) | `confirmation.py` | NO |
-| Retry-on-cart | NO | YES (`_try_auto_buy`) | `retry.py` | `CheckoutConfig` |
-| Time budgets | NO | YES (wraps `_check_and_buy`) | NO | `CheckoutConfig` |
-| Session persistence | YES (`relaunch`) | partial (restore in setup) | `session_store.py` | NO |
-| Supervision | NO | YES (replaces `tg.create_task`) | `supervisor.py` | NO |
-| Browser relaunch | YES (`relaunch()`) | called from supervisor | NO | NO |
-| DB read isolation | NO | YES (try/except on reads) | NO | NO |
-| Per-item timeout | NO | YES (wraps `_check_and_buy`) | NO | `CheckoutConfig` |
-| Health surface | NO | YES (heartbeat updates) | `health.py` | `CheckoutConfig.alert_on_errors` |
+1. Author `web/sse_hub.py` (`SseHub` class + `broadcast()` method + `_poll_loop` coroutine).
+2. Extend `web/log_reader.py` with `tail_log_lines(after_line)`.
+3. Author `web/routes/sse.py` (`GET /api/events` endpoint with per-client queue).
+4. Add `lifespan` context manager to `web/__init__.py`; attach `SseHub` to `app.state.sse_hub`; create `_poll_loop` task.
+5. Register `sse_router` in `create_app()`.
+6. Test: `curl -N http://localhost:8000/api/events` -- verify `data:` frames arrive every ~1s; start/stop bot via existing controls and verify `status.running` flips in SSE stream; tail test `echo "test line" >> logs/*.log` and verify it appears in the log-type SSE event; disconnect curl and verify queue is removed from hub (confirm via log line or test).
 
----
+Deliverable: SSE infrastructure validated; browser not yet involved.
+
+**Phase D: Frontend Observability Surfaces**
+
+Build fourth, consuming Phase A (design system tokens) and Phase B (API endpoints). Does not yet wire EventSource.
+
+1. Add health cards section to `dashboard.html`: iterate `status.plugins` using a `fetch('/api/status')` call on load; render one card per plugin with status badge, heartbeat age, consecutive errors, orders confirmed count. Style with Phase A component classes.
+2. Add run history section: `fetch('/api/history')` on load; render table of confirmed orders.
+3. Add price history section: for each item loaded via `fetch('/api/items')`, fetch `/api/price-history/{link_b64}`; call `sparkline(svgEl, values)` if series non-empty; show placeholder text if empty.
+4. Add log viewer filter controls: level `<select>`, plugin `<input>`, search `<input>`; wire to `GET /api/logs?level=...` on submit; render filtered results in the existing log `<pre>`.
+5. All sections use Phase A component classes.
+6. Test: visual review; verify health cards reflect `get_status()` data; run history shows BUY-04 records; price chart renders for Amazon items; filter narrows log output.
+
+Deliverable: all four observability surfaces rendered, still driven by one-shot fetch.
+
+**Phase E: SSE Client Wiring (replace poll)**
+
+Build last. Modifies existing behavior; safest to do after all other surfaces are validated.
+
+1. Replace `setInterval(pollStatus, 2000)` and `setInterval(pollLogs, 2000)` with a single `EventSource('/api/events')` handler that dispatches on `msg.type`.
+2. Add `EventSource` unavailability guard: `if (typeof EventSource === 'undefined') { /* fallback setInterval */ }`.
+3. Update health cards to re-render on each `type === "status"` SSE event (not just on page load).
+4. Update log panel to append lines from `type === "log"` SSE events; trim DOM to last 500 lines.
+5. Test: DevTools Network tab shows one persistent `text/event-stream` connection replacing the two polling requests; status dot updates within 1-2s of bot start/stop; log lines appear in real time; close and reopen tab to verify EventSource reconnects cleanly.
+
+Deliverable: live-push operational; 2s poll eliminated for all browsers with EventSource support (all modern browsers since 2012).
+
+## Key Architectural Risk: Daemon Thread / uvicorn Event Loop Boundary
+
+**Risk:** Writing to `asyncio.Queue` from the BotService daemon thread would be a race condition that corrupts queue state. The two asyncio loops (bot's vs uvicorn's) are completely independent and cannot share primitives.
+
+**Resolution:** The uvicorn-side `_poll_loop` background task is the SOLE producer of SSE events. It reads bot state via `asyncio.to_thread(svc.get_status)`, which safely executes the sync call on a thread-pool worker and returns the result to uvicorn's loop. The bot thread is never involved in SSE delivery. The boundary is clean: bot thread writes to `HealthRegistry` (in-memory dict), uvicorn's `_poll_loop` reads it through `get_status()` on a scheduled interval.
+
+`get_status()` is confirmed safe for this pattern: it is non-blocking, in-memory only, and `HealthRegistry.get_snapshot()` returns a deep copy. No additional locking is required.
 
 ## Sources
 
-- Source reads: `core/service.py`, `core/orchestrator.py`, `core/registry.py`, `core/plugin_base.py`, `core/credentials.py`, `core/stealth.py`, `core/config_schema.py`, `models.py`, `plugins/shopbot_plugin_amazon.py`, `plugins/shopbot_plugin_bestbuy.py`, `plugins/shopbot_plugin_walmart.py`, `plugins/shopbot_plugin_target.py`, `plugins/shopbot_plugin_gamestop.py`
-- All integration points derived from direct source reads; no inference from training data
-- asyncio.TaskGroup exception propagation behavior: Python 3.11 docs (exception group semantics)
-- Fernet/scrypt pattern: `core/credentials.py` `EncryptedFileBackend` (HIGH confidence, read directly)
+- FastAPI 0.115.8 `__init__.py` (verified directly: no `fastapi.sse`, no `EventSourceResponse` at this version)
+- Python stdlib docs: `asyncio.Queue` is not thread-safe; `loop.call_soon_threadsafe()` required for thread-to-loop scheduling
+- Python stdlib docs: `asyncio.to_thread()` for running sync callables from async context without blocking the event loop (Python 3.9+)
+- FastAPI docs: `asyncio.to_thread()` recommended for blocking calls in async endpoints
+- `web/__init__.py`: `create_app()` factory pattern verified; StaticFiles mount, router includes
+- `web/routes/api.py`: existing endpoint patterns, CSRF dependency, JSONResponse usage
+- `web/log_reader.py`: existing `read_recent_logs()` implementation and log path format
+- `web/static/dashboard.css`: 182-line existing file; all non-layout content to migrate to components.css
+- `web/templates/dashboard.html`: existing 4-section layout, inline JS poll pattern to replace
+- `core/service.py`: `get_status()` confirmed in-memory only; `self._loop` lifecycle (None when bot stopped); daemon thread + own asyncio loop architecture
+- `core/health.py`: `get_snapshot()` confirmed returns deep copy with `_`-prefixed private keys stripped
+- `models.py`: `price_history` table schema confirmed; `get_price_history_sync()` signature; `order_id`/`confirmed_at`/`checkout_attempts` columns confirmed from v4.0 BUY-04
+- `pyproject.toml`: FastAPI 0.115.8 + uvicorn 0.30.6 in `[web]` optional extras
+- MDN: `EventSource` API; `prefers-color-scheme` CSS media feature; CSS custom property cascade
+- fnando/sparkline GitHub: MIT license, ~1KB minified, zero-dep vanilla JS, `sparkline(svgEl, values)` API
 
 ---
-
-*Architecture research for: ShopPyBot v4.0 Win-the-Drop — asyncio/nodriver acquisition + reliability integration*
-*Researched: 2026-06-10*
+*Architecture research for: ShopPyBot v4.1 Dashboard & Observability*
+*Researched: 2026-06-25*

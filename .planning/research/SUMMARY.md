@@ -1,259 +1,145 @@
 # Project Research Summary
 
-**Project:** ShopPyBot v4.0 -- Win-the-Drop (Acquisition Core + Reliability)
-**Domain:** Async nodriver/asyncio retail checkout bot -- verified-purchase execution + unattended survival
-**Researched:** 2026-06-10
-**Confidence:** HIGH (stack, architecture, pitfalls derived from direct in-repo source reads; MEDIUM on per-retailer confirmation selectors requiring live UAT)
+**Project:** ShopPyBot v4.1 Dashboard & Observability
+**Domain:** FastAPI dashboard redesign — vendored design system, SSE live-push, observability surfaces
+**Researched:** 2026-06-25
+**Confidence:** HIGH
 
 ## Executive Summary
 
-ShopPyBot v4.0 closes the gap between "item detected" and "verified order placed" by adding confirmed-checkout detection, idempotent retry-on-cart, a central monitor-only safety gate, and a per-coroutine supervisor to the shipped v3.0 async plugin framework. The milestone goal is "bot survives unattended overnight and produces a real order number, not just a button-click confirmation." Every v4.0 capability maps to existing pinned dependencies or Python 3.13 stdlib -- zero new runtime packages are required. Two new internal modules are anticipated (core/session_store.py, core/health.py) plus two for shared logic (core/retry.py, core/confirmation.py), and selective additions to core/orchestrator.py and core/plugin_base.py.
+v4.1 is a pure front-end and web-layer milestone: redesign the existing single-page FastAPI dashboard with a structured CSS design system, replace its 2s polling loop with SSE push, and surface four new observability areas: per-plugin health cards, run/buy history, price-history charts, and a filtered log viewer. All required data already exists. `get_status()` exposes plugin health and heartbeats; the `items` table carries `order_id`, `confirmed_at`, and `checkout_attempts` from v4.0 BUY-04; `price_history` is populated by the Amazon plugin. No DB schema changes are needed. No new Python packages are needed. The entire milestone is solvable on the existing `fastapi==0.115.8` + `uvicorn[standard]==0.30.6` + `jinja2==3.1.4` stack with two small vendored static files added for the chart library.
 
-The most important architectural decision in v4.0 is where confirmation detection runs: it belongs in the orchestrator AFTER auto_buy() returns, not inside the plugin. This keeps the plugin scope to DOM interaction and makes the confirmation check the idempotency gate -- the purchased flag is only written when a confirmed order_id is returned. The monitor-only safety gate is equally critical: BestBuy currently has no test_mode guard at all, and five other plugins lack one too. A concrete place_order_guarded() method on the RetailerPlugin ABC enforces the gate for all 7 plugins including any future community additions, without requiring per-plugin edits to enforce the invariant.
+The single highest-risk component is the SSE cross-thread bridge. BotService runs on its own daemon-owned asyncio event loop; uvicorn runs a completely separate asyncio event loop on the main thread. The correct bridge: uvicorn's own `_poll_loop` background task calls `asyncio.to_thread(svc.get_status)` on a ~1s cadence and fans results out to per-client `asyncio.Queue` objects — all owned by uvicorn's loop. The BotService daemon thread must never touch these queues directly (`asyncio.Queue` is not thread-safe per Python stdlib docs). This pattern has been fully designed and verified against actual source files. It must be built and validated in isolation (Phase C) before any browser-side SSE wiring is attempted. A spike at the start of Phase C is recommended.
 
-The primary risk in v4.0 is double-buy -- placing a second order because the first succeeded but confirmation was not detected before a retry. Prevention requires three layers: URL-redirect confirmation check before any True return from auto_buy(), a 3-5 second settle delay before reading the confirmation URL, and a DB purchased flag read at the top of every retry attempt. Session/cookie persistence adds a meaningful security surface (encrypted auth tokens on disk) and must use Fernet via the existing CredentialStore machinery rather than plaintext JSON. The nodriver CookieJar.set_all() method is buggy across multiple versions; cookie restore must use raw CDP cdp.storage.set_cookies() directly.
+Security is first-class in this milestone. Two specific obligations carry forward: fix the existing XSS at `dashboard.html` line ~241 (`tr.innerHTML` with `item.name`/`item.link`) in the design system phase; and scrub `get_status()` `last_error` fields to return only `exc.__class__.__name__` rather than `str(exc)`, preventing proxy credentials from reaching the browser via the SSE health surface or log stream. All new DOM construction must use `textContent`/`createElement` — never `innerHTML` with API-sourced values.
 
-## Key Findings
+## Key Findings: Stack
 
-### Recommended Stack
+No Python dependency changes are required. Raw `StreamingResponse(media_type="text/event-stream")` from starlette (already a transitive dep) handles SSE with zero new imports. Do not add `sse-starlette` (adds `anyio` transitive dep for no functional gain on three simple endpoints). Do not upgrade FastAPI to 0.135+ in this milestone — native `fastapi.sse.EventSourceResponse` requires crossing the 0.128 Pydantic v1-shim-removal boundary; defer to a dedicated dep-refresh task and note it as a future item.
 
-v4.0 adds zero new runtime dependencies. All capabilities are covered by the existing pinned stack: nodriver 0.50.3 (CDP API for cookie restore, browser.stopped for crash detection), asyncio stdlib (TaskGroup, asyncio.timeout, asyncio.Event), cryptography 44.0.2 (Fernet for session encryption), pydantic 2.13.3 (CheckoutConfig and CheckoutProfile models), and the existing CredentialStore/EncryptedFileBackend pattern in core/credentials.py. The full requirements.txt is unchanged from v3.0.
+Two vendored static files are added for charts (see Charting Library decision). No `package.json`. No CDN. No external fonts.
 
-**Core technologies and their v4.0 roles:**
-- nodriver 0.50.3: browser.stopped property detects crash; cdp.storage.set_cookies() restores sessions (bypasses buggy CookieJar.set_all); tab.select/find for confirmation detection
-- asyncio.timeout (stdlib 3.11+): per-step and per-item checkout time budgets; already used in _solve_or_pause() -- extend the pattern
-- cryptography.fernet (existing): session cookie encryption in core/session_store.py; reuses same Fernet + scrypt KDF as EncryptedFileBackend
-- pydantic 2.13.3 (existing): new CheckoutConfig sub-model (item_timeout_secs, step_timeout_secs, max_cart_retries, backoff_base); new CheckoutProfile dataclass
-- random + asyncio.sleep (stdlib): unified RetryPolicy backoff in core/retry.py; explicit loop preferred over tenacity for this bounded stateful case
-- dataclasses + time.monotonic (stdlib): HealthState / HealthRegistry in core/health.py
-- signal (stdlib): SIGTERM bridge with sys.platform branch for Windows NotImplementedError on add_signal_handler
+**Core technologies:**
+- `fastapi==0.115.8`: ASGI framework — raw `StreamingResponse` covers all SSE needs; no upgrade required
+- `uvicorn[standard]==0.30.6`: ASGI server — single asyncio event loop; SSE async generators run natively
+- `jinja2==3.1.4`: HTML template rendering — one template modified, already installed
+- CSS custom properties in existing `dashboard.css`: design token system — no Node, no CDN
+- Vendored chart library (one JS file): price-history visualization — planning-phase pick required
 
-**What NOT to add:**
-- tenacity/backoff: bounded 3-attempt checkout retry is a 10-line loop; decorator indirection obscures stateful relaunch logic
-- aiohttp/httpx: no new HTTP calls in v4.0
-- structlog: second logging system alongside writeLog() would diverge
-- async-healthcheck: FastAPI already present for /health; no second HTTP server
+**Charting Library Decision (flag for planning-phase):**
 
-### Expected Features
+STACK + FEATURES research recommend uPlot 1.6.32 (MIT, ~52 KB IIFE + ~1 KB companion CSS, interactive tooltips, Canvas 2D, purpose-built for time series, actively maintained). ARCHITECTURE research recommends fnando/sparkline (MIT, ~1 KB, SVG output, no tooltips, single-value `sparkline(svgEl, values)` API).
 
-**Must have (table stakes -- P1):**
-- Order-confirmation detection (Amazon + BestBuy): URL-redirect check primary, DOM order-number regex backup; orchestrator calls detect_order_confirmation() after auto_buy() returns; purchased flag only written on confirmed signal
-- Monitor-only mode + close test_mode hole: --monitor-only CLI flag sets cfg.app.monitor_only; orchestrator gate prevents _try_auto_buy() from running; closes BestBuy missing test_mode guard via place_order_guarded() ABC method
-- Bounded retry-on-cart + double-buy guard: max 3 cart-add attempts, max 2 place-order attempts; DB purchased flag read before EVERY attempt; 3-5 second settle delay before confirmation read; exponential backoff with jitter
-- Per-step / per-item checkout time budget: asyncio.timeout() as context manager per DOM step (not wrapping entire auto_buy); checkout_stage tracking so cancellation never leaves ambiguous order state
+Both are fully viable and vendorable with zero Node. The tradeoff is tooltip interactivity vs minimal weight. Given data is sparse (5-50 points, Amazon-only today), tooltips add real operator value. Default recommendation: **uPlot** for tooltips; **fnando/sparkline** if 1 KB minimalism is preferred and tooltips are skippable. Hand-rolled SVG polyline remains a zero-download fallback. Roadmapper must pick one and document it in the Phase A plan.
 
-**Should have (competitive -- P2):**
-- Per-coroutine supervisor + backoff restart: coro-factory pattern (~15 lines); absorbs exceptions before TaskGroup boundary; exponential backoff with failure budget (max 5 per plugin); CancelledError always re-raised
-- Browser-crash detection + relaunch: browser.stopped property check at top of run_plugin loop; full relaunch sequence (teardown, assign_proxy, setup, restore_session, login) via plugin.relaunch() ABC method
-- Encrypted session/cookie persistence: core/session_store.py reusing EncryptedFileBackend pattern; save after login, restore before first navigation; opt-in per platform; raw CDP cookie restore (bypasses set_all bug)
-- Checkout profile form-fill (BestBuy + Amazon first): CheckoutProfile from CredentialStore; 9 address keys, no card data; CVV remains getpass-only at runtime
-- Structured health/heartbeat surface: HealthRegistry with per-plugin status + last_heartbeat; BotService.get_status() expands to return plugin health dict; health_degraded notification event
-- DB read-path error isolation: try/except around get_items_sync and all other run_in_executor reads in run_plugin; write-queue drain already isolated; read path is not
+## Key Findings: Features
 
-**Defer to v5+:**
-- Parallel multi-account checkout (CFAA risk, high detection rate)
-- Amazon WAF CAPTCHA auto-solve (unreliable solve path)
-- Request/API-mode checkout (arms-race maintenance burden)
-- Unlimited retry loops (ban trigger on drop-day 429s)
-- Full card number persistence (PCI violation)
+**Must have (P1 — v4.1 launch):**
+- Vendored design system (CSS tokens, components, light/dark) — prerequisite for all four surfaces
+- SSE endpoint (`/api/events`) streaming `status` and `log` event types — prerequisite for live health cards and log tail
+- Health cards: one per plugin, status badge, heartbeat staleness (monotonic delta), consecutive-errors counter, items-checked counter
+- Confirmed-buys table: name, order_id, confirmed_at, checkout_attempts (reads `items WHERE purchased=1`)
+- Price-history chart: per-item line chart, empty-state for non-Amazon plugins (explicit message, not blank area)
+- Log viewer: level color-coding, level filter, tail/follow with pause-on-scroll, SSE push, 500-line DOM cap
 
-**ToS-sensitive features (opt-in, documented):**
-- Session/cookie persistence: platforms.<name>.session_persistence: true required
-- Checkout profile form-fill: platforms.<name>.checkout_profile.enabled: true required
+**Should have (P2 — within v4.1 if scope permits):**
+- Plugin filter on log viewer (verify log lines consistently tag `[PLUGIN_NAME]` before building — see Gaps)
+- Uptime display in global status bar (low effort; `uptime_secs` from `get_status()`)
+- Staleness gradient (three bands: <30s green, 30-60s amber, >60s red)
+- `orders_confirmed` counter on health card
+- Log substring search/highlight (client-side)
 
-### Architecture Approach
+**Defer to post-v4.1:**
+- Outcome analytics (requires new append-only events table; explicitly deferred in PROJECT.md)
+- Amazon/BestBuy order deep-link (order_id URL formats unverified against live retailer pages)
+- Log level count badges, multi-day log browsing
 
-v4.0 integrates two feature clusters into the shipped v3.0 layered architecture without structural changes. The write-queue remains the sole SQLite write path; confirmation detection adds a new "confirmed" tuple tag handled by _dispatch_write. The supervisor replaces bare tg.create_task() calls in async_main with supervised wrappers that absorb exceptions before the TaskGroup boundary, preventing one plugin crash from cancelling all siblings. The ABC gains one concrete method (place_order_guarded) that all 7 plugins call instead of direct DOM clicks, making the monitor-only gate architectural rather than convention-based.
+**Global anti-features to reject during planning:**
+- Alerting rules engine in UI, plugin enable/disable toggle, separate Orders page, chart zoom/pan, real-time price SSE updates, pagination, CSV export, multi-tenant, Node/CDN anything
 
-**Major new components:**
-1. core/confirmation.py: detect_order_confirmation(tab, platform) -> str | None; per-platform selector map; called from orchestrator _try_auto_buy, not from plugin; URL-redirect check primary
-2. core/retry.py: RetryPolicy dataclass + with_retry() async helper; ONE unified backoff implementation shared by both supervisor restart and cart-retry paths
-3. core/session_store.py: Fernet-encrypted JSON cookie save/restore; reuses EncryptedFileBackend pattern; raw CDP restore path
-4. core/health.py: HealthRegistry with HealthEntry per plugin; thread-safe via threading.Lock; queryable via BotService.get_status()
-5. core/supervisor.py (or inline in orchestrator): supervise(coro_factory, name, policy) async wrapper; coro-factory pattern for re-creatable coroutines on restart
-6. core/plugin_base.py (modified): place_order_guarded() concrete method; plugin.relaunch() concrete method
+## Key Findings: Architecture
 
-**Modified components:**
-- core/orchestrator.py: supervisor wrapping, DB read isolation, per-item asyncio.timeout, confirmation detection wiring, heartbeat updates
-- core/config_schema.py: DebugConfig.monitor_only, new CheckoutConfig sub-model (5 fields)
-- core/credentials.py: 9 checkout profile keys added to SECRET_KEYS
-- models.py: 3 new columns (order_id, confirmed_at, checkout_attempts); new "confirmed" write-queue tag
-- All 7 plugins: replace direct place_order.click() with place_order_guarded()
+Five-phase dependency-ordered build: Design System first, then Read-Only API endpoints, then SSE Infrastructure (highest risk, prove in isolation), then Frontend Observability Surfaces (one-shot fetch, no SSE yet), then SSE Client Wiring (replace 2s poll last). Each phase is independently testable and committable.
 
-### Critical Pitfalls
+**Major components:**
+1. `web/sse_hub.py` (NEW): `SseHub` holding per-client `asyncio.Queue` set; `broadcast()` distributes payloads; `_poll_loop` background task on uvicorn's loop calls `asyncio.to_thread()` for all sync reads
+2. `web/routes/sse.py` (NEW): single `/api/events` `StreamingResponse`; per-client queue with `finally: hub.unsubscribe()`; `request.is_disconnected()` for cleanup; 15s `wait_for` timeout yields `: keep-alive`; `retry: 3000` on stream open
+3. `web/static/tokens.css` + `components.css` (NEW): design token split — tokens owns `:root` blocks for light/dark; components owns component rules using only `var(--xxx)`; `dashboard.css` reduced to layout + `@import`
+4. `web/routes/api.py` (MODIFIED): `GET /api/history` and `GET /api/price-history/{link_b64}`; both wrap sync DB calls in `asyncio.to_thread()`
+5. `web/log_reader.py` (MODIFIED): `read_logs_filtered()` with AND-combined filters; `tail_log_lines(after_line)` cursor-based incremental read with midnight-rollover detection
+6. `web/templates/dashboard.html` (MODIFIED): four new sections; `EventSource` replacing `setInterval`; inline theme-init `<script>` as FIRST child of `<head>` to prevent FOUC
 
-1. **Double-buy via non-idempotent checkout retry**: Return True from auto_buy() ONLY after confirmation element detected; read DB purchased flag before EVERY retry; insert 3-5 second settle delay before confirmation URL check. Financial risk: $400-700+ duplicate order on a limited-release item cannot be undone after shipment.
+**Key invariants:**
+- Queues live exclusively in uvicorn's event loop — the BotService thread never touches them
+- `heartbeat` staleness = `time.monotonic() - last_heartbeat` (both monotonic — never mix with wall-clock `time.time()`)
+- `get_status()` `last_error` = `exc.__class__.__name__` only — never `str(exc)`
+- All DOM construction for API-sourced data uses `textContent`/`createElement` — never `innerHTML`
 
-2. **Monitor-only gate that fails to block all 7 plugins**: BestBuy has NO test_mode guard today; 5 others will have none when checkout is added. Use place_order_guarded() on the ABC as the single enforcement point. Add CI test: 7 plugins, monitor_only=True, assert zero auto_buy() calls.
+## Key Findings: Critical Pitfalls
 
-3. **Per-step timeout orphaning a half-submitted order**: Never wrap entire auto_buy() in a single asyncio.timeout; wrap each DOM step individually; track checkout_stage so CancelledError at "placed" stage sets in_progress=True rather than leaving purchased=False for re-submission.
-
-4. **Two divergent retry implementations**: If supervisor restart and cart-retry are implemented independently they can multiply: max_supervisor_retries x max_cart_retries = excessive attempts. Use one RetryPolicy in core/retry.py for both paths.
-
-5. **Session cookie persistence as plaintext**: nodriver browser.cookies.save() writes a plaintext file; never use it. core/session_store.py must use the same Fernet + scrypt path as EncryptedFileBackend. CookieJar.set_all() is confirmed buggy (issues #1816, #2020, #2232) -- use raw CDP cdp.storage.set_cookies() for restore.
-
-6. **Browser relaunch that forgets stealth, proxy, and login**: A relaunch calling only plugin.setup() without assign_proxy + apply_stealth + login hits the site without protection and triggers an instant ban-loop. The plugin.relaunch() ABC method must encode the full sequence: teardown, assign_proxy, setup, restore_session, login.
-
-7. **DB read-path has no error handling while write-path does**: _dispatch_write is wrapped in except Exception; get_items_sync and all run_in_executor reads in run_plugin are not. A SQLite lock on read raises into the TaskGroup and kills everything. Wrap reads in try/except sqlite3.OperationalError (transient) vs sqlite3.DatabaseError (fatal, propagate after CRITICAL log).
-
-8. **CVV in logs or CredentialStore**: Never log self._cvv; use exc.__class__.__name__ not str(exc) on checkout exception paths; never add CVV/CARD_NUMBER to SECRET_KEYS. Add CI grep assertion blocking _cvv in any writeLog argument.
+1. **SSE cross-thread bridge race condition** (HIGHEST RISK): `asyncio.Queue.put_nowait()` from the BotService daemon thread corrupts queue state. Fix: uvicorn's `_poll_loop` is the sole SSE producer via `asyncio.to_thread(svc.get_status)`. Bot thread is never aware of SSE infrastructure. Recommend a spike at Phase C start to validate before full implementation.
+2. **XSS via innerHTML with API-sourced strings** (HIGHEST RISK): Existing `loadItems()` at `dashboard.html` line ~241 already has this bug. Fix in Phase A, simultaneously establishing the `textContent`/`createElement` pattern for all new surfaces. Add `escHtml()` helper for any SVG string interpolation. CI assertion: scan templates for `innerHTML` on API-derived data.
+3. **Secret leak via `get_status()` and log stream**: `str(exc)` can include proxy credentials or CAPTCHA API keys from tracebacks. Fix: scrub at `get_status()` boundary — return `exc.__class__.__name__` only. Write a test asserting SSE data frames contain no credential-pattern strings (regex for `@`, `password`, `token`, `key=`, `cvv`).
+4. **Blocking uvicorn's event loop**: Any sync call (`get_status`, `read_recent_logs`, SQLite) inside async context without `asyncio.to_thread()` stalls all concurrent HTTP. Fix: wrap every sync call. Latency test: assert `/api/status` responds under 200ms while SSE is open.
+5. **SSE generator leak + missing keepalive**: Without `request.is_disconnected()`, generators accumulate after tab close. Without `: keep-alive\n\n` every ~15s, idle SSE connections timeout silently. Fix: both are 3-line additions; `retry: 3000\n\n` on stream open controls reconnect backoff.
+6. **Cursor-less log tailing**: Reusing `read_recent_logs()` (full file read every SSE tick) sends duplicate lines and eventually reads megabytes repeatedly. Fix: `tail_log_lines(after_line)` cursor-based implementation with midnight-rollover detection (`after_line > total -> reset to 0`).
 
 ## Implications for Roadmap
 
-All four researchers converged on the same dependency-ordered build sequence. The phase structure below follows those dependencies directly.
+**Suggested phase structure (5 phases, continuing from phase 24 → phases 25-29):**
 
-### Phase 18: Safety Gate + Config Foundation
+**Phase A (25): Design System**
+- Rationale: Zero backend dependency; establishes the CSS token/component layer consumed by all four surfaces; fixes known XSS simultaneously while establishing correct DOM construction patterns for all subsequent work.
+- Delivers: `tokens.css`, `components.css`, refactored `dashboard.css` (layout only), FOUC-prevention inline script, vendored chart library file, XSS fix on existing `loadItems()`, non-local banner preserved and verified (run MC-4 test to close this phase).
+- Avoids: Pitfalls 2 (XSS), 8 (FOUC), 9 (design system breaks banner/CSRF gate).
+- Planning note: CSS 3-file split (tokens + components + layout) vs single file — planning-phase call. Split wins on maintainability at no real cost for localhost.
 
-**Rationale:** No other v4.0 work can proceed without the monitor-only gate and the CheckoutConfig schema. This is the lowest-risk change: it adds behavior (gate), does not remove any, and closes the 6-of-7 plugin safety hole that exists today. No downstream dependencies on this phase -- everything else depends on it.
+**Phase B (26): Read-Only API Endpoints**
+- Rationale: Independently `curl`-testable; no event-loop interaction risk; establishes data contracts for the frontend surfaces.
+- Delivers: `GET /api/history`, `GET /api/price-history/{link_b64}`, `read_logs_filtered()` + query params on existing `GET /api/logs`.
+- Avoids: Pitfall 4 (all sync DB calls wrapped in `asyncio.to_thread`).
+- Verification: `curl` both endpoints before proceeding.
 
-**Delivers:** DebugConfig.monitor_only field; CheckoutConfig sub-model in AppConfig; place_order_guarded() concrete method on RetailerPlugin ABC; all 7 plugins updated to call place_order_guarded(); BestBuy test_mode gap closed; --monitor-only CLI flag wired into async_main
+**Phase C (27): SSE Infrastructure** (research spike recommended)
+- Rationale: Highest-risk component. Validate cross-thread bridge in complete isolation before any browser involvement.
+- Delivers: `web/sse_hub.py`, `web/routes/sse.py`, lifespan wiring in `web/__init__.py`, `tail_log_lines()` cursor implementation, `get_status()` last_error scrubbing, secret-leak CI assertion.
+- Avoids: Pitfalls 1 (cross-loop race), 3 (generator leak), 4 (loop blocking), 5 (reconnect backoff), 6 (unbounded log read), 7 (secrets in SSE stream).
+- Verification: `curl -N localhost:8000/api/events`; start/stop bot; log append test; disconnect/cleanup test; 200ms latency test on `/api/status` while SSE open.
 
-**Addresses:** Monitor-only mode (FEATURES P1); closes BestBuy test_mode hole (PITFALLS #6)
+**Phase D (28): Frontend Observability Surfaces**
+- Rationale: Separate "do surfaces render correctly?" from "do they update live?" — two orthogonal concerns that should not be debugged simultaneously.
+- Delivers: Health cards section (monotonic staleness, badge, errors, items-checked), confirmed-buys table, price-history charts (empty state for non-Amazon), log viewer filter controls wired to REST `GET /api/logs`.
+- Uses: Phase A component classes; Phase B REST endpoints; vendored chart library.
+- Avoids: sparse/Amazon-only price data — explicit "No price history (Amazon only)" message; point markers when fewer than 2 data points.
+- Open question for planning: Does `writeLog` consistently tag lines with `[PLUGIN_NAME]`? If not, defer plugin filter to post-v4.1.
 
-**Avoids:** The 6-of-7 safety hole (PITFALLS #6); need to re-audit plugins on future community additions (ABC enforcement)
+**Phase E (29): SSE Client Wiring**
+- Rationale: Replaces existing working behavior last; if anything goes wrong, rollback is trivial (revert EventSource code, polling resumes).
+- Delivers: Replace `setInterval` with single `EventSource('/api/events')`; dispatch on `msg.type`; polling fallback guard; health cards on `status` events; log panel append on `log` events; 500-line DOM cap; "Live / Reconnecting" indicator.
+- Avoids: EventSource auto-reconnects — no manual reconnect loop needed; do not add one on top.
+- Verification: DevTools Network shows one `text/event-stream` replacing two poll requests; status updates within 1-2s of bot start/stop; clean reconnect after tab close/reopen.
 
-**Research flag:** Standard patterns -- no plan-phase research needed
-
-### Phase 19: DB Schema + Confirmation Detection
-
-**Rationale:** Confirmation detection is the keystone feature. It must come before retry logic because the confirmed order_id is the idempotency check that prevents double-buy on retry. The DB schema changes (order_id, confirmed_at, checkout_attempts columns; "confirmed" write-queue tag) must land before confirmation detection can persist anything.
-
-**Delivers:** items table gains order_id, confirmed_at, checkout_attempts columns (idempotent ALTER TABLE); _dispatch_write handles "confirmed" tag; core/confirmation.py with detect_order_confirmation(tab, platform) -> str | None; orchestrator _try_auto_buy wired to call confirmation after auto_buy() returns; unconfirmed fallback logs WARNING and writes legacy "purchased" tag
-
-**Addresses:** Order-confirmation detection (FEATURES P1); double-buy prevention (PITFALLS #1, #2)
-
-**Avoids:** False-positive "purchased" on click-without-confirmation (PITFALLS #2); retry before confirmation gate exists (PITFALLS #1)
-
-**Research flag:** NEEDS PLAN-PHASE RESEARCH -- per-retailer confirmation URL patterns and DOM selector IDs require live UAT. Amazon /gp/buy/thankyou and BestBuy /checkout/r/thank-you are HIGH confidence; backup DOM selectors (#confirmedOrderId, .thank-you-order-number) are MEDIUM confidence and may have drifted.
-
-### Phase 20: Checkout Profile + Form-Fill
-
-**Rationale:** Form-fill has no external dependencies and placing it before retry lets the retry logic re-fill forms on session-expiry retries. BestBuy first (most reliable selector history), Amazon second.
-
-**Delivers:** 9 checkout address keys added to SECRET_KEYS; core/checkout_profile.py with CheckoutProfile dataclass and fill_shipping_form(tab) method; shoppybot setup checkout-profile CLI command; BestBuy and Amazon plugins wired for form-fill; CVV getpass-only, no card number storage
-
-**Addresses:** Checkout profile form-fill (FEATURES P2); PCI handling (PITFALLS #4)
-
-**Avoids:** CVV in logs or CredentialStore (PITFALLS #4)
-
-**Research flag:** Standard patterns -- selector verification for shipping form fields needs live UAT but a missing selector fails gracefully, it does not double-buy.
-
-### Phase 21: Per-Step Timeouts + Unified Retry + Cart-Retry
-
-**Rationale:** Timeouts and retry must be built together to avoid the "two divergent retry implementations" pitfall. Building core/retry.py first and wiring both supervisor restart (Phase 22) and cart-retry (this phase) to the same RetryPolicy prevents the multiplicative retry problem.
-
-**Delivers:** core/retry.py with RetryPolicy dataclass and with_retry() async helper; per-step asyncio.timeout() context managers in auto_buy() (not wrapping entire method); checkout_stage tracking variable in auto_buy(); orchestrator _try_auto_buy replaced with _try_auto_buy_with_retry using RetryPolicy(max_attempts=3); idempotency guard reads purchased flag before each retry attempt
-
-**Addresses:** Bounded retry-on-cart (FEATURES P1); per-step time budget (FEATURES P1)
-
-**Avoids:** Half-submitted order on timeout (PITFALLS #5); two divergent retry implementations (PITFALLS #12); double-buy on retry (PITFALLS #1)
-
-**Research flag:** Standard patterns -- asyncio.timeout and RetryPolicy are well-documented stdlib patterns. No plan-phase research needed.
-
-### Phase 22: Supervisor + Browser Relaunch
-
-**Rationale:** Supervisor can be built with a stub restore_session (no-op if no session file exists) and wired properly once session_store ships in Phase 23. DB read isolation and per-item timeout belong here because they protect the same poll loop the supervisor protects.
-
-**Delivers:** core/supervisor.py (supervise(coro_factory, name, policy) async wrapper; coro-factory pattern; CancelledError always re-raised; failure budget + backoff); plugin.relaunch() concrete ABC method (full sequence: teardown, assign_proxy, setup, restore_session stub, login); bare tg.create_task() replaced with supervised wrappers in orchestrator; DB read isolation (try/except around all run_in_executor reads); per-item asyncio.timeout wrapping check_availability + auto_buy portion of _check_and_buy (write_queue.put calls OUTSIDE timeout context); SIGTERM bridge with sys.platform branch for Windows
-
-**Addresses:** Per-coroutine supervision (FEATURES P2); browser-crash detection + relaunch (FEATURES P2); DB read-path isolation (FEATURES P2)
-
-**Avoids:** TaskGroup tear-down on single plugin crash (PITFALLS #7); relaunch forgetting stealth/proxy/login (PITFALLS #8); timeout cancelling mid-DB-write (PITFALLS #10); Windows NotImplementedError on add_signal_handler
-
-**Research flag:** NEEDS PLAN-PHASE RESEARCH -- nodriver relaunch sequence interaction with CDP stealth script state should be validated against installed 0.50.3 before finalizing plugin.relaunch() implementation.
-
-### Phase 23: Encrypted Session Persistence
-
-**Rationale:** Session persistence is last in the reliability cluster because the supervisor (Phase 22) calls restore_session on relaunch. Phase 22 ships a no-op stub; Phase 23 replaces it. This avoids circular dependency.
-
-**Delivers:** core/session_store.py (~60 lines); reuses EncryptedFileBackend Fernet + scrypt KDF; atomic write via mkstemp + os.replace; save after successful login; restore before first navigation (replaces stub from Phase 22); raw CDP cdp.storage.set_cookies() for restore (bypasses buggy CookieJar.set_all()); data/sessions/ added to .gitignore; opt-in per platform
-
-**Addresses:** Encrypted session/cookie persistence (FEATURES P2)
-
-**Avoids:** Plaintext auth tokens on disk (PITFALLS #9); nodriver set_all() bug; git history leaking session files
-
-**Research flag:** NEEDS PLAN-PHASE RESEARCH -- nodriver cdp.storage.set_cookies() argument shape and CookieParam constructor should be verified against installed 0.50.3 before implementation.
-
-### Phase 24: Health Surface
-
-**Rationale:** Health is the final phase because it reads from all other systems (supervisor status, confirmation counts, DB state). Nothing else depends on it. It is the observability layer, not a functional prerequisite.
-
-**Delivers:** core/health.py with HealthRegistry and HealthEntry (status, last_heartbeat, consecutive_errors, items_checked, orders_confirmed); BotService.get_status() expanded to return plugin health dict + uptime_secs; health_degraded notification event type added to dispatcher; FastAPI /status endpoint updated; optional .shopbot_health.json write (opt-in)
-
-**Addresses:** Structured health/heartbeat surface (FEATURES P2)
-
-**Avoids:** Silent stalls on unattended overnight runs; degraded plugin going undetected
-
-**Research flag:** Standard patterns -- dataclasses, threading.Lock, FastAPI route addition are all standard. No plan-phase research needed.
-
-### Phase Ordering Rationale
-
-The dependency chain is clear and all four researchers converged on the same sequence:
-
-- Safety gate first: monitor_only is a prerequisite for trustworthy UAT of every subsequent phase. Any live testing of checkout features without it risks a real order.
-- Confirmation before retry: cart-retry idempotency guard reads the order_id column, which confirmation detection writes. Retry without confirmation first has no idempotency anchor.
-- Retry before supervisor: the supervisor uses RetryPolicy from core/retry.py. Building supervisor without the shared retry module first recreates the two-divergent-implementations problem.
-- Session persistence after supervisor shell: the relaunch path calls restore_session; Phase 22 ships a no-op stub replaced in Phase 23. Avoids circular dependency.
-- Health last: purely additive observability; no functional feature depends on it.
-
-### Research Flags
-
-Needs plan-phase research (--research-phase flag during planning):
-- Phase 19: per-retailer confirmation selectors require live UAT before hardcoding in core/confirmation.py
-- Phase 22: nodriver relaunch sequence interaction with CDP stealth state needs validation against installed 0.50.3
-- Phase 23: cdp.storage.set_cookies() argument shape and CookieParam constructor need verification against installed 0.50.3
-
-Standard patterns (skip plan-phase research):
-- Phase 18: ABC concrete method, Pydantic bool field, CLI flag wiring
-- Phase 20: CredentialStore key addition, Pydantic dataclass, form-fill via send_keys (same as existing login)
-- Phase 21: asyncio.timeout context manager, RetryPolicy dataclass
-- Phase 24: dataclasses, threading.Lock, FastAPI route
+**Research flags:**
+- Phase C (SSE): Spike recommended to validate lifespan + `asyncio.create_task` wiring against actual `web/__init__.py` `create_app()` factory before full implementation.
+- All other phases: standard, well-documented patterns; no additional research-phase needed.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All v4.0 features mapped to existing pinned deps or stdlib; verified from nodriver source and in-repo code reads; zero new packages confirmed |
-| Features | HIGH | P1/P2/defer split derived from direct analysis of existing code gaps; feature dependencies traced through existing call graph |
-| Architecture | HIGH | All integration points from direct source reads of orchestrator.py, plugin_base.py, credentials.py, models.py; no inference from training data |
-| Pitfalls | HIGH (acquisition) / MEDIUM (browser relaunch) | Double-buy, PCI, asyncio cancellation pitfalls traceable to existing code; nodriver relaunch inferred from CDP behavior + Phase 13 ship experience |
+| Stack | HIGH | PyPI version history, package `__init__.py` inspection, official FastAPI docs; `fastapi.sse` absence from 0.115.8 confirmed |
+| Features | HIGH | `get_status()` payload, `items` schema, `price_history` schema confirmed from direct source reads |
+| Architecture | HIGH | Cross-thread bridge verified against `core/service.py`; `asyncio.Queue` thread-safety confirmed from stdlib docs |
+| Pitfalls | HIGH | XSS at `dashboard.html` line ~241 confirmed by direct inspection; `read_recent_logs()` sync full-file read confirmed |
 
-**Overall confidence:** HIGH with three targeted LOW-confidence open questions requiring live validation
+**Overall confidence:** HIGH
 
-### Gaps to Address (Open Questions for Plan-Phase)
-
-These three items are explicitly LOW confidence and must be validated during plan-phase:
-
-1. **Per-retailer confirmation selectors (Phase 19):** URL-redirect signal is HIGH confidence. Backup DOM selectors (#confirmedOrderId, #widget-purchaseConfirmationStatus for Amazon; .thank-you-order-number, [data-testid="order-number"] for BestBuy) are MEDIUM confidence. Must be verified via live UAT (test_mode buy on a low-cost item) before hardcoding in core/confirmation.py.
-
-2. **nodriver cookie CDP API against installed 0.50.3 (Phase 23):** The cdp.storage.set_cookies() workaround is confirmed from issues #1816/#2020 but the exact import path and CookieParam constructor signature should be verified against the installed package before committing the implementation.
-
-3. **checkout_attempts increment strategy (Phases 19/21):** The schema adds checkout_attempts INTEGER DEFAULT 0, but the research files do not fully resolve when to increment it (on every auto_buy() call? on every cart-add attempt? only on confirmed orders?). This needs an explicit decision in Phase 21 planning to avoid ambiguous semantics that could mislead double-buy detection.
-
-## Sources
-
-### Primary (HIGH confidence -- direct source reads)
-- core/orchestrator.py: existing TaskGroup structure, _try_auto_buy, write-queue drain, asyncio.timeout usage confirmed
-- core/plugin_base.py: RetailerPlugin ABC contract, setup/teardown, existing method signatures
-- core/credentials.py: EncryptedFileBackend Fernet + scrypt KDF pattern, SECRET_KEYS list, _resolve_passphrase()
-- core/stealth.py: apply_stealth, ProxyPool, setup_proxy_auth; confirmed from nodriver import cdp import
-- plugins/shopbot_plugin_amazon.py: test_mode check pattern (lines 391-428); place-order without confirmation
-- plugins/shopbot_plugin_bestbuy.py: missing test_mode guard confirmed (lines 303-309)
-- models.py: existing schema, WAL mode, PRAGMA table_info idempotent ALTER pattern
-- nodriver source nodriver/core/browser.py: browser.stopped property, _process_pid (verified 2026-06-10)
-- Python 3.13 stdlib docs: asyncio.timeout, TaskGroup exception propagation, signal module Windows limitations
-
-### Secondary (MEDIUM confidence -- verified PyPI/GitHub, community sources)
-- nodriver CookieJar.set_all() bug: issues #1816, #2020, #2232 confirmed; cdp.storage.set_cookies workaround confirmed working
-- Amazon confirmation URL /gp/buy/thankyou/handlers: documented in community bot references; HIGH for URL, MEDIUM for DOM selector IDs
-- BestBuy confirmation URL /checkout/r/thank-you: Refract bot docs confirm; DOM selector .thank-you-order-number confirmed by ScrapingBee article
-- Asyncio supervisor coro-factory pattern: Python docs (coroutine cannot be re-awaited after consumption)
-
-### Tertiary (LOW confidence -- needs live validation)
-- Amazon DOM confirmation selectors (#widget-purchaseConfirmationStatus, #orderConfirmations, #confirmedOrderId): may have drifted; require live UAT
-- BestBuy DOM confirmation selectors (.thank-you-enhancement__order-number, [data-testid="order-number"]): same caveat
-- nodriver cdp.storage.set_cookies() exact argument shape against installed 0.50.3: verify against installed package before Phase 23
+**Gaps to address during planning:**
+- **Log plugin-filter prerequisite**: The P2 log viewer plugin filter depends on every `writeLog` call tagging lines with `[PLUGIN_NAME]`. Verify format consistency before including in the Phase D plan. If inconsistent, defer.
+- **`get_status()` last_error scrubbing verification**: Phase C must include a test asserting SSE data frames contain no credential-pattern strings (regex for `@`, `password`, `token`, `key=`, `cvv`). This test is the done-condition for the security scrubbing work.
+- **Charting library final pick**: uPlot vs fnando/sparkline vs hand-rolled SVG — roadmapper must document this decision in the Phase A plan.
+- **FastAPI 0.135 upgrade (tracked future item)**: `fastapi.sse.EventSourceResponse` available from 0.135.0 (March 2026; latest 0.138.0 June 2026). When a dep-refresh milestone is scoped, evaluate alongside the Pydantic floor change at 0.128.
 
 ---
-*Research completed: 2026-06-10*
+*Research completed: 2026-06-25*
 *Ready for roadmap: yes*

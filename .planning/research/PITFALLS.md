@@ -1,534 +1,536 @@
-# Domain Pitfalls: ShopPyBot v4.0 Win-the-Drop (Checkout Automation + Reliability)
+# Pitfalls Research: v4.1 Dashboard & Observability
 
-**Domain:** Async nodriver/asyncio checkout bot adding verified-checkout, idempotent retry,
-encrypted session persistence, per-coroutine supervision, and unified backoff to an existing
-modular core (BotService + CredentialStore + plugin ABC).
-**Researched:** 2026-06-10
-**Supersedes:** v3.0 PITFALLS.md for v4.0 scope only; v3.0 pitfalls (proxy, CAPTCHA,
-fingerprint, price monitoring) remain in force and are not repeated here.
-**Overall Confidence:** HIGH for acquisition correctness, PCI handling, and asyncio
-interaction patterns (directly traceable to existing code). MEDIUM for nodriver browser
-relaunch specifics (nodriver public API surface is small; patterns inferred from CDPlib
-behavior and Phase 13 ship experience).
+**Domain:** Adding SSE live-push, dependency-free charts, vendored design system, and
+log-viewer filtering/tailing to an existing FastAPI localhost dashboard that runs alongside
+a BotService daemon thread with its own asyncio event loop.
+**Researched:** 2026-06-25
+**Confidence:** HIGH for SSE/asyncio interaction patterns (directly traceable to
+`core/service.py` and existing `web/` code). HIGH for XSS/log-injection (standard
+DOM/security patterns). MEDIUM for FOUC specifics (browser-dependent timing).
+**Supersedes:** v4.0 PITFALLS.md for v4.1 scope only. v4.0 pitfalls (double-buy,
+idempotency, CVV logging, asyncio write-queue) remain in force and are not repeated here.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Double-Buy via Non-Idempotent Checkout Retry
+### Pitfall 1 [HIGHEST RISK]: BotService-Thread SSE Bridge Blocks Uvicorn's Event Loop
 
 **What goes wrong:**
-`auto_buy` returns `False` on any exception in its outer `try/except`. If the exception
-fires after `place_order.click()` but before `return True`, the orchestrator (seeing
-`False`) treats the attempt as failed. On the next poll cycle `purchased` is still `False`
-in the DB, so `_check_and_buy` re-enters `auto_buy` and submits a second order. For
-limited-release items at $400-$700+ this is a serious financial error, not a UI glitch.
+`BotService.start()` launches a daemon thread that creates its own `asyncio` event loop
+(`asyncio.new_event_loop()`, stored as `self._loop`) and runs `async_main` inside it.
+Uvicorn runs its own event loop on the main thread. An SSE generator that directly calls
+any BotService method which blocks — or tries to `await` something on the wrong loop —
+will hang uvicorn's event loop, freezing all other HTTP requests, the status API, and
+the dashboard page load.
+
+Specific failure modes in this codebase:
+
+1. `get_status()` is already non-blocking (in-memory reads only) — safe to call from the
+   SSE generator on uvicorn's loop. Do NOT change it to do I/O.
+2. Any new health/heartbeat data that requires calling into the BotService thread's loop
+   (e.g., `loop.call_soon_threadsafe(...)` with a `Future` that the generator `await`s)
+   needs careful bridge plumbing. Awaiting a `concurrent.futures.Future` or a
+   `threading.Event` inside an `async def` generator on uvicorn's loop is safe only if
+   done via `asyncio.get_event_loop().run_in_executor()` or `asyncio.to_thread()` — NOT
+   via bare `await future`.
+3. SQLite reads for price history or order records inside the SSE generator must use
+   `await asyncio.to_thread(...)` — sqlite3 is synchronous and will block uvicorn's loop
+   if called directly.
+4. `read_recent_logs()` in `web/log_reader.py` does `log_path.read_text(...)` — a
+   synchronous filesystem call. In the existing 2s poll route it barely matters; inside a
+   persistent SSE generator it runs on every push event and blocks the loop each time.
 
 **Why it happens:**
-The current `auto_buy` contract is `bool` with no idempotency guard. The site may have
-already charged and shipped order 1 by the time order 2 is attempted. The write-queue
-drain path (`_dispatch_write`) is the only place `update_item_purchased_sync` is called,
-and it only fires when `auto_buy` returns `True`.
+Developers see `svc.get_status()` is already called in `async def get_status(request)` in
+`api.py` and assume any BotService call is safe. The safe ones happen to be in-memory only.
+The SSE generator looks like just another async route so the loop-blocking rule isn't obvious.
 
 **How to avoid:**
-1. After `place_order.click()`, wait for and check the order confirmation page BEFORE
-   returning `True`. Return `True` only when a confirmed order number or "Thank you" page
-   element is detected (see Pitfall 2).
-2. Introduce an `in_progress` state column in the `items` table (or a transient in-memory
-   set on the plugin instance). Set it before `place_order.click()`; clear it on confirmed
-   success or explicit failure. The next poll cycle skips items in `in_progress` state even
-   if `purchased` is still `False`.
-3. Gate the retry-on-cart logic (Pitfall 5) on whether the confirmation page was already
-   seen this session — never retry a click that already advanced past cart.
-4. In the checkout time-budget cancellation path (Pitfall 5), set `in_progress=False` AND
-   query the order history API or confirmation page BEFORE concluding the order failed.
+- Keep the SSE generator's data-gathering to: (a) in-memory reads from `get_status()` as-is,
+  (b) DB reads wrapped in `await asyncio.to_thread(...)`, (c) log reads wrapped in
+  `await asyncio.to_thread(read_recent_logs, n)`.
+- The SSE bridge to BotService's thread loop is best implemented as a thread-safe queue:
+  BotService thread puts status snapshots/log lines into a `queue.Queue` (or
+  `asyncio.Queue` bridged via `loop.call_soon_threadsafe`); the SSE generator drains it
+  with `await asyncio.to_thread(q.get, timeout)`. Never directly `await` anything on the
+  bot's private loop from uvicorn's loop.
+- Write a test that starts uvicorn, opens an SSE connection, and asserts that `/api/status`
+  still responds in under 200ms while SSE is streaming.
 
 **Warning signs:**
-- `"Order placed"` log line appears twice for the same URL in the same run.
-- Two confirmation emails arrive for the same item.
-- `purchased` DB flag is `False` after an `"Order placed"` log (write queue fell behind or
-  the drain task was cancelled mid-flight).
+- Dashboard page hangs on load when the SSE connection is open.
+- `/api/status` poll stops responding while SSE is connected.
+- Python warning: `coroutine was never awaited` or `Future attached to different event loop`.
 
-**Phase to address:** Acquisition Core — verified-checkout + bounded retry phase.
+**Phase to address:** SSE phase (first SSE phase in v4.1).
 
 ---
 
-### Pitfall 2: False-Positive Order Confirmation Detection
+### Pitfall 2 [HIGHEST RISK]: XSS via Untrusted Strings in DOM-Built Log/Chart HTML
 
 **What goes wrong:**
-`auto_buy` in `shopbot_plugin_bestbuy.py` (line 310) logs `"Order placed on BestBuy"` and
-returns `True` immediately after `place_order.click()` with no page-state verification.
-The button may have been clicked on a stale/expired session page that re-rendered as an
-error; the bot marks the item purchased, the notification fires, and the human discovers
-no order exists.
+`dashboard.html` already has one live XSS vector: `loadItems()` does:
 
-Conversely, the Amazon plugin (lines 412-416) checks `test_mode` but skips confirmation
-scraping in live mode: it clicks `#submitOrderButtonId` and returns `True` without reading
-the resulting page. If Amazon's checkout redirects to a re-auth step, CVV challenge, or
-out-of-stock page instead of a thank-you page, `True` is returned for a non-order.
+```js
+tr.innerHTML = `<td>${item.name}</td><td>${item.link}</td>...`;
+```
+
+`item.name` and `item.link` come from the DB (user-supplied at add time) without escaping.
+An item name of `<img src=x onerror=alert(1)>` executes immediately on `loadItems()`.
+The v4.1 features add more surfaces for the same mistake:
+
+- **Log viewer:** Log lines written by `writeLog()` include user-controlled data:
+  item names, URLs, plugin names, and exception messages. Rendering log lines via
+  `innerHTML` or `insertAdjacentHTML` without sanitization is an instant XSS sink.
+- **Price-history charts:** Chart labels use item names. Any SVG/canvas label built via
+  string concatenation into `innerHTML` with an unsanitized item name is an XSS sink.
+- **Health cards:** Plugin names and last-error strings (from `get_status()`) rendered
+  with `innerHTML` are the same risk.
+- **Inline SVG charts:** SVG rendered via `innerHTML = '<svg>...' + itemName + '...'`
+  is a well-known XSS vector; SVG can execute `<script>` and event handlers.
 
 **Why it happens:**
-Click-and-assume is the pattern inherited from the v1 Selenium bot. It worked when a human
-was watching. In unattended drop mode it is silently wrong.
+The pattern `element.innerHTML = \`<td>${data}</td>\`` is the path of least resistance for
+dynamic DOM. The existing dashboard already uses it (line 241 in `dashboard.html`). Adding
+new features copies the pattern without recognizing it as dangerous.
 
 **How to avoid:**
-1. After `place_order.click()`, `await tab.get(...)` is not needed: nodriver stays on the
-   current tab after a click. Instead, use `tab.find()` or `tab.select()` to detect the
-   confirmation element within a bounded timeout (e.g., 30s).
-2. For BestBuy: detect `".thank-you-enhancement__order-number"` or an element matching
-   `/order[- ]*\d{7,}/i` (regex on `tab.text`).
-3. For Amazon: detect `"#widget-purchaseConfirmationStatus"` or `"#orderConfirmations"`.
-4. Treat any timeout or absence of the confirmation element as a definitive `False` return;
-   log the page title and body excerpt (first 200 chars, never logging credential fields)
-   for post-mortem.
-5. Add a `_confirm_order` helper that is separately unit-testable with mock tab responses.
+- Use `document.createElement` + `element.textContent = value` for all data from the API.
+  `textContent` never interprets HTML. This is the correct pattern already present in the
+  credential and config sections of the dashboard.
+- For the log viewer: `pre.textContent = lines.join('\n')` — never `innerHTML`.
+- For SVG charts built as strings: escape all user data with a dedicated helper before
+  interpolation:
+  ```js
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+  ```
+  Never build SVG strings without passing every user-controlled value through `escHtml`.
+- Fix the existing `item.name`/`item.link` `innerHTML` XSS in `loadItems()` in the same
+  phase — do not leave a known hole open while adding new surfaces.
+- Add a CI assertion: scan `dashboard.html` (and any new template files) for
+  `innerHTML` assignments that reference API response data. Flag for manual review.
 
 **Warning signs:**
-- Notification fires but no order in retailer account order history.
-- `purchased=True` in DB but email inbox has no confirmation from the retailer.
-- `tab.text` after the click contains "sign in", "session expired", or "out of stock".
+- Item names with `<` or `>` in the DB display as broken HTML or trigger browser errors.
+- A log line containing `<script>` causes unexpected console output.
+- Any `innerHTML` assignment that receives a string derived from DB/API data.
 
-**Phase to address:** Acquisition Core — order-confirmation capture phase.
+**Phase to address:** Design system / template phase (fix existing `loadItems()` XSS at
+the same time the new log viewer and chart templates are built).
 
 ---
 
-### Pitfall 3: Fragile Site-Specific Selectors That Silently Break
+### Pitfall 3: SSE Generator Leaks on Client Disconnect
 
 **What goes wrong:**
-CSS selectors like `".a-dropdown-prompt"` in `shopbot_plugin_bestbuy.py` (line 272) are
-copy-pasted from the legacy Selenium bot and carry a comment noting they look like Amazon
-selectors. When BestBuy updates their DOM, `tab.select()` returns `None`, the `if
-qty_dropdown:` guard is silently skipped, and the bot proceeds to checkout with the wrong
-quantity (or crashes at a later step). There is no observable difference in logs between
-"selector found, quantity set correctly" and "selector not found, skipping".
-
-The broader risk: all 7 plugins use their own selector sets with no shared testing
-harness. A single BestBuy redesign silently breaks the BestBuy plugin without alerting
-the Amazon or Target plugin operators.
-
-**How to avoid:**
-1. For each required selector (add-to-cart, CVV input, place-order, confirmation element),
-   log a WARNING when `select()` returns `None` rather than silently continuing. The warning
-   should include the selector string: `f"Selector {selector!r} not found on {url}"`.
-2. Gate place-order on CVV entry success: if `cvv_field` is `None` and `self._cvv` is set,
-   return `False` with a logged WARNING rather than proceeding without CVV.
-3. Treat `place_order = None` as an unrecoverable checkout failure; return `False`
-   immediately (current code already does this but the log says only "Place order button
-   not found" without the selector name -- add it).
-4. Define a `SELECTORS` dict at module top level so the roadmapper can see all selectors in
-   one place and the test fixture can patch them. Avoids selector strings scattered through
-   multi-hundred-line `auto_buy` methods.
-5. In tests, add a "stale selector" test case: mock tab that returns `None` for all
-   selectors and assert `auto_buy` returns `False` with a WARNING in the log.
-
-**Warning signs:**
-- `auto_buy` completes without hitting the CVV step (no `"send_keys"` log on CVV field).
-- "Checkout button not found" or "Place order button not found" in logs for items that are
-  genuinely available and in cart.
-- A DOM audit diff (periodically `GET` the page outside of bot context and diff selector
-  presence) shows selectors have disappeared.
-
-**Phase to address:** Acquisition Core — checkout form-fill phase; add a "selector
-health-check" step to the checkout plan.
-
----
-
-### Pitfall 4: Payment Data Handling / PCI Scope
-
-**What goes wrong:**
-Three failure modes exist for the CVV-at-runtime pattern:
-
-(a) **CVV written to a log**: the existing `auto_buy` in `shopbot_plugin_bestbuy.py`
-    calls `writeLog(f"Error during BestBuy auto-buy: {exc.__class__.__name__}", "ERROR")`
-    which is correctly redacted. But if a future checkout phase adds per-step debug logging
-    like `writeLog(f"Sending keys to CVV field: {self._cvv}", "DEBUG")` the CVV lands in
-    `logs/YYYYMONTHDD.log` in plaintext. Log files are not covered by CredentialStore
-    encryption.
-
-(b) **Full card number stored for convenience**: the checkout profile will contain billing
-    address + name. It is tempting to also store the card number and expiration in the
-    same CredentialStore record. Never do this. The BestBuy/Amazon flow uses retailer-saved
-    payment methods (the CVV is the only runtime secret). Storing the full PAN moves the
-    user into PCI DSS scope even for personal use, and creates a high-value target in
-    `creds.bin` or OS keyring.
-
-(c) **CVV in a retry loop that logs attempts**: if bounded retry-on-cart (Pitfall 5)
-    passes `self._cvv` through each retry iteration, any exception handler that logs
-    `str(exc)` risks capturing the CVV if it appears in a stack frame. Use
-    `exc.__class__.__name__` only (existing policy per STATE.md Research Flags / PITFALLS 6.4).
-
-**How to avoid:**
-1. CVV remains `getpass`-only at startup; `self._cvv` is the only in-memory location.
-   Never add `CVV` to `SECRET_KEYS` or store it in `CredentialStore`.
-2. Never log `self._cvv`, never log `str(exc)` on checkout paths (use
-   `exc.__class__.__name__` per existing policy).
-3. Billing/shipping checkout profile fields are NOT payment card data. Store them in
-   CredentialStore under keys like `BB_SHIPPING_NAME`, `BB_SHIPPING_ADDRESS`, etc. They are
-   not PCI-sensitive and do not require the same treatment as CVV.
-4. Do not store card number, expiration, or full card holder data in CredentialStore.
-   The flow must rely on retailer-saved payment method + CVV-at-runtime only.
-5. Add a CI grep assertion (similar to existing SC1 `os.environ` guard) that rejects any
-   `writeLog` call with `_cvv` in the arguments on checkout code paths.
-
-**Warning signs:**
-- `logs/` files contain strings matching `/\d{3,4}/` adjacent to "cvv" or "card".
-- `CredentialStore` key list contains `CVV`, `CARD_NUMBER`, or `PAN`.
-- Debug log verbosity increased to level 5 during testing and a CVV value appears in
-  the log file.
-
-**Phase to address:** Acquisition Core — checkout profile + form-fill phase; add SC grep
-check to that phase's test plan.
-
----
-
-### Pitfall 5: Time-Budget Cancellation Leaving a Half-Submitted Order
-
-**What goes wrong:**
-`asyncio.timeout()` or `asyncio.wait_for()` wrapping the entire `auto_buy` coroutine will
-raise `asyncio.TimeoutError` (or `asyncio.CancelledError` when a `TaskGroup` task is
-cancelled) at any `await` point inside the method -- including inside nodriver's own
-`tab.send()` calls. If the coroutine is cancelled after `place_order.click()` but before
-the confirmation check completes, the browser tab is left on the checkout page in a
-partially submitted state. The Chrome subprocess continues running; the next call to
-`self.driver.main_tab` may be operating on a stale post-click page state.
-
-The converse risk: if the timeout fires BEFORE `place_order.click()`, the cart may hold the
-reserved item, blocking other purchasers and triggering a cart-expiry at the retailer that
-makes the item temporarily unavailable to the bot on the next poll.
+FastAPI SSE generators using `EventSourceResponse` (from `sse-starlette`) or a raw
+`StreamingResponse` keep the generator alive until the server explicitly checks whether
+the client is still connected. If the client tab closes or the browser refreshes, the
+generator continues running indefinitely: reading logs, calling `get_status()`, and holding
+an open HTTP connection. Under the localhost single-user model this is low risk for resource
+exhaustion, but it causes log reads and DB queries to continue running after the user has
+left the page, and on bot restart the accumulated stale generators can cause surprising
+behavior.
 
 **Why it happens:**
-Per-item orchestrator timeouts (a v4.0 requirement) are straightforward for
-`check_availability` (stateless per-poll). Applying the same pattern to `auto_buy` (which
-is stateful and has side effects at the retailer) requires explicit checkpointing.
+SSE is a one-way push; the server has no synchronous signal of client disconnect. FastAPI's
+`request.is_disconnected()` must be polled explicitly inside the generator. Developers write
+`while True: yield event; await asyncio.sleep(1)` and forget the disconnect check.
 
 **How to avoid:**
-1. Do not wrap the entire `auto_buy` call in a single `asyncio.timeout`. Instead, apply
-   timeout budgets per-step: navigate (10s), add-to-cart (15s), checkout-proceed (15s),
-   CVV entry (10s), place-order click (10s), confirmation wait (30s). Use
-   `asyncio.timeout(N)` as a context manager around each `await` separately.
-2. Track checkout progress via a local state variable inside `auto_buy`:
-   `stage = "cart" | "cvv" | "placed" | "confirmed"`. On `CancelledError`, catch it
-   in a finally block, log the stage, then re-raise. The orchestrator logs the stage to
-   assist post-mortem.
-3. After catching `CancelledError` at stage `"placed"` or later, set `in_progress=True`
-   in the DB rather than leaving `purchased=False` so the next poll cycle does not
-   immediately re-submit.
-4. For browser orphan prevention: `teardown()` already calls `self.driver.stop()` in the
-   `finally` of `async_main`. Per-item timeout should NOT call `teardown()`; only the
-   top-level shutdown path should. A per-item timeout should cancel the task and let
-   `async_main`'s `finally` handle browser cleanup.
+```python
+async def status_stream(request: Request):
+    while True:
+        if await request.is_disconnected():
+            break
+        data = svc.get_status()
+        yield f"data: {json.dumps(data)}\n\n"
+        await asyncio.sleep(1)
+```
+Wrap the entire generator body in a `try/finally` block that logs generator exit so
+disconnect detection can be verified in testing. Use a short sleep (1-2s) so the disconnect
+poll runs frequently.
 
 **Warning signs:**
-- Browser process consumes CPU after a timeout event (still rendering checkout page).
-- Two orders in retailer account from the same drop session.
-- `purchased=False` in DB after the "Order placed" log appeared (drain task cancelled
-  while the write was in flight).
+- Server log shows active generators after browser tab is closed.
+- Memory or file handle count grows over time with repeated dashboard opens/closes.
+- `asyncio` task list shows stale SSE tasks that should have cleaned up.
 
-**Phase to address:** Acquisition Core — per-item/per-step checkout time budget phase.
+**Phase to address:** SSE phase.
 
 ---
 
-### Pitfall 6: Monitor-Only Gate That Fails to Block Place-Order in All 7 Plugins
+### Pitfall 4: SSE Without Heartbeat Causes Proxy/Browser Timeout
 
 **What goes wrong:**
-The Amazon plugin implements `test_mode` correctly (lines 391-428): it pauses before and
-after the buy-now click, and explicitly skips `place_order.click()`. The BestBuy plugin
-has NO `test_mode` guard at all -- `place_order.click()` fires unconditionally when the
-button is found (lines 303-309). The 5 other plugins (Walmart, Target, GameStop,
-SquareEnix, Newegg) were built before checkout was real and have no place-order path yet,
-but they will need the gate when checkout is added in v4.0.
-
-A central `monitor_only` mode (v4.0 requirement) that is not threaded through the plugin
-ABC and tested per-plugin will have the same gap. If even one plugin bypasses the gate,
-the monitor-only mode cannot be trusted for demo or test environments.
+When the bot is stopped (`get_status().running == False`), status changes infrequently.
+If the SSE connection sends no data for 30-60 seconds, many HTTP proxies (nginx, Caddy,
+any reverse proxy the user might put in front) and some browsers will close the connection
+as idle. The client receives a silent disconnect and falls back to polling (or worse, shows
+a stale state forever). For a localhost-only app this is less likely but remains a real
+failure mode for users who route through any local proxy or use Firefox which has tighter
+SSE timeout behavior.
 
 **Why it happens:**
-`test_mode` is read from `self.config.debug.test_mode` inside the plugin, which requires
-the plugin to actively check it. There is no architectural enforcement from the base class.
+SSE streams that only emit on state changes have natural quiet periods. A "comment" keepalive
+is specified in the SSE spec but is easy to omit.
 
 **How to avoid:**
-1. Add `monitor_only: bool` to `AppConfig.debug` (or as a top-level field). Read it once
-   in `orchestrator.async_main` and pass it to `run_plugin` as a flag.
-2. In `run_plugin`, gate the `await _try_auto_buy(...)` call with `if not monitor_only`.
-   This prevents `auto_buy` from being called at all when monitor-only mode is active,
-   regardless of plugin implementation. This is the single enforcement point.
-3. Separately, fix the BestBuy `test_mode` gap: add the same `if not test_mode: ...
-   place_order.click()` pattern from Amazon to BestBuy. Test it with the existing
-   `test_pause_event` pattern.
-4. For new checkout implementations in other plugins, the ABC should document that
-   `auto_buy` MUST respect `self.config.debug.test_mode`; but the orchestrator-level gate
-   in step 2 is the authoritative guard.
-5. Add a CI test: mock all 7 plugins, set `monitor_only=True`, assert `auto_buy` is never
-   called (by asserting zero calls to `write_queue.put` with tag `"purchased"`).
+Emit an SSE comment line every 15-20 seconds regardless of data changes:
+```python
+yield ": keepalive\n\n"  # SSE comment; ignored by EventSource but resets proxy timers
+```
+The `EventSource` spec requires browsers to auto-reconnect after disconnect, but the
+keepalive prevents unnecessary reconnection churn.
 
 **Warning signs:**
-- BestBuy `auto_buy` places a real order during a "monitor-only" session.
-- Any plugin's `auto_buy` is called when `monitor_only=True` is set in config.
-- The `_try_auto_buy` orchestrator function shows up in call traces during monitor-only
-  runs (add a log line to `_try_auto_buy` that is easy to grep).
+- SSE stream silently drops after ~30s of no bot activity.
+- Browser network tab shows SSE connection closed then immediately reopened.
+- Dashboard shows stale "Running" state because the last event was before a stop.
 
-**Phase to address:** Acquisition Core — central monitor-only run mode + close test_mode
-place-order hole phase.
+**Phase to address:** SSE phase.
 
 ---
 
-### Pitfall 7: Per-Coroutine Restart Crash-Loops With No Backoff
+### Pitfall 5: No Client-Side SSE Reconnect Backoff
 
 **What goes wrong:**
-The current `run_plugin` coroutine (orchestrator.py line 168) runs inside
-`asyncio.TaskGroup`. If the plugin raises an unhandled exception, `TaskGroup` cancels all
-sibling tasks and the entire bot exits. The v4.0 per-coroutine supervision requirement
-inverts this: individual plugin coroutines should restart independently rather than taking
-down the whole group.
-
-The naive fix -- wrapping `run_plugin` in a `while True: try/except` restart loop -- will
-crash-loop at maximum speed if the plugin has a persistent error (e.g., login fails every
-time because `BB_PASSWORD` was rotated). 100+ browser launches per minute will trigger
-an OS-level Chrome process limit, exhaust disk space with crash dumps, and get the
-bot's IP banned in seconds.
-
-**How to avoid:**
-1. Implement exponential backoff with jitter for the per-plugin restart supervisor:
-   `delay = min(base * 2**attempts, max_delay) + random.uniform(0, 1)`.
-   Recommended values: `base=5s`, `max_delay=300s`. Reset `attempts=0` on a successful
-   poll cycle (defined as `check_availability` returning without exception).
-2. Add a `max_restarts` cap per plugin per run (e.g., 10). After hitting the cap, log
-   CRITICAL and stop restarting that plugin without killing siblings.
-3. Distinguish retryable errors (network timeout, nodriver `ConnectionError`) from
-   non-retryable errors (login credential failure, `RuntimeError: proxy pool exhausted`).
-   Non-retryable errors should go straight to the `max_restarts` cap without any delay.
-4. The supervisor should live outside `asyncio.TaskGroup` or use a shielded
-   `asyncio.create_task` per plugin so that one plugin's restart loop cannot propagate
-   `ExceptionGroup` cancellation to sibling plugins.
-
-**Warning signs:**
-- Log shows the same plugin "setup failed: ..." message repeating with no delay.
-- Chrome process count in `ps`/Task Manager grows without bound.
-- Bot exits entirely when one plugin fails (current behavior -- not the v4.0 target).
-
-**Phase to address:** Always-On Reliability — per-coroutine supervision + backoff restart.
-
----
-
-### Pitfall 8: Browser Relaunch That Forgets Stealth, Proxy, and Login
-
-**What goes wrong:**
-`_staggered_setup` (orchestrator.py lines 284-308) applies `assign_proxy`, `assign_solver`,
-and `plugin.setup()` (which calls `apply_stealth` and `setup_proxy_auth`) in one pass at
-bot startup. A v4.0 browser-crash detection + relaunch path that calls only
-`plugin.setup()` will relaunch Chrome but will NOT re-apply stealth patches or
-authenticated proxy handlers, and will NOT re-log in. The browser comes up clean, hits
-the target site without stealth or proxy, gets banned immediately, and the crash-detection
-fires again -- producing a ban-loop.
+The browser's native `EventSource` will auto-reconnect on disconnect, but it retries
+immediately by default (or after a short browser-set interval). If the server is
+temporarily unavailable (restart, `uvicorn` reload during development) and the client
+reconnects in a tight loop, server logs fill with rapid connection attempts and any
+startup work (DB init, registry load) competes with reconnection traffic. This is minor
+for localhost but still creates confusing logs during development.
 
 **Why it happens:**
-`setup()` in both plugins (`shopbot_plugin_bestbuy.py` line 158, `shopbot_plugin_amazon.py`
-line 193) does correctly call `apply_stealth` and `setup_proxy_auth`. The danger is in
-the relaunch caller forgetting to also call `plugin.login()` after `setup()`. Login state
-is not persisted across browser restarts in the current design (no session/cookie
-persistence until Pitfall 9 is addressed).
+`new EventSource('/api/sse/status')` reconnects automatically with no application control
+over retry timing. Developers don't realize the browser handles reconnection.
 
 **How to avoid:**
-1. Define a `_cold_start(plugin, registry)` helper that encapsulates the full relaunch
-   sequence: `registry.assign_proxy(plugin)` + `registry.assign_solver(plugin)` +
-   `await plugin.setup()` + `await plugin.login()`. This is the single path both
-   `_staggered_setup` and the crash-recovery code use.
-2. After session/cookie persistence is implemented (Pitfall 9), the relaunch path should
-   also call `session_store.restore(plugin)` before `plugin.login()` so that a valid
-   session avoids re-triggering the passkey/OTP flow.
-3. Add a `stealth_applied: bool` flag to the plugin base class (or check via CDP
-   `Page.getScriptExecutionStatus`) as a post-relaunch assertion before the first
-   navigation.
-4. Test: mock `nodriver.start` to raise `OSError` on first call (simulating a crash), then
-   succeed on second call. Assert that `apply_stealth` and `setup_proxy_auth` are called
-   on both the first and second startup.
+Use `retry:` field in the SSE stream to set a reconnect interval (in milliseconds):
+```python
+yield "retry: 3000\n\n"  # tell browser to wait 3s before reconnecting
+```
+Send this once at stream open. The browser honors it for all subsequent reconnects.
+For the client-side implementation, do not add a manual `EventSource` close/reopen loop
+on top of the native reconnect — it creates double-reconnect behavior.
 
 **Warning signs:**
-- After a relaunch, the bot hits the site and immediately returns a ban-page response
-  (`_handle_ban` returns `True` on the first request).
-- `apply_stealth` log line (`"[STAGGER-N] Initializing ..."`) appears once at startup but
-  not after a crash recovery.
-- Proxy provider dashboard shows direct-IP traffic appearing after the relaunch interval.
+- Server access log shows `/api/sse/status` being hit many times per second after a
+  server restart.
+- Two or more SSE connections open simultaneously from the same browser tab.
 
-**Phase to address:** Always-On Reliability — browser-crash detection + relaunch.
+**Phase to address:** SSE phase.
 
 ---
 
-### Pitfall 9: Session/Cookie Persistence Leaking Auth Material to Plaintext
+### Pitfall 6: Unbounded Log Memory in the Tailing Log Viewer
 
 **What goes wrong:**
-nodriver's `Browser` object accumulates cookies (including session tokens, CSRF tokens,
-and auth cookies) in the browser process state. Persisting these across restarts requires
-serializing them via CDP `Network.getAllCookies` and writing the result to disk. If written
-as a plain JSON file alongside `config.yml` or in `data/`, this is plaintext auth material
-on disk -- the exact security posture that the v2.0 `CredentialStore` was built to prevent
-(STATE.md Key Decisions: "No secrets in SQLite", "Dynamic CredentialStore").
+The current `read_recent_logs(n=50)` reads the entire log file into memory with
+`log_path.read_text(...)` then slices the last `n` lines. On a long unattended run the
+daily log file can grow to many megabytes. Reading the entire file on every SSE push
+event (every 1-2 seconds) means: (a) the entire file is read into memory repeatedly,
+(b) uvicorn's loop is blocked on that I/O (see Pitfall 1), (c) on very large logs the
+SSE event payload itself becomes large.
+
+For the tailing log viewer with SSE, a naive "push the last 50 lines" approach is also
+semantically wrong: every 1-2s the full tail is re-sent rather than just new lines,
+causing the viewer to show duplicate content or flash on updates.
 
 **Why it happens:**
-Session persistence is not currently implemented. The temptation on implementation is to
-use `json.dump(cookies, open("sessions/bestbuy.json", "w"))` because it is five lines and
-appears to be "just browser state, not a password."
+`read_recent_logs` was designed for the 2s poll endpoint — it reads all and slices. Reusing
+it verbatim for SSE continuous tailing inherits both the full-file read and the
+"send all 50 again" semantics.
 
 **How to avoid:**
-1. Route session/cookie persistence through the existing `EncryptedFileBackend` or a
-   new `SessionStore` wrapper that uses the same Fernet + scrypt approach from
-   `core/credentials.py`. The key for the session store should come from the same
-   `SHOPBOT_STORE_PASSPHRASE` or OS keyring path.
-2. Never write raw CDP cookie dicts to a plain file. The serialized value for each plugin
-   should be stored under a key like `BB_SESSION_COOKIES` (add to `SECRET_KEYS` list).
-3. On restore, verify cookie freshness: check `expires` timestamps and discard expired
-   cookies before injection. A stale session token is worse than none (it causes a
-   "session expired" redirect that the selector-based login flow does not handle cleanly).
-4. Session store write must use the same atomic write pattern (`mkstemp` + `os.replace`)
-   that `EncryptedFileBackend._save` uses to prevent partial writes on crash.
+- For SSE log tailing: maintain a cursor (byte offset or line count) in the generator's
+  local state. On each tick, open the file, seek to the cursor, read only new bytes, update
+  the cursor. Only emit lines that are genuinely new.
+- Wrap all file I/O in `await asyncio.to_thread(...)` (see Pitfall 1).
+- Cap the maximum lines sent in a single SSE event (e.g., 100 new lines). If a burst of
+  logging produces 10,000 lines between two ticks, send the last 100 and advance the
+  cursor past all of them.
+- For the initial page load (HTTP endpoint, not SSE), the existing `read_recent_logs(50)`
+  pattern is fine. The SSE-specific tailing path needs a separate implementation.
 
 **Warning signs:**
-- A `.json` or `.pickle` file appears in `data/` or `sessions/` containing the string
-  `"session-token"` or `"cookie"`.
-- `git status` shows an untracked `sessions/` directory with readable content.
-- `CredentialStore.list()` does not include session-cookie keys, but session files exist.
+- Server memory usage grows steadily during a bot run.
+- SSE event payload size grows over the run duration.
+- The log viewer flashes or shows the same lines repeated every few seconds.
 
-**Phase to address:** Always-On Reliability — encrypted session/cookie persistence.
+**Phase to address:** Log viewer phase.
 
 ---
 
-### Pitfall 10: Per-Item asyncio Timeout That Cancels Mid-DB-Write or Mid-Checkout
+### Pitfall 7: Secret-Bearing Log Lines Exposed to the Browser
 
 **What goes wrong:**
-`asyncio.CancelledError` propagates through every `await` without warning. The
-write-queue drain task (`_write_queue_drain`, orchestrator.py line 271) awaits
-`_dispatch_write`, which calls `loop.run_in_executor(None, update_item_purchased_sync)`.
-If the per-item orchestrator timeout fires while the executor thread is running the SQLite
-write, the `CancelledError` cancels the `await` in the drain coroutine but the executor
-thread continues to completion in the background. The `queue.task_done()` in the `finally`
-block fires normally. In this case, the write actually completes, but the drain task's
-exception handler may log a spurious error.
+`writeLog()` in `logger.py` writes to files in `logs/YYYYMONTHDD.log`. The log reader
+serves those lines to the browser via `/api/logs` (currently) and the SSE log stream
+(v4.1). If any code path passes a secret-bearing string to `writeLog()`, it is on disk
+and will appear in the browser's log viewer.
 
-The more serious case: if the per-item timeout is applied to `_check_and_buy` directly
-(not via the write queue), the `await write_queue.put(...)` calls inside
-`_check_and_buy` may be cancelled before the item is enqueued, leaving the DB in an
-inconsistent state (`set_available` fired but `clear_available` never will, or `purchased`
-was not marked despite a confirmed order).
+Known risky patterns already guarded against in v4.0:
+- `_fill_field` logs `selector name only never field value` (Phase 20 decision)
+- CVV: `exc.__class__.__name__` not `str(exc)` on checkout exception paths (v4.0 decision)
+- `TWOCAPTCHA_API_KEY` excluded from any debug log (Phase 14 decision)
 
-**How to avoid:**
-1. Never cancel the write-queue drain task (`_write_queue_drain`) via per-item timeout.
-   The drain task must run to natural completion on shutdown only (current `finally:
-   await asyncio.wait_for(write_queue.join(), timeout=10)` is correct; preserve it).
-2. Apply per-item timeouts only to the `check_availability` + `auto_buy` portion of
-   `_check_and_buy`, not to the `write_queue.put(...)` calls that follow them. Structure:
-   ```python
-   try:
-       async with asyncio.timeout(item_timeout):
-           available = await plugin.check_availability(link)
-           # ...auto_buy path...
-   except asyncio.TimeoutError:
-       writeLog(f"[{plugin.__class__.__name__}] Item timeout for {link}", "WARNING")
-       return
-   # write_queue.put calls are OUTSIDE the timeout context
-   await write_queue.put(("set_available", link, now_iso))
-   ```
-3. On `CancelledError` (from TaskGroup shutdown, not per-item timeout), do NOT suppress
-   it. Let it propagate after logging the item URL and current stage.
-
-**Warning signs:**
-- `"DB write failed for ..."` log followed by the item not being marked `purchased`
-  despite an order confirmation log in the same run.
-- `asyncio.InvalidStateError` or `queue.task_done()` called too many times (indicates the
-  drain task was cancelled mid-loop).
-- Items that were set available are never cleared on the next poll (missed
-  `clear_available` because the put was cancelled).
-
-**Phase to address:** Always-On Reliability — per-item orchestrator timeout.
-
----
-
-### Pitfall 11: DB Error Isolation That Silently Swallows Real Corruption
-
-**What goes wrong:**
-The `_dispatch_write` function (orchestrator.py line 240) wraps the entire write in
-`try/except Exception` and logs the error, then continues. This is correct for transient
-SQLite locks (`OperationalError: database is locked`). But `sqlite3.DatabaseError` and
-`sqlite3.CorruptionError` indicate actual file corruption -- continuing silently means
-subsequent reads return garbage data, availability state diverges from reality, and the
-bot may never buy anything (or buy things it already owns) for the rest of the session.
+New risks introduced by v4.1:
+- The log viewer with search/filter runs client-side regex over log lines already sent to
+  the browser. If a secret ever reaches a log line, search/filter does not add risk — the
+  secret is already in the browser. But the SSE stream pushes lines in near-real-time,
+  reducing the window for a human to notice before a secret is rendered on screen.
+- `get_status()` returns plugin health strings including last-error messages. If a plugin
+  emits `health_degraded` with a message that includes a URL with embedded credentials
+  (e.g., `http://user:pass@proxy/`) the SSE health-card push sends it to the browser.
+- Price history labels (item names) in chart data could contain Unicode or control
+  characters that confuse the chart renderer if not normalized.
 
 **Why it happens:**
-A blanket `except Exception` at the write-queue drain level is the right shape for
-transient errors, but it makes no distinction between transient and fatal.
+Log consumers (the browser) are never validated against the log producer's (BotService)
+secret-safety guarantees. The `SECRET_KEYS` list in `core/credentials.py` guards env-var
+reads; there is no analogous guard on log writes.
 
 **How to avoid:**
-1. Distinguish exception types at the write-queue drain level:
-   - `sqlite3.OperationalError` with message containing "locked": log WARNING, do NOT
-     re-raise; the write will succeed on retry.
-   - `sqlite3.DatabaseError` / `sqlite3.CorruptionError`: log CRITICAL, raise the
-     exception (which will propagate out of the drain task and cancel the TaskGroup,
-     triggering a clean shutdown with the existing `teardown_all` path).
-2. For read-path errors in `run_plugin` (the `get_items_sync` call), wrap in
-   `try/except sqlite3.OperationalError` only. A true `DatabaseError` on a read should
-   immediately stop the poll loop with a CRITICAL log rather than looping forever on
-   a corrupted `items` table.
-3. Add a startup DB integrity check: call `PRAGMA integrity_check` on startup in
-   `initialize_db` and raise `RuntimeError` if it returns anything other than `"ok"`.
-   This catches corruption before any writes attempt to proceed.
+- Extend the existing CI AST grep assertion (from v4.0, "never add CVV/CARD_NUMBER to
+  SECRET_KEYS" equivalent) to also scan for `writeLog` calls whose format strings
+  concatenate or format any value derived from `get_store()`, the credential store, or
+  checkout profile fields.
+- For `get_status()` health strings: scrub or truncate `last_error` fields at the
+  `get_status()` boundary. A safe pattern: return only `exc.__class__.__name__` in the
+  health surface, not `str(exc)`.
+- The log viewer must NOT add any "enhance" step that joins log lines with additional data
+  (config values, credential store keys). Filter/search is read-only over already-sent
+  lines only.
+- Document in `SECURITY.md`: "Log lines are browser-visible via the dashboard. Never log
+  secret values, full URLs with embedded credentials, or card data."
 
 **Warning signs:**
-- `"DB write failed for ..."` log appearing every poll cycle for the same item URL
-  (write never succeeds -- permanent failure being retried endlessly).
-- SQLite file size grows to 0 bytes or becomes non-parseable (file deleted mid-write
-  without atomic replace -- should not happen with the existing `os.replace` pattern, but
-  watch for it if session store is added without the same atomic-write guard).
-- `get_items_sync` returns an empty list when items are known to exist.
+- A log line in the browser log viewer contains `password`, `token`, `key=`, `cvv`, or
+  a URL with `@` (embedded credentials).
+- `get_status()` response JSON in the network tab contains a stack trace or error string
+  that includes a secret value.
 
-**Phase to address:** Always-On Reliability — DB read-path error isolation phase.
+**Phase to address:** SSE phase (add scrubbing to `get_status()` health strings) + log
+viewer phase (CI assertion for log-secret policy).
 
 ---
 
-### Pitfall 12: Two Divergent Retry Implementations (Orchestrator Transient-Retry vs Checkout Retry-on-Cart)
+### Pitfall 8: FOUC (Flash of Unstyled Content) During Design System Integration
 
 **What goes wrong:**
-v4.0 adds two distinct retry concepts:
-- **Orchestrator transient retry**: retry a failed `check_availability` or `auto_buy` call
-  due to network error or nodriver connection reset (per-coroutine supervision in Pitfall 7).
-- **Checkout retry-on-cart**: if `auto_buy` fails at the "add to cart" step (item went
-  out of stock in the window between `check_availability` and `auto_buy`), wait briefly
-  and re-attempt the cart add up to N times.
+When the vendored design system CSS is loaded via `<link rel="stylesheet">` in the `<head>`,
+the browser may render the page with no styles (or old styles) for a visible flash before
+the stylesheet parses. This is worse when:
+- The CSS file is large (a full design system with tokens, components, utilities).
+- Critical tokens (background color, text color) are defined in CSS custom properties set
+  on `:root`, but the browser applies the default white background first.
+- Light/dark mode is determined by `prefers-color-scheme` media query in CSS but the
+  browser paints the default (light) background before the media query fires.
+- The existing `dashboard.css` is replaced or extended, leaving a brief period where
+  neither old nor new styles apply.
 
-If these are implemented independently (one in `run_plugin`, one inside `auto_buy`), they
-will have different backoff parameters, different logging, different exception handling,
-and different interaction with the `in_progress` state (Pitfall 1). When both fire
-simultaneously (a cart error during an already-retrying plugin), the bot may attempt
-`max_supervisor_retries * max_cart_retries` orders -- multiplicative, not additive.
+**Why it happens:**
+CSS is render-blocking by default, but there is a timing window between HTML parse start
+and CSS parse complete. For locally-served files this window is very short but visible on
+slower machines or when the CSS is large.
 
 **How to avoid:**
-1. Define a single `RetryPolicy` dataclass in `core/retry.py`:
-   ```python
-   @dataclass
-   class RetryPolicy:
-       max_attempts: int
-       base_delay: float
-       max_delay: float
-       jitter: bool = True
-       retryable_exceptions: tuple = (Exception,)
-   ```
-2. Implement one `async def with_retry(coro_fn, policy: RetryPolicy)` utility that both
-   the supervisor restart path and the checkout cart-retry path use.
-3. The supervisor retry (Pitfall 7) uses `RetryPolicy(max_attempts=10, base_delay=5,
-   max_delay=300)`.
-4. The checkout cart-retry uses `RetryPolicy(max_attempts=3, base_delay=2, max_delay=10)`
-   and is scoped only to the "add to cart" step -- never to `place_order.click()` or later
-   (per Pitfall 1).
-5. The two policies are configured independently in `AppConfig` so operators can tune them
-   without touching code.
+- Inline the critical CSS tokens (background color, text color, font-family) in a `<style>`
+  block in `<head>` before the `<link>` tag. This sets the base appearance before the
+  external stylesheet loads, eliminating the FOUC.
+- For light/dark: inline a tiny `<script>` in `<head>` (before `<body>`) that reads
+  `window.matchMedia('(prefers-color-scheme: dark)').matches` and sets a `data-theme`
+  attribute on `<html>`. The design system's tokens then reference `[data-theme=dark]`.
+  This script runs synchronously before paint, preventing a dark-mode flash.
+- Do not add a `<link rel="preload">` for the design system stylesheet and then also load
+  it via a second `<link rel="stylesheet">` — double-load is a common mistake.
+- Migrate the existing `dashboard.css` to the new design system tokens in a single commit
+  so there is no intermediate state where both old and new styles partially apply.
 
 **Warning signs:**
-- `auto_buy` has its own `for attempt in range(N)` loop AND the supervisor also has a
-  restart loop -- both are independently retrying with no shared state.
-- Log shows "attempt 1/3" interleaved with "restarting plugin" messages making the
-  actual retry count ambiguous.
-- Cart retry fires after a confirmed-order step (retry should be gated to pre-CVV stages).
+- Page visibly flashes white before the background color appears.
+- On dark OS settings, page loads light then immediately switches to dark.
+- Layout shifts (elements repositioned) during initial load.
 
-**Phase to address:** Always-On Reliability — one unified transient retry/backoff phase;
-must be built before checkout retry is added to any plugin.
+**Phase to address:** Design system phase.
+
+---
+
+### Pitfall 9: Design System Breaks the Non-Local Warning Banner and CSRF Gate
+
+**What goes wrong:**
+The `is_non_local` warning banner in `dashboard.html` is a Jinja2 conditional that renders
+a `<div class="banner-warning">` when `is_non_local=True`. During design system integration:
+- The `banner-warning` class may be removed or renamed, causing the banner to render
+  without visible styling (invisible warning).
+- A CSS reset in the design system may override the banner's colors, making a red/yellow
+  warning look the same as the page background.
+- Template refactoring that splits the dashboard into components may accidentally move the
+  `{% if is_non_local %}` block into a component that is conditionally rendered, breaking
+  the always-visible guarantee.
+
+The CSRF `check_origin` dependency is server-side and is not affected by CSS/template
+changes, but the non-local warning is the user-facing safety signal — making it invisible
+is a security regression.
+
+**Why it happens:**
+Design system integration typically involves replacing all existing CSS classes. The
+`banner-warning` class is a one-off in the existing `dashboard.css` and will be caught
+by a global class rename pass.
+
+**How to avoid:**
+- The existing test `test_web_dashboard.py` (Phase 12-03, `MC-4`) already asserts the
+  banner is present when `is_non_local=True` and absent when `False`. Run this test
+  against the new template in the design system phase — do not disable or skip it.
+- After design system integration, manually verify the banner is visually distinct (colored
+  background, contrasting text) in both light and dark mode.
+- Keep the `{% if is_non_local %}` conditional at the top level of the template body, not
+  inside a component or partial that could be accidentally skipped.
+
+**Warning signs:**
+- `MC-4` test fails or is skipped after template changes.
+- The banner renders but is invisible (white text on white background or similar).
+- `is_non_local=True` in a non-local run shows no visible warning.
+
+**Phase to address:** Design system phase (must be verified before the phase is closed).
+
+---
+
+### Pitfall 10: Sparse / Amazon-Only Price Data Produces Misleading Charts
+
+**What goes wrong:**
+The `price_history` table is populated only by the Amazon plugin today (PRICE-02 research
+flag). For all other plugins, `price_history` is empty. A price-history chart that:
+- Shows "No data" for 6 of 7 plugins without explanation looks broken.
+- Connects sparse data points with straight lines implies continuous price stability that
+  doesn't exist.
+- Displays a chart X-axis with 2 data points spanning 3 months looks like the item was
+  never checked.
+
+Additionally, `get_price_history()` in `BotService` takes a `name` argument, resolves it
+to a `link` via `get_items_sync()`, and then queries `price_history` by `link`. If an item
+is renamed in the DB without updating `price_history.item_link`, the history becomes
+unreachable via the service layer (the link is the join key, not the name).
+
+**Why it happens:**
+Chart components are typically designed with "always has data" assumptions. Sparse data
+handling and empty-state UI are afterthoughts.
+
+**How to avoid:**
+- Chart empty state: show an explicit "No price history (Amazon only)" message for plugins
+  other than Amazon. Do not show a blank chart area — blank looks like a rendering failure.
+- For sparse Amazon data: use discrete point markers rather than a continuous line. If
+  fewer than 2 points exist, show a message not a chart.
+- Do not connect non-adjacent data points with a line when there are gaps longer than 24h
+  — use null/gap segments in the chart rendering.
+- The X-axis should auto-scale to the range of the data, not to "last 30 days" when there
+  are only 2 points 3 weeks apart.
+- Add a tooltip showing exact timestamp and price on hover so sparse charts are still
+  informative.
+
+**Warning signs:**
+- Price chart shows a flat diagonal line for an item that was only checked twice.
+- Non-Amazon plugin items show a blank chart area with no explanation.
+- Item was renamed and its price history is now unreachable via the service layer.
+
+**Phase to address:** Charts phase.
+
+---
+
+### Pitfall 11: SSE Route Bypasses CSRF Check
+
+**What goes wrong:**
+The existing CSRF `check_origin` dependency is applied only to state-changing routes
+(`POST`, `DELETE`). `GET` routes (including SSE streams) are exempt, which is correct for
+read-only data. However, the SSE route could be abused as a side-channel: a malicious page
+on `localhost` (e.g., a different app bound to another localhost port) can open an
+`EventSource` to the SSE endpoint and receive live status, log lines, and health data.
+This is a cross-origin read, not a cross-origin write, so CSRF protections do not apply by
+design — but it is still an information disclosure risk for log lines that may contain
+sensitive operational data.
+
+For localhost-only deployments this risk is low: the attacker must already have code
+execution on the local machine. But it is worth understanding the boundary.
+
+**Why it happens:**
+Developers sometimes add `Depends(check_origin)` to SSE routes thinking it prevents
+cross-origin reads. It does not (CSRF is for state changes). Cross-origin reads are
+prevented by CORS headers, not CSRF checks. FastAPI adds permissive CORS by default
+(no `CORSMiddleware` installed = browser's default same-origin policy applies). The
+browser's `EventSource` does follow CORS, so a cross-origin page cannot read the SSE
+stream unless the server sends `Access-Control-Allow-Origin`. The existing app does not
+add CORS middleware, so the browser's same-origin policy blocks cross-origin SSE reads
+— this is the correct posture for localhost.
+
+**How to avoid:**
+- Do NOT add `Depends(check_origin)` to SSE `GET` routes. It does not help and adds
+  latency to every SSE event.
+- Do NOT add a blanket `CORSMiddleware` with `allow_origins=["*"]` for the SSE route —
+  that would undo the browser's same-origin protection.
+- The correct security posture is already in place (no CORS middleware = browser
+  same-origin blocks cross-origin reads). Document this in a code comment on the SSE
+  route so future maintainers do not "fix" it by adding CORS.
+- If the non-local warning banner is active (`is_non_local=True`), log a WARNING at server
+  start that the SSE stream is accessible from non-localhost origins.
+
+**Warning signs:**
+- `CORSMiddleware` added to `create_app()` with `allow_origins=["*"]`.
+- `Depends(check_origin)` added to the SSE GET route (harmless but misleading).
+- Server binds to `0.0.0.0` without `is_non_local=True` being set.
+
+**Phase to address:** SSE phase (add code comment documenting why no CSRF on SSE GET).
+
+---
+
+### Pitfall 12: Log Injection via Crafted Log Lines
+
+**What goes wrong:**
+Log lines written by `writeLog()` include user-controlled data (item names, URLs, plugin
+error messages). The log format is:
+```
+[LEVEL][YYYYMonthDD@HH:MM:SS] message
+```
+An item name of `\n[ERROR][2026June25@12:00:00] Fake error injected` would write a second
+fake log line to the log file. When served to the browser log viewer, this fake line is
+visually indistinguishable from a real log line. This is log injection.
+
+In the context of this application the practical risk is low (the attacker must control
+an item name in the local SQLite DB, which requires local access), but the browser log
+viewer increases the surface: previously log injection only affected the file and terminal;
+now it affects what the user sees in the dashboard, potentially causing them to act on
+fake status messages.
+
+**Why it happens:**
+Log message sanitization is often omitted when the log is only machine-readable. A
+browser-rendered log viewer elevates the impact.
+
+**How to avoid:**
+- Sanitize user-controlled values before passing to `writeLog()`: strip or escape
+  newlines (`\n`, `\r`) from item names, URLs, and any user-provided string that goes
+  into a log message.
+- In the log viewer frontend: do NOT parse log lines as structured data (do not try to
+  extract level/timestamp from the raw string and re-render them with styled spans based
+  on that parsed level). Parse lines only for color-coding by prefix pattern matching
+  against the known `[LEVEL]` prefix — but treat the entire rest of the line as opaque
+  text, never as HTML.
+- The log viewer should display lines using `textContent` (see Pitfall 2), which means
+  even an injected `[ERROR]` prefix renders as visible text, not as a DOM element.
+
+**Warning signs:**
+- An item name with `\n` in it produces two lines in the log file.
+- The log viewer shows a log line with no corresponding entry in the raw log file.
+- A crafted item name causes the log viewer to show a different level badge than the
+  actual message severity.
+
+**Phase to address:** Log viewer phase.
 
 ---
 
@@ -536,12 +538,13 @@ must be built before checkout retry is added to any plugin.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| `return True` after `place_order.click()` without confirmation check | Simple, works when site is healthy | Double-buy on session edge cases; false purchase notifications | Never; confirmation check is required for v4.0 |
-| Single `asyncio.timeout` around entire `auto_buy` | Easy to implement | Orphans browser state mid-checkout; CancelledError at click fires double-buy risk | Never for place-order step; per-step timeouts only |
-| Blanket `except Exception` in write-queue drain | Prevents drain task crash | Swallows DB corruption silently | Only for `OperationalError` "locked"; fatal errors must propagate |
-| Storing session cookies as plain JSON | 5-line implementation | Plaintext auth material on disk; violates v2.0 security posture | Never; must use CredentialStore-equivalent encryption |
-| One global `test_mode` check inside Amazon plugin only | Works for Amazon UAT | Other plugins (BestBuy) have no gate; monitor-only mode cannot be trusted | Never; orchestrator-level gate required for all plugins |
-| Inline backoff in `run_plugin` | Avoids a new module | Two backoff implementations diverge silently over time | Never; single `RetryPolicy` utility required |
+| Reuse `read_recent_logs()` for SSE log push | Zero new code | Full file read on every SSE tick; blocks event loop; sends duplicate lines | Never — SSE tailing needs a cursor-based implementation |
+| `innerHTML` for dynamic log/chart DOM | Fast to write | XSS sink for every item name, log line, plugin name | Never for data from API responses |
+| Skip `is_disconnected()` check in SSE generator | Simpler generator | Leaked generators accumulate over repeated dashboard opens | Never |
+| Add `CORSMiddleware(allow_origins=["*"])` "for SSE" | Unblocks exotic setups | Undoes browser same-origin protection on all routes | Never on this localhost app |
+| Render SVG charts via server-side Jinja2 template | No client-side chart code | Item names in SVG must be escaped in Jinja2 (`{{ name \| e }}`); easy to forget | Acceptable only if `\| e` filter is used everywhere |
+| Single `while True` SSE loop without heartbeat | Simple code | Proxy/browser drops idle connection; dashboard shows stale state | Never — always add keepalive |
+| Inline all CSS in `<head>` instead of vendored file | Eliminates FOUC entirely | CSS not cacheable; template becomes enormous | Acceptable for critical-path tokens only (not the full design system) |
 
 ---
 
@@ -549,24 +552,13 @@ must be built before checkout retry is added to any plugin.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| nodriver `tab.select()` on post-click page | Calling `select()` on a stale tab reference after a click navigates the page | After `click()` on a submit/place-order button, use `await asyncio.sleep(0)` + `tab.find()` or wait for the confirmation element on the same tab object -- nodriver updates `main_tab` in place after navigation |
-| nodriver `Browser.stop()` in a crash-recovery path | Calling `stop()` and immediately calling `nodriver.start()` in the same event loop tick | `stop()` is synchronous but Chrome process termination is async at the OS level; add a brief `await asyncio.sleep(1)` or poll `psutil` for process exit before relaunching |
-| CredentialStore `get()` during checkout | Calling `get_store().get("BB_PASSWORD")` inside the hot checkout path | Call `get_store().get(...)` once in `login()` and cache the value for the session; `EncryptedFileBackend.get()` decrypts the entire file on every call (O(keys) decrypt per access) |
-| CDP `Network.getAllCookies` for session persistence | Serializing and storing the full CDP cookie dict including `httpOnly` session tokens | Only persist cookies that are not `httpOnly` and not marked `secure`-only; or accept that restoration requires post-inject verification via `tab.evaluate("document.cookie")` |
-| `asyncio.timeout()` wrapping nodriver `tab.send()` | The timeout cancels the Python `await` but not the underlying CDP message handler; nodriver may still process the response | After a timeout in a nodriver `tab.send()` call, treat the tab state as unknown; do not re-use the tab for further checkout steps without a fresh page navigation |
-
----
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| `writeLog(f"CVV: {self._cvv}", "DEBUG")` on any code path | CVV in plaintext log files, unencrypted | SC grep CI assertion blocking `_cvv` in any `writeLog` argument |
-| Storing full card number in `CredentialStore` for "convenience" | PCI DSS scope for personal tool; high-value target in `creds.bin` | Only CVV at runtime; billing address is fine in store; full PAN never |
-| `str(exc)` in exception handlers on checkout paths | Stack trace may contain CVV if it appeared in a method argument | `exc.__class__.__name__` only (existing policy per STATE.md PITFALLS 6.4) |
-| Session cookie file in repo directory without `.gitignore` entry | Auth cookies committed to git history | `sessions/` and `data/*.bin` must be in `.gitignore`; CI check for these patterns |
-| `monitor_only` flag readable from config.yml (not enforced in code) | User edits config, flag change not picked up mid-run | Read flag once at startup into `async_main` local; changes require restart |
-| Checkout profile (shipping address) logged at INFO level | Address in log files; low risk but unnecessary | Log only "checkout profile loaded for {platform}" not the address values |
+| SSE + BotService daemon thread | Call any blocking BotService method directly in the SSE generator's async body | Wrap all blocking calls in `await asyncio.to_thread()`; keep `get_status()` in-memory only |
+| SSE + FastAPI `EventSourceResponse` | Import `sse-starlette` without checking it's in `requirements.txt`; the zero-Node constraint doesn't block Python packages | Verify package is already a dependency or explicitly add it; alternatively use raw `StreamingResponse` with `text/event-stream` content type to avoid new deps |
+| SVG chart + item names | Build SVG string via `f"<text>{item_name}</text>"` | Use `escHtml()` on every interpolated value, or build SVG via `document.createElementNS` + `.textContent` |
+| Log viewer + SSE | Push full 50-line tail on every tick | Maintain byte-offset cursor; push only genuinely new lines |
+| Light/dark mode + `:root` tokens | Rely on CSS to prevent FOUC | Inline a synchronous `<script>` in `<head>` to set `data-theme` before first paint |
+| CSRF check on SSE route | Add `Depends(check_origin)` to the GET SSE route | Leave GET SSE routes without CSRF dep; document why |
+| `get_status()` health strings | Return `str(exc)` from plugin health surface | Return only `exc.__class__.__name__`; never `str(exc)` which may include secrets |
 
 ---
 
@@ -574,23 +566,64 @@ must be built before checkout retry is added to any plugin.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| `EncryptedFileBackend.get()` called per-checkout-step | Decrypt latency adds 50-100ms per call; noticeable on drops with sub-second windows | Cache credentials in plugin `__init__` or `setup()`, not in hot path | Any drop where checkout must complete in under 5s |
-| `get_items_sync` called once per poll inside `run_plugin` (current) | On a 30-item list this is fine; on 200 items with 7 plugins it is 1400 DB reads/minute | Add item-URL-to-plugin routing cache in orchestrator; only re-fetch when DB write occurs | More than ~50 items across all plugins |
-| nodriver `tab.select()` with `timeout=10` called sequentially for every selector | Each miss waits 10s; a 5-selector checkout path can take 50s on a broken DOM | Short timeout (2-3s) for optional elements; long timeout (10-15s) for required ones | Any drop where checkout window is under 60s |
-| Single write-queue drain for all plugins | Current design serializes all DB writes; 7 plugins checking simultaneously causes write queue backlog during drops | Acceptable for v4.0 scope (SQLite single-writer); monitor queue depth; escalate to WAL mode if backlog exceeds 100 items | More than ~20 simultaneous availability detections |
+| Full log file read on every SSE tick | Memory grows with log file; CPU spikes every 1-2s | Cursor-based tail; wrap in `asyncio.to_thread` | Log file > ~1MB (single-day heavy run) |
+| Synchronous SQLite call in SSE generator | All HTTP requests pause during DB read | `await asyncio.to_thread(db_read_fn, args)` | Immediately under any load |
+| Rendering 10,000+ SVG points for a long-running price history | Browser hangs on chart render | Cap points returned by `get_price_history(limit=200)`; down-sample in Python before sending | > ~500 data points per item |
+| Sending full status object on every SSE tick regardless of change | High bandwidth; client re-renders unnecessarily | Diff state before emitting; only push when state changes or on heartbeat tick | Immediately visible in network tab |
+| `EventSource` opened multiple times (e.g., `loadItems()` also polls) | Two SSE connections compete; one is stale | Open SSE once at page load; replace all polling with SSE-driven updates | Multiple event sources from same tab |
+
+---
+
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| `innerHTML` with item names / log lines / plugin health strings | XSS: arbitrary HTML/JS execution on dashboard load | `textContent` for all API-sourced strings; `escHtml()` before SVG interpolation |
+| Sending `str(exc)` in health surface or SSE data | Secrets (proxy URLs with credentials, CAPTCHA API key in traceback) exposed to browser | Return `exc.__class__.__name__` only; sanitize health strings in `get_status()` |
+| Log lines with unsanitized newlines from user-supplied item names | Log injection: fake log lines in dashboard viewer | Strip `\n`/`\r` from user-controlled values before `writeLog()` |
+| Adding `CORSMiddleware` with `allow_origins=["*"]` to unblock SSE from other origins | Cross-origin reads of live logs and health data | Rely on browser same-origin policy; never add `allow_origins=["*"]` |
+| Logging item URLs verbatim when they contain embedded credentials (e.g., proxy-augmented URLs) | Secrets in log file and browser log viewer | Log only the domain or a sanitized version of URLs |
+
+---
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Blank chart area for non-Amazon plugins | User thinks charts are broken | Explicit "No price data — Amazon only" empty state |
+| Straight line between sparse data points | Implies continuous monitoring; misleading | Point markers only for sparse data; gap segments for multi-day gaps |
+| Log viewer sends full 50-line tail every tick | Lines repeat; viewer jumps to top on each update | Append-only update with cursor; scroll position preserved |
+| No visual feedback that SSE is connected vs. polling | User cannot tell if data is live | Show "Live" / "Reconnecting" indicator driven by SSE `open`/`error` events |
+| Dark-mode flash on page load | Jarring transition; looks broken | Synchronous `<script>` in `<head>` sets `data-theme` before paint |
+| Non-local warning banner loses styling after design system merge | Safety warning invisible | Preserve `banner-warning` class and add to design system token set; run `MC-4` test |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Order confirmation:** `auto_buy` returns `True` but confirmation element was NOT verified -- check that `_confirm_order` is called and its return value gates the `True` return.
-- [ ] **BestBuy test_mode gate:** `test_mode: true` in config -- verify `place_order.click()` is NOT called by asserting no "Order placed on BestBuy" log and no `write_queue.put("purchased", ...)` event.
-- [ ] **Monitor-only mode:** all 7 plugins have `auto_buy` enabled in config, `monitor_only: true` is set -- assert zero `auto_buy` calls and zero `purchased` write-queue entries.
-- [ ] **CVV in logs:** after a full checkout run with debug logging at level 5, grep log file for the CVV value -- must return zero matches.
-- [ ] **Relaunch stealth:** after a simulated browser crash and relaunch, assert `apply_stealth` was called on the new tab (check for the `cdp.page.add_script_to_evaluate_on_new_document` CDP command in the nodriver mock).
-- [ ] **Double-buy guard:** simulate `place_order.click()` succeeding but confirmation timeout firing -- assert `purchased` is NOT set and `in_progress` IS set; assert the next poll skips the item.
-- [ ] **Session cookie encryption:** session restoration path -- assert no plaintext `.json` file was written; assert `CredentialStore.set()` was called with the session key.
-- [ ] **Retry policy unification:** grep for `for attempt` or `for i in range` in checkout paths -- any such loop outside `core/retry.py` is a second independent retry implementation.
+- [ ] **SSE generator:** Checked that `await request.is_disconnected()` is called in the
+      loop body — verify by closing browser tab and confirming server log shows generator
+      exit.
+- [ ] **SSE keepalive:** Confirmed a `: keepalive\n\n` comment is emitted every ~15s —
+      verify by watching network tab for 30s with no bot activity.
+- [ ] **Log viewer tailing:** Confirmed lines are not duplicated on successive SSE ticks —
+      open log viewer, trigger a bot action, confirm each line appears exactly once.
+- [ ] **XSS — item names:** Add an item named `<b>bold</b>` and confirm it renders as
+      literal text `<b>bold</b>` in the items table, log viewer, and chart labels.
+- [ ] **XSS — log lines:** Write a log line containing `<script>alert(1)</script>` (via
+      a test item name in test mode) and confirm it renders as text in the log viewer.
+- [ ] **Non-local banner:** Start the server with `--host 0.0.0.0` and confirm the
+      banner is visible and styled in both light and dark mode.
+- [ ] **`MC-4` test:** Runs and passes after all template changes.
+- [ ] **Price chart empty state:** Add a Walmart item (no price history) and confirm an
+      explicit empty-state message appears instead of a blank chart.
+- [ ] **Secrets in health surface:** Trigger a plugin health-degraded event and confirm
+      `get_status()` response JSON contains no URLs, no `str(exc)` values, only class
+      names and timestamps.
+- [ ] **Event loop not blocked:** While SSE is streaming, confirm `/api/status` HTTP
+      endpoint responds in < 200ms via curl/network tab.
+- [ ] **FOUC:** Load dashboard on a slow machine or with CPU throttling in devtools and
+      confirm no white flash before background color appears.
 
 ---
 
@@ -598,12 +631,14 @@ must be built before checkout retry is added to any plugin.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Double-buy detected | HIGH | Check retailer order history immediately; cancel second order via retailer cancel page (usually cancellable within 30 min); mark item `purchased=True` in DB manually via `shoppybot items` CLI |
-| False-positive purchased notification | MEDIUM | Set `purchased=False` in DB via CLI; re-enable monitoring; add confirmation selector to CI test to prevent recurrence |
-| CVV in log file | HIGH | Rotate payment card CVV with bank immediately; delete log file; audit for other credential exposure; add SC grep CI check before next run |
-| Browser crash loop (no backoff) | MEDIUM | Kill all Chrome processes (`pkill chrome` / Task Manager); restart bot; backoff implementation is the permanent fix |
-| Session cookie plaintext on disk | HIGH | Delete session file; revoke session via retailer "sign out all devices"; migrate to encrypted session store; add `.gitignore` entry |
-| DB corruption | HIGH | Stop bot; restore from last `data/shop_py_bot.db` backup (or delete and re-seed from config); add `PRAGMA integrity_check` to startup path |
+| SSE generator blocks uvicorn loop | HIGH — all HTTP frozen | Kill uvicorn; move blocking call to `asyncio.to_thread()`; restart |
+| XSS via innerHTML | MEDIUM — template change + test | Replace `innerHTML` with `createElement`/`textContent`; regression test |
+| Leaked SSE generators | LOW — restart uvicorn | Add `is_disconnected()` check; generators clean up on next server restart |
+| FOUC | LOW — CSS fix | Inline critical tokens in `<head> <style>`; redeploy |
+| Banner invisible after design system | LOW — CSS fix | Restore `banner-warning` token; re-run `MC-4` test |
+| Log viewer showing duplicate lines | LOW — cursor fix | Implement byte-offset cursor in SSE tail path |
+| Secrets in SSE health data | HIGH — audit required | Audit all `get_status()` return values; scrub `last_error` fields; rotate any exposed secrets |
+| Log injection via item names | LOW — sanitization fix | Add `\n`/`\r` stripping in `writeLog()` call sites; re-test log viewer |
 
 ---
 
@@ -611,75 +646,34 @@ must be built before checkout retry is added to any plugin.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| 1. Double-buy / non-idempotent retry | Acquisition Core: verified-checkout + bounded retry | Test: mock `place_order.click()` succeeds, confirmation times out; assert `purchased=False`, `in_progress=True` |
-| 2. False-positive confirmation | Acquisition Core: order-confirmation capture | Test: mock tab returning "session expired" after click; assert `auto_buy` returns `False` |
-| 3. Fragile checkout selectors | Acquisition Core: checkout form-fill | Test: "all selectors None" mock; assert `auto_buy` returns `False` with WARNING log |
-| 4. CVV / PCI handling | Acquisition Core: checkout profile + form-fill | CI SC grep: no `_cvv` in `writeLog` args; no `CVV`/`CARD_NUMBER` in `SECRET_KEYS` |
-| 5. Time-budget orphaned order | Acquisition Core: per-item/per-step checkout time budget | Test: timeout fires at each checkout stage; assert browser cleanup and correct DB state |
-| 6. Monitor-only gate | Acquisition Core: central monitor-only + test_mode hole | Test: 7 plugins, `monitor_only=True`; assert `auto_buy` never called |
-| 7. Restart crash-loop | Always-On Reliability: per-coroutine supervision + backoff | Test: plugin raises on 3 consecutive setups; assert delay between attempts follows exponential curve |
-| 8. Relaunch forgetting stealth | Always-On Reliability: browser-crash detection + relaunch | Test: mock crash + relaunch; assert `apply_stealth` + `setup_proxy_auth` + `login` all called |
-| 9. Session cookie plaintext | Always-On Reliability: encrypted session/cookie persistence | Test: session save path; assert no plaintext file written; assert `CredentialStore.set()` called |
-| 10. Timeout cancels mid-DB-write | Always-On Reliability: per-item orchestrator timeout | Test: timeout fires after `place_order.click()` but before `write_queue.put`; assert write-queue item still enqueued |
-| 11. DB corruption swallowed silently | Always-On Reliability: DB read-path error isolation | Test: mock `sqlite3.DatabaseError`; assert CRITICAL log and TaskGroup shutdown |
-| 12. Two retry implementations | Always-On Reliability: unified transient retry/backoff | Grep CI assertion: no `for attempt` loop outside `core/retry.py`; both supervisor and cart-retry use `RetryPolicy` |
-
----
-
-## ToS / Legal / Ethical Cautions
-
-These apply to v4.0 specifically because v4.0 adds *actual purchase execution*, not just
-monitoring.
-
-**Financial Risk (not ToS):** Automated purchase of high-demand items at market price
-carries real financial exposure. A double-buy (Pitfall 1) on a $700 GPU cannot be
-"undone" once the item ships. This is the primary reason Pitfall 1 is Critical.
-
-**Retailer Terms of Service:** Both BestBuy and Amazon prohibit automated purchasing in
-their ToS. Checkout automation that bypasses CAPTCHA and fills CVV fields is explicitly
-in-scope for these prohibitions. Consequences include account suspension, order
-cancellation after fulfillment, and IP/device banning. The bot should document this
-clearly in `SECURITY.md` and `README.md`. Open-source distribution does not reduce
-personal liability for ToS violations.
-
-**Scalefair / Per-Household Limits:** Retailers enforce per-household purchase limits on
-limited-release items. Automated enforcement detection is improving. Purchasing multiple
-units across the configured `quantity` field may trigger order cancellations. Recommend
-defaulting `quantity=1` and documenting the risk of higher values.
-
-**Payment Method Risk:** Using CVV-at-runtime with a stored payment method means that
-anyone who gains access to the bot process (or the OS session) can trigger purchases.
-Document this in `SECURITY.md`. Recommend using a dedicated card with a low credit limit
-or a virtual card number for bot use.
-
-**Open-Source Distribution Warning:** Publishing working checkout automation code creates
-an attractive basis for bulk scalpers. `README.md` and `CONTRIBUTING.md` should include
-a clear statement that mass-scalping, multi-account farming, and resale automation are
-out-of-scope use cases and not supported. This is already partially addressed by the
-project's deferred items (multi-account, API-mode checkout), but should be an explicit
-statement, not just an absence.
-
-**Jurisdiction:** In most jurisdictions, personal use automation is not illegal per se,
-but using it to acquire goods for resale may implicate consumer protection, anti-scalping,
-or unfair competition statutes (California AB 2929 for tickets; analogous laws are being
-considered for electronics in several US states). This is a follow-on risk, not a v4.0
-blocker, but the maintainer should be aware.
+| 1: Cross-loop SSE bridge blocks uvicorn | SSE phase | Run `/api/status` while SSE stream open; assert < 200ms response |
+| 2: XSS via innerHTML in log/chart DOM | Design system + log viewer phase (fix existing `loadItems()` XSS simultaneously) | Add item with `<b>` in name; confirm literal text in all renderers |
+| 3: SSE generator leak on disconnect | SSE phase | Close browser tab; confirm server log shows generator exit |
+| 4: No heartbeat causes proxy timeout | SSE phase | Watch network tab for 30s idle; confirm keepalive comment sent |
+| 5: No SSE reconnect backoff | SSE phase | Restart server; confirm EventSource waits 3s before reconnect |
+| 6: Unbounded log read for tailing | Log viewer phase | Monitor memory during 1h bot run; confirm no growth |
+| 7: Secrets in log lines reach browser | SSE + log viewer phase | Inspect SSE data frames for no credential-pattern strings |
+| 8: FOUC on design system load | Design system phase | CPU-throttle in devtools; confirm no visible flash |
+| 9: Design system breaks banner/CSRF gate | Design system phase | Run `MC-4` test; verify banner styled in both themes |
+| 10: Sparse price data misleading chart | Charts phase | Add non-Amazon item; confirm empty-state message, not blank chart |
+| 11: SSE route CSRF misconception | SSE phase | Code review: confirm no `Depends(check_origin)` and no CORS wildcard |
+| 12: Log injection via item names | Log viewer phase | Item name with `\n`; confirm single log line in file and viewer |
 
 ---
 
 ## Sources
 
-- Code reading: `core/orchestrator.py`, `core/credentials.py`, `core/stealth.py`,
-  `plugins/shopbot_plugin_bestbuy.py`, `plugins/shopbot_plugin_amazon.py`
-- Project context: `.planning/PROJECT.md`, `.planning/STATE.md` Research Flags
-- Existing pitfall decisions from STATE.md (log `exc.__class__.__name__` never `str(exc)`
-  on credentialed paths -- PITFALLS 6.4; proxy pool exhausted fail-loud -- Pitfall 2;
-  stealth before first navigation -- Pitfall 8)
-- asyncio cancellation semantics: Python 3.11+ `asyncio.timeout()` documentation
-- nodriver architecture: Phase 13 ship experience (CDP Fetch auth, stealth injection,
-  `Browser.stop()` synchronous teardown)
-- PCI DSS scope reference: PCI DSS v4.0 requirements 3.x (card data storage prohibition)
+- `core/service.py`: BotService daemon thread and event loop architecture (confirmed: `asyncio.new_event_loop()` in `_run_loop`, `self._loop` is the bot's private loop)
+- `web/routes/api.py`: existing safe pattern for calling blocking BotService methods (`asyncio.to_thread(svc.start)`, `asyncio.to_thread(svc.stop)`)
+- `web/log_reader.py`: confirmed `log_path.read_text(...)` is a synchronous full-file read
+- `web/templates/dashboard.html` line 241: confirmed existing `tr.innerHTML` XSS in `loadItems()`
+- `web/security.py`: confirmed CSRF check is `Depends(check_origin)` on POST/DELETE only; no CORS middleware in `create_app()`
+- `core/credentials.py` `SECRET_KEYS`: 20 canonical secret key names; TWOCAPTCHA_API_KEY is included
+- STATE.md decisions: `_fill_field` logs selector only; `exc.__class__.__name__` on checkout paths; CVV never logged
+- PROJECT.md v4.1 research flags: charts dependency-free; price data Amazon-only (PRICE-02)
+- FastAPI SSE patterns: `request.is_disconnected()` is the standard disconnect-check API (HIGH confidence from FastAPI docs and community patterns)
+- SSE specification (RFC-based): `retry:` field controls client reconnect interval; `: comment` lines act as keepalive (HIGH confidence)
 
 ---
-*Pitfalls research for: ShopPyBot v4.0 Win-the-Drop checkout automation + reliability*
-*Researched: 2026-06-10*
+*Pitfalls research for: FastAPI SSE + dependency-free charts + vendored design system + log viewer on BotService daemon-thread architecture*
+*Researched: 2026-06-25*

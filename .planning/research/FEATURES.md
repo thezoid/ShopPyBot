@@ -1,297 +1,326 @@
-# Feature Research — v4.0 Win-the-Drop (Checkout Automation + Reliability)
+# Feature Research
 
-**Domain:** Verified-checkout + reliability features for a community-extensible retail stock-checkout bot (Python / nodriver)
-**Researched:** 2026-06-10
-**Milestone scope:** NEW v4.0 features only. Existing v3.0 and earlier features are not re-researched.
-**Confidence:** HIGH (checkout flow patterns, retry/idempotency), MEDIUM (per-retailer confirmation signals), HIGH (supervisor/backoff patterns), MEDIUM (nodriver cookie persistence — known bugs)
-
----
-
-## Context: What Already Exists (Do Not Re-Research)
-
-| System | Key facts relevant to v4.0 |
-|--------|---------------------------|
-| Plugin ABC (`RetailerPlugin`) | `async auto_buy(url) -> bool`; orchestrator marks purchased only on `True` return; `test_mode` skips final click on 6 of 7 plugins |
-| `auto_buy` gap | Returns `True` after `place_order.click()` with no confirmation check; button-click = "purchased" is wrong |
-| Orchestrator (`core/orchestrator.py`) | `asyncio.TaskGroup` with one long-lived `run_plugin` coroutine per plugin; write-queue serializes DB writes; `_try_auto_buy` wraps auto_buy with a bare try/except but no retry |
-| `_write_queue_drain` | Sole write path; already serialized; enqueues `("purchased", link)` tuples |
-| `models.py` | `update_item_purchased_sync` with `purchased` flag; already prevents re-buy on next poll loop |
-| Login pattern | Called inside `auto_buy` on every invocation; no session reuse; MFA/passkey gates require manual user action |
-| BestBuy CVV | Threaded via `plugin._cvv`; set by `main.py` via `getpass`; never logged |
-| Config | `debug.test_mode: bool`; `app.poll_interval: float`; per-platform `min_delay`/`max_delay` |
+**Domain:** Single-operator localhost ops dashboard — observability surfaces for ShopPyBot v4.1
+**Researched:** 2026-06-25
+**Confidence:** HIGH (existing data shapes confirmed from source; UX patterns from multiple sources)
 
 ---
 
-## Feature Landscape
+## Scope Reminder
 
-### Table Stakes (Users Expect These)
+This is a **single-operator, localhost-bound, no-Node** tool. The operator is also the developer.
+Every "anti-feature" below is real scope that gets proposed for tools like this and should be
+actively rejected. The 4 surfaces in scope are:
 
-Features whose absence makes the bot functionally incomplete for v4.0's stated goal of "verified orders."
+1. Live per-plugin health cards
+2. Run history + confirmed buys
+3. Price-history charts
+4. Better log viewer
 
-| Feature | Why Expected | Complexity | Existing Hook / Dependency | ToS-sensitive? |
-|---------|--------------|------------|---------------------------|----------------|
-| **Order-confirmation detection** | Without it, a bot that reports "purchased" on a click, then discovers the order failed (session expired, payment declined, CAPTCHA injected mid-checkout), will suppress re-attempts forever via the `purchased` flag. Every real checkout bot verifies a real order. | MEDIUM | Extends `auto_buy`; must return `True` only on confirmed signal; write-queue path unchanged | No |
-| **Monitor-only / alert-without-buy mode** | Users routinely want to watch a drop without having the bot place an order — either for manual review or because `auto_buy` is not safe for that item. Currently, `auto_buy=False` per-item skips buying, but there is no global "never buy" CLI flag. Also closes the `test_mode` hole: 6 of 7 plugins skip the final click under `test_mode` but still call all preceding checkout steps. | LOW | `--monitor-only` CLI flag passed into `async_main`; orchestrator skips `_try_auto_buy` globally; orthogonal to per-item `auto_buy` flag | No |
-| **Checkout profile (shipping/billing form-fill)** | On limited drops, a new-device checkout or address-change challenge fires the full shipping/billing form. Bots that only handle pre-saved accounts stall silently. Profile data must be stored encrypted, never in config.yml or logs. | MEDIUM | New `CheckoutProfile` model in `CredentialStore`; per-plugin form-fill helper; PCI constraint: CVV at runtime only, never persisted | **Opt-in** (payment data in credential store) |
-| **Bounded retry-on-cart with backoff and double-buy guard** | Transient failures (add-to-cart 429, session blip, checkout button briefly absent) are common on drop day. Without retry, the bot abandons valid opportunities. Without double-buy guard, retrying a POST-equivalent checkout click risks duplicate orders. | MEDIUM | New `_try_auto_buy_with_retry` wrapping `_try_auto_buy`; idempotency guard reads `purchased` flag from DB before each attempt; max attempts + exponential backoff cap | No |
-| **Per-step / per-item checkout time budget** | A stalled checkout step (form-fill waiting forever, checkout page not loading) can block the entire plugin coroutine, preventing future poll cycles. `asyncio.wait_for` wrapping each step is standard practice. | LOW | `asyncio.wait_for` wrapping `auto_buy` call in orchestrator; configurable `checkout_timeout_secs` per platform | No |
+Plus: SSE push (replaces 2s polling) and a vendored design-system redesign.
 
-### Differentiators (Competitive Advantage)
+---
 
-Features that distinguish ShopPyBot from single-script bots and advance the plugin-framework value proposition.
+## Surface 1: Per-Plugin Health Cards
 
-| Feature | Value Proposition | Complexity | Existing Hook / Dependency | ToS-sensitive? |
-|---------|-------------------|------------|---------------------------|----------------|
-| **Encrypted session/cookie persistence** | Login + MFA is the slowest and most fragile part of checkout. Reusing a live authenticated session eliminates the passkey-dismiss and OTP pauses on every `auto_buy` call. Commercially sold bots (Refract, etc.) call this "prelogin." | MEDIUM | nodriver `browser.cookies.get_all()` / `set_all()` via CDP — known `set_all` bugs in issues #1816, #2020, #2232; workaround: direct `cdp.storage.set_cookies` call; encrypt with `cryptography.fernet` or reuse existing `EncryptedFileStore`; store path under per-platform key | **Opt-in** (persists auth tokens to disk) |
-| **Structured health / heartbeat surface** | Long-running unattended runs silently stall. A per-plugin liveness timestamp + periodic heartbeat log line lets operators know the bot is alive without polling logs manually. Also enables future monitoring integrations (Discord webhook, Prometheus). | LOW | New `_heartbeat` coroutine in orchestrator TaskGroup; writes `last_alive_at` dict keyed by plugin name; emits a log line at configurable interval | No |
-| **Per-coroutine supervisor with backoff restart** | Currently, if a plugin coroutine raises an unhandled exception, `asyncio.TaskGroup` propagates it and tears down all tasks. A supervisor wrapper catches the exception, sleeps with exponential backoff, and relaunches the coroutine — keeping other plugins alive. Failure budget (e.g., 5 crashes in 5 minutes) triggers a clean exit rather than an infinite restart loop. | MEDIUM | Replaces bare `tg.create_task(run_plugin(...))` with `tg.create_task(supervised(run_plugin, plugin, ...))` wrapper; failure counter per plugin with rolling window | No |
-| **Browser-crash detection and relaunch** | nodriver's Chrome subprocess can die silently (OOM, renderer crash, orphan after proxy disconnect). No built-in crash detection exists in nodriver (confirmed by docs + issue #2130). Detection via `plugin.driver._process.returncode` or a CDP ping; relaunch calls `plugin.teardown()` then `plugin.setup()` then re-adds to active pool. | MEDIUM | New `_is_browser_alive(plugin)` helper; called at top of each `run_plugin` iteration; relaunch via `registry.relaunch_plugin(plugin)` | No |
-| **DB read-path error isolation** | A SQLite read failure in `get_items_sync` raises into `run_plugin`, which — without the supervisor above — kills the plugin coroutine. Wrapping DB reads with a retry (3x with 1s sleep) and logging the error without re-raising prevents a DB hiccup from stopping the bot. | LOW | Narrow try/except around `loop.run_in_executor(None, get_items_sync)` in `run_plugin`; log error, skip iteration, continue loop | No |
-| **Per-item orchestrator timeout** | If `_check_and_buy` hangs (browser frozen mid-checkout), all items for that plugin are blocked. `asyncio.wait_for` around the entire `_check_and_buy` call with a `per_item_timeout_secs` config value prevents one stuck item from starving others. | LOW | `asyncio.wait_for(_check_and_buy(...), timeout=cfg.app.per_item_timeout_secs)` in `run_plugin` | No |
+Existing data source: `BotService.get_status()` returns:
+```json
+{
+  "running": true,
+  "uptime_secs": 3742.1,
+  "plugins": {
+    "amazon": {
+      "status": "checking",
+      "last_heartbeat": 1234567.8,
+      "consecutive_errors": 0,
+      "items_checked": 47,
+      "orders_confirmed": 1
+    }
+  }
+}
+```
+`last_heartbeat` is a `time.monotonic()` float (seconds since process start, not wall-clock epoch).
+Staleness must be computed as `now_monotonic - last_heartbeat`.
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| One card per plugin, named | Operator cannot tell plugins apart without it | LOW | Derived from `plugins` dict keys |
+| Status badge (idle / checking / error / degraded) | Primary at-a-glance signal | LOW | Map `status` field to color token |
+| Last-heartbeat staleness ("3s ago", "stale") | Time-since-check is the most actionable number | LOW | `now - last_heartbeat`; no wall-clock; show "stale" when > 60s |
+| Consecutive-errors counter | Shows whether degraded is transient or sustained | LOW | `consecutive_errors` field direct |
+| items_checked lifetime counter | Confirms the plugin is actually running | LOW | `items_checked` field direct |
+| Degraded visual state | `health_degraded` alert fires when `consecutive_errors >= threshold`; card must look alarming | LOW | Use `status == "degraded"` or `consecutive_errors > 0` as secondary signal |
+| Cards update via SSE (not polling) | Eliminates 2s latency on degraded detection | MEDIUM | Part of SSE stream; same event type as status update |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| orders_confirmed on card | Operator sees acquisition success at a glance without opening history | LOW | `orders_confirmed` field on each plugin record |
+| Uptime display on global status bar | Reassurance for multi-hour unattended runs | LOW | `uptime_secs` from get_status(); format as H:MM:SS |
+| Staleness color gradient (fresh / aging / stale) | Communicates "about to go stale" vs already stale without binary flip | MEDIUM | Three threshold bands: <30s green, 30-60s amber, >60s red |
+
+### Anti-Features (do NOT build)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Full card-data persistence** | Avoid re-entering payment info on each run | PCI-DSS: storing full card number + CVV anywhere on disk is a serious violation; most retailers require CVV at time of transaction specifically to prevent stored re-use | Store only last-4 + expiry for display; collect CVV at runtime via `getpass`; use retailer-saved payment methods; the v4.0 design already does this correctly |
-| **Immediate retry on every checkout failure** | Maximize acquisition chances | POST-equivalent checkout is not idempotent; an immediate retry after an ambiguous "connection reset" can produce a duplicate order; Amazon and BestBuy do not expose an idempotency key | Check `purchased` flag in DB before each retry attempt; use exponential backoff with a small max-attempts cap (3-5); add a mandatory post-click settle delay before reading confirmation |
-| **Parallel multi-account checkout** | Higher acquisition probability per drop | Most ToS-hostile feature category; direct CFAA risk when accounts are fictitious; high detection/ban rate; requires N sets of credentials and N billing profiles; complex state machine for coordinating successes | Single-account, single-attempt with fast retry; this is deferred in PROJECT.md and should stay deferred |
-| **Request/API-mode checkout (bypass browser)** | 10-100x faster than DOM automation | Arms-race: retailers detect and block API-mode checkout constantly; maintenance burden is very high; defeats the stealth investment in v3.0; also more ToS-hostile than browser automation | Stick with the nodriver browser stack; optimize checkout speed through session persistence and per-step timeouts |
-| **Amazon WAF CAPTCHA auto-solve** | Unblock auto-buy when WAF fires | Amazon WAF CAPTCHA (`window.gokuProps`) is a distinct challenge from reCAPTCHA v2; 2captcha does not support it; any "solve" service for it changes frequently and is fragile; deferred in PROJECT.md | Manual pause on WAF detection (already implemented); defer until a reliable solve path exists |
-| **Unlimited retry loops on cart failure** | Never miss a drop due to transient errors | Drop-day 429s can turn a "retry forever" loop into a ban trigger; cart-state can become inconsistent across unlimited retries; logs become unreadable | Bounded retry (max 3-5 attempts) with jitter backoff; log each attempt; abort and re-arm on next poll cycle |
+| Alerting rules engine (configure thresholds in UI) | "What if I want 90s stale threshold?" | Single operator; thresholds are config.yml knobs; a UI rules engine is an admin product | Hard-code reasonable defaults (60s stale, 3 consecutive errors = degraded); let YAML drive them if needed |
+| Plugin enable/disable toggle from UI | Convenient-seeming control | Plugin lifecycle is managed by the orchestrator + config; toggling mid-run is a footgun with no safe teardown path | Document that restarting the bot with modified config is the correct approach |
+| Historical health trend chart (uptime %) | Looks professional | HealthRegistry is in-memory and resets on restart; there is no persistence for trend data; implementing it requires a new append table | Not in scope; the run history surface covers bot-level events |
+| Per-plugin restart button | Recovery shortcut | The supervisor already handles restarts; a UI-triggered restart races with it and can leave a plugin in double-start state | Trust the supervisor; surface `consecutive_errors` so operator knows when to manually stop/start the whole bot |
 
 ---
 
-## Order-Confirmation Detection: Per-Retailer Signal Inventory
+## Surface 2: Run History + Confirmed Buys
 
-This is the most research-intensive area. Signals are listed from most to least reliable.
+Existing data source: `items` table columns per-row:
+- `name`, `link`, `purchased` (bool), `order_id` (text, nullable), `confirmed_at` (text ISO-8601, nullable), `checkout_attempts` (int)
 
-### Amazon
+There is no separate orders table. Each item row is either purchased or not.
+The history surface therefore reads all items with `purchased=1` and displays them as a list.
 
-| Signal | Reliability | Implementation |
-|--------|------------|----------------|
-| URL contains `/gp/buy/thankyou/handlers` | HIGH | Amazon's standard post-order landing URL; check `tab.url` after `place_order.click()` with a short settle delay | 
-| Page contains order-number element `#orderDetails` or `span.order-id-number` | HIGH (backup) | `tab.select("#orderDetails", timeout=10)` or text search for pattern `\d{3}-\d{7}-\d{7}`; Amazon order numbers always match this format |
-| Page title contains "Thank you" | MEDIUM | JavaScript `document.title` evaluation; fragile to i18n and A/B tests |
-| Account order history contains new entry (API call to `/gp/css/order-history`) | LOW (too slow) | Requires a second navigation; only use as a last-resort verification pass |
+### Table Stakes
 
-**Recommended composite check for Amazon:** URL prefix match (`/gp/buy/thankyou`) AND either `#orderDetails` element present OR order-number regex match in page text. Any one of URL or DOM match is sufficient; require at least one.
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Confirmed-buys table (name, order_id, confirmed_at) | Core output of the bot; operator needs proof of purchase at a glance | LOW | `SELECT name, link, order_id, confirmed_at FROM items WHERE purchased=1 ORDER BY confirmed_at DESC` |
+| checkout_attempts displayed per item | Distinguishes "got it on first try" from "retried 5 times" | LOW | Direct column |
+| Empty-state messaging | Operator who has never bought anything needs guidance that this is normal | LOW | "No confirmed orders yet" placeholder |
+| Recent-activity timestamp formatting | Raw ISO-8601 is unfriendly; "2 hours ago" or locale date is the minimum | LOW | Format in JS; no library needed |
 
-### BestBuy
+### Differentiators
 
-| Signal | Reliability | Implementation |
-|--------|------------|----------------|
-| URL contains `/checkout/r/thank-you` or `/checkout/r/confirmation` | HIGH | BestBuy's post-order redirect; check `tab.url` after place-order click |
-| Page contains order-number element `.thank-you-order-number` or `[data-testid="order-number"]` | HIGH (backup) | `tab.select(".thank-you-order-number", timeout=10)` — confirmed by ScrapingBee article pattern; BestBuy's selector may drift on redesign |
-| Page contains text "Order confirmed" or "Thank you for your order" | MEDIUM | `tab.find("Order confirmed", timeout=5)` — confirmed by BestBuy UX review and community reports |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Link to retailer order page (if URL derivable) | Operator can jump to the real order in one click | MEDIUM | `order_id` format is retailer-specific; treat as MEDIUM confidence for correctness; link to the order list page as a safe fallback |
+| All-items table showing purchased flag inline | Items section already exists; adding a purchased column shows full funnel | LOW | Already in `/api/items`; just add a column to existing table |
+| Items sorted: unpurchased first, purchased last | Operator cares about what is still being monitored | LOW | Sort in existing items query |
 
-**Important BestBuy caveat:** Refract's docs note "BestBuy's site does not surface failures clearly — it may show 'invited' or 'requested' states that are NOT confirmed purchases." The URL redirect to `/checkout/r/thank-you` is the most reliable signal. Absence of redirect after place-order click = failure (not confirmed).
+### Anti-Features (do NOT build)
 
-**Recommended composite check for BestBuy:** URL must contain `/thank-you` AND `.thank-you-order-number` element OR "Order confirmed" text. Do not rely on text alone.
-
-### Other Plugins (Walmart, Target, GameStop, SquareEnix, NewEgg)
-
-These plugins currently have no `auto_buy` confirmation check and v4.0 does not extend form-fill to them. The correct v4.0 approach: wrap their existing `place_order.click()` with a URL-based check (any redirect away from the order-review page) and a generic "order number" regex scan. No per-plugin DOM surgery needed for v4.0 — that is deferred.
-
----
-
-## Retry-on-Cart Semantics
-
-### When to Retry
-
-| Condition | Retry? | Rationale |
-|-----------|--------|-----------|
-| `add-to-cart` button not found (stock gone) | NO | Item sold out; re-arm on next poll cycle |
-| `add-to-cart` click returns 429 / challenge page | YES (with backoff) | Transient rate-limit; back off and retry |
-| Cart page loads but checkout button absent | YES (1 retry) | Intermittent cart load failure |
-| `place_order.click()` completes but NO confirmation URL observed | YES (1 retry, max 2 total) | Possible click miss or navigation delay |
-| `place_order.click()` completes AND confirmation URL observed | NO | Success; enqueue DB write immediately |
-| `purchased` flag already set in DB | NO (hard guard) | Idempotency: DB is the authoritative state |
-| Any attempt after 5 consecutive failures | ABORT | Failure budget exceeded; log and exit checkout |
-
-### Backoff Values (Recommended)
-
-- Base delay: 2 seconds
-- Multiplier: 2x per attempt
-- Max delay: 30 seconds
-- Jitter: `random.uniform(0, base_delay)` added to each sleep
-- Max attempts: 3 for cart-add; 2 for place-order (lower because place-order is less idempotent)
-
-### Double-Buy Guard (Idempotency)
-
-The `purchased` flag in SQLite is the idempotency anchor. Before each retry attempt in `_try_auto_buy_with_retry`, read the flag synchronously. If already `True`, abort silently. This is safe because `_write_queue_drain` is the only writer and runs serially.
-
-**Critical:** Do NOT retry immediately after `place_order.click()`. Insert a settle delay (3-5 seconds) before reading the confirmation URL. The browser navigation after a successful order has measurable latency.
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Separate Orders page / route | "Cleaner navigation" | For a single operator with <=20 items, a dedicated page adds a nav hop for no real gain; all confirmed buys fit in a small table on the main dashboard | Collapsible section or a tab within the existing single-page layout |
+| Order filtering / search | "What if I have hundreds of orders?" | This bot auto-stops items on purchase (`purchased=1`); there will never be hundreds of rows; the maximum is bounded by the item list size | None needed; if list exceeds ~20 rows the operator should be cleaning up items |
+| Outcome analytics (success rate, time-to-checkout) | Sounds useful | Requires a separate append-only events table; v4.0 explicitly deferred this to post-v4.1; `checkout_attempts` gives a proxy already | Flag as post-v4.1 future direction |
+| Pagination | Standard table affordance | Data volume never warrants it; single-operator item lists are small | Simple full-list render |
+| Export to CSV | "I want my records" | One operator; order_id is already visible; screenshot or browser copy works | Not worth the route |
 
 ---
 
-## Checkout Time Budgets (Recommended Values)
+## Surface 3: Price-History Charts
 
-| Step | Recommended Timeout | Rationale |
-|------|--------------------|-----------| 
-| `add-to-cart` click + cart page load | 15 seconds | Fast on good sessions; generous for slow pages |
-| Full checkout flow (`auto_buy` end-to-end) | 90 seconds | Covers form-fill + CVV + confirmation wait |
-| Per-item `_check_and_buy` (orchestrator level) | 120 seconds | Adds 30s buffer above `auto_buy` for pre/post work |
-| Post-place-order settle (before confirmation check) | 5 seconds | Navigation latency after successful order |
-| Session/cookie load at login | 10 seconds | CDP `set_cookies` call |
+Existing data source: `price_history` table:
+- `item_link` (FK to items.link), `price_cents` (int), `currency` (text), `scraped_at` (text ISO-8601)
 
-These map directly to `asyncio.wait_for` timeout arguments. They should be config-overridable under `platforms.<name>.checkout_timeout_secs`.
+Current data: Amazon plugin only (PRICE-02). Other plugins have no price scraping.
+Data is sparse and irregular: one row per check cycle per item (cycle interval is configurable).
+A typical item may have 5-50 data points in an active monitoring window, not thousands.
+
+Chart library constraint: no CDN, no npm, vendored only. Must be a single droppable file.
+
+**Recommendation: uPlot** (~50KB minified IIFE, zero dependencies, Canvas 2D, vendorable as `web/static/uplot.iife.min.js`). For the data volumes here (5-200 points), hand-rolled SVG polyline is also viable and adds zero weight. uPlot is preferred if interactive tooltips are wanted; hand-rolled SVG is preferred for zero-weight simplicity. Use uPlot unless the design system phase determines the SVG approach is cleaner to maintain.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Line chart per item (price over time) | The price_history table exists specifically to be visualized | MEDIUM | `/api/price-history/<item_link_b64>` endpoint needed; chart rendered per item |
+| Price in readable currency (dollars, not cents) | price_cents must be divided by 100 | LOW | Pure JS transform before render |
+| Time axis in human-readable form | ISO-8601 scraped_at strings need parsing | LOW | `new Date(scraped_at)` in JS |
+| Target price reference line | item.target_price column exists; drawing a horizontal rule at that value adds immediate context | LOW | Horizontal SVG line or uPlot annotation; target_price is nullable so conditional |
+| "No data yet" placeholder for non-Amazon items | BestBuy, Walmart, etc. have zero rows; showing a blank chart is confusing | LOW | API returns empty array; render "Price history not available for this plugin" text |
+| Chart only shown when data exists | Rendering 7 empty charts wastes space | LOW | Conditional render |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Most-recent price prominently labeled | Operator's first question is "what is it priced at now" not "draw me a chart" | LOW | Text above chart: "Current: $59.99 (Amazon, 5 min ago)" |
+| Price delta since first observation | "Down $20 since I started watching" is motivating context | LOW | `last_price - first_price` from the history array |
+| Chart collapsible per item (collapsed by default if no price drop) | Keeps the page scannable when monitoring many items | LOW | `<details>` element; no JS needed for basic collapse |
+
+### Anti-Features (do NOT build)
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Cross-item price comparison chart | "Interesting to compare" | Items are on different retailers with different base prices; a single Y-axis is meaningless; volume is too low to reveal patterns | Per-item charts only |
+| Candlestick / OHLC chart | "More financial-looking" | Data is one-scrape-per-cycle, not tick-level OHLC; there is no open/high/low/close structure | Line chart is correct for this data shape |
+| Chart zoom / pan | Standard chart interaction | With 5-50 sparse points the chart fits in a 300px card; zoom is unnecessary complexity | Static chart with tooltip on hover only |
+| Persistent chart settings (zoom level, time range) | "Save my view" | Single operator; page load always starts fresh | No state persistence needed |
+| Price alert configuration in the chart UI | "Click the chart to set my target" | Price targets live in config.yml / database; a click-to-set interaction requires a write path through the chart | Keep config.yml / existing items form as the price config path |
+| Server-side chart rendering (Matplotlib, Plotly server) | Avoids JS | Adds a Python image dependency; PNG charts are not interactive; SSE updates can't refresh PNGs without full reload | Client-side chart with vendored lib |
+| Real-time price chart updates via SSE | "Show price ticking live" | Price scrapes are slow (one per poll cycle, 30-120s); the chart is not a live ticker; polling on demand is sufficient | REST endpoint on page load / manual refresh |
 
 ---
 
-## Session / Cookie Persistence Implementation Notes
+## Surface 4: Log Viewer
 
-### nodriver-Specific Concerns (HIGH confidence — from GitHub issues #1816, #2020, #2232)
+Existing implementation: `/api/logs` returns last 50 lines of today's log file as plain strings.
+The 2s polling loop dumps them into a `<pre>`. No structure, no filtering.
 
-- `browser.cookies.set_all(cookies)` has a confirmed bug: the `cookies` parameter is silently overwritten by `cdp.storage.get_cookies()` before use. The result is that set_all does nothing.
-- **Workaround confirmed working:** Use `await tab.send(cdp.storage.set_cookies(cookies=cookie_list))` directly — bypasses the broken helper.
-- `browser.cookies.get_all()` works correctly for reading.
-- HttpOnly cookies are accessible via CDP `Network.getAllCookies` but not via `document.cookie` JavaScript.
+Log format (from `logger.py`): `writeLog(message, type)` with colorama colors to file.
+The file format is plain text lines with timestamp + level + optional plugin prefix + message.
 
-### Storage Approach
+### Table Stakes
 
-1. After successful login, call `await plugin.driver.cookies.get_all()` to capture the full cookie jar as a list of `cdp.network.Cookie` objects.
-2. Serialize to JSON (not pickle — avoids class version issues on upgrade).
-3. Encrypt with `cryptography.fernet` using a key from `CredentialStore` (reuse existing infrastructure).
-4. Write to a platform-scoped file: `.shopbot_sessions/<platform>_cookies.enc` under the app data directory.
-5. On next `login()` call, check if a valid session file exists. If yes, restore cookies via direct CDP call (workaround above), navigate to account page, verify logged-in state by checking for account-nav element. If verification fails, fall back to full login.
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Color-coded log levels in UI | Errors must visually jump out; INFO/DEBUG should recede | LOW | CSS class per level; parse level token from line string with a regex |
+| Level filter (ALL / ERROR / WARN / INFO / DEBUG / TRACE) | Operator watching for errors does not want 500 DEBUG lines | LOW | Client-side filter on rendered lines; no server round-trip needed |
+| Tail / follow mode (auto-scroll to bottom on new lines) | Standard expectation for any log viewer | LOW | `el.scrollTop = el.scrollHeight` on SSE message; pause when user scrolls up |
+| Pause tail when user scrolls up, resume on scroll-to-bottom | Without pause, auto-scroll fights the user who is reading history | LOW | Track `isUserScrolledUp` boolean; resume on scroll-to-bottom |
+| SSE push (replaces 2s poll) | New logs appear immediately, not after up to 2s lag | MEDIUM | FastAPI `StreamingResponse` with event-stream; backend reads log file tail and pushes new lines |
+| Reasonable line cap in memory (last 500 lines) | Unbounded append causes memory growth in a long-running tab | LOW | Rotate DOM lines: keep a circular buffer of 500, drop oldest |
 
-### Security Constraints (Non-Negotiable)
+### Differentiators
 
-- Session files must be encrypted at rest (no plaintext JSON cookies on disk).
-- Session files must be scoped to a platform and never shared across plugins.
-- Session file path must never appear in logs.
-- This feature is **opt-in** (`platforms.<name>.session_persistence: true`) because it persists authentication tokens that could be misused if the machine is compromised.
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Plugin filter (dropdown: ALL / amazon / bestbuy / etc.) | Multi-plugin runs generate interleaved logs; isolating one plugin is the primary debugging workflow | MEDIUM | Parse plugin name from log prefix; populate dropdown from HealthRegistry plugin names or known list; client-side filter |
+| Substring search / highlight | "Where did the error happen in the flow?" | MEDIUM | Client-side: filter lines containing query string OR highlight matching spans; not a server search |
+| Log level count badges | "How many errors since last clear?" | LOW | Count by level as lines accumulate; reset on page load or manual clear |
+| Clear log view button | Operator wants a fresh visual starting point without restarting anything | LOW | Clear the in-memory DOM buffer only; does not touch the log file |
 
----
+### Anti-Features (do NOT build)
 
-## Supervisor and Health Patterns
-
-### Per-Coroutine Supervisor (Recommended Pattern)
-
-Replace the current bare `tg.create_task(run_plugin(...))` in `async_main` with a supervised wrapper:
-
-```
-supervised(coroutine_factory, *args, max_failures=5, window_secs=300, base_backoff=2.0, max_backoff=60.0)
-```
-
-- Runs `coroutine_factory(*args)` in a loop.
-- On exception: increments per-plugin failure counter, logs the error, sleeps with exponential backoff + jitter.
-- If failure counter exceeds `max_failures` within `window_secs`: logs a critical error and returns (does NOT re-raise into TaskGroup, allowing other plugins to continue).
-- On success (clean return from the coroutine): resets failure counter.
-- Respects `asyncio.CancelledError` — never catches it; propagates cleanly for shutdown.
-
-### Browser-Crash Detection
-
-nodriver does not provide a built-in health check. The recommended detection approach:
-
-1. Check `plugin.driver._process.returncode is not None` — if the subprocess has exited, the browser is dead.
-2. Alternatively: wrap every `tab.select(...)` call in a try/except; if a `ConnectionError` or `websockets` disconnect fires, treat as crash.
-3. On crash detection: call `plugin.teardown()`, sleep 5 seconds, call `plugin.setup()`. If setup fails, increment the failure budget.
-
-### Health / Heartbeat Surface
-
-A lightweight `_heartbeat` coroutine runs in the TaskGroup alongside plugin coroutines:
-
-- Writes `{"plugin": ..., "last_alive": ISO-timestamp, "items_checked": N}` to a per-plugin in-memory dict every `heartbeat_interval_secs` (default: 60).
-- Emits one log line per plugin at INFO level: `[HEARTBEAT] AmazonPlugin alive, checked 42 items`.
-- Optionally serializes the dict to a JSON file (`.shopbot_health.json`) for external monitoring. This is opt-in.
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Log file management (rotate, delete, archive) | "Clean up old logs" | Log rotation is an OS/process concern; doing it from the UI introduces race conditions with the logger and is a destructive operation from a web endpoint | Document that logs are in `logs/YYYYMONTHDD.log` and the operator deletes them manually |
+| Regex filter | "Power-user search" | Substring search covers 95% of single-operator use; regex in a real-time filter on a 500-line DOM buffer is overkill and requires error handling for invalid patterns | Substring search; operator can open the log file in a real editor for regex |
+| Multi-day log browsing (date picker) | "See yesterday's run" | Past log files are static; the dashboard's purpose is live ops, not historical audit; the CLI `shoppybot status` and log files themselves serve the historical use case | Direct file access; no UI date picker |
+| Log persistence to database | "Store structured logs in SQLite" | Requires a schema migration, an insert on every log line, and a retention policy; the file-based logger already provides persistence | File log is the persistence layer |
+| Remote log shipping (Loki, Elasticsearch, Datadog) | "Ship to central log aggregator" | Single-operator personal tool; adding an external dependency violates the no-CDN/self-contained posture | Not in scope |
+| Export logs as file from UI | "Download for sharing" | Single operator; the log file is at a known path on disk | Document path; open file explorer |
+| Virtual scrolling | "Performance for huge logs" | The 500-line cap makes this unnecessary; DOM with 500 `<div>` elements is fast | Simple DOM append with cap |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Order-confirmation detection
-    requires --> auto_buy returns True ONLY on confirmed signal
-    requires --> settle delay before confirmation read
+SSE endpoint (FastAPI StreamingResponse)
+    required by: Live health cards (SSE event: "status")
+    required by: Log viewer SSE tail (SSE event: "log")
+    NOT required by: Price charts (REST on demand is sufficient)
 
-Bounded retry-on-cart
-    requires --> Order-confirmation detection (to distinguish "click failed" from "click succeeded")
-    requires --> DB purchased flag read before each attempt (idempotency guard)
-    conflicts --> Unlimited retry (anti-feature)
+/api/price-history/<link_b64> endpoint (new REST)
+    required by: Price-history chart render
 
-Checkout profile form-fill
-    requires --> CheckoutProfile in CredentialStore (encrypted; never plaintext)
-    enhances --> Retry-on-cart (profile re-fill on session expiry retry)
+Vendored design system (CSS tokens + components)
+    required by: All 4 surfaces (cards, tables, charts, log panel)
+    required by: Light/dark mode (CSS custom properties)
 
-Session/cookie persistence
-    requires --> CredentialStore Fernet key
-    requires --> nodriver CDP workaround (set_cookies direct call)
-    enhances --> Checkout profile form-fill (fewer form-fills needed when session is live)
-    conflicts --> Unencrypted cookie storage (anti-feature)
+HealthRegistry.get_snapshot() [already exists in core/health.py]
+    feeds: Health cards
+    feeds: SSE status event payload
 
-Per-coroutine supervisor
-    requires --> asyncio.CancelledError propagation (must not be caught)
-    enhances --> Browser-crash detection + relaunch (supervisor drives the relaunch loop)
+items table (order_id, confirmed_at, checkout_attempts columns -- all shipped in v4.0)
+    feeds: Run history / confirmed buys table
 
-Browser-crash detection
-    requires --> plugin.driver._process or CDP ping
-    requires --> plugin.teardown() + plugin.setup() idempotency
-
-Per-item orchestrator timeout
-    requires --> asyncio.wait_for (stdlib, no new dependency)
-    enhances --> Per-coroutine supervisor (timeout fires before supervisor failure budget)
-
-Monitor-only mode
-    requires --> --monitor-only CLI flag wired into async_main
-    conflicts --> auto_buy per-item flag (orthogonal; monitor-only overrides all)
-
-Health / heartbeat
-    enhances --> Per-coroutine supervisor (heartbeat absence = implicit crash signal)
+price_history table [already exists]
+    feeds: Price-history charts
 ```
 
+### Dependency Notes
+
+- SSE must come before live health cards and live log tail. Both surfaces degrade gracefully to polling if SSE is not yet wired (the 2s poll already exists).
+- The design system redesign is a prerequisite for all surface work because it establishes the card/token/color system that health cards, charts, and the log panel all use.
+- Price charts do NOT require SSE; a REST endpoint on demand is sufficient given sparse data.
+- The confirmed-buys surface requires no new DB columns; all needed fields shipped in v4.0 (BUY-04).
+
 ---
 
-## v4.0 Feature Prioritization
+## MVP Definition for v4.1
 
-| Feature | User Value | Implementation Cost | Priority | Phase Recommendation |
-|---------|------------|---------------------|----------|---------------------|
-| Order-confirmation detection (Amazon + BestBuy) | HIGH | MEDIUM | P1 | Phase 18 (Acquisition Core A) |
-| Monitor-only mode + close test_mode hole | HIGH | LOW | P1 | Phase 18 |
-| Bounded retry-on-cart + double-buy guard | HIGH | MEDIUM | P1 | Phase 19 (Acquisition Core B) |
-| Per-step / per-item checkout time budget | HIGH | LOW | P1 | Phase 19 |
-| Per-coroutine supervisor + backoff restart | HIGH | MEDIUM | P1 | Phase 20 (Always-On Reliability A) |
-| Browser-crash detection + relaunch | HIGH | MEDIUM | P1 | Phase 20 |
-| DB read-path error isolation | MEDIUM | LOW | P2 | Phase 20 |
-| Encrypted session/cookie persistence | HIGH | MEDIUM | P2 | Phase 21 (Always-On Reliability B) |
-| Checkout profile form-fill (BestBuy, Amazon) | MEDIUM | MEDIUM | P2 | Phase 21 |
-| Structured health / heartbeat surface | MEDIUM | LOW | P2 | Phase 21 |
-| SIGTERM/SIGINT teardown bridge | MEDIUM | LOW | P2 | Phase 20 or 21 |
-| Headless pygame import-crash guard | LOW | LOW | P3 | Phase 20 (opportunistic) |
+### Phase order implied by dependencies
+
+Phase A (design system + SSE foundation) must precede Phase B (surfaces).
+
+### Launch With (all 4 surfaces, minimum viable form)
+
+- [ ] Vendored design system: CSS tokens, card component, light/dark -- required by everything else
+- [ ] SSE endpoint streaming `status` + `log` event types -- required for live health cards + log tail
+- [ ] Health cards: name, status badge, staleness, consecutive_errors, items_checked -- reads from SSE "status" event
+- [ ] Confirmed-buys table: name, order_id, confirmed_at, checkout_attempts -- REST, reads items table
+- [ ] Price-history chart: per-item line chart via uPlot or hand-rolled SVG -- REST `/api/price-history/<b64>`, empty-state for non-Amazon items
+- [ ] Log viewer: level color-coding, level filter, tail/follow, pause-on-scroll, SSE push, 500-line cap
+
+### Add After Core Works (within v4.1 if scope permits)
+
+- [ ] Plugin filter on log viewer -- depends on log format consistency; add after verifying level parse works
+- [ ] Log substring search/highlight -- polish, not blocking
+- [ ] Uptime display in global status bar -- low effort; add if a spare slot exists in the design system phase
+- [ ] Staleness color gradient (three bands) -- polish tier; binary stale/fresh is good enough for launch
+- [ ] orders_confirmed counter on health card -- data is available; add if card layout has room
+
+### Defer to Post-v4.1
+
+- [ ] Outcome analytics (success rate, time-to-checkout) -- requires new append-only events table; explicitly deferred in PROJECT.md
+- [ ] Amazon/BestBuy order deep-link -- order_id URL formats need validation against live retailer pages; medium confidence risk
+- [ ] Log level count badges -- nice-to-have polish
+- [ ] Multi-day log browsing -- out of scope for this milestone
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | Operator Value | Implementation Cost | Priority |
+|---------|----------------|---------------------|----------|
+| Vendored design system (CSS tokens, card, dark mode) | HIGH | MEDIUM | P1 |
+| SSE endpoint (status + log streams) | HIGH | MEDIUM | P1 |
+| Health cards (status, staleness, errors) | HIGH | LOW | P1 |
+| Log viewer: level filter + tail + SSE push | HIGH | MEDIUM | P1 |
+| Confirmed-buys table | HIGH | LOW | P1 |
+| Price-history chart (uPlot or SVG) + REST endpoint | HIGH | MEDIUM | P1 |
+| Uptime display on status bar | MEDIUM | LOW | P2 |
+| Plugin filter on log viewer | MEDIUM | MEDIUM | P2 |
+| Log substring search | MEDIUM | MEDIUM | P2 |
+| Staleness gradient (3 bands) | MEDIUM | LOW | P2 |
+| orders_confirmed on health card | LOW | LOW | P2 |
+| Log level count badges | LOW | LOW | P3 |
+| Amazon/BestBuy order deep-link | LOW | MEDIUM | P3 |
 
 **Priority key:**
-- P1: Required for v4.0 milestone goal ("verified orders + unattended survival")
-- P2: Should ship in v4.0; user-visible reliability improvement
-- P3: Opportunistic; include if low-risk, otherwise defer
+- P1: Must have for v4.1 launch
+- P2: Add within v4.1 phases if cost permits
+- P3: Nice-to-have; defer
 
 ---
 
-## ToS and Safety Summary
+## Single-Operator Scope: Global Anti-Features
 
-| Feature | ToS Risk | Required Treatment |
-|---------|----------|--------------------|
-| Checkout profile form-fill (shipping/billing) | Moderate: automated form-fill on retail sites violates most ToS | **Opt-in** via `platforms.<name>.checkout_profile: enabled: true`; document risk clearly |
-| Session/cookie persistence | Moderate: persists auth tokens; also violates most retailer ToS for automation | **Opt-in** via `platforms.<name>.session_persistence: true`; encrypted at rest; document risk |
-| Bounded retry-on-cart | Low: retry is common in legitimate clients | Safe by default; bounded to prevent abuse |
-| Monitor-only mode | None: no purchasing | Safe; explicitly reduces ToS risk |
-| Order-confirmation detection | None: improves accuracy | Safe; prevents false "purchased" flags |
-| All others (supervisor, crash relaunch, heartbeat, timeouts) | None: internal reliability | Safe by default |
+These cross-cutting concerns should be rejected at any point during v4.1 planning.
+
+| Anti-Feature | Category | Why Rejected |
+|--------------|----------|-------------|
+| Multi-tenant / user roles | Auth | Single operator; localhost-bound; no multi-user need |
+| Auth roles / permissions UI | Auth | Same reason; the localhost bind IS the auth boundary |
+| Retention policy UI (auto-delete logs/history after N days) | Ops admin | One operator; manual file deletion is fine |
+| Alerting rules engine in UI | Observability over-engineering | Thresholds are config.yml or code constants; a rules UI is a product in itself |
+| Dashboard sharing / embeds | Multi-user | Not in scope; tool is personal-use |
+| WebSocket (vs SSE) | Transport over-engineering | SSE is unidirectional server-push; that is all we need; WebSocket adds handshake complexity for zero benefit |
+| i18n / localization | Enterprise feature | Single operator; English only |
+| Node.js build pipeline / bundler | Constraint violation | Explicit project constraint: zero Node; vendored CSS + JS only |
+| External fonts (Google Fonts, etc.) | Constraint violation | Explicit project constraint: no CDN; system font stack only |
 
 ---
 
 ## Sources
 
-- nodriver cookie bug issues: github.com/ultrafunkamsterdam/undetected-chromedriver issues #1816, #2020, #2232
-- BestBuy bot checkout selectors: github.com/TreborNamor/Agressive-Store-Bots/blob/main/bestbuy.py (`.button--place-order`, `#credit-card-cvv`)
-- Order confirmation DOM pattern (ScrapingBee article): blog.adnansiddiqi.me — `.thank-you-order-number` CSS selector confirmed as order confirmation signal
-- BestBuy confirmation behavior: help.refractbot.com/modules/bestbuy-us — "site does not surface failures; only returns invited/requested"
-- Asyncio supervisor + failure budget pattern: medium.com/@skyler.lewis asyncio-patterns-part-2-managing-failures
-- Retry idempotency for POST: scrapeops.io/python-web-scraping-playbook/python-requests-retry-failed-requests — "POST is not idempotent; retry only on connection errors"
-- BOTS Act / ToS consequences: ftc.gov/business-guidance/blog/2025/04/bots-act-compliance-time-refresher
-- nodriver browser crash issue: github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2130
+- HealthRegistry and get_status() payload: `core/health.py`, `core/service.py` (direct read, HIGH confidence)
+- price_history and items table schema: `models.py` (direct read, HIGH confidence)
+- uPlot library: https://github.com/leeoniya/uPlot -- ~50KB IIFE, zero dependencies, Canvas 2D (MEDIUM confidence on exact file size; HIGH confidence on dependency-free status)
+- SSE UX patterns for log viewers: https://dev.to/polliog/building-a-real-time-log-viewer-with-server-sent-events-and-svelte-5-13dd
+- Live log tail with SSE: https://logdy.dev/blog/post/live-log-tail-with-logdy-stream-logs-from-anywhere-to-web-browser
+- Real-time dashboard UX (staleness patterns): https://smashingmagazine.com/2025/09/ux-strategies-real-time-dashboards/ (MEDIUM confidence; general design guidance)
+- Admin dashboard operator UX task-oriented design: https://www.glitchlabs.app/insights/admin-dashboard-ux-patterns (MEDIUM confidence)
+- Carbon Design System status indicator pattern: https://carbondesignsystem.com/patterns/status-indicator-pattern/ (MEDIUM confidence)
+- FastAPI SSE official docs: https://fastapi.tiangolo.com/tutorial/server-sent-events/ (HIGH confidence)
 
 ---
 
-*Feature research for: v4.0 Win-the-Drop — Acquisition Core + Reliability*
-*Researched: 2026-06-10*
+*Feature research for: ShopPyBot v4.1 Dashboard & Observability*
+*Researched: 2026-06-25*
