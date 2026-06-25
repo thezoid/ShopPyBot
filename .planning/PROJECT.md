@@ -16,26 +16,38 @@ Target user: technically capable individuals who want automated stock monitoring
 
 ## Current State
 
-**Shipped v3.0 Resilience + Ecosystem (2026-06-10).** Built on the v2.0 modular core (`BotService` API behind a CLI-default front-end plus an optional FastAPI web UI; runtime-selected `CredentialStore` with no plaintext on disk). v3.0 added anti-detection (JS stealth + proxy rotation with ban detection; opt-in 2captcha reCAPTCHA-v2 solving with balance check and spend cap), the plugin ecosystem (ABC `difficulty`/`requires_proxy`/`requires_captcha` attrs, `shoppybot plugins list`, a GitHub-wiki registry spec, contributor docs), and price monitoring (per-item target price, price history table, price-drop fan-out alerts, `items price-history` CLI).
+**Shipped v4.0 Win-the-Drop — Acquisition Core + Reliability (2026-06-25).** Built on the v3.0 resilience/ecosystem layer and the v2.0 modular core (`BotService` API behind a CLI-default front-end plus an optional FastAPI web UI; runtime-selected `CredentialStore` with no plaintext on disk). v4.0 makes the bot complete *verified* orders on limited-release drops and survive multi-hour unattended runs: a central monitor-only gate + `place_order_guarded()` ABC closing the 6-of-7 `test_mode` hole; order-confirmation detection (`purchased` only on a real order number); checkout profile + BestBuy/Amazon form-fill with CVV-at-runtime; one unified `RetryPolicy` with per-step timeouts and idempotent cart-retry; per-coroutine supervisor with browser relaunch, DB read isolation, per-item timeout, and a SIGTERM/SIGINT teardown bridge; Fernet-encrypted session persistence; and a per-plugin health surface (`get_status`, `health_degraded` alert, `shoppybot status`) plus a headless pygame import-crash guard.
 
-v3.0: 6 phases (12-17) / 21 plans, all complete. Full suite: 548 passed, 2 skipped.
+v4.0: 7 phases (18-24) / 29 plans, all complete. Full suite: 755 passed, 2 skipped. Audit status `tech_debt` (no blockers; pre-accepted live-UAT debt).
 
-**Deferred (carried):** v2.0 live cross-OS/UI manual checks (keyring restart persistence, masked-TTY setup, web dashboard live render, 0.0.0.0 warning) tracked in STATE.md → Deferred Items; Amazon WAF CAPTCHA auto-solve deferred (degrades to manual pause).
+**Deferred (carried):** all live-environment UAT (monitor-only/confirmation/form-fill/relaunch/SIGTERM/session/headless) tracked in STATE.md → Deferred Items as the operator's pre-production live-buy checklist; Amazon WAF CAPTCHA auto-solve (manual-pause fallback); public-release hardening — git-history scrub/squash (SEED-001) + release-please tagging (SEED-002).
 
-**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
+**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
 
-## Current Milestone: v4.0 Win-the-Drop (Acquisition Core + Reliability)
+## Next Milestone
+
+**No active milestone.** v4.0 Win-the-Drop shipped 2026-06-25. Start the next cycle with `/gsd:new-milestone` (questioning → research → requirements → roadmap). Phase numbering continues from 24.
+
+Candidate directions from the v4.0 deferral list:
+- **Public-release hardening** — git-history scrub/squash (SEED-001) + release-please version tagging (SEED-002); a dedicated release milestone.
+- **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon).
+- **Request/API-mode (hybrid) checkout** — faster than DOM but per-site reverse-engineering and an arms race.
+- **Outcome analytics** (success rate, time-to-checkout) built on the BUY-04 order records.
+- **Richer health/observability on the web dashboard** (beyond the CLI/status payload).
+
+<details>
+<summary>Shipped: v4.0 Win-the-Drop (Acquisition Core + Reliability) — 2026-06-25</summary>
 
 **Goal:** Make ShopPyBot complete *verified* orders on limited-release drops, and survive multi-hour unattended runs without one fault taking everything down.
 
-**Target features:**
-- Acquisition Core: checkout profile (shipping/billing) + form-fill on 1-2 reliable retailers (BestBuy, Amazon); order-confirmation capture (mark `purchased` only on a real confirmation, not a button click); bounded retry-on-cart with backoff; per-item/per-step checkout time budget; a central monitor-only run mode that also closes the `test_mode` place-order hole (6 of 7 plugins).
-- Always-On Reliability: per-coroutine supervision + backoff restart; browser-crash detection + relaunch; encrypted session/cookie persistence; DB read-path error isolation; per-item orchestrator timeout; structured health/heartbeat surface; one unified transient retry/backoff.
+**Delivered features:**
+- Acquisition Core: checkout profile (shipping/billing) + form-fill on BestBuy + Amazon; order-confirmation capture (mark `purchased` only on a real confirmation, not a button click); bounded retry-on-cart with backoff; per-item/per-step checkout time budget; a central monitor-only run mode that also closes the `test_mode` place-order hole (6 of 7 plugins).
+- Always-On Reliability: per-coroutine supervision + backoff restart; browser-crash detection + relaunch; encrypted session/cookie persistence; DB read-path error isolation; per-item orchestrator timeout; structured health/heartbeat surface; one unified transient retry/backoff (`RetryPolicy`).
 - Opportunistic server-safety: headless pygame import-crash guard; SIGTERM/SIGINT teardown bridge (stop orphaning Chrome).
 
-**Deferred to follow-on:** request/API-mode checkout, virtual-waiting-room/queue survival (Queue-it/PerimeterX/Akamai/DataDome), multi-account/multi-profile parallel attempts, Amazon WAF auto-solve. All XL arms-race or ToS-hostile.
+**Constraints held:** v2.0 security posture (no plaintext secrets, CLI default, web optional/localhost); payment via retailer-saved methods + CVV-at-runtime (never persist full card data, PCI); checkout work targets the `nodriver` plugin stack.
 
-**Key constraints:** preserve the v2.0 security posture (no plaintext secrets, CLI default, web optional/localhost); payment via retailer-saved methods + CVV-at-runtime (never persist full card data, PCI); checkout work targets the `nodriver` plugin stack; continues phase numbering from 17.
+</details>
 
 ## Requirements
 
@@ -75,19 +87,25 @@ v3.0: 6 phases (12-17) / 21 plans, all complete. Full suite: 548 passed, 2 skipp
 - ✓ Price monitoring: per-item target price, price history table, price-drop fan-out alerts, price-history CLI — v3.0 (Phase 16)
 - ✓ Stability: v2.0 audit tech-debt resolved + test hardening (548 tests) — v3.0 (Phases 12, 17)
 
-### Active (v4.0 Win-the-Drop — Acquisition Core + Reliability)
+### Validated (shipped v4.0 Win-the-Drop — Acquisition Core + Reliability)
 
-- [ ] Acquisition: checkout profile (shipping/billing) + form-fill (BestBuy, Amazon)
-- [ ] Acquisition: order-confirmation capture / verified purchase
-- [ ] Acquisition: bounded retry-on-cart with backoff (idempotent, no double-buy)
-- [ ] Acquisition: per-item/per-step checkout time budget
-- [ ] Acquisition: central monitor-only run mode + close test_mode place-order hole
-- [ ] Reliability: per-coroutine supervision + backoff restart
-- [ ] Reliability: browser-crash detection + relaunch
-- [ ] Reliability: encrypted session/cookie persistence
-- [ ] Reliability: DB read-path error isolation
-- [ ] Reliability: per-item orchestrator timeout
-- [ ] Reliability: structured health/heartbeat surface
+- ✓ Acquisition: checkout profile (shipping/billing) + form-fill (BestBuy, Amazon) — v4.0 (Phase 20)
+- ✓ Acquisition: order-confirmation capture / verified purchase — v4.0 (Phase 19)
+- ✓ Acquisition: bounded retry-on-cart with backoff (idempotent, no double-buy) — v4.0 (Phase 21)
+- ✓ Acquisition: per-item/per-step checkout time budget — v4.0 (Phases 21, 22)
+- ✓ Acquisition: central monitor-only run mode + close test_mode place-order hole — v4.0 (Phase 18)
+- ✓ Reliability: per-coroutine supervision + backoff restart — v4.0 (Phase 22)
+- ✓ Reliability: browser-crash detection + relaunch — v4.0 (Phase 22)
+- ✓ Reliability: encrypted session/cookie persistence — v4.0 (Phase 23)
+- ✓ Reliability: DB read-path error isolation — v4.0 (Phase 22)
+- ✓ Reliability: per-item orchestrator timeout — v4.0 (Phase 22)
+- ✓ Reliability: structured health/heartbeat surface — v4.0 (Phase 24)
+- ✓ Reliability: unified RetryPolicy (one backoff source) — v4.0 (Phase 21)
+- ✓ Server-safety: headless pygame import-crash guard + SIGTERM/SIGINT teardown bridge — v4.0 (Phases 24, 22)
+
+### Active (next milestone)
+
+_None yet — run `/gsd:new-milestone` to scope the next cycle. See "Next Milestone" above for candidate directions._
 
 ### Deferred
 
@@ -118,6 +136,11 @@ v3.0: 6 phases (12-17) / 21 plans, all complete. Full suite: 548 passed, 2 skipp
 | (v2.0) Dynamic CredentialStore | OS keyring with encrypted-file fallback for headless Ubuntu, env-var last resort; secrets never plaintext on disk | Chosen |
 | (v2.0) Local web UI via FastAPI | Most portable across Ubuntu/Windows, clean core/UI separation, optional extra; binds localhost by default | Chosen |
 | (v2.0 reversal) No secrets in SQLite | Storing creds in the local DB is plaintext-on-disk, weaker than env/keyring; rejected in favor of CredentialStore | Chosen |
+| (v4.0) Single `place_order_guarded()` gate on the ABC | One enforcement point honors monitor-only/`test_mode` for all 7 plugins; closed the confirmed 6-of-7 hole instead of patching each plugin | ✓ Good |
+| (v4.0) `purchased` only on a confirmed order number | A button click is not a purchase; confirmation-URL + order-id capture is the idempotency anchor that prevents double-buy on retry | ✓ Good |
+| (v4.0) One unified `RetryPolicy` | Supervisor-restart and cart-retry share one backoff module so the two retry concepts cannot diverge or compound into a runaway loop | ✓ Good |
+| (v4.0) Retailer-saved payment + CVV-at-runtime | Never persist full card/PAN (PCI scope); CVV via `getpass`, never logged; AST CI assertion guards against leaks | ✓ Good |
+| (v4.0) Live-environment UAT deferred as tracked debt | Live retail checkout is ToS/legal risk in CI; confirmation/form-fill selectors verified by manual UAT, tracked in STATE.md Deferred Items | — Pending (operator live-buy checklist) |
 
 ## Evolution
 
@@ -137,4 +160,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-10 — v4.0 Win-the-Drop milestone started*
+*Last updated: 2026-06-25 — after v4.0 Win-the-Drop milestone (shipped)*

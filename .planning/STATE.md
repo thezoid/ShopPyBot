@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Win-the-Drop
-status: verifying
-last_updated: "2026-06-12T21:27:47.343Z"
-last_activity: 2026-06-12
+status: Awaiting next milestone
+last_updated: "2026-06-25T01:32:12.122Z"
+last_activity: 2026-06-25 — Milestone v4.0 completed and archived
 progress:
-  total_phases: 13
+  total_phases: 7
   completed_phases: 7
   total_plans: 29
   completed_plans: 29
-  percent: 54
+  percent: 100
 ---
 
 # ShopPyBot — State
@@ -28,30 +28,30 @@ progress:
 
 ## Current Position
 
-Phase: 24
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-12
+Phase: Milestone v4.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-25 — Milestone v4.0 completed and archived
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 18 — Safety Gate + Config Foundation | monitor-only mode + place_order_guarded() ABC + CheckoutConfig schema | Not started | BUY-01, BUY-02 |
-| 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Not started | BUY-03, BUY-04 |
-| 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Not started | BUY-07 |
-| 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Not started | BUY-05, BUY-06, REL-08 |
+| 18 — Safety Gate + Config Foundation | monitor-only mode + place_order_guarded() ABC + CheckoutConfig schema | Complete | BUY-01, BUY-02 |
+| 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Complete | BUY-03, BUY-04 |
+| 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Complete | BUY-07 |
+| 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Complete | BUY-05, BUY-06, REL-08 |
 | 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Complete | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
-| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | In Progress (1/4 plans) | REL-04 |
-| 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Not started | REL-07, SRV-01 |
+| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Complete | REL-04 |
+| 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Complete | REL-07, SRV-01 |
 
 ---
 
 ## Performance Metrics
 
-**Plans completed**: 20 of 20
-**Requirements completed**: SRV-02 (plus all prior phases)
-**Phases completed**: 5 of 7
+**Plans completed**: 29 of 29
+**Requirements completed**: 17 of 17 (BUY-01..07, REL-01..08, SRV-01, SRV-02)
+**Phases completed**: 7 of 7
 **Blockers resolved**: 0
 
 ---
@@ -93,7 +93,8 @@ Last activity: 2026-06-12
 
 ### Active Todos
 
-- Run `/gsd:plan-phase 18` to begin Phase 18 planning
+- v4.0 complete + archived. Run `/gsd:new-milestone` to scope the next cycle (phase numbering continues from 24).
+- Operator: work the v4.0 live-UAT checklist (Deferred Items below) before the first production live-buy.
 
 ### Blockers
 
@@ -114,6 +115,26 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 | uat | Phase 11 — 11-HUMAN-UAT.md (6 live cross-OS scenarios) | partial (6 pending) |
 | uat | Phase 01 — 01-UAT.md | partial (0 pending) |
 | uat | Phase 19 — per-retailer confirmation selectors (Amazon + BestBuy) | UAT required before Phase 19 finalizes selectors |
+
+### Acknowledged at v4.0 milestone close (2026-06-25) — 17 items
+
+All deferred per the autonomous live-UAT policy; none are code gaps. This is the operator's pre-production live-buy checklist. Source: `gsd-sdk query audit-open` at close.
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 18 — live `--monitor-only` run fires alerts but places no order (18-HUMAN-UAT.md) | partial (1 pending) |
+| uat | Phase 19 — live Amazon/BestBuy confirmation URL + DOM order-number selectors (19-HUMAN-UAT.md) | partial (3 pending) |
+| uat | Phase 20 — live BestBuy/Amazon shipping form-fill selectors + CVV entry (20-HUMAN-UAT.md) | partial (4 pending) |
+| uat | Phase 21 — per-step timeout clean-abort under a real slow drop (21-HUMAN-UAT.md) | partial (2 pending) |
+| uat | Phase 22 — live supervisor restart + browser relaunch + SIGTERM teardown (22-HUMAN-UAT.md) | partial (2 pending) |
+| uat | Phase 23 — live cross-restart MFA/login-skip; persisted session accepted (23-HUMAN-UAT.md) | partial (2 pending) |
+| uat | Phase 24 — live headless-server run, no audio device / pygame absent (24-HUMAN-UAT.md) | partial (1 pending) |
+| verification | Phases 18-24 — VERIFICATION.md status `human_needed` (automated must-haves passed; live checks deferred) | human_needed (7) |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); manual-pause fallback in place |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
+| seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
+
+**Tracked HIGH item (from audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
 
 ---
 | Phase 18 P02 | 267 | 2 tasks | 2 files |
@@ -335,4 +356,4 @@ Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are l
 
 ## Operator Next Steps
 
-- Run `/gsd:plan-phase 18` to begin Phase 18 (Safety Gate + Config Foundation)
+- Start the next milestone with /gsd:new-milestone
