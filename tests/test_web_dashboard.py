@@ -132,3 +132,130 @@ def test_dashboard_no_platform_config_toggles(client):
         assert f'name="{platform}"' not in html and f'data-key="{platform}"' not in html, (
             f"Platform config toggle for {platform!r} leaked into SSR HTML"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 25 Wave 0 scaffold — RED until implementation lands in waves 1-2
+# ---------------------------------------------------------------------------
+
+def test_fouc_script_first_in_head(client):
+    """FOUC inline script must be the first child element of <head>.
+
+    The script must precede all <link> elements so the theme is applied before
+    any CSS is loaded, preventing a flash-of-unstyled-content on cold load.
+    """
+    from html.parser import HTMLParser
+
+    class HeadFirstChildParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._in_head = False
+            self._in_script = False
+            self._first_tag = None
+            self._script_data = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "head":
+                self._in_head = True
+                return
+            if self._in_head and self._first_tag is None:
+                self._first_tag = tag
+                if tag == "script":
+                    self._in_script = True
+
+        def handle_endtag(self, tag):
+            if tag == "head":
+                self._in_head = False
+            if tag == "script":
+                self._in_script = False
+
+        def handle_data(self, data):
+            if self._in_script:
+                self._script_data.append(data)
+
+        @property
+        def script_body(self):
+            return "".join(self._script_data)
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+
+    parser = HeadFirstChildParser()
+    parser.feed(resp.text)
+
+    assert parser._first_tag == "script", (
+        f"First child of <head> is <{parser._first_tag}>, expected <script> (FOUC prevention missing)"
+    )
+    assert "localStorage" in parser.script_body, (
+        "FOUC script does not reference localStorage (theme-read logic missing)"
+    )
+
+
+def test_css_link_order_in_head(client):
+    """tokens.css, components.css, and dashboard.css <link> elements must be
+    present and appear in that order (tokens before components before dashboard).
+    """
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+
+    assert "/static/tokens.css" in html, "tokens.css <link> missing from <head>"
+    assert "/static/components.css" in html, "components.css <link> missing from <head>"
+    assert "/static/dashboard.css" in html, "dashboard.css <link> missing from <head>"
+
+    tokens_idx = html.index("/static/tokens.css")
+    components_idx = html.index("/static/components.css")
+    dashboard_idx = html.index("/static/dashboard.css")
+
+    assert tokens_idx < components_idx < dashboard_idx, (
+        f"CSS link order wrong: tokens={tokens_idx} components={components_idx} "
+        f"dashboard={dashboard_idx} (expected tokens < components < dashboard)"
+    )
+
+
+def test_no_innerHTML_with_api_data(client):
+    """CI regression: dashboard.html must not interpolate API data via innerHTML.
+
+    Catches the two current violations:
+      line 241: tr.innerHTML = `...${item.name}...`
+      line 255: div.innerHTML = `\\n  ...${cred.name}...`
+
+    Uses re.DOTALL so the multiline template-literal at line 255 is also matched.
+    This test is RED until Wave 2 replaces both with createElement/textContent.
+    """
+    import re
+    import pathlib
+
+    html = (pathlib.Path(__file__).parent.parent / "web" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+    pattern = re.compile(
+        r'innerHTML\s*=\s*.*?\$\{(item\.|cred\.|data\.|cfg\.|resp\.)',
+        re.DOTALL,
+    )
+    matches = pattern.findall(html)
+    assert not matches, f"innerHTML with API data found: {matches}"
+
+
+def test_no_external_urls_in_static(client):
+    """No CSS file under web/static/ (including vendor/) may reference an external URL.
+
+    Guards against accidental CDN references or @import url() calls being introduced
+    into any committed CSS file (supply-chain threat T-25-02).
+    Comments are stripped before scanning to avoid false positives on comment text.
+    """
+    import re
+    import pathlib
+
+    static_dir = pathlib.Path(__file__).parent.parent / "web" / "static"
+    for css_file in static_dir.glob("**/*.css"):
+        content = css_file.read_text(encoding="utf-8")
+        # Strip block comments before scanning to avoid false positives on
+        # comment text like "/* No @import url() */"
+        content_no_comments = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+        assert "url(http" not in content_no_comments, f"External URL in {css_file}"
+        assert "@import url(" not in content_no_comments, f"External @import in {css_file}"
+
+
+def test_uplot_served(client):
+    """uPlot vendor JS must be served from /static/vendor/uplot.iife.min.js."""
+    resp = client.get("/static/vendor/uplot.iife.min.js")
+    assert resp.status_code == 200
