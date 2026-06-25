@@ -99,7 +99,13 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
   3. The existing `loadItems()` XSS vector (`tr.innerHTML` with `item.name`/`item.link`) is replaced with `createElement`/`textContent`; adding an item named `<b>bold</b>` renders as literal text in the items table.
   4. The non-local access warning banner and CSRF origin gate are visually intact and correctly styled in both themes; the existing MC-4 test passes against the new template.
   5. uPlot is vendored to `web/static/uplot.min.js` (and companion `uplot.min.css`) with no CDN reference; the file is served by the existing `StaticFiles` mount.
-**Plans**: TBD
+
+> Path note: the served vendor path is `web/static/vendor/uplot.iife.min.js` + `web/static/vendor/uplot.min.css` (all-lowercase, per 25-UI-SPEC.md). Criterion 5 ("no CDN, served by StaticFiles") is satisfied by any no-CDN path under the static mount; StaticFiles serves subdirectories.
+
+**Plans**: 3 plans
+- [ ] 25-01-PLAN.md — Wave 0 test scaffold: CSS static-analysis tests + FOUC/link-order/XSS-regression/uPlot-served template tests
+- [ ] 25-02-PLAN.md — Wave 1: split tokens.css/components.css/dashboard.css (token-driven, zero hardcoded hex) + vendor uPlot 1.6.32
+- [ ] 25-03-PLAN.md — Wave 2: dashboard.html FOUC script, sticky header + theme toggle, XSS fix (loadItems/loadCredentials), MC-4 banner preserved
 **UI hint**: yes
 
 ### Phase 26: Read-Only API Endpoints
@@ -159,7 +165,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 25. Design System | 0/TBD | Not started | - |
+| 25. Design System | 0/3 | Planned | - |
 | 26. Read-Only API Endpoints | 0/TBD | Not started | - |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
