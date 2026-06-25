@@ -24,16 +24,29 @@ v4.0: 7 phases (18-24) / 29 plans, all complete. Full suite: 755 passed, 2 skipp
 
 **Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
 
-## Next Milestone
+## Current Milestone: v4.1 Dashboard & Observability
 
-**No active milestone.** v4.0 Win-the-Drop shipped 2026-06-25. Start the next cycle with `/gsd:new-milestone` (questioning → research → requirements → roadmap). Phase numbering continues from 24.
+**Goal:** Redesign the optional FastAPI web dashboard with a polished zero-dependency design system and surface rich live operational observability over SSE — without breaking the CLI-default, localhost-bound, no-Node posture.
 
-Candidate directions from the v4.0 deferral list:
+**Target features:**
+- Polished vendored design system (tokens, components, light/dark) via the frontend-design skill — no Node/CDN/external fonts
+- Live per-plugin health cards (status / heartbeat / last-check / degraded) from `get_status()` + `HealthRegistry`
+- Run history + recent confirmed buys (order_id, confirmed_at — BUY-04 records)
+- Price-history charts (per-item, from the `price_history` table)
+- Better log viewer (filter by level/plugin, search, tail)
+- SSE push for live status/log/health updates (replaces the 2s poll)
+
+**Constraints (held):** CLI default; web optional + localhost bind + CSRF + non-local warning; zero-Node (no package.json/CDN/external fonts — vendored CSS only); observability is read-only over `BotService.get_status()` + DB, no new secrets.
+
+**Research flags:** charts must be dependency-free (vendored tiny lib or hand-rolled SVG/canvas); price data is Amazon-only today (PRICE-02) so charts stay sparse for other plugins.
+
+## Future Candidate Directions (post-v4.1)
+
+**Active milestone:** v4.1 Dashboard & Observability (scoped 2026-06-25; phases continue from 24). Remaining candidates for later milestones:
 - **Public-release hardening** — git-history scrub/squash (SEED-001) + release-please version tagging (SEED-002); a dedicated release milestone.
 - **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon).
 - **Request/API-mode (hybrid) checkout** — faster than DOM but per-site reverse-engineering and an arms race.
 - **Outcome analytics** (success rate, time-to-checkout) built on the BUY-04 order records.
-- **Richer health/observability on the web dashboard** (beyond the CLI/status payload).
 
 <details>
 <summary>Shipped: v4.0 Win-the-Drop (Acquisition Core + Reliability) — 2026-06-25</summary>
@@ -103,9 +116,9 @@ Candidate directions from the v4.0 deferral list:
 - ✓ Reliability: unified RetryPolicy (one backoff source) — v4.0 (Phase 21)
 - ✓ Server-safety: headless pygame import-crash guard + SIGTERM/SIGINT teardown bridge — v4.0 (Phases 24, 22)
 
-### Active (next milestone)
+### Active (v4.1 Dashboard & Observability)
 
-_None yet — run `/gsd:new-milestone` to scope the next cycle. See "Next Milestone" above for candidate directions._
+_Requirements defined in `.planning/REQUIREMENTS.md` (mapped by the roadmap). Focus: dashboard redesign (vendored design system) + live observability — per-plugin health cards, run/buy history, price-history charts, better log viewer, SSE push._
 
 ### Deferred
 
@@ -160,4 +173,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-25 — after v4.0 Win-the-Drop milestone (shipped)*
+*Last updated: 2026-06-25 — v4.1 Dashboard & Observability milestone started*
