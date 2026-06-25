@@ -107,7 +107,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 **Plans**: 3 plans
 
 - [x] 25-01-PLAN.md — Wave 0 test scaffold: CSS static-analysis tests + FOUC/link-order/XSS-regression/uPlot-served template tests
-- [ ] 25-02-PLAN.md — Wave 1: split tokens.css/components.css/dashboard.css (token-driven, zero hardcoded hex) + vendor uPlot 1.6.32
+- [x] 25-02-PLAN.md — Wave 1: split tokens.css/components.css/dashboard.css (token-driven, zero hardcoded hex) + vendor uPlot 1.6.32
 - [ ] 25-03-PLAN.md — Wave 2: dashboard.html FOUC script, sticky header + theme toggle, XSS fix (loadItems/loadCredentials), MC-4 banner preserved
 
 **UI hint**: yes
@@ -181,7 +181,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 25. Design System | 1/3 | In Progress|  |
+| 25. Design System | 2/3 | In Progress|  |
 | 26. Read-Only API Endpoints | 0/TBD | Not started | - |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
