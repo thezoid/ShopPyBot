@@ -24,14 +24,14 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (25-29).
 - [ ] **OBS-05**: User sees a per-item price-history chart (uPlot) with an explicit empty state for items that have no price data (e.g. non-Amazon plugins).
 - [ ] **OBS-06**: User sees a log viewer with per-level color-coding and a level filter.
 - [ ] **OBS-07**: User can tail/follow logs with pause-on-scroll and a bounded (500-line) DOM buffer that does not grow unbounded.
-- [ ] **OBS-08**: User can search log text (substring highlight) and filter logs by plugin (plugin filter contingent on logs consistently tagging `[PLUGIN_NAME]`; deferred if not verifiable).
+- [x] **OBS-08**: User can search log text (substring highlight) and filter logs by plugin (plugin filter contingent on logs consistently tagging `[PLUGIN_NAME]`; deferred if not verifiable).
 - [ ] **OBS-09**: User sees bot uptime in the global status bar (`uptime_secs` from `get_status()`).
 
 ### SSE — Live Push
 
 - [ ] **SSE-01**: The dashboard receives live status and log updates over a single Server-Sent Events stream (`/api/events`), replacing the 2-second polling loop.
 - [ ] **SSE-02**: The SSE stream handles client disconnect/reconnect cleanly — keepalive heartbeat, automatic client reconnect, server-side generator cleanup on disconnect — and falls back to polling when SSE is unavailable.
-- [ ] **SSE-03**: Observability reads never block uvicorn's event loop (all sync reads via `asyncio.to_thread`) and never leak secrets to the browser (`get_status()` `last_error` scrubbed to exception class name; CI assertion that SSE frames contain no credential-pattern strings).
+- [x] **SSE-03**: Observability reads never block uvicorn's event loop (all sync reads via `asyncio.to_thread`) and never leak secrets to the browser (`get_status()` `last_error` scrubbed to exception class name; CI assertion that SSE frames contain no credential-pattern strings).
 
 ## Future Requirements
 
@@ -86,11 +86,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 | OBS-05 | Phase 28 | Pending |
 | OBS-06 | Phase 28 | Pending |
 | OBS-07 | Phase 28 | Pending |
-| OBS-08 | Phase 26 | Pending |
+| OBS-08 | Phase 26 | Complete |
 | OBS-09 | Phase 28 | Pending |
 | SSE-01 | Phase 29 | Pending |
 | SSE-02 | Phase 27 | Pending |
-| SSE-03 | Phase 26 | Pending |
+| SSE-03 | Phase 26 | Complete |
 
 **Coverage:**
 
