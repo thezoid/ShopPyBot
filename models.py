@@ -98,6 +98,19 @@ def get_items_sync():
         ).fetchall()
 
 
+def get_confirmed_orders_sync():
+    """Return (name, order_id, confirmed_at, checkout_attempts) for purchased items.
+
+    Returns rows WHERE purchased=1. order_id and confirmed_at may be None for
+    legacy rows created before BUY-04 added those columns.
+    """
+    with get_db_connection() as conn:
+        return conn.execute(
+            "SELECT name, order_id, confirmed_at, checkout_attempts"
+            " FROM items WHERE purchased=1"
+        ).fetchall()
+
+
 def update_item_purchased_sync(link):
     """Set purchased=1 for the item with the given link."""
     with get_db_connection() as conn:
