@@ -178,3 +178,50 @@ def test_get_item_order_state_missing_row(tmp_data_dir):
 
     assert purchased is False
     assert order_id is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 26: get_confirmed_orders_sync (OBS-08)
+# ---------------------------------------------------------------------------
+
+
+def test_get_confirmed_orders_sync_empty(tmp_data_dir):
+    """get_confirmed_orders_sync returns [] when no items have purchased=1."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+
+    result = get_confirmed_orders_sync()
+
+    assert result == []
+
+
+def test_get_confirmed_orders_sync_returns_confirmed(tmp_data_dir):
+    """get_confirmed_orders_sync returns one tuple with 4 fields after confirmation."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget B", "https://ex.com/wb", True, 1, False)])
+    models.update_item_confirmed_sync(
+        "https://ex.com/wb", "ORD-7", "2026-01-01T00:00:00+00:00"
+    )
+
+    result = get_confirmed_orders_sync()
+
+    assert len(result) == 1
+    row = result[0]
+    assert len(row) == 4
+    assert row[1] == "ORD-7"
+    assert row[2] == "2026-01-01T00:00:00+00:00"
+
+
+def test_get_confirmed_orders_sync_excludes_unpurchased(tmp_data_dir):
+    """get_confirmed_orders_sync does not include items where purchased=0."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget C", "https://ex.com/wc", True, 1, False)])
+
+    result = get_confirmed_orders_sync()
+
+    assert result == []
