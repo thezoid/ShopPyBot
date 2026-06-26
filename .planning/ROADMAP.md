@@ -80,7 +80,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 ### v4.1 Dashboard & Observability (Phases 25-29)
 
 - [x] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor (completed 2026-06-25)
-- [ ] **Phase 26: Read-Only API Endpoints** — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion
+- [ ] **Phase 26: Read-Only API Endpoints** (0/3 plans) — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion
 - [ ] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail
 - [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
 - [ ] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator
@@ -124,7 +124,11 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
   3. `GET /api/logs?level=ERROR&search=captcha&n=50` returns only lines matching all supplied filters; omitting all params degrades to the existing `read_recent_logs(50)` behavior.
   4. A CI test asserts that no SSE data frame or `/api/status` response JSON contains strings matching credential-pattern regexes (`@`, `password`, `token`, `key=`, `cvv`); `get_status()` `last_error` fields are scrubbed to `exc.__class__.__name__` only.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+- [ ] 26-01-PLAN.md — Wave 0 RED test scaffold: TestClient tests for /api/history, /api/price-history, /api/logs filtering, credential-leak guard + get_confirmed_orders_sync model test
+- [ ] 26-02-PLAN.md — Wave 1: get_confirmed_orders_sync + read_logs_filtered; GET /api/history, /api/price-history/{link_b64}, modified /api/logs (level/search/n) all asyncio.to_thread-wrapped
+- [ ] 26-03-PLAN.md — Wave 1: HealthRegistry.record_last_error (scrubbed) + supervise() call-site; credential-pattern CI guard GREEN
 
 ### Phase 27: SSE Infrastructure
 
@@ -182,7 +186,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
-| 26. Read-Only API Endpoints | 0/TBD | Not started | - |
+| 26. Read-Only API Endpoints | 0/3 | Planned | - |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
@@ -193,10 +197,10 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | v2.0 Modular Core + Cross-Platform UX | 7-11 | 20/20 | ✅ Shipped | 2026-06-06 |
 | v3.0 Resilience + Ecosystem | 12-17 | 21/21 | ✅ Shipped | 2026-06-10 |
 | v4.0 Win-the-Drop | 18-24 | 29/29 | ✅ Shipped | 2026-06-25 |
-| v4.1 Dashboard & Observability | 25-29 | 0/TBD | In progress | - |
+| v4.1 Dashboard & Observability | 25-29 | 3/TBD | In progress | - |
 
 All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). Per-milestone requirement detail in `.planning/milestones/v*-REQUIREMENTS.md`.
 
 ---
 
-*Last updated: 2026-06-25 — v4.1 Dashboard & Observability roadmap created (Phases 25-29).*
+*Last updated: 2026-06-25 — Phase 26 planned (3 plans: Wave 0 tests, read endpoints, secret-scrub).*

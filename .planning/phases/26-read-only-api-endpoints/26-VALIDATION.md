@@ -1,10 +1,11 @@
 ---
 phase: 26
 slug: read-only-api-endpoints
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-25
+updated: 2026-06-25
 ---
 
 # Phase 26 — Validation Strategy
@@ -19,8 +20,8 @@ created: 2026-06-25
 |----------|-------|
 | **Framework** | pytest (FastAPI TestClient — curl-equivalent) |
 | **Config file** | pytest (project root); web tests in `tests/test_web_dashboard.py` |
-| **Quick run command** | `pytest tests/test_api_observability.py -q` |
-| **Full suite command** | `pytest -q` |
+| **Quick run command** | `rtk pytest tests/test_api_observability.py -q` |
+| **Full suite command** | `rtk pytest -q` |
 | **Estimated runtime** | ~30 seconds |
 
 ---
@@ -28,7 +29,7 @@ created: 2026-06-25
 ## Sampling Rate
 
 - **After every task commit:** Run the new observability test file
-- **After every plan wave:** Run `pytest -q`
+- **After every plan wave:** Run `rtk pytest -q`
 - **Before `/gsd:verify-work`:** Full suite green
 - **Max feedback latency:** 30 seconds
 
@@ -38,9 +39,20 @@ created: 2026-06-25
 
 | Task ID | Plan | Wave | Requirement | Secure Behavior | Test Type | Automated Command | Status |
 |---------|------|------|-------------|-----------------|-----------|-------------------|--------|
-| (populated during planning) | | | OBS-08 / SSE-03 | credential scrubbing | unit (TestClient) | `pytest tests/test_api_observability.py -q` | ⬜ pending |
+| 01-1 | 26-01 | 1 | OBS-08 / SSE-03 | RED endpoint contracts | unit (TestClient) | `rtk pytest tests/test_api_observability.py -x` (expect RED) | ⬜ pending |
+| 01-2 | 26-01 | 1 | SSE-03 | RED model contract | unit | `rtk pytest tests/test_models.py -k confirmed_orders` (expect RED) | ⬜ pending |
+| 01-3 | 26-01 | 1 | SSE-03 | RED credential scrub (real registry) | unit | `rtk pytest tests/test_api_observability.py -k "credential or last_error or scrubbed"` (expect RED) | ⬜ pending |
+| 02-1 | 26-02 | 2 | SSE-03 / OBS-08 | confirmed-orders query + log filter | unit | `rtk pytest tests/test_models.py -k confirmed_orders -x` | ⬜ pending |
+| 02-2 | 26-02 | 2 | SSE-03 | async-safe history + price-history reads | unit (TestClient) | `rtk pytest tests/test_api_observability.py -k "history or price" -x` | ⬜ pending |
+| 02-3 | 26-02 | 2 | OBS-08 / SSE-03 | /api/logs level/search/n + to_thread | unit (TestClient) | `rtk pytest tests/test_api_observability.py -k logs -x` | ⬜ pending |
+| 03-1 | 26-03 | 2 | SSE-03 | last_error scrubbed to class name | unit | `rtk pytest tests/test_api_observability.py -k "last_error or scrubbed" -x` | ⬜ pending |
+| 03-2 | 26-03 | 2 | SSE-03 | supervise() records scrubbed last_error | unit | `rtk pytest tests/ -k "orchestrator or supervise or health" -x` | ⬜ pending |
+| 03-3 | 26-03 | 2 | SSE-03 | credential-leak guard end-to-end | unit (TestClient) | `rtk pytest tests/test_api_observability.py -k "credential or leak or scrubbed" -x` | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+> Note: test file name reconciled to `tests/test_api_observability.py` (VALIDATION.md is the
+> source of truth for test naming; RESEARCH/PATTERNS used `tests/test_web_api.py` — superseded).
 
 ---
 
@@ -54,6 +66,9 @@ created: 2026-06-25
     `@`/`password`/`token`/`key=`/`cvv` (case-insensitive); `last_error` is class-name only (criterion 4)
 - [ ] `tests/test_models.py` — ADD: `get_confirmed_orders_sync` returns confirmed rows with
   order_id/confirmed_at/checkout_attempts; empty when none.
+
+All Wave 0 items are authored in Plan 26-01 (Wave 1 of execution). Implementation Plans 26-02 and
+26-03 (Wave 2) turn them GREEN. Set `wave_0_complete: true` after Plan 26-01 lands RED.
 
 *Existing pytest + TestClient infrastructure covers the rest.*
 
@@ -71,11 +86,11 @@ created: 2026-06-25
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** planner-approved 2026-06-25
