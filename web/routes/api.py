@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from web.security import check_origin
 from web.log_reader import read_recent_logs
+from models import get_confirmed_orders_sync, get_price_history_sync
 
 router = APIRouter()
 
@@ -116,3 +117,40 @@ async def remove_item(link_b64: str, request: Request):
         raise HTTPException(status_code=400, detail="Invalid link encoding")
     request.app.state.svc.remove_item(link)
     return JSONResponse({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# Observability (OBS-08 / SSE-03)
+# ---------------------------------------------------------------------------
+
+@router.get("/history")
+async def get_history(request: Request):
+    """Return confirmed orders. Read is async-safe via asyncio.to_thread (SSE-03)."""
+    rows = await asyncio.to_thread(get_confirmed_orders_sync)
+    orders = [
+        {
+            "name": r[0],
+            "order_id": r[1],
+            "confirmed_at": r[2],
+            "checkout_attempts": r[3],
+        }
+        for r in rows
+    ]
+    return JSONResponse({"confirmed_orders": orders})
+
+
+@router.get("/price-history/{link_b64}")
+async def get_price_history(link_b64: str, request: Request):
+    """Return price series (oldest-first) for a URL encoded as URL-safe base64.
+
+    Returns {"series": []} on bad encoding or no data — never raises 400.
+    Read is async-safe via asyncio.to_thread (SSE-03).
+    """
+    try:
+        link = base64.urlsafe_b64decode(link_b64.encode()).decode()
+    except Exception:
+        return JSONResponse({"series": []})
+    rows = await asyncio.to_thread(get_price_history_sync, link, 200)
+    rows = list(reversed(rows))  # SQL returns newest-first; chart needs oldest-first
+    series = [{"t": r[2], "price": r[0] / 100} for r in rows]
+    return JSONResponse({"series": series})
