@@ -6,19 +6,22 @@ import pathlib
 _LOG_DIR = pathlib.Path(__file__).parent.parent / "logs"
 
 
-def read_recent_logs(n: int = 50) -> list[str]:
-    """Return the last n lines from today's log file.
+def _read_today_lines() -> list[str]:
+    """Return ALL lines from today's log file (empty list if it does not exist).
 
-    Uses the same strftime format as logger.py ('%Y%B%d') so the filename
-    matches what the logger writes (e.g. '2026June04.log').
-    Returns an empty list if the log file does not exist today.
+    Uses the same strftime format as logger.py ('%Y%B%d') so the filename matches
+    what the logger writes (e.g. '2026June04.log').
     """
     fname = datetime.datetime.now().strftime("%Y%B%d") + ".log"
     log_path = _LOG_DIR / fname
     if not log_path.exists():
         return []
-    text = log_path.read_text(encoding="utf-8", errors="replace")
-    return text.splitlines()[-n:]
+    return log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+
+def read_recent_logs(n: int = 50) -> list[str]:
+    """Return the last n lines from today's log file (empty list if none)."""
+    return _read_today_lines()[-n:]
 
 
 def read_logs_filtered(
@@ -26,19 +29,22 @@ def read_logs_filtered(
     level: str | None = None,
     search: str | None = None,
 ) -> list[str]:
-    """Return the last n log lines, optionally filtered by level and/or search term.
+    """Return the last n log lines that match the optional filters.
 
-    Filtering is applied to the n-line slice from read_recent_logs (not the full file).
+    Filter-then-limit: filters are applied to the WHOLE day's log first, then the
+    last n matching lines are returned. This guarantees up to n *matching* lines
+    (a level/search query won't silently return fewer than n just because the
+    matches sit earlier than the n-line tail).
     level: keep only lines starting with f"[{level.upper()}]".
     search: keep only lines containing search (case-insensitive substring match).
     Both filters are AND-combined when both are provided.
     No filters returns the same result as read_recent_logs(n).
     """
-    lines = read_recent_logs(n)
+    lines = _read_today_lines()
     if level is not None:
         prefix = f"[{level.upper()}]"
         lines = [line for line in lines if line.startswith(prefix)]
     if search is not None:
         needle = search.lower()
         lines = [line for line in lines if needle in line.lower()]
-    return lines
+    return lines[-n:]
