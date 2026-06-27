@@ -164,7 +164,13 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
   5. The log viewer renders lines with per-level color coding; the level filter narrows displayed lines; the tail/follow control auto-scrolls to new lines and pauses when the user scrolls up; the DOM buffer is capped at 500 lines.
   6. Bot uptime (from `get_status()` `uptime_secs`) appears in the global status bar.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+- [ ] 28-01-PLAN.md — Wave 0 RED scaffold: heartbeat_age_secs snapshot-key guard + fresh/never unit tests; static-section/header-uptime/log-controls/uPlot-asset TestClient tests
+- [ ] 28-02-PLAN.md — Wave 1: heartbeat_age_secs in get_snapshot() (core/health.py) + all token-only Phase 28 component classes (components.css)
+- [ ] 28-03-PLAN.md — Wave 2: dashboard.html three section scaffolds + renderHealthCards()/renderUptime() wired into pollStatus() (OBS-01/02/03/09)
+- [ ] 28-04-PLAN.md — Wave 3: dashboard.html loadConfirmedBuys() + loadPriceChart() (ISO→Unix, link_b64) + log viewer (color/filter/Follow/500-cap) (OBS-04/05/06/07/08-UI)
+
 **UI hint**: yes
 
 ### Phase 29: SSE Client Wiring
@@ -192,7 +198,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
-| 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
+| 28. Frontend Observability Surfaces | 0/4 | Planned | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Status | Shipped |
@@ -207,4 +213,4 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). P
 
 ---
 
-*Last updated: 2026-06-27 — Phase 27 planned (3 plans: Wave 0 spike tests, bridge core, route + lifespan wiring).*
+*Last updated: 2026-06-27 — Phase 28 planned (4 plans across 4 serialized waves: Wave 0 test scaffold, backend field + CSS, health/uptime HTML, buys/charts/log-viewer HTML).*
