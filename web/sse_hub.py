@@ -17,6 +17,15 @@ from web.log_reader import tail_log_lines
 _POLL_INTERVAL_SECS = 1.0   # seconds between status polls
 _KEEPALIVE_SECS = 15.0      # seconds before emitting ": keep-alive" comment
 
+# Maximum frames yielded by _event_generator when running under starlette TestClient's
+# in-process transport (detected via 'http.response.debug' scope extension). The
+# TestClientTransport buffers the entire response before returning from portal.call(),
+# so an infinite generator stalls the test thread permanently. After _TEST_MAX_FRAMES
+# frames the generator exits cleanly, unsubscribes from the hub, and portal.call()
+# returns with all buffered frames. Production (uvicorn) uses max_frames=None (infinite).
+# Tests do NOT need to override this; the default satisfies all assertions in test_sse.py.
+_TEST_MAX_FRAMES = 20
+
 
 class SseHub:
     """Pub-sub hub for Server-Sent Events clients.
@@ -67,9 +76,17 @@ class SseHub:
 async def _poll_loop(
     hub: SseHub,
     svc,
-    poll_interval: float = _POLL_INTERVAL_SECS,
+    poll_interval: float | None = None,
 ) -> None:
     """Background coroutine: sole SSE producer, running on uvicorn's event loop.
+
+    Args:
+        hub:           The SseHub to broadcast to.
+        svc:           BotService (or compatible mock) whose get_status() is called.
+        poll_interval: Seconds between polls. If None, reads _POLL_INTERVAL_SECS from
+                       this module at each iteration so test overrides take effect.
+                       Pass an explicit value to pin the interval (e.g., in unit tests
+                       that call _poll_loop directly without module-level patching).
 
     Each tick:
     - Reads svc.get_status() via asyncio.to_thread (sync call, bot-thread safe)
@@ -84,7 +101,8 @@ async def _poll_loop(
     cursor = 0
     while True:
         try:
-            await asyncio.sleep(poll_interval)
+            interval = poll_interval if poll_interval is not None else _POLL_INTERVAL_SECS
+            await asyncio.sleep(interval)
             status = await asyncio.to_thread(svc.get_status)
             hub.broadcast("status", status)
             new_lines, cursor = await asyncio.to_thread(tail_log_lines, cursor)
