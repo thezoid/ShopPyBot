@@ -17,15 +17,15 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (25-29).
 
 ### OBS — Observability Surfaces
 
-- [ ] **OBS-01**: User sees a per-plugin health card showing status badge, heartbeat staleness, consecutive-error count, and items-checked count (from `get_status()` / `HealthRegistry`).
-- [ ] **OBS-02**: Each health card color-codes heartbeat staleness in three bands (<30s green / 30-60s amber / >60s red), computed with the monotonic clock.
-- [ ] **OBS-03**: Each health card shows a per-plugin confirmed-orders counter.
-- [ ] **OBS-04**: User sees a recent confirmed-buys table (item name, order_id, confirmed_at, checkout_attempts) sourced from purchased items (BUY-04 records).
-- [ ] **OBS-05**: User sees a per-item price-history chart (uPlot) with an explicit empty state for items that have no price data (e.g. non-Amazon plugins).
-- [ ] **OBS-06**: User sees a log viewer with per-level color-coding and a level filter.
-- [ ] **OBS-07**: User can tail/follow logs with pause-on-scroll and a bounded (500-line) DOM buffer that does not grow unbounded.
+- [x] **OBS-01**: User sees a per-plugin health card showing status badge, heartbeat staleness, consecutive-error count, and items-checked count (from `get_status()` / `HealthRegistry`).
+- [x] **OBS-02**: Each health card color-codes heartbeat staleness in three bands (<30s green / 30-60s amber / >60s red), computed with the monotonic clock.
+- [x] **OBS-03**: Each health card shows a per-plugin confirmed-orders counter.
+- [x] **OBS-04**: User sees a recent confirmed-buys table (item name, order_id, confirmed_at, checkout_attempts) sourced from purchased items (BUY-04 records).
+- [x] **OBS-05**: User sees a per-item price-history chart (uPlot) with an explicit empty state for items that have no price data (e.g. non-Amazon plugins).
+- [x] **OBS-06**: User sees a log viewer with per-level color-coding and a level filter.
+- [x] **OBS-07**: User can tail/follow logs with pause-on-scroll and a bounded (500-line) DOM buffer that does not grow unbounded.
 - [x] **OBS-08**: User can search log text (substring highlight) and filter logs by plugin (plugin filter contingent on logs consistently tagging `[PLUGIN_NAME]`; deferred if not verifiable).
-- [ ] **OBS-09**: User sees bot uptime in the global status bar (`uptime_secs` from `get_status()`).
+- [x] **OBS-09**: User sees bot uptime in the global status bar (`uptime_secs` from `get_status()`).
 
 ### SSE — Live Push
 
@@ -79,15 +79,15 @@ Which phases cover which requirements. Populated during roadmap creation.
 | UI-02 | Phase 25 | Complete |
 | UI-03 | Phase 25 | Complete |
 | UI-04 | Phase 25 | Complete |
-| OBS-01 | Phase 28 | Pending |
-| OBS-02 | Phase 28 | Pending |
-| OBS-03 | Phase 28 | Pending |
-| OBS-04 | Phase 28 | Pending |
-| OBS-05 | Phase 28 | Pending |
-| OBS-06 | Phase 28 | Pending |
-| OBS-07 | Phase 28 | Pending |
+| OBS-01 | Phase 28 | Complete |
+| OBS-02 | Phase 28 | Complete |
+| OBS-03 | Phase 28 | Complete |
+| OBS-04 | Phase 28 | Complete |
+| OBS-05 | Phase 28 | Complete |
+| OBS-06 | Phase 28 | Complete |
+| OBS-07 | Phase 28 | Complete |
 | OBS-08 | Phase 26 | Complete |
-| OBS-09 | Phase 28 | Pending |
+| OBS-09 | Phase 28 | Complete |
 | SSE-01 | Phase 29 | Pending |
 | SSE-02 | Phase 27 | Complete |
 | SSE-03 | Phase 26 | Complete |
