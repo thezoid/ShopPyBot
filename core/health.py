@@ -24,6 +24,7 @@ class HealthRegistry:
                 "consecutive_errors": 0,
                 "items_checked": 0,
                 "orders_confirmed": 0,
+                "last_error": None,
                 "_degraded_armed": False,
             }
 
@@ -38,6 +39,12 @@ class HealthRegistry:
     def record_error(self, name: str) -> None:
         self._ensure(name)
         self._plugins[name]["consecutive_errors"] += 1
+
+    def record_last_error(self, name: str, exc: BaseException) -> None:
+        # SSE-03: store the exception CLASS NAME only. Never str(exc) — it can
+        # carry proxy credentials / API keys into the browser-facing snapshot.
+        self._ensure(name)
+        self._plugins[name]["last_error"] = exc.__class__.__name__
 
     def reset_errors(self, name: str) -> None:
         self._ensure(name)

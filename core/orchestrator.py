@@ -136,6 +136,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
             if health is not None:
                 plugin_name = plugin.__class__.__name__
                 health.record_error(plugin_name)
+                health.record_last_error(plugin_name, exc)  # SSE-03: class name only
                 # health_degraded: consecutive-error early-warning, fires ONCE per episode.
                 # Threshold: max(1, n_budget-1) so degraded precedes park (distinct signals).
                 # Re-arms on healthy run via disarm_degraded above.
