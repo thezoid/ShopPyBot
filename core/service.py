@@ -22,7 +22,7 @@ from core.health import HealthRegistry
 from core.orchestrator import async_main
 from core.stealth import ProxyPool
 from logger import writeLog
-from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync
+from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync, get_confirmed_orders_sync
 
 _log = logging.getLogger(__name__)
 
@@ -99,6 +99,22 @@ class BotService:
         if match is None:
             return []
         link = match[1]
+        return get_price_history_sync(link, limit)
+
+    def get_confirmed_orders(self) -> list:
+        """Return confirmed-order rows (name, order_id, confirmed_at, checkout_attempts).
+
+        Read-only; no bot start required. Web layer calls this instead of importing
+        models directly (MOD-02).
+        """
+        return get_confirmed_orders_sync()
+
+    def get_price_history_by_link(self, link: str, limit: int = 200) -> list[tuple[int, str, str]]:
+        """Return last N (price_cents, currency, scraped_at) rows for an item URL.
+
+        Link-keyed variant for the web price-history endpoint (it already holds the
+        decoded URL). Read-only; no bot start required (MOD-02).
+        """
         return get_price_history_sync(link, limit)
 
     def list_plugins(self) -> list[dict]:

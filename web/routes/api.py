@@ -13,7 +13,6 @@ from fastapi.responses import JSONResponse
 
 from web.security import check_origin
 from web.log_reader import read_logs_filtered
-from models import get_confirmed_orders_sync, get_price_history_sync
 
 router = APIRouter()
 
@@ -141,7 +140,7 @@ async def remove_item(link_b64: str, request: Request):
 @router.get("/history")
 async def get_history(request: Request):
     """Return confirmed orders. Read is async-safe via asyncio.to_thread (SSE-03)."""
-    rows = await asyncio.to_thread(get_confirmed_orders_sync)
+    rows = await asyncio.to_thread(request.app.state.svc.get_confirmed_orders)
     orders = [
         {
             "name": r[0],
@@ -165,7 +164,7 @@ async def get_price_history(link_b64: str, request: Request):
         link = base64.urlsafe_b64decode(link_b64.encode()).decode()
     except Exception:
         return JSONResponse({"series": []})
-    rows = await asyncio.to_thread(get_price_history_sync, link, 200)
+    rows = await asyncio.to_thread(request.app.state.svc.get_price_history_by_link, link, 200)
     rows = list(reversed(rows))  # SQL returns newest-first; chart needs oldest-first
     series = [{"t": r[2], "price": r[0] / 100} for r in rows]
     return JSONResponse({"series": series})

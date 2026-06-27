@@ -58,19 +58,19 @@ _AMAZON_B64 = _make_link_b64(_AMAZON_URL)
 # ---------------------------------------------------------------------------
 
 
-def test_get_history_empty(client):
+def test_get_history_empty(client, mock_svc):
     """GET /api/history with no confirmed orders returns {"confirmed_orders": []}."""
-    with patch("web.routes.api.get_confirmed_orders_sync", return_value=[]):
-        resp = client.get("/api/history")
+    mock_svc.get_confirmed_orders.return_value = []
+    resp = client.get("/api/history")
     assert resp.status_code == 200
     assert resp.json() == {"confirmed_orders": []}
 
 
-def test_get_history_with_orders(client):
+def test_get_history_with_orders(client, mock_svc):
     """GET /api/history returns one order dict with correct keys and values."""
     order = ("Widget A", "ORD-001", "2026-01-01T00:00:00+00:00", 1)
-    with patch("web.routes.api.get_confirmed_orders_sync", return_value=[order]):
-        resp = client.get("/api/history")
+    mock_svc.get_confirmed_orders.return_value = [order]
+    resp = client.get("/api/history")
     assert resp.status_code == 200
     data = resp.json()
     orders = data["confirmed_orders"]
@@ -82,14 +82,14 @@ def test_get_history_with_orders(client):
     assert row["checkout_attempts"] == 1
 
 
-def test_get_price_history_with_data(client):
+def test_get_price_history_with_data(client, mock_svc):
     """GET /api/price-history/<b64> returns series oldest-first; price is cents/100."""
     rows = [
         (2599, "USD", "2026-01-02T00:00:00+00:00"),
         (1999, "USD", "2026-01-01T00:00:00+00:00"),
     ]
-    with patch("web.routes.api.get_price_history_sync", return_value=rows):
-        resp = client.get(f"/api/price-history/{_AMAZON_B64}")
+    mock_svc.get_price_history_by_link.return_value = rows
+    resp = client.get(f"/api/price-history/{_AMAZON_B64}")
     assert resp.status_code == 200
     series = resp.json()["series"]
     assert len(series) == 2
@@ -97,10 +97,10 @@ def test_get_price_history_with_data(client):
     assert series[0]["price"] == pytest.approx(19.99)
 
 
-def test_get_price_history_empty(client):
+def test_get_price_history_empty(client, mock_svc):
     """GET /api/price-history/<b64> with no rows returns {"series": []}."""
-    with patch("web.routes.api.get_price_history_sync", return_value=[]):
-        resp = client.get(f"/api/price-history/{_AMAZON_B64}")
+    mock_svc.get_price_history_by_link.return_value = []
+    resp = client.get(f"/api/price-history/{_AMAZON_B64}")
     assert resp.status_code == 200
     assert resp.json() == {"series": []}
 
