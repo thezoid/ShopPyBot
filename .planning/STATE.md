@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: executing
-last_updated: "2026-06-27T11:24:16.027Z"
+last_updated: "2026-06-27T11:43:53.229Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 60
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 28 (Frontend Observability Surfaces) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-27
 
@@ -128,6 +128,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 27-sse-infrastructure P03 | 600 | 2 tasks | 3 files |
 | Phase 28-frontend-observability-surfaces P01 | 269 | 2 tasks | 2 files |
 | Phase 28-frontend-observability-surfaces P02 | 262 | 2 tasks | 2 files |
+| Phase 28-frontend-observability-surfaces P03 | 379 | 2 tasks | 1 files |
 
 ## Session Continuity
 
@@ -247,3 +248,4 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: SseHub instantiated in create_app factory body; asyncio.create_task(_poll_loop) only in lifespan where event loop is live
 - [Phase ?]: Phase 28-02: heartbeat_age_secs computed in get_snapshot() not at route boundary so Phase 29 SSE poll reads the field automatically
 - [Phase ?]: Phase 28-02: select rule added to components.css to match input[type=text] styling for log level dropdown
+- [Phase ?]: Phase 28-03: renderHealthCards and renderUptime are pure functions; MAX_LOG_LINES = 500 placed here so DOM cap test goes GREEN in wave 3
