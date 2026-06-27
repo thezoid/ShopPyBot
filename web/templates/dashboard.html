@@ -205,6 +205,119 @@
     let failCount = 0;
 
     // --- Status + Logs polling ---
+    // --- Health card helpers (OBS-01 / OBS-02) ---
+
+    function heartbeatClass(ageSecs) {
+      if (ageSecs === null || ageSecs === undefined) return 'heartbeat-err';
+      if (ageSecs < 30) return 'heartbeat-ok';
+      if (ageSecs < 60) return 'heartbeat-warn';
+      return 'heartbeat-err';
+    }
+
+    function heartbeatText(ageSecs) {
+      if (ageSecs === null || ageSecs === undefined) return 'Heartbeat: never';
+      return 'Heartbeat: ' + ageSecs + 's';
+    }
+
+    function badgeClass(status) {
+      if (status === 'running') return 'badge-ok';
+      if (status === 'error')   return 'badge-err';
+      return 'badge-neutral';
+    }
+
+    function dotClass(status) {
+      if (status === 'running') return 'running';
+      if (status === 'error')   return 'error';
+      return 'stopped';
+    }
+
+    // --- renderHealthCards: pure function; called from pollStatus and Phase 29 SSE ---
+    function renderHealthCards(statusPayload) {
+      const grid = document.getElementById('health-grid');
+      grid.innerHTML = '';
+      const plugins = statusPayload && statusPayload.plugins;
+      if (!plugins || Object.keys(plugins).length === 0) {
+        const p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'No plugins registered.';
+        grid.appendChild(p);
+        return;
+      }
+      Object.entries(plugins).forEach(function([name, rec]) {
+        const card = document.createElement('div');
+        card.className = 'health-card';
+        card.setAttribute('data-plugin', name);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'health-card-name';
+        nameSpan.textContent = name;
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + badgeClass(rec.status);
+
+        const dot = document.createElement('span');
+        dot.className = 'status-dot ' + dotClass(rec.status);
+
+        const badgeLabel = document.createElement('span');
+        badgeLabel.className = 'badge-label';
+        const statusTextMap = {running: 'Running', stopped: 'Stopped', error: 'Error'};
+        badgeLabel.textContent = statusTextMap[rec.status] || rec.status;
+
+        badge.appendChild(dot);
+        badge.appendChild(badgeLabel);
+
+        const hbSpan = document.createElement('span');
+        hbSpan.className = 'heartbeat-age ' + heartbeatClass(rec.heartbeat_age_secs);
+        hbSpan.textContent = heartbeatText(rec.heartbeat_age_secs);
+
+        const stats = document.createElement('div');
+        stats.className = 'health-card-stats';
+
+        const errStat = document.createElement('span');
+        errStat.textContent = 'Errors: ' + (rec.consecutive_errors || 0);
+
+        const chkStat = document.createElement('span');
+        chkStat.textContent = 'Checked: ' + (rec.items_checked || 0);
+
+        const ordStat = document.createElement('span');
+        ordStat.textContent = 'Orders confirmed: ' + (rec.orders_confirmed || 0);
+
+        stats.appendChild(errStat);
+        stats.appendChild(chkStat);
+        stats.appendChild(ordStat);
+
+        card.appendChild(nameSpan);
+        card.appendChild(badge);
+        card.appendChild(hbSpan);
+        card.appendChild(stats);
+
+        if (rec.last_error) {
+          const errSpan = document.createElement('span');
+          errSpan.className = 'health-card-error';
+          errSpan.textContent = rec.last_error;
+          card.appendChild(errSpan);
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    // --- renderUptime: pure function; called from pollStatus and Phase 29 SSE (OBS-09) ---
+    function humanizeUptime(secs) {
+      if (!secs || secs < 0) return '';
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      if (h > 0) return 'Up ' + h + 'h ' + m + 'm';
+      return 'Up ' + m + 'm';
+    }
+
+    function renderUptime(uptimeSecs) {
+      document.getElementById('header-uptime').textContent = humanizeUptime(uptimeSecs);
+    }
+
+    // --- Log viewer constant (OBS-07 DOM cap; render functions land in 28-04) ---
+    const MAX_LOG_LINES = 500;
+
     async function pollStatus() {
       try {
         const resp = await fetch('/api/status');
@@ -224,11 +337,19 @@
           btnStart.disabled = false;
           btnStop.disabled = true;
         }
+        renderUptime(data.uptime_secs);
+        renderHealthCards(data);
         failCount = 0;
       } catch (e) {
         failCount++;
         if (failCount >= 3) {
           document.getElementById('log-content').textContent = 'Connection lost — retrying...';
+          const grid = document.getElementById('health-grid');
+          grid.innerHTML = '';
+          const p = document.createElement('p');
+          p.className = 'text-secondary';
+          p.textContent = 'Failed to load plugin status. Check server logs.';
+          grid.appendChild(p);
         }
       }
     }
