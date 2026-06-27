@@ -176,3 +176,150 @@ input[type=password]:focus-visible {
 .field-feedback.success { color: var(--color-status-ok); }
 .field-feedback.error   { color: var(--color-destructive); }
 .text-secondary         { color: var(--color-text-muted); }
+
+/* ------------------------------------------------------------------ */
+/* Phase 28 — Observability component classes                          */
+/* All colors via var(--xxx) tokens. Zero hardcoded hex.               */
+/* ------------------------------------------------------------------ */
+
+/* --- Health card grid (OBS-01) --- */
+.health-grid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap:                   var(--space-md);
+  margin-bottom:         var(--space-md);
+}
+
+@media (max-width: 640px) {
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Health card (OBS-01) --- */
+.health-card {
+  background:     var(--color-surface);
+  border:         1px solid var(--color-border);
+  border-radius:  4px;
+  padding:        var(--space-lg);
+  display:        flex;
+  flex-direction: column;
+  gap:            var(--space-sm);
+}
+
+.health-card-name {
+  font-size:   var(--text-body);
+  font-weight: var(--weight-semibold);
+  color:       var(--color-text);
+}
+
+.health-card-stats {
+  display:        flex;
+  flex-direction: column;
+  gap:            var(--space-xs);
+  font-size:      var(--text-sm);
+  color:          var(--color-text-muted);
+}
+
+.health-card-error {
+  font-size:  var(--text-sm);
+  color:      var(--color-status-err);
+  word-break: break-word;
+}
+
+/* --- Status dot: error variant (completes OBS-01 trio) --- */
+.status-dot.error { background: var(--color-status-err); }
+
+/* --- Status badge (OBS-01) --- */
+.badge {
+  display:     inline-flex;
+  align-items: center;
+  gap:         var(--space-xs);
+  font-size:   var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.badge-ok      { color: var(--color-status-ok); }
+.badge-neutral { color: var(--color-status-neutral); }
+.badge-err     { color: var(--color-status-err); }
+
+/* --- Heartbeat age (OBS-02 staleness bands) --- */
+.heartbeat-age {
+  font-size:   var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.heartbeat-ok   { color: var(--color-status-ok); }
+.heartbeat-warn { color: var(--color-status-warn); }
+.heartbeat-err  { color: var(--color-status-err); }
+
+/* --- Price-history chart container (OBS-05) --- */
+.chart-container {
+  margin-top: var(--space-sm);
+  padding:    var(--space-sm) 0;
+}
+
+.chart-empty {
+  padding:    var(--space-lg);
+  font-size:  var(--text-sm);
+  color:      var(--color-text-muted);
+  text-align: center;
+}
+
+/* --- Log viewer panel (OBS-06/07) --- */
+.log-viewer {
+  display:        flex;
+  flex-direction: column;
+  gap:            var(--space-sm);
+}
+
+.log-controls {
+  display:     flex;
+  align-items: center;
+  gap:         var(--space-sm);
+  flex-wrap:   wrap;
+}
+
+/* Dropdown inherits the same styling as text/number/password inputs */
+select {
+  min-height:    36px;
+  padding:       0 var(--space-md);
+  border:        1px solid var(--color-border);
+  border-radius: 4px;
+  font-size:     var(--text-body);
+  color:         var(--color-text);
+  background:    var(--color-surface);
+}
+
+select:focus-visible {
+  outline:        2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Log output buffer — mirrors .log-pre; taller for follow/filter use case */
+.log-buffer {
+  font-family:  monospace;
+  font-size:    var(--text-sm);
+  line-height:  var(--leading-ui);
+  background:   var(--color-bg);
+  border:       1px solid var(--color-border);
+  border-radius: 4px;
+  padding:      var(--space-sm);
+  height:       300px;
+  overflow-y:   auto;
+  white-space:  pre-wrap;
+  word-break:   break-all;
+}
+
+/* Each log line; row spacing from .log-buffer line-height (--leading-ui) */
+.log-line {
+  display: block;
+  padding: 0;
+}
+
+/* Per-level colors (OBS-06) */
+.log-level-error { color: var(--color-status-err); }
+.log-level-warn  { color: var(--color-status-warn); }
+.log-level-info  { color: var(--color-text); }
+.log-level-debug { color: var(--color-text-muted); }
+.log-level-trace { color: var(--color-text-muted); }
