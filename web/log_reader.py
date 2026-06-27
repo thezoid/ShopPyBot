@@ -48,3 +48,17 @@ def read_logs_filtered(
         needle = search.lower()
         lines = [line for line in lines if needle in line.lower()]
     return lines[-n:]
+
+
+def tail_log_lines(after_line: int) -> tuple[list[str], int]:
+    """Return (new_lines, new_cursor) from today's log, starting after after_line.
+
+    after_line: 0-based count of lines already consumed. Returns lines[after_line:].
+    Midnight rollover: if after_line > total, the file has rolled to a new day;
+    reset cursor to the new total and return all lines from the fresh file.
+    """
+    lines = _read_today_lines()
+    total = len(lines)
+    if after_line > total:
+        return lines, total
+    return lines[after_line:], total
