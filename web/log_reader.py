@@ -1,19 +1,21 @@
 """web/log_reader.py: read recent lines from today's log file."""
 
 import datetime
-import pathlib
-
-_LOG_DIR = pathlib.Path(__file__).parent.parent / "logs"
 
 
 def _read_today_lines() -> list[str]:
     """Return ALL lines from today's log file (empty list if it does not exist).
 
-    Uses the same strftime format as logger.py ('%Y%B%d') so the filename matches
-    what the logger writes (e.g. '2026June04.log').
+    Resolves the log directory via core.paths.log_dir() — the SAME source logger.py
+    writes to. (CR-01: the previous hardcoded <repo>/logs path is copied-then-deleted
+    by core.paths path migration on first boot, so log reads silently returned nothing
+    and every /api/logs response + SSE log frame was empty in production.) Resolving
+    on each call also honours the SHOPBOT_DATA_DIR override used by tests. Uses the same
+    strftime format as logger.py ('%Y%B%d') for the filename (e.g. '2026June04.log').
     """
+    from core.paths import log_dir  # lazy: matches logger.py, avoids import cycle
     fname = datetime.datetime.now().strftime("%Y%B%d") + ".log"
-    log_path = _LOG_DIR / fname
+    log_path = log_dir() / fname
     if not log_path.exists():
         return []
     return log_path.read_text(encoding="utf-8", errors="replace").splitlines()

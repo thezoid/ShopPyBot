@@ -119,10 +119,15 @@ def test_sse_status_frame_delivered():
 # ---------------------------------------------------------------------------
 
 
-def test_poll_loop_reflects_bot_running_flip():
+def test_poll_loop_reflects_bot_running_flip(monkeypatch):
     """The real _poll_loop polls get_status and broadcasts; a running=False->True flip reaches the stream."""
     from web.routes.sse import _event_generator
     from web.sse_hub import SseHub, _poll_loop
+    import web.sse_hub as hubmod
+
+    # Isolate this assertion to STATUS frames: stub the log tail so real log lines
+    # from the test session don't flood the stream ahead of the running-flip status.
+    monkeypatch.setattr(hubmod, "tail_log_lines", lambda cursor: ([], cursor))
 
     hub = SseHub()
     svc = MagicMock()
@@ -135,12 +140,12 @@ def test_poll_loop_reflects_bot_running_flip():
     svc.get_status.side_effect = status
 
     async def run():
-        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=5)
+        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=6)
         await gen.__anext__()  # retry; subscribe before the producer starts
         task = asyncio.create_task(_poll_loop(hub, svc, poll_interval=0.01))
         frames = []
         try:
-            for _ in range(3):
+            for _ in range(4):
                 frames.append(await asyncio.wait_for(gen.__anext__(), timeout=2.0))
         finally:
             task.cancel()

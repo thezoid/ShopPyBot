@@ -103,4 +103,7 @@ async def _poll_loop(
             raise  # propagate: lifespan shutdown must be able to stop the loop
         except Exception as exc:
             from logger import writeLog  # lazy import: avoids import-time coupling
-            writeLog(f"SSE poll error: {exc.__class__.__name__}", "WARNING")
+            # writeLog does blocking file I/O — keep it off uvicorn's event loop (WR-01).
+            await asyncio.to_thread(
+                writeLog, f"SSE poll error: {exc.__class__.__name__}", "WARNING"
+            )

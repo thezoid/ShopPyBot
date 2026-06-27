@@ -51,14 +51,16 @@ async def _event_generator(
     Args:
         request:        The active FastAPI/Starlette request (used for is_disconnected).
         hub:            The SseHub instance from app.state.sse_hub.
-        keepalive_secs: Override idle timeout. If None, reads sse_hub._KEEPALIVE_SECS
-                        at each call so test monkeypatches are respected.
-        max_frames:     Optional cap on frames yielded before the generator exits.
-                        None (the production default, used by the route) means the
-                        stream runs until the client disconnects. A finite value lets
-                        unit tests drive the generator directly to a bounded length
-                        without relying on transport-level disconnect — there is NO
-                        test-harness detection in this function.
+        keepalive_secs: Override idle timeout. If None, the module-level
+                        sse_hub._KEEPALIVE_SECS is read once at generator-creation time
+                        (WR-03: not re-read per iteration; tests override via this kwarg).
+        max_frames:     Optional cap on the TOTAL frames yielded (the initial 'retry:'
+                        directive counts as the first frame) before the generator exits.
+                        None (the production default, used by the route) means the stream
+                        runs until the client disconnects. A finite value lets unit tests
+                        drive the generator directly to a bounded length without relying
+                        on transport-level disconnect — there is NO test-harness
+                        detection in this function.
     """
     # Resolve keepalive at call time so test overrides of sse_hub._KEEPALIVE_SECS apply.
     ka = keepalive_secs if keepalive_secs is not None else sse_hub._KEEPALIVE_SECS
