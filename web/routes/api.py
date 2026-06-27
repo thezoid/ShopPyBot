@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from web.security import check_origin
-from web.log_reader import read_recent_logs
+from web.log_reader import read_logs_filtered
 from models import get_confirmed_orders_sync, get_price_history_sync
 
 router = APIRouter()
@@ -30,9 +30,24 @@ async def get_status(request: Request):
 
 
 @router.get("/logs")
-async def get_logs(request: Request):
-    """Return the last 50 lines of today's log file."""
-    return JSONResponse({"logs": read_recent_logs(50)})
+async def get_logs(
+    request: Request,
+    level: str | None = None,
+    search: str | None = None,
+    n: int = 50,
+):
+    """Return recent log lines, optionally filtered (OBS-08).
+
+    Query params (all optional, AND-combined):
+      level  exact `[LEVEL]` prefix match
+      search case-insensitive substring match
+      n      line count, clamped to 1..500 (default 50)
+    With no params this returns the last 50 lines (unchanged behavior).
+    Read is async-safe via asyncio.to_thread (SSE-03).
+    """
+    n = min(max(n, 1), 500)
+    logs = await asyncio.to_thread(read_logs_filtered, n, level, search)
+    return JSONResponse({"logs": logs})
 
 
 # ---------------------------------------------------------------------------
