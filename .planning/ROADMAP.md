@@ -81,7 +81,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 
 - [x] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor (completed 2026-06-25)
 - [x] **Phase 26: Read-Only API Endpoints** (0/3 plans) — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion (completed 2026-06-27)
-- [ ] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail
+- [x] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail (completed 2026-06-27)
 - [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
 - [ ] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator
 
@@ -148,7 +148,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 - [x] 27-01-PLAN.md — Wave 0 RED spike: tests/test_sse.py (6 isolation tests, one per criterion + SSE-03 carryover) + tests/test_log_reader.py (tail cursor + midnight rollover)
 - [x] 27-02-PLAN.md — Wave 1: tail_log_lines cursor (web/log_reader.py) + SseHub bounded drop-oldest queues & _poll_loop sole-producer (web/sse_hub.py)
-- [ ] 27-03-PLAN.md — Wave 2: GET /api/events StreamingResponse + generator (web/routes/sse.py) + lifespan/SseHub/router wiring (web/__init__.py); all 6 SSE tests GREEN
+- [x] 27-03-PLAN.md — Wave 2: GET /api/events StreamingResponse + generator (web/routes/sse.py) + lifespan/SseHub/router wiring (web/__init__.py); all 6 SSE tests GREEN
 
 ### Phase 28: Frontend Observability Surfaces
 
@@ -191,7 +191,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
-| 27. SSE Infrastructure | 2/3 | In Progress|  |
+| 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 

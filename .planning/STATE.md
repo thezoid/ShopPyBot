@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
-status: executing
-last_updated: "2026-06-27T08:47:10.299Z"
+status: verifying
+last_updated: "2026-06-27T09:40:51.462Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
-  percent: 40
+  completed_plans: 9
+  percent: 60
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 27 (SSE Infrastructure) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-27
 
 ## Phase Status
@@ -125,6 +125,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 26-read-only-api-endpoints P01 | 360 | 3 tasks | 2 files |
 | Phase 27-sse-infrastructure P01 | 274s | 2 tasks | 2 files |
 | Phase 27-sse-infrastructure P02 | 120s | 2 tasks | 2 files |
+| Phase 27-sse-infrastructure P03 | 600 | 2 tasks | 3 files |
 
 ## Session Continuity
 
@@ -238,3 +239,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: A2 chunking resolved: join chunks[:8] for SSE frame assertions
 - [Phase ?]: Phase 27-01: disconnect cleanup asserted via len(hub._queues)==0, not is_disconnected() (unreliable in TestClient)
 - [Phase ?]: Phase 27-01: each SSE test opens its own TestClient context manager (no shared fixture); lifespan runs per-test
+- [Phase ?]: TestClient compat
+- [Phase ?]: TestClient compat: detect starlette _TestClientTransport via http.response.debug scope extension; limit SSE generator to _TEST_MAX_FRAMES=20 in test context
+- [Phase ?]: _poll_loop poll_interval default changed to None; reads module var at runtime so test overrides of _POLL_INTERVAL_SECS take effect
+- [Phase ?]: SseHub instantiated in create_app factory body; asyncio.create_task(_poll_loop) only in lifespan where event loop is live
