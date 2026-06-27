@@ -1,22 +1,22 @@
-"""test_sse.py: Wave 0 RED spike for Phase 27 SSE infrastructure.
+"""test_sse.py: Phase 27 SSE infrastructure tests.
 
-Six isolation tests asserting the exact observable contract for /api/events.
-Every test FAILS on missing implementation (ImportError / AttributeError / 404) --
-NOT on collection or syntax errors.
+These drive the async SSE generator (`web.routes.sse._event_generator`) and the
+producer (`web.sse_hub._poll_loop`) DIRECTLY via asyncio, rather than streaming an
+infinite generator through starlette's TestClient. starlette's in-process TestClient
+transport buffers the entire response body before returning, so streaming a
+never-ending SSE generator over it deadlocks. Driving the generator directly is the
+clean, harness-agnostic way to assert the streaming contract — there is no
+test-detection logic in production code.
 
-A2 resolution: httpx iter_text() may chunk a single SSE frame across multiple reads.
-All frame assertions join the first N chunks via "".join(chunks[:N]) instead of
-indexing a single chunk, making them robust to chunking variability.
-
-Lifespan note: the existing shared `client` fixture in test_web_dashboard.py does NOT
-run the lifespan, so app.state.sse_hub is never initialized there. Each SSE test here
-opens its own `with TestClient(create_app(mock_svc)) as client:` block so the lifespan
-runs and SseHub is available. No shared client fixture is defined in this file.
+A single TestClient test (no streaming) covers lifespan + route registration.
 """
+import asyncio
+import re
+
 import pytest
+
 pytest.importorskip("fastapi")
 
-import re
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -24,9 +24,24 @@ from fastapi.testclient import TestClient
 
 CRED_PATTERNS = ["password", "token", "key=", "cvv"]
 
-# Number of chunks to collect per stream read before asserting.
-# Joining the first N chunks handles httpx chunking variability (A2 resolution).
-_CHUNK_WINDOW = 8
+
+class _FakeRequest:
+    """Minimal async request stub for _event_generator.
+
+    is_disconnected() returns False for the first `disconnect_after` checks, then
+    True — letting a test make the generator self-terminate via the disconnect path.
+    With disconnect_after=None it never disconnects (the test bounds via max_frames).
+    """
+
+    def __init__(self, disconnect_after=None):
+        self._checks = 0
+        self._disconnect_after = disconnect_after
+
+    async def is_disconnected(self):
+        self._checks += 1
+        if self._disconnect_after is not None and self._checks > self._disconnect_after:
+            return True
+        return False
 
 
 @pytest.fixture
@@ -37,217 +52,172 @@ def mock_svc():
     return svc
 
 
-# ---------------------------------------------------------------------------
-# Helper: read up to N chunks from a streaming response context
-# ---------------------------------------------------------------------------
+def _drive(gen, n):
+    """Run async generator `gen`, collect up to n frames, then aclose(). Returns list[str]."""
+    async def run():
+        frames = []
+        try:
+            async for frame in gen:
+                frames.append(frame)
+                if len(frames) >= n:
+                    break
+        finally:
+            await gen.aclose()
+        return frames
 
-
-def _collect_chunks(resp, n=_CHUNK_WINDOW):
-    """Collect up to n text chunks from a streaming SSE response."""
-    chunks = []
-    for chunk in resp.iter_text():
-        chunks.append(chunk)
-        if len(chunks) >= n:
-            break
-    return chunks
-
-
-# ---------------------------------------------------------------------------
-# Test 1: retry line on stream open (criterion 4)
-# ---------------------------------------------------------------------------
-
-
-def test_sse_retry_line_on_open(mock_svc):
-    """Stream opens with 'retry: 3000' directive before any other frame (SSE-02 criterion 4)."""
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
-
-    _sse_hub_mod._POLL_INTERVAL_SECS = 0.05
-    _sse_hub_mod._KEEPALIVE_SECS = 60.0
-
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                chunks = _collect_chunks(resp, n=_CHUNK_WINDOW)
-                combined = "".join(chunks)
-                assert "retry: 3000" in combined, (
-                    f"'retry: 3000' not found in first {_CHUNK_WINDOW} chunks: {combined!r}"
-                )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
+    return asyncio.run(run())
 
 
 # ---------------------------------------------------------------------------
-# Test 2: status frame arrives on the stream (criterion 1)
+# Criterion 4 (retry line) + criterion 1 (keepalive on idle)
 # ---------------------------------------------------------------------------
 
 
-def test_sse_status_frame_arrives(mock_svc):
-    """A named 'event: status' frame with 'data:' arrives within the fast poll interval (SSE-02 criterion 1)."""
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
+def test_sse_retry_line_and_keepalive():
+    """Stream opens with 'retry: 3000'; an idle queue yields ': keep-alive' comments."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub
 
-    _sse_hub_mod._POLL_INTERVAL_SECS = 0.05
-    _sse_hub_mod._KEEPALIVE_SECS = 60.0
+    hub = SseHub()
+    gen = _event_generator(_FakeRequest(), hub, keepalive_secs=0.01, max_frames=3)
+    frames = _drive(gen, 3)
+    combined = "".join(frames)
 
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                chunks = _collect_chunks(resp, n=_CHUNK_WINDOW)
-                combined = "".join(chunks)
-                assert "event: status" in combined, (
-                    f"'event: status' not found in first {_CHUNK_WINDOW} chunks: {combined!r}"
-                )
-                assert "data:" in combined, (
-                    f"'data:' not found in first {_CHUNK_WINDOW} chunks: {combined!r}"
-                )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
+    assert combined.startswith("retry: 3000"), f"stream did not open with retry: {combined!r}"
+    assert ": keep-alive" in combined, f"no keepalive comment on idle: {combined!r}"
+    assert len(hub._queues) == 0, "generator finally did not unsubscribe the queue"
 
 
 # ---------------------------------------------------------------------------
-# Test 3: keepalive comment emitted on idle (criterion 1 keepalive half)
+# Criterion 1 (data frame) — a broadcast status frame reaches the stream
 # ---------------------------------------------------------------------------
 
 
-def test_sse_keepalive_comment(mock_svc):
-    """': keep-alive' SSE comment appears when queue is idle (keepalive_secs suppresses status, criterion 1)."""
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
+def test_sse_status_frame_delivered():
+    """A broadcast 'status' event is delivered to the connected client as a named frame."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub
 
-    # High poll interval suppresses status frames; tiny keepalive triggers the comment quickly.
-    _sse_hub_mod._POLL_INTERVAL_SECS = 60.0
-    _sse_hub_mod._KEEPALIVE_SECS = 0.05
+    hub = SseHub()
 
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                chunks = _collect_chunks(resp, n=_CHUNK_WINDOW)
-                combined = "".join(chunks)
-                assert ": keep-alive" in combined, (
-                    f"': keep-alive' comment not found in first {_CHUNK_WINDOW} chunks: {combined!r}"
-                )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
+    async def run():
+        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=2)
+        first = await gen.__anext__()  # retry frame; generator has now subscribed
+        hub.broadcast("status", {"running": True, "uptime_secs": 1.5, "plugins": {}})
+        second = await gen.__anext__()  # the status frame
+        await gen.aclose()
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first.startswith("retry: 3000")
+    assert "event: status" in second, f"not a named status frame: {second!r}"
+    assert '"running": true' in second, f"status payload missing running flag: {second!r}"
 
 
 # ---------------------------------------------------------------------------
-# Test 4: bot start/stop reflected in stream (criterion 3)
+# Criterion 3 (bot start/stop reflected) — real _poll_loop is the producer
 # ---------------------------------------------------------------------------
 
 
-def test_sse_bot_start_stop_reflected(mock_svc):
-    """After bot transitions to running=True, a status frame with 'running' data arrives (SSE-02 criterion 3)."""
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
+def test_poll_loop_reflects_bot_running_flip():
+    """The real _poll_loop polls get_status and broadcasts; a running=False->True flip reaches the stream."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub, _poll_loop
 
-    _sse_hub_mod._POLL_INTERVAL_SECS = 0.05
-    _sse_hub_mod._KEEPALIVE_SECS = 60.0
+    hub = SseHub()
+    svc = MagicMock()
+    calls = [0]
 
-    # Use a mutable holder so side_effect can flip the return value.
-    call_count = [0]
+    def status():
+        calls[0] += 1
+        return {"running": calls[0] > 1, "uptime_secs": 0.0, "plugins": {}}
 
-    def get_status_side_effect():
-        call_count[0] += 1
-        if call_count[0] <= 2:
-            return {"running": False, "uptime_secs": 0.0, "plugins": {}}
-        return {"running": True, "uptime_secs": 1.5, "plugins": {}}
+    svc.get_status.side_effect = status
 
-    mock_svc.get_status.side_effect = get_status_side_effect
+    async def run():
+        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=5)
+        await gen.__anext__()  # retry; subscribe before the producer starts
+        task = asyncio.create_task(_poll_loop(hub, svc, poll_interval=0.01))
+        frames = []
+        try:
+            for _ in range(3):
+                frames.append(await asyncio.wait_for(gen.__anext__(), timeout=2.0))
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            await gen.aclose()
+        return frames
 
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                # Collect more chunks to allow the poll loop to flip the running state.
-                chunks = _collect_chunks(resp, n=16)
-                combined = "".join(chunks)
-                # The frame data is JSON; assert the running=true value appears.
-                assert '"running": true' in combined or '"running":true' in combined, (
-                    f"No 'running: true' frame found after bot flip. Combined: {combined!r}"
-                )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
-
-
-# ---------------------------------------------------------------------------
-# Test 5: disconnect cleans the hub (criterion 2)
-# ---------------------------------------------------------------------------
-
-
-def test_sse_disconnect_cleans_hub(mock_svc):
-    """After the stream context exits, SseHub._queues is empty (generator finally block ran, criterion 2).
-
-    Asserts via len(app.state.sse_hub._queues) == 0 inside the still-open TestClient
-    context but after the inner client.stream() context has exited.
-    Does NOT rely on request.is_disconnected() which is unreliable in TestClient's
-    in-process transport (RESEARCH open question A3).
-    """
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
-
-    _sse_hub_mod._POLL_INTERVAL_SECS = 0.05
-    _sse_hub_mod._KEEPALIVE_SECS = 60.0
-
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            # Open the stream, read one chunk, then exit the stream context.
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                # Read at least one chunk to confirm the generator subscribed.
-                _collect_chunks(resp, n=1)
-            # Stream context exited: generator finally block should have run.
-            # Hub must now have zero queues.
-            hub = client.app.state.sse_hub
-            assert len(hub._queues) == 0, (
-                f"SseHub._queues not empty after stream disconnect: {hub._queues!r}"
-            )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
+    combined = "".join(asyncio.run(run()))
+    assert "event: status" in combined
+    assert '"running": true' in combined, f"running flip not reflected in stream: {combined!r}"
 
 
 # ---------------------------------------------------------------------------
-# Test 6: no credential patterns in SSE frames (SSE-03 carryover)
+# Criterion 2 (disconnect cleanup) — finally unsubscribes; hub left empty
 # ---------------------------------------------------------------------------
 
 
-def test_sse_no_credential_patterns(mock_svc):
-    """No credential-pattern strings appear in the first few SSE frames (SSE-03 carryover).
+def test_sse_disconnect_cleans_hub():
+    """When the client disconnects, the generator's finally unsubscribes, leaving the hub empty."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub
 
-    Checks: password, key=, cvv (case-insensitive) and an email-like regex pattern.
-    The '@' character is excluded from the exact-string check since JSON keys may
-    safely include it in non-credential contexts; the email-like regex catches the
-    dangerous form (user@host.tld).
-    """
-    from web import create_app
-    import web.sse_hub as _sse_hub_mod
+    hub = SseHub()
+    # disconnect_after=1 -> the loop breaks on the 2nd is_disconnected() check.
+    gen = _event_generator(_FakeRequest(disconnect_after=1), hub, keepalive_secs=0.01, max_frames=None)
+    _drive(gen, 50)  # generator self-terminates via the disconnect path well before 50
+    assert len(hub._queues) == 0, "disconnect did not clean up the hub queue"
 
-    _sse_hub_mod._POLL_INTERVAL_SECS = 0.05
-    _sse_hub_mod._KEEPALIVE_SECS = 60.0
 
-    try:
-        with TestClient(create_app(mock_svc)) as client:
-            with client.stream("GET", "/api/events") as resp:
-                resp.raise_for_status()
-                chunks = _collect_chunks(resp, n=_CHUNK_WINDOW)
-                combined = "".join(chunks)
+# ---------------------------------------------------------------------------
+# SSE-03 carryover — no credential-pattern strings in delivered frames
+# ---------------------------------------------------------------------------
 
-        for pattern in CRED_PATTERNS:
-            assert pattern not in combined.lower(), (
-                f"Credential pattern {pattern!r} found in SSE stream frames: {combined!r}"
-            )
-        email_re = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-        assert not email_re.search(combined), (
-            f"Email-like pattern found in SSE stream frames: {combined!r}"
+
+def test_sse_no_credential_patterns():
+    """A status frame carrying a scrubbed last_error (class name only) leaks no credentials."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub
+
+    hub = SseHub()
+
+    async def run():
+        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=2)
+        await gen.__anext__()  # retry; subscribe
+        hub.broadcast(
+            "status",
+            {
+                "running": False,
+                "uptime_secs": 0.0,
+                "plugins": {"Amazon": {"last_error": "ConnectionError", "consecutive_errors": 1}},
+            },
         )
-    finally:
-        _sse_hub_mod._POLL_INTERVAL_SECS = 1.0
-        _sse_hub_mod._KEEPALIVE_SECS = 15.0
+        frame = await gen.__anext__()
+        await gen.aclose()
+        return frame
+
+    frame = asyncio.run(run())
+    low = frame.lower()
+    for pattern in CRED_PATTERNS:
+        assert pattern not in low, f"credential pattern {pattern!r} in SSE frame: {frame!r}"
+    email_re = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+    assert not email_re.search(frame), f"email-like pattern in SSE frame: {frame!r}"
+
+
+# ---------------------------------------------------------------------------
+# Lifespan + route registration (TestClient, NO streaming)
+# ---------------------------------------------------------------------------
+
+
+def test_lifespan_creates_hub_and_registers_route(mock_svc):
+    """create_app's lifespan builds app.state.sse_hub and registers GET /api/events."""
+    from web import create_app
+
+    with TestClient(create_app(mock_svc)) as client:
+        assert getattr(client.app.state, "sse_hub", None) is not None, "lifespan did not create sse_hub"
+        paths = {getattr(r, "path", None) for r in client.app.routes}
+        assert "/api/events" in paths, f"/api/events not registered; routes={sorted(p for p in paths if p)}"

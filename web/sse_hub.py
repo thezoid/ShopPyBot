@@ -17,15 +17,6 @@ from web.log_reader import tail_log_lines
 _POLL_INTERVAL_SECS = 1.0   # seconds between status polls
 _KEEPALIVE_SECS = 15.0      # seconds before emitting ": keep-alive" comment
 
-# Maximum frames yielded by _event_generator when running under starlette TestClient's
-# in-process transport (detected via 'http.response.debug' scope extension). The
-# TestClientTransport buffers the entire response before returning from portal.call(),
-# so an infinite generator stalls the test thread permanently. After _TEST_MAX_FRAMES
-# frames the generator exits cleanly, unsubscribes from the hub, and portal.call()
-# returns with all buffered frames. Production (uvicorn) uses max_frames=None (infinite).
-# Tests do NOT need to override this; the default satisfies all assertions in test_sse.py.
-_TEST_MAX_FRAMES = 20
-
 
 class SseHub:
     """Pub-sub hub for Server-Sent Events clients.
