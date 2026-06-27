@@ -127,7 +127,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 **Plans**: 3 plans
 
 - [x] 26-01-PLAN.md — Wave 0 RED test scaffold: TestClient tests for /api/history, /api/price-history, /api/logs filtering, credential-leak guard + get_confirmed_orders_sync model test
-- [ ] 26-02-PLAN.md — Wave 1: get_confirmed_orders_sync + read_logs_filtered; GET /api/history, /api/price-history/{link_b64}, modified /api/logs (level/search/n) all asyncio.to_thread-wrapped
+- [x] 26-02-PLAN.md — Wave 1: get_confirmed_orders_sync + read_logs_filtered; GET /api/history, /api/price-history/{link_b64}, modified /api/logs (level/search/n) all asyncio.to_thread-wrapped
 - [ ] 26-03-PLAN.md — Wave 1: HealthRegistry.record_last_error (scrubbed) + supervise() call-site; credential-pattern CI guard GREEN
 
 ### Phase 27: SSE Infrastructure
@@ -186,7 +186,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
-| 26. Read-Only API Endpoints | 1/3 | In Progress|  |
+| 26. Read-Only API Endpoints | 2/3 | In Progress|  |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
