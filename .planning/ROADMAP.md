@@ -144,7 +144,11 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
   3. Starting and stopping the bot daemon causes `status.running` to flip in the SSE stream within 1-2 seconds; the stream remains open and continues delivering events across bot restarts without a server restart.
   4. The SSE stream opens with `retry: 3000\n\n` so the browser waits 3 seconds before reconnecting after a server restart, preventing rapid reconnect storms.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+- [ ] 27-01-PLAN.md — Wave 0 RED spike: tests/test_sse.py (6 isolation tests, one per criterion + SSE-03 carryover) + tests/test_log_reader.py (tail cursor + midnight rollover)
+- [ ] 27-02-PLAN.md — Wave 1: tail_log_lines cursor (web/log_reader.py) + SseHub bounded drop-oldest queues & _poll_loop sole-producer (web/sse_hub.py)
+- [ ] 27-03-PLAN.md — Wave 2: GET /api/events StreamingResponse + generator (web/routes/sse.py) + lifespan/SseHub/router wiring (web/__init__.py); all 6 SSE tests GREEN
 
 ### Phase 28: Frontend Observability Surfaces
 
@@ -187,7 +191,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
-| 27. SSE Infrastructure | 0/TBD | Not started | - |
+| 27. SSE Infrastructure | 0/3 | Planned | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 
@@ -197,10 +201,10 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | v2.0 Modular Core + Cross-Platform UX | 7-11 | 20/20 | ✅ Shipped | 2026-06-06 |
 | v3.0 Resilience + Ecosystem | 12-17 | 21/21 | ✅ Shipped | 2026-06-10 |
 | v4.0 Win-the-Drop | 18-24 | 29/29 | ✅ Shipped | 2026-06-25 |
-| v4.1 Dashboard & Observability | 25-29 | 3/TBD | In progress | - |
+| v4.1 Dashboard & Observability | 25-29 | 6/TBD | In progress | - |
 
 All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). Per-milestone requirement detail in `.planning/milestones/v*-REQUIREMENTS.md`.
 
 ---
 
-*Last updated: 2026-06-25 — Phase 26 planned (3 plans: Wave 0 tests, read endpoints, secret-scrub).*
+*Last updated: 2026-06-27 — Phase 27 planned (3 plans: Wave 0 spike tests, bridge core, route + lifespan wiring).*
