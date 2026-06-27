@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: executing
-last_updated: "2026-06-27T11:14:27.731Z"
+last_updated: "2026-06-27T11:24:16.027Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 60
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 28 (Frontend Observability Surfaces) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-27
 
@@ -127,6 +127,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 27-sse-infrastructure P02 | 120s | 2 tasks | 2 files |
 | Phase 27-sse-infrastructure P03 | 600 | 2 tasks | 3 files |
 | Phase 28-frontend-observability-surfaces P01 | 269 | 2 tasks | 2 files |
+| Phase 28-frontend-observability-surfaces P02 | 262 | 2 tasks | 2 files |
 
 ## Session Continuity
 
@@ -244,3 +245,5 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: TestClient compat: detect starlette _TestClientTransport via http.response.debug scope extension; limit SSE generator to _TEST_MAX_FRAMES=20 in test context
 - [Phase ?]: _poll_loop poll_interval default changed to None; reads module var at runtime so test overrides of _POLL_INTERVAL_SECS take effect
 - [Phase ?]: SseHub instantiated in create_app factory body; asyncio.create_task(_poll_loop) only in lifespan where event loop is live
+- [Phase ?]: Phase 28-02: heartbeat_age_secs computed in get_snapshot() not at route boundary so Phase 29 SSE poll reads the field automatically
+- [Phase ?]: Phase 28-02: select rule added to components.css to match input[type=text] styling for log level dropdown

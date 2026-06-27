@@ -167,7 +167,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 **Plans**: 4 plans
 
 - [x] 28-01-PLAN.md — Wave 0 RED scaffold: heartbeat_age_secs snapshot-key guard + fresh/never unit tests; static-section/header-uptime/log-controls/uPlot-asset TestClient tests
-- [ ] 28-02-PLAN.md — Wave 1: heartbeat_age_secs in get_snapshot() (core/health.py) + all token-only Phase 28 component classes (components.css)
+- [x] 28-02-PLAN.md — Wave 1: heartbeat_age_secs in get_snapshot() (core/health.py) + all token-only Phase 28 component classes (components.css)
 - [ ] 28-03-PLAN.md — Wave 2: dashboard.html three section scaffolds + renderHealthCards()/renderUptime() wired into pollStatus() (OBS-01/02/03/09)
 - [ ] 28-04-PLAN.md — Wave 3: dashboard.html loadConfirmedBuys() + loadPriceChart() (ISO→Unix, link_b64) + log viewer (color/filter/Follow/500-cap) (OBS-04/05/06/07/08-UI)
 
@@ -198,7 +198,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
-| 28. Frontend Observability Surfaces | 1/4 | In Progress|  |
+| 28. Frontend Observability Surfaces | 2/4 | In Progress|  |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Status | Shipped |
