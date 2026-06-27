@@ -82,7 +82,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 - [x] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor (completed 2026-06-25)
 - [x] **Phase 26: Read-Only API Endpoints** (0/3 plans) — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion (completed 2026-06-27)
 - [x] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail (completed 2026-06-27)
-- [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
+- [x] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch) (completed 2026-06-27)
 - [ ] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator
 
 ---
@@ -169,7 +169,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 - [x] 28-01-PLAN.md — Wave 0 RED scaffold: heartbeat_age_secs snapshot-key guard + fresh/never unit tests; static-section/header-uptime/log-controls/uPlot-asset TestClient tests
 - [x] 28-02-PLAN.md — Wave 1: heartbeat_age_secs in get_snapshot() (core/health.py) + all token-only Phase 28 component classes (components.css)
 - [x] 28-03-PLAN.md — Wave 2: dashboard.html three section scaffolds + renderHealthCards()/renderUptime() wired into pollStatus() (OBS-01/02/03/09)
-- [ ] 28-04-PLAN.md — Wave 3: dashboard.html loadConfirmedBuys() + loadPriceChart() (ISO→Unix, link_b64) + log viewer (color/filter/Follow/500-cap) (OBS-04/05/06/07/08-UI)
+- [x] 28-04-PLAN.md — Wave 3: dashboard.html loadConfirmedBuys() + loadPriceChart() (ISO→Unix, link_b64) + log viewer (color/filter/Follow/500-cap) (OBS-04/05/06/07/08-UI)
 
 **UI hint**: yes
 
@@ -198,7 +198,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
-| 28. Frontend Observability Surfaces | 3/4 | In Progress|  |
+| 28. Frontend Observability Surfaces | 4/4 | Complete   | 2026-06-27 |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Status | Shipped |
