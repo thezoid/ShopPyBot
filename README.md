@@ -84,7 +84,13 @@ cp sample.config.yml config.yml
 
 ### Changing the Alert Sound
 
-The alert sounds can simply be changed by replacing the existing `.mp3` files with new ones of the same name. There is also support for replacing the `.mp3` files with `.wav` files.
+The bundled alert sounds (`sounds/notification.wav`, `sounds/available.wav`, `sounds/buy.wav`) are original, royalty-free tones generated from scratch by `sounds/generate_alert_sounds.py` (public domain / CC0, no third-party samples). Regenerate them any time with:
+
+```sh
+python sounds/generate_alert_sounds.py
+```
+
+To use your own sounds, drop a file of the same name (`notification`, `available`, or `buy`) into `sounds/`. Both `.mp3` and `.wav` are supported; `utils.py` loads `.mp3` first, then falls back to `.wav`.
 
 ## Running the Bot
 
