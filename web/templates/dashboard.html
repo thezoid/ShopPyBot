@@ -392,19 +392,32 @@
       }
     }
 
+    // --- shared link encoding + per-chart uPlot instance registry ---
+    function linkB64(link) {
+      // URL-safe base64 WITH '=' padding — the server's urlsafe_b64decode requires it.
+      return btoa(unescape(encodeURIComponent(link))).replace(/\+/g,'-').replace(/\//g,'_');
+    }
+    function chartId(link) {
+      // DOM id must not contain '=' (breaks querySelector/CSS); strip trailing padding (CR-02).
+      return 'chart-' + linkB64(link).replace(/=+$/,'');
+    }
+    const _chartInstances = {};
+
     // --- loadPriceChart: per-item uPlot chart; called from loadItems() (OBS-05) ---
     async function loadPriceChart(itemLink) {
-      const b64 = btoa(unescape(encodeURIComponent(itemLink))).replace(/\+/g,'-').replace(/\//g,'_');
-      const containerEl = document.getElementById('chart-' + b64);
+      const id = chartId(itemLink);
+      const containerEl = document.getElementById(id);
       if (!containerEl) return;
+      // CR-01: tear down any prior uPlot instance for this chart before re-rendering.
+      if (_chartInstances[id]) { _chartInstances[id].destroy(); delete _chartInstances[id]; }
+      containerEl.innerHTML = '';  // clear prior canvas/message (no API data)
 
       let series;
       try {
-        const resp = await fetch('/api/price-history/' + b64);
+        const resp = await fetch('/api/price-history/' + linkB64(itemLink));
         const data = await resp.json();
         series = data.series || [];
       } catch (e) {
-        containerEl.innerHTML = '';
         const msg = document.createElement('div');
         msg.className = 'chart-empty';
         msg.textContent = 'Failed to load price history.';
@@ -443,7 +456,7 @@
         ],
         scales: { x: { time: true } },
       };
-      new uPlot(opts, [ts, prices], containerEl);
+      _chartInstances[id] = new uPlot(opts, [ts, prices], containerEl);
     }
 
     // --- Log viewer render functions (OBS-06/07/08) ---
@@ -467,6 +480,11 @@
       span.className = 'log-line ' + logLevelClass(lineText);
       span.textContent = lineText;
       bufferEl.appendChild(span);
+      // DOM cap lives here so BOTH the batch (renderLogLines) and the Phase 29
+      // incremental (SSE appendLogLine) paths stay bounded (WR-03, OBS-07).
+      while (bufferEl.children.length > MAX_LOG_LINES) {
+        bufferEl.removeChild(bufferEl.firstChild);
+      }
     }
 
     function maybeScrollToBottom() {
@@ -487,11 +505,7 @@
         maybeScrollToBottom();
         return;
       }
-      lines.forEach(function(line) { appendLogLine(line); });
-      // DOM cap: keep at most MAX_LOG_LINES children
-      while (bufferEl.children.length > MAX_LOG_LINES) {
-        bufferEl.removeChild(bufferEl.firstChild);
-      }
+      lines.forEach(function(line) { appendLogLine(line); });  // appendLogLine enforces the 500-line cap
       maybeScrollToBottom();
     }
 
@@ -529,8 +543,7 @@
         const resp = await fetch('/api/logs?' + params.toString());
         const data = await resp.json();
         var logs = data.logs || [];
-        document.getElementById('log-content').textContent = logs.join('\n');
-        renderLogLines(logs);
+        renderLogLines(logs);  // canonical log surface (the Log Viewer); CR-03: no uncapped #log-content write
       } catch (e) {
         var bufferEl = document.getElementById('log-buffer');
         bufferEl.innerHTML = '';
@@ -677,7 +690,7 @@
         wrapper.className = 'item-chart-wrapper';
         wrapper.setAttribute('data-link', b64);
         const chartDiv = document.createElement('div');
-        chartDiv.id = 'chart-' + b64;
+        chartDiv.id = chartId(item.link);
         chartDiv.className = 'chart-container';
         wrapper.appendChild(chartDiv);
         itemsTable.parentNode.insertBefore(wrapper, itemsTable.nextSibling);
