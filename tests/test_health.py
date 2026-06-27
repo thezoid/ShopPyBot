@@ -102,5 +102,5 @@ def test_snapshot_public_keys_exact():
     reg = HealthRegistry()
     reg.heartbeat("PluginA")
     snap = reg.get_snapshot()
-    expected_keys = {"status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed"}
+    expected_keys = {"status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed", "last_error"}
     assert set(snap["PluginA"].keys()) == expected_keys
