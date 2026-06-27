@@ -80,7 +80,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 ### v4.1 Dashboard & Observability (Phases 25-29)
 
 - [x] **Phase 25: Design System** — Vendored CSS token/component layer, light/dark theme (FOUC-safe), XSS fix, chart library vendor (completed 2026-06-25)
-- [ ] **Phase 26: Read-Only API Endpoints** (0/3 plans) — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion
+- [x] **Phase 26: Read-Only API Endpoints** (0/3 plans) — GET /api/history, GET /api/price-history/{item}, log filter/search query params, asyncio.to_thread wrapping + secret-scrub CI assertion (completed 2026-06-27)
 - [ ] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail
 - [ ] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch)
 - [ ] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator
@@ -128,7 +128,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 
 - [x] 26-01-PLAN.md — Wave 0 RED test scaffold: TestClient tests for /api/history, /api/price-history, /api/logs filtering, credential-leak guard + get_confirmed_orders_sync model test
 - [x] 26-02-PLAN.md — Wave 1: get_confirmed_orders_sync + read_logs_filtered; GET /api/history, /api/price-history/{link_b64}, modified /api/logs (level/search/n) all asyncio.to_thread-wrapped
-- [ ] 26-03-PLAN.md — Wave 1: HealthRegistry.record_last_error (scrubbed) + supervise() call-site; credential-pattern CI guard GREEN
+- [x] 26-03-PLAN.md — Wave 1: HealthRegistry.record_last_error (scrubbed) + supervise() call-site; credential-pattern CI guard GREEN
 
 ### Phase 27: SSE Infrastructure
 
@@ -186,7 +186,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
-| 26. Read-Only API Endpoints | 2/3 | In Progress|  |
+| 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 0/TBD | Not started | - |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
