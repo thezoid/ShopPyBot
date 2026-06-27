@@ -102,5 +102,26 @@ def test_snapshot_public_keys_exact():
     reg = HealthRegistry()
     reg.heartbeat("PluginA")
     snap = reg.get_snapshot()
-    expected_keys = {"status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed", "last_error"}
+    expected_keys = {
+        "status", "last_heartbeat", "consecutive_errors",
+        "items_checked", "orders_confirmed", "last_error",
+        "heartbeat_age_secs",
+    }
     assert set(snap["PluginA"].keys()) == expected_keys
+
+
+def test_heartbeat_age_secs_fresh():
+    """heartbeat_age_secs is a non-negative float after calling heartbeat()."""
+    reg = HealthRegistry()
+    reg.heartbeat("PluginA")
+    snap = reg.get_snapshot()
+    assert snap["PluginA"]["heartbeat_age_secs"] is not None
+    assert snap["PluginA"]["heartbeat_age_secs"] >= 0.0
+
+
+def test_heartbeat_age_secs_never():
+    """heartbeat_age_secs is None when the plugin is registered but never heartbeated."""
+    reg = HealthRegistry()
+    reg._ensure("PluginA")          # registered but never heartbeated
+    snap = reg.get_snapshot()
+    assert snap["PluginA"]["heartbeat_age_secs"] is None
