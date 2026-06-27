@@ -446,13 +446,114 @@
       new uPlot(opts, [ts, prices], containerEl);
     }
 
-    async function pollLogs() {
-      try {
-        const resp = await fetch('/api/logs');
-        const data = await resp.json();
-        document.getElementById('log-content').textContent = (data.logs || []).join('\n');
-      } catch (e) { /* silent */ }
+    // --- Log viewer render functions (OBS-06/07/08) ---
+    var logFollowEnabled = true;
+    var logSearchTimer = null;
+
+    function logLevelClass(line) {
+      var m = line.match(/^\[(\w+)\]/);
+      if (!m) return 'log-level-info';
+      var map = {
+        ERROR: 'log-level-error', WARNING: 'log-level-warn',
+        INFO: 'log-level-info', DEBUG: 'log-level-debug',
+        TRACE: 'log-level-trace',
+      };
+      return map[m[1].toUpperCase()] || 'log-level-info';
     }
+
+    function appendLogLine(lineText) {
+      var bufferEl = document.getElementById('log-buffer');
+      var span = document.createElement('span');
+      span.className = 'log-line ' + logLevelClass(lineText);
+      span.textContent = lineText;
+      bufferEl.appendChild(span);
+    }
+
+    function maybeScrollToBottom() {
+      if (logFollowEnabled) {
+        var bufferEl = document.getElementById('log-buffer');
+        bufferEl.scrollTop = bufferEl.scrollHeight;
+      }
+    }
+
+    function renderLogLines(lines) {
+      var bufferEl = document.getElementById('log-buffer');
+      bufferEl.innerHTML = '';
+      if (!lines || lines.length === 0) {
+        var p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'No log lines match the current filter.';
+        bufferEl.appendChild(p);
+        maybeScrollToBottom();
+        return;
+      }
+      lines.forEach(function(line) { appendLogLine(line); });
+      // DOM cap: keep at most MAX_LOG_LINES children
+      while (bufferEl.children.length > MAX_LOG_LINES) {
+        bufferEl.removeChild(bufferEl.firstChild);
+      }
+      maybeScrollToBottom();
+    }
+
+    // Follow toggle and scroll-pause listeners
+    (function() {
+      var bufferEl = document.getElementById('log-buffer');
+      var followBtn = document.getElementById('btn-log-follow');
+
+      bufferEl.addEventListener('scroll', function() {
+        var atBottom = bufferEl.scrollHeight - bufferEl.scrollTop <= bufferEl.clientHeight + 8;
+        if (!atBottom && logFollowEnabled) {
+          logFollowEnabled = false;
+          followBtn.classList.remove('btn-accent');
+          followBtn.setAttribute('aria-pressed', 'false');
+        }
+      });
+
+      followBtn.addEventListener('click', function() {
+        logFollowEnabled = !logFollowEnabled;
+        followBtn.classList.toggle('btn-accent', logFollowEnabled);
+        followBtn.setAttribute('aria-pressed', String(logFollowEnabled));
+        if (logFollowEnabled) {
+          bufferEl.scrollTop = bufferEl.scrollHeight;
+        }
+      });
+    })();
+
+    async function pollLogs() {
+      var level = document.getElementById('log-level-filter').value;
+      var search = document.getElementById('log-search').value;
+      var params = new URLSearchParams({ n: 500 });
+      if (level) params.set('level', level);
+      if (search) params.set('search', search);
+      try {
+        const resp = await fetch('/api/logs?' + params.toString());
+        const data = await resp.json();
+        var logs = data.logs || [];
+        document.getElementById('log-content').textContent = logs.join('\n');
+        renderLogLines(logs);
+      } catch (e) {
+        var bufferEl = document.getElementById('log-buffer');
+        bufferEl.innerHTML = '';
+        var p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'Failed to load logs. Retrying...';
+        bufferEl.appendChild(p);
+      }
+    }
+
+    // Filter controls wired to pollLogs (debounced search, immediate level/refresh)
+    (function() {
+      document.getElementById('log-level-filter').addEventListener('change', function() {
+        pollLogs();
+      });
+      document.getElementById('log-search').addEventListener('input', function() {
+        clearTimeout(logSearchTimer);
+        logSearchTimer = setTimeout(pollLogs, 300);
+      });
+      document.getElementById('btn-log-refresh').addEventListener('click', function() {
+        pollLogs();
+      });
+    })();
 
     setInterval(pollStatus, POLL_MS);
     setInterval(pollLogs, POLL_MS);
