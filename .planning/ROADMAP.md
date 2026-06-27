@@ -146,7 +146,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 **Plans**: 3 plans
 
-- [ ] 27-01-PLAN.md — Wave 0 RED spike: tests/test_sse.py (6 isolation tests, one per criterion + SSE-03 carryover) + tests/test_log_reader.py (tail cursor + midnight rollover)
+- [x] 27-01-PLAN.md — Wave 0 RED spike: tests/test_sse.py (6 isolation tests, one per criterion + SSE-03 carryover) + tests/test_log_reader.py (tail cursor + midnight rollover)
 - [ ] 27-02-PLAN.md — Wave 1: tail_log_lines cursor (web/log_reader.py) + SseHub bounded drop-oldest queues & _poll_loop sole-producer (web/sse_hub.py)
 - [ ] 27-03-PLAN.md — Wave 2: GET /api/events StreamingResponse + generator (web/routes/sse.py) + lifespan/SseHub/router wiring (web/__init__.py); all 6 SSE tests GREEN
 
@@ -191,7 +191,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 |-------|----------------|--------|-----------|
 | 25. Design System | 3/3 | Complete   | 2026-06-25 |
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
-| 27. SSE Infrastructure | 0/3 | Planned | - |
+| 27. SSE Infrastructure | 1/3 | In Progress|  |
 | 28. Frontend Observability Surfaces | 0/TBD | Not started | - |
 | 29. SSE Client Wiring | 0/TBD | Not started | - |
 

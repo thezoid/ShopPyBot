@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: executing
-last_updated: "2026-06-27T08:27:45.753Z"
-last_activity: 2026-06-27 -- Phase 27 planning complete
+last_updated: "2026-06-27T08:37:19.043Z"
+last_activity: 2026-06-27
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 40
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 26 (Read-Only API Endpoints) — EXECUTING
+Phase: 27 (SSE Infrastructure) — EXECUTING
 Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-27 -- Phase 27 planning complete
+Last activity: 2026-06-27
 
 ## Phase Status
 
@@ -123,6 +123,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 25-design-system P02 | 480s | 3 tasks | 5 files |
 | Phase 25-design-system P03 | 412 | 3 tasks | 1 files |
 | Phase 26-read-only-api-endpoints P01 | 360 | 3 tasks | 2 files |
+| Phase 27-sse-infrastructure P01 | 274s | 2 tasks | 2 files |
 
 ## Session Continuity
 
@@ -233,3 +234,6 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: Phase 25-01: test_no_innerHTML_with_api_data uses re.DOTALL to catch both XSS violations including the multiline cred.name case at line 255
 - [Phase ?]: CSS token split
 - [Phase ?]: escHtml unused stub
+- [Phase ?]: A2 chunking resolved: join chunks[:8] for SSE frame assertions
+- [Phase ?]: Phase 27-01: disconnect cleanup asserted via len(hub._queues)==0, not is_disconnected() (unreliable in TestClient)
+- [Phase ?]: Phase 27-01: each SSE test opens its own TestClient context manager (no shared fixture); lifespan runs per-test

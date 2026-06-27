@@ -30,7 +30,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (25-29).
 ### SSE — Live Push
 
 - [ ] **SSE-01**: The dashboard receives live status and log updates over a single Server-Sent Events stream (`/api/events`), replacing the 2-second polling loop.
-- [ ] **SSE-02**: The SSE stream handles client disconnect/reconnect cleanly — keepalive heartbeat, automatic client reconnect, server-side generator cleanup on disconnect — and falls back to polling when SSE is unavailable.
+- [x] **SSE-02**: The SSE stream handles client disconnect/reconnect cleanly — keepalive heartbeat, automatic client reconnect, server-side generator cleanup on disconnect — and falls back to polling when SSE is unavailable.
 - [x] **SSE-03**: Observability reads never block uvicorn's event loop (all sync reads via `asyncio.to_thread`) and never leak secrets to the browser (`get_status()` `last_error` scrubbed to exception class name; CI assertion that SSE frames contain no credential-pattern strings).
 
 ## Future Requirements
@@ -89,7 +89,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | OBS-08 | Phase 26 | Complete |
 | OBS-09 | Phase 28 | Pending |
 | SSE-01 | Phase 29 | Pending |
-| SSE-02 | Phase 27 | Pending |
+| SSE-02 | Phase 27 | Complete |
 | SSE-03 | Phase 26 | Complete |
 
 **Coverage:**
