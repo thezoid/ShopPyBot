@@ -56,6 +56,12 @@
       </div>
     </section>
 
+    <!-- Section: Plugin Health (Phase 28 OBS-01/02/03) -->
+    <section class="card" id="section-health">
+      <h2>Plugin Health</h2>
+      <div class="health-grid" id="health-grid"></div>
+    </section>
+
     <!-- Section 2: Items -->
     <section class="card" id="section-items">
       <h2>Items</h2>
@@ -117,6 +123,24 @@
       </form>
     </section>
 
+    <!-- Section: Confirmed Orders (Phase 28 OBS-04) -->
+    <section class="card" id="section-buys">
+      <h2>Confirmed Orders</h2>
+      <table id="buys-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Order ID</th>
+            <th>Confirmed At</th>
+            <th>Checkout Attempts</th>
+          </tr>
+        </thead>
+        <tbody id="buys-tbody">
+          <!-- populated by JS: empty-state row OR data rows -->
+        </tbody>
+      </table>
+    </section>
+
     <!-- Section 3: Credentials -->
     <section class="card" id="section-credentials">
       <h2>Credentials</h2>
@@ -130,6 +154,31 @@
       <h2>Config</h2>
       <div id="config-form-wrapper">
         <!-- populated by JS on load -->
+      </div>
+    </section>
+
+    <!-- Section: Log Viewer (Phase 28 OBS-06/07/08) -->
+    <section class="card" id="section-log-viewer">
+      <h2>Log Viewer</h2>
+      <div class="log-viewer">
+        <div class="log-controls">
+          <label for="log-level-filter">Level</label>
+          <select id="log-level-filter">
+            <option value="">All levels</option>
+            <option value="ERROR">ERROR</option>
+            <option value="WARNING">WARNING</option>
+            <option value="INFO">INFO</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="TRACE">TRACE</option>
+          </select>
+          <label for="log-search">Search</label>
+          <input type="text" id="log-search" placeholder="Search logs...">
+          <button type="button" id="btn-log-follow" class="btn btn-accent"
+                  aria-pressed="true">Follow</button>
+          <button type="button" id="btn-log-refresh" class="btn btn-sm">Refresh</button>
+        </div>
+        <div id="log-buffer" class="log-buffer" role="log" aria-live="polite"
+             aria-label="Log output"></div>
       </div>
     </section>
   </div>
