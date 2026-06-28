@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
 status: executing
-last_updated: "2026-06-28T01:09:42.496Z"
-last_activity: 2026-06-28 -- Phase 29 planning complete
+last_updated: "2026-06-28T01:18:28.814Z"
+last_activity: 2026-06-28
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 80
 ---
 
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 28 (Frontend Observability Surfaces) — EXECUTING
-Plan: 4 of 4
+Phase: 29 (SSE Client Wiring) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-28 -- Phase 29 planning complete
+Last activity: 2026-06-28
 
 ## Phase Status
 
@@ -130,6 +130,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 28-frontend-observability-surfaces P02 | 262 | 2 tasks | 2 files |
 | Phase 28-frontend-observability-surfaces P03 | 379 | 2 tasks | 1 files |
 | Phase 28-frontend-observability-surfaces P04 | 420 | 2 tasks | 1 files |
+| Phase 29-sse-client-wiring PP01 | 233s | - tasks | - files |
 
 ## Session Continuity
 
@@ -250,3 +251,4 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: Phase 28-02: heartbeat_age_secs computed in get_snapshot() not at route boundary so Phase 29 SSE poll reads the field automatically
 - [Phase ?]: Phase 28-02: select rule added to components.css to match input[type=text] styling for log level dropdown
 - [Phase ?]: Phase 28-03: renderHealthCards and renderUptime are pure functions; MAX_LOG_LINES = 500 placed here so DOM cap test goes GREEN in wave 3
+- [Phase ?]: Phase 29-01: test_no_onmessage_for_named_events is GREEN at Wave 0 (anti-pattern guard; .onmessage absent from template; stays green through all plans)

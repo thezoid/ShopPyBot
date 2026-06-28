@@ -188,7 +188,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 
 **Plans**: 3 plans
 
-- [ ] 29-01-PLAN.md — Wave 0 RED test scaffold: tests/test_sse_wiring.py static-template assertions (EventSource/named-listeners/feature-detect/renderStatus/no-dup/indicator) + regression guards
+- [x] 29-01-PLAN.md — Wave 0 RED test scaffold: tests/test_sse_wiring.py static-template assertions (EventSource/named-listeners/feature-detect/renderStatus/no-dup/indicator) + regression guards
 - [ ] 29-02-PLAN.md — Wave 1: renderStatus(data) extraction (zero-observable-change) + appendLogLine no-dup guard + #sse-indicator header element + .status-dot.reconnecting CSS token
 - [ ] 29-03-PLAN.md — Wave 2: setIndicator + replace setInterval polls with feature-detected EventSource('/api/events') (named status/log listeners, onopen/onerror indicator, backfill, polling fallback) + operator UAT
 
@@ -204,7 +204,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
 | 28. Frontend Observability Surfaces | 4/4 | Complete   | 2026-06-27 |
-| 29. SSE Client Wiring | 0/3 | Planned | - |
+| 29. SSE Client Wiring | 1/3 | In Progress|  |
 
 | Milestone | Phases | Plans | Status | Shipped |
 |-----------|--------|-------|--------|---------|
