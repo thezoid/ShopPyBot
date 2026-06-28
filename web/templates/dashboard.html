@@ -343,6 +343,19 @@
       renderHealthCards(data);
     }
 
+    // --- setIndicator: SSE connection state indicator (Phase 29 SSE wiring) ---
+    function setIndicator(state) {
+      var dot = document.getElementById('sse-dot');
+      var label = document.getElementById('sse-label');
+      if (state === 'live') {
+        dot.className = 'status-dot running';
+        label.textContent = 'Live';
+      } else {
+        dot.className = 'status-dot reconnecting';
+        label.textContent = 'Reconnecting';
+      }
+    }
+
     async function pollStatus() {
       try {
         const resp = await fetch('/api/status');
@@ -580,10 +593,21 @@
       });
     })();
 
-    setInterval(pollStatus, POLL_MS);
-    setInterval(pollLogs, POLL_MS);
+    // One-shot backfill for initial paint (both paths)
     pollStatus();
     pollLogs();
+
+    // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
+    if (typeof EventSource !== 'undefined') {
+      var es = new EventSource('/api/events');
+      es.addEventListener('status', function(e) { renderStatus(JSON.parse(e.data)); });
+      es.addEventListener('log', function(e) { var p = JSON.parse(e.data); appendLogLine(p.line); maybeScrollToBottom(); });
+      es.onopen = function() { setIndicator('live'); };
+      es.onerror = function() { setIndicator('reconnecting'); };
+    } else {
+      setInterval(pollStatus, POLL_MS);
+      setInterval(pollLogs, POLL_MS);
+    }
 
     // --- Bot controls ---
     document.getElementById('btn-start').addEventListener('click', async () => {
