@@ -186,7 +186,12 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
   4. Closing and reopening the browser tab results in a clean `EventSource` reconnect; the dashboard resumes live updates after reconnect without requiring a page reload or server restart.
   5. In a browser or environment without `EventSource` support, the dashboard falls back to the existing polling behavior; no JavaScript error is thrown.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+- [ ] 29-01-PLAN.md — Wave 0 RED test scaffold: tests/test_sse_wiring.py static-template assertions (EventSource/named-listeners/feature-detect/renderStatus/no-dup/indicator) + regression guards
+- [ ] 29-02-PLAN.md — Wave 1: renderStatus(data) extraction (zero-observable-change) + appendLogLine no-dup guard + #sse-indicator header element + .status-dot.reconnecting CSS token
+- [ ] 29-03-PLAN.md — Wave 2: setIndicator + replace setInterval polls with feature-detected EventSource('/api/events') (named status/log listeners, onopen/onerror indicator, backfill, polling fallback) + operator UAT
+
 **UI hint**: yes
 
 ---
@@ -199,7 +204,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 26. Read-Only API Endpoints | 3/3 | Complete   | 2026-06-27 |
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
 | 28. Frontend Observability Surfaces | 4/4 | Complete   | 2026-06-27 |
-| 29. SSE Client Wiring | 0/TBD | Not started | - |
+| 29. SSE Client Wiring | 0/3 | Planned | - |
 
 | Milestone | Phases | Plans | Status | Shipped |
 |-----------|--------|-------|--------|---------|
@@ -207,7 +212,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | v2.0 Modular Core + Cross-Platform UX | 7-11 | 20/20 | ✅ Shipped | 2026-06-06 |
 | v3.0 Resilience + Ecosystem | 12-17 | 21/21 | ✅ Shipped | 2026-06-10 |
 | v4.0 Win-the-Drop | 18-24 | 29/29 | ✅ Shipped | 2026-06-25 |
-| v4.1 Dashboard & Observability | 25-29 | 6/TBD | In progress | - |
+| v4.1 Dashboard & Observability | 25-29 | 13/16 | In progress | - |
 
 All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). Per-milestone requirement detail in `.planning/milestones/v*-REQUIREMENTS.md`.
 
