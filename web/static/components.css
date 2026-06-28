@@ -61,9 +61,17 @@ h2 {
   margin-bottom: var(--space-md);
 }
 
-.status-dot         { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-.status-dot.running { background: var(--color-status-ok); }
-.status-dot.stopped { background: var(--color-status-neutral); }
+.status-dot              { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.status-dot.running      { background: var(--color-status-ok); }
+.status-dot.stopped      { background: var(--color-status-neutral); }
+.status-dot.reconnecting { background: var(--color-status-warn); }
+
+/* --- SSE connection indicator (Phase 29 Plan 02) --- */
+.sse-indicator {
+  display:     inline-flex;
+  align-items: center;
+  gap:         var(--space-xs);
+}
 
 /* --- Buttons --- */
 .button-row {

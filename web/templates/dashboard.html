@@ -30,6 +30,10 @@
   <header class="app-header">
     <span class="app-header-title">ShopPyBot</span>
     <span id="header-uptime" class="text-secondary"></span>
+    <span id="sse-indicator" class="sse-indicator" aria-live="polite">
+      <span id="sse-dot" class="status-dot"></span>
+      <span id="sse-label" class="text-secondary"></span>
+    </span>
     <button type="button" id="theme-toggle" class="btn"
             aria-label="Switch to dark mode">&#9728;</button>
   </header>
@@ -318,27 +322,32 @@
     // --- Log viewer constant (OBS-07 DOM cap; render functions land in 28-04) ---
     const MAX_LOG_LINES = 500;
 
+    // --- renderStatus: pure shared renderer; called by pollStatus and Phase 29 SSE ---
+    function renderStatus(data) {
+      var dot = document.getElementById('status-dot');
+      var label = document.getElementById('status-label');
+      var btnStart = document.getElementById('btn-start');
+      var btnStop = document.getElementById('btn-stop');
+      if (data.running) {
+        dot.className = 'status-dot running';
+        label.textContent = 'Running';
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+      } else {
+        dot.className = 'status-dot stopped';
+        label.textContent = 'Stopped';
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+      }
+      renderUptime(data.uptime_secs);
+      renderHealthCards(data);
+    }
+
     async function pollStatus() {
       try {
         const resp = await fetch('/api/status');
         const data = await resp.json();
-        const dot = document.getElementById('status-dot');
-        const label = document.getElementById('status-label');
-        const btnStart = document.getElementById('btn-start');
-        const btnStop = document.getElementById('btn-stop');
-        if (data.running) {
-          dot.className = 'status-dot running';
-          label.textContent = 'Running';
-          btnStart.disabled = true;
-          btnStop.disabled = false;
-        } else {
-          dot.className = 'status-dot stopped';
-          label.textContent = 'Stopped';
-          btnStart.disabled = false;
-          btnStop.disabled = true;
-        }
-        renderUptime(data.uptime_secs);
-        renderHealthCards(data);
+        renderStatus(data);
         failCount = 0;
       } catch (e) {
         failCount++;
@@ -461,6 +470,7 @@
 
     // --- Log viewer render functions (OBS-06/07/08) ---
     var logFollowEnabled = true;
+    var _lastLogLine = '';
     var logSearchTimer = null;
 
     function logLevelClass(line) {
@@ -475,6 +485,8 @@
     }
 
     function appendLogLine(lineText) {
+      if (lineText === _lastLogLine) return;
+      _lastLogLine = lineText;
       var bufferEl = document.getElementById('log-buffer');
       var span = document.createElement('span');
       span.className = 'log-line ' + logLevelClass(lineText);
