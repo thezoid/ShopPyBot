@@ -219,3 +219,14 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). P
 ---
 
 *Last updated: 2026-06-27 — Phase 28 planned (4 plans across 4 serialized waves: Wave 0 test scaffold, backend field + CSS, health/uptime HTML, buys/charts/log-viewer HTML).*
+
+### Phase 29.1: Address v4.1 tech debt: SSE stall fallback + uPlot load order + log-dup guard (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 29.1 to break down)
