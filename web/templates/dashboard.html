@@ -522,6 +522,7 @@
     function renderLogLines(lines) {
       var bufferEl = document.getElementById('log-buffer');
       bufferEl.innerHTML = '';
+      _lastLogLine = '';  // CR-02: reset no-dup sentinel on repaint so a later SSE line matching the last batch line is not wrongly dropped
       if (!lines || lines.length === 0) {
         var p = document.createElement('p');
         p.className = 'text-secondary';
@@ -600,8 +601,12 @@
     // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
     if (typeof EventSource !== 'undefined') {
       var es = new EventSource('/api/events');
-      es.addEventListener('status', function(e) { renderStatus(JSON.parse(e.data)); });
-      es.addEventListener('log', function(e) { var p = JSON.parse(e.data); appendLogLine(p.line); maybeScrollToBottom(); });
+      es.addEventListener('status', function(e) {
+        try { renderStatus(JSON.parse(e.data)); } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
+      });
+      es.addEventListener('log', function(e) {
+        try { var p = JSON.parse(e.data); appendLogLine(p.line); maybeScrollToBottom(); } catch (err) { /* CR-01: ignore malformed SSE frame */ }
+      });
       es.onopen = function() { setIndicator('live'); };
       es.onerror = function() { setIndicator('reconnecting'); };
     } else {
