@@ -487,6 +487,7 @@
     // --- Log viewer render functions (OBS-06/07/08) ---
     var logFollowEnabled = true;
     var _lastLogLine = '';
+    var _dedupNextLine = false;  // OBS-07: one-shot backfill->SSE boundary dedup flag
     var logSearchTimer = null;
 
     function logLevelClass(line) {
@@ -501,7 +502,13 @@
     }
 
     function appendLogLine(lineText) {
-      if (lineText === _lastLogLine) return;
+      // OBS-07: one-shot boundary dedup — drop a line only when armed (the first line after a
+      // backfill repaint) AND it equals the last backfilled line. All later lines append
+      // unconditionally, so legitimately repeated bot messages are no longer suppressed.
+      if (_dedupNextLine) {
+        _dedupNextLine = false;
+        if (lineText === _lastLogLine) return;
+      }
       _lastLogLine = lineText;
       var bufferEl = document.getElementById('log-buffer');
       var span = document.createElement('span');
@@ -526,6 +533,7 @@
       var bufferEl = document.getElementById('log-buffer');
       bufferEl.innerHTML = '';
       _lastLogLine = '';  // CR-02: reset no-dup sentinel on repaint so a later SSE line matching the last batch line is not wrongly dropped
+      _dedupNextLine = false;  // OBS-07: clear flag on ALL paths (incl. empty-filter repaint) before early return
       if (!lines || lines.length === 0) {
         var p = document.createElement('p');
         p.className = 'text-secondary';
@@ -535,6 +543,7 @@
         return;
       }
       lines.forEach(function(line) { appendLogLine(line); });  // appendLogLine enforces the 500-line cap
+      _dedupNextLine = true;  // OBS-07: arm one-shot dedup for the first post-backfill SSE line
       maybeScrollToBottom();
     }
 
