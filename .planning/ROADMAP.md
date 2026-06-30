@@ -84,6 +84,7 @@ Audit: `.planning/milestones/v4.0-MILESTONE-AUDIT.md` (status: tech_debt — pre
 - [x] **Phase 27: SSE Infrastructure** — web/sse_hub.py + web/routes/sse.py, cross-thread bridge, keepalive, disconnect cleanup, cursor-based log tail (completed 2026-06-27)
 - [x] **Phase 28: Frontend Observability Surfaces** — Health cards, confirmed-buys table, price-history charts, log viewer, uptime status bar (one-shot fetch) (completed 2026-06-27)
 - [x] **Phase 29: SSE Client Wiring** — Replace setInterval with EventSource, dispatch by type, live health + log append, polling fallback, Live/Reconnecting indicator (completed 2026-06-28)
+- [x] **Phase 29.1: Address v4.1 tech debt — SSE stall fallback + uPlot load order + log-dup guard** (4/4 plans, INSERTED) — closes audit Warnings 1-3 (completed 2026-06-30)
 
 ---
 
@@ -205,6 +206,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | 27. SSE Infrastructure | 3/3 | Complete   | 2026-06-27 |
 | 28. Frontend Observability Surfaces | 4/4 | Complete   | 2026-06-27 |
 | 29. SSE Client Wiring | 3/3 | Complete   | 2026-06-28 |
+| 29.1 v4.1 Tech-Debt Cleanup (INSERTED) | 4/4 | Complete   | 2026-06-30 |
 
 | Milestone | Phases | Plans | Status | Shipped |
 |-----------|--------|-------|--------|---------|
@@ -212,7 +214,7 @@ NOTE: This is the highest-risk phase. A spike is recommended at the start — va
 | v2.0 Modular Core + Cross-Platform UX | 7-11 | 20/20 | ✅ Shipped | 2026-06-06 |
 | v3.0 Resilience + Ecosystem | 12-17 | 21/21 | ✅ Shipped | 2026-06-10 |
 | v4.0 Win-the-Drop | 18-24 | 29/29 | ✅ Shipped | 2026-06-25 |
-| v4.1 Dashboard & Observability | 25-29 | 13/16 | In progress | - |
+| v4.1 Dashboard & Observability | 25-29.1 | 20/20 | In progress | - |
 
 All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). Per-milestone requirement detail in `.planning/milestones/v*-REQUIREMENTS.md`.
 
