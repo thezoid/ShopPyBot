@@ -225,3 +225,81 @@ def test_setinterval_only_in_fallback(client):
         f"which is before the else branch at {else_abs_idx}; "
         "polling must not fire on the SSE-active path"
     )
+
+
+# ===========================================================================
+# Phase 29.1 — tech-debt hardening assertions (W29.1-A1 .. A5)
+# RED at this wave: target dashboard.html state for OBS-05, OBS-07, SSE-01/02
+# is not yet present. Turned GREEN by Plans 02 (uPlot), 03 (dedup), 04 (watchdog).
+# ===========================================================================
+
+
+def test_sse_stall_ms_constant(client):
+    """dashboard.html declares SSE_STALL_MS constant (W29.1-A1 / SSE-01)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "SSE_STALL_MS" in resp.text
+
+
+def test_watchdog_setinterval_in_sse_branch(client):
+    """Watchdog setInterval appears inside the EventSource branch (W29.1-A2 / SSE-01)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    text = resp.text
+    # Locate the SSE feature-detect block
+    detect_idx = text.find("typeof EventSource")
+    assert detect_idx != -1
+    # Locate the first else after the feature-detect (start of no-EventSource fallback)
+    sub = text[detect_idx:]
+    else_match = re.search(r'\belse\b', sub)
+    assert else_match is not None
+    else_abs_idx = detect_idx + else_match.start()
+    # SSE_STALL_MS must appear BEFORE the else (i.e., inside the if branch)
+    stall_idx = text.find("SSE_STALL_MS", detect_idx)
+    assert stall_idx != -1, "SSE_STALL_MS not found in SSE feature-detect block"
+    assert stall_idx < else_abs_idx, (
+        "SSE_STALL_MS must appear before the else branch "
+        "(i.e., inside the EventSource if block), not in the fallback"
+    )
+
+
+def test_uplot_script_in_head(client):
+    """uplot.iife.min.js <script> appears in <head>, before the inline <script> (W29.1-A3 / OBS-05)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    text = resp.text
+    uplot_idx = text.find("uplot.iife.min.js")
+    inline_script_idx = text.find("<script>", text.find("</head>"))
+    head_close_idx = text.find("</head>")
+    assert uplot_idx != -1, "uplot.iife.min.js not found in page"
+    assert uplot_idx < head_close_idx, (
+        "uplot.iife.min.js <script> must appear before </head>, not in <body>"
+    )
+    # Confirm it is before the large inline block (which opens <body>'s <script>)
+    assert uplot_idx < inline_script_idx, (
+        "uplot.iife.min.js <script> must appear before the inline <script> block"
+    )
+
+
+def test_dedup_next_line_flag(client):
+    """dashboard.html declares _dedupNextLine one-shot flag (W29.1-A4 / OBS-07)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "_dedupNextLine" in resp.text
+
+
+def test_dedup_flag_armed_after_render(client):
+    """_dedupNextLine = true appears after the forEach in renderLogLines (W29.1-A5 / OBS-07)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    text = resp.text
+    render_idx = text.find("function renderLogLines")
+    assert render_idx != -1
+    # Find the forEach call inside renderLogLines
+    foreach_idx = text.find(".forEach(function(line)", render_idx)
+    assert foreach_idx != -1
+    # _dedupNextLine = true must appear after the forEach
+    arm_idx = text.find("_dedupNextLine = true", foreach_idx)
+    assert arm_idx != -1, (
+        "_dedupNextLine = true must be set after the forEach in renderLogLines"
+    )
