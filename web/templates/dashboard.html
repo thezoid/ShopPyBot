@@ -209,6 +209,7 @@
     });
 
     const POLL_MS = 2000;
+    const SSE_STALL_MS = 8000;  // SSE-01: stall threshold (8 missed 1s status ticks; under the 15s keepalive)
     let failCount = 0;
 
     // --- Status + Logs polling ---
@@ -613,13 +614,36 @@
     // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
     if (typeof EventSource !== 'undefined') {
       var es = new EventSource('/api/events');
+      var _sseLastStatusTs = Date.now();   // SSE-01: watchdog timestamp (init at construction, Pitfall 2)
+      var _sseFallbackTimer = null;        // SSE-01: REST fallback interval handle (null when inactive)
+
+      // SSE-01/02: idle watchdog. EventSource.onerror fires only on close, never on idle; if the
+      // stream stalls open with no `status` event for SSE_STALL_MS, flip the indicator and start a
+      // REST polling safety net so data stays fresh. Recovery (below) tears the fallback down.
+      setInterval(function() {
+        if (Date.now() - _sseLastStatusTs > SSE_STALL_MS) {
+          setIndicator('reconnecting');
+          if (!_sseFallbackTimer) {  // Pitfall 3: guard so only one fallback timer ever runs
+            _sseFallbackTimer = setInterval(function() { pollStatus(); pollLogs(); }, POLL_MS);
+          }
+        }
+      }, POLL_MS);
+
       es.addEventListener('status', function(e) {
-        try { renderStatus(JSON.parse(e.data)); } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
+        try {
+          renderStatus(JSON.parse(e.data));
+          _sseLastStatusTs = Date.now();  // SSE-01: status seen — reset watchdog
+          if (_sseFallbackTimer) {        // SSE-02: recovery — stop fallback polling, return to live
+            clearInterval(_sseFallbackTimer);
+            _sseFallbackTimer = null;
+            setIndicator('live');
+          }
+        } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
       });
       es.addEventListener('log', function(e) {
         try { var p = JSON.parse(e.data); appendLogLine(p.line); maybeScrollToBottom(); } catch (err) { /* CR-01: ignore malformed SSE frame */ }
       });
-      es.onopen = function() { setIndicator('live'); };
+      es.onopen = function() { setIndicator('live'); _sseLastStatusTs = Date.now(); };  // SSE-01: reset watchdog on clean open
       es.onerror = function() { setIndicator('reconnecting'); };
     } else {
       setInterval(pollStatus, POLL_MS);
