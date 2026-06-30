@@ -261,6 +261,12 @@ def test_watchdog_setinterval_in_sse_branch(client):
         "SSE_STALL_MS must appear before the else branch "
         "(i.e., inside the EventSource if block), not in the fallback"
     )
+    # WR-01: assert the watchdog setInterval(function ...) itself lives inside the if-branch,
+    # not merely that SSE_STALL_MS is referenced there (SSE_STALL_MS is also a top-level const).
+    watchdog_idx = text.find("setInterval(function", detect_idx)
+    assert watchdog_idx != -1 and watchdog_idx < else_abs_idx, (
+        "watchdog setInterval(function ...) must appear inside the EventSource if-branch"
+    )
 
 
 def test_uplot_script_in_head(client):

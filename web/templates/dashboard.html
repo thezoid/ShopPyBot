@@ -620,7 +620,8 @@
       // SSE-01/02: idle watchdog. EventSource.onerror fires only on close, never on idle; if the
       // stream stalls open with no `status` event for SSE_STALL_MS, flip the indicator and start a
       // REST polling safety net so data stays fresh. Recovery (below) tears the fallback down.
-      setInterval(function() {
+      // Handle stored (WR-02) for testability/lifecycle; page unload clears it on this non-SPA page.
+      var _sseWatchdog = setInterval(function() {
         if (Date.now() - _sseLastStatusTs > SSE_STALL_MS) {
           setIndicator('reconnecting');
           if (!_sseFallbackTimer) {  // Pitfall 3: guard so only one fallback timer ever runs
@@ -633,10 +634,10 @@
         try {
           renderStatus(JSON.parse(e.data));
           _sseLastStatusTs = Date.now();  // SSE-01: status seen — reset watchdog
-          if (_sseFallbackTimer) {        // SSE-02: recovery — stop fallback polling, return to live
+          setIndicator('live');           // CR-01: any status event means the stream is live (never gate on the fallback timer)
+          if (_sseFallbackTimer) {        // SSE-02: recovery — stop the REST fallback poll
             clearInterval(_sseFallbackTimer);
             _sseFallbackTimer = null;
-            setIndicator('live');
           }
         } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
       });
