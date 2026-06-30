@@ -225,11 +225,11 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17). P
 **Goal:** Close the three non-blocking v4.1 integration warnings in web/templates/dashboard.html: SSE stall watchdog + REST fallback (SSE-01/02), uPlot script load-order fix (OBS-05), and one-shot log-dup boundary guard (OBS-07). All 13 SSE-wiring tests green.
 **Requirements**: SSE-01, SSE-02, OBS-05, OBS-07
 **Depends on:** Phase 29
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 
-- [ ] 29.1-01-PLAN.md — Wave 0 RED tests: add 5 new assertions to tests/test_sse_wiring.py
-- [ ] 29.1-02-PLAN.md — OBS-05: relocate uPlot loader to <head>, synchronous (no defer)
-- [ ] 29.1-03-PLAN.md — OBS-07: _dedupNextLine one-shot backfill to SSE boundary dedup
-- [ ] 29.1-04-PLAN.md — SSE-01/02: idle watchdog + REST fallback (regression-guarded)
+- [x] 29.1-01-PLAN.md — Wave 0 RED tests: add 5 new assertions to tests/test_sse_wiring.py
+- [x] 29.1-02-PLAN.md — OBS-05: relocate uPlot loader to <head>, synchronous (no defer)
+- [x] 29.1-03-PLAN.md — OBS-07: _dedupNextLine one-shot backfill to SSE boundary dedup
+- [x] 29.1-04-PLAN.md — SSE-01/02: idle watchdog + REST fallback (regression-guarded)
