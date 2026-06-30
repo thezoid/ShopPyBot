@@ -44,6 +44,46 @@
 
 ---
 
+## Milestone: v4.1 — Dashboard & Observability
+
+**Shipped:** 2026-06-30
+**Phases:** 6 (25-29 + inserted 29.1) | **Plans:** 20 | **Suite:** 807 passed, 2 skipped
+
+### What Was Built
+- Zero-Node vendored design system: 3-file CSS split (tokens/components/dashboard), light/dark with FOUC-safe inline `<head>` theming, uPlot 1.6.32 vendored, `loadItems()`/`loadCredentials()` XSS fix (P25).
+- Read-only observability REST endpoints (`/api/history`, `/api/price-history/{link_b64}`, filtered `/api/logs`), all `asyncio.to_thread`-wrapped, `last_error` scrubbed, credential-leak CI guard (P26).
+- SSE infrastructure: single `/api/events` stream, uvicorn `_poll_loop` sole-producer cross-thread bridge, keepalive, disconnect cleanup, cursor log tail (P27).
+- Four observability surfaces: per-plugin health cards, confirmed-buys table, per-item uPlot price charts with empty-state, filterable color-coded log viewer (follow + 500-cap), uptime bar (P28).
+- SSE client wiring: `EventSource('/api/events')` replaces the 2s poll, named listeners, polling fallback, Live/Reconnecting indicator (P29); inserted 29.1 closed 3 audit warnings (uPlot load order, log-dedup, SSE stall watchdog + REST fallback).
+
+### What Worked
+- **Spike-first on the highest-risk phase.** P27 (SSE) was flagged highest-risk up front and validated the lifespan + `asyncio.create_task` + `SseHub` wiring before full build. The cross-loop race (the known pitfall) never materialized because the "uvicorn `_poll_loop` is the sole producer; bot thread never touches `asyncio.Queue`" rule was designed in, not retrofitted.
+- **RED test scaffold per phase.** Each phase opened with a Wave 0 failing-test scaffold (TestClient static-template assertions for the frontend phases), so GREEN was a concrete target and regressions were guarded.
+- **Audit-driven cleanup loop.** The 2026-06-28 audit surfaced 4 integration warnings; rather than ship them as raw debt, an inserted Phase 29.1 closed 3 of them with file:line-verified fixes and 5 new tests, and the milestone-close audit refresh confirmed it. The bot's own audit fed the next unit of work.
+- **Zero-Node discipline held.** No package.json, no CDN, no external fonts; charting solved by vendoring a tiny MIT lib and raw `StreamingResponse` covered SSE with no new Python deps.
+
+### What Was Inefficient
+- **Inserted decimal phase had no top-level ROADMAP checkbox.** Phase 29.1 was complete on disk (4/4 plans + summaries) but `roadmap.analyze` reported `roadmap_complete:false` because the parser keys on a `- [x] ... Phase 29.1` list item the inserted section never got. An autonomous run would have tried to re-execute it; this close had to add the checkbox first.
+- **SUMMARY `requirements` frontmatter missing on P27/28/29.** Those plan summaries omit the `requirements` field (P28 uses none; P27/29 use `dependency_graph`), so the milestone audit's 3-source cross-reference dropped 6 OBS reqs to "partial (manual-verify)" even though every one was VERIFIED in the phase VERIFICATION tables. A metadata gap created audit noise, not a delivery gap.
+- **VALIDATION.md status fields lagged.** Phases 25/26/27 still carry `status: planned` / `wave_0_complete:false` despite GREEN suites; 28/29 needed an explicit post-exec flip. The nyquist flag was true, but the doc-status fields drifted from reality.
+- **16 live-UAT items can't run in CI.** SSE/EventSource behavior and visual rendering need a real browser/live socket; correct to defer, but the true acceptance bar (live dashboard) is unexercised by automated tests.
+
+### Patterns Established
+- **Spike-first for the highest-risk infra phase**, with the concurrency invariant (single producer, no cross-thread queue access) designed before implementation.
+- **Audit → insert cleanup phase → re-audit** as a closing loop: convert non-blocking audit warnings into a scoped decimal phase rather than shipping them as raw debt.
+- **Static-template TestClient assertions** as the RED scaffold for no-Node frontend phases (assert on the served HTML/JS), keeping frontend behavior test-guarded without a browser.
+
+### Key Lessons
+1. **Give inserted decimal phases a top-level ROADMAP checkbox at insertion time** (`- [ ] **Phase N.M: ...**`), so `roadmap_complete` tracks them and a future autonomous run does not re-execute finished work.
+2. **Put `requirements:` in every plan's SUMMARY frontmatter.** The milestone audit cross-references it as one of three sources; omitting it manufactures "partial" statuses for fully-delivered requirements.
+3. **Flip VALIDATION.md status post-execution, not just the nyquist flag** — stale `status: planned` on a GREEN phase reads as incomplete to anyone (or any tool) scanning frontmatter.
+
+### Cost Observations
+- Model mix: not tracked this milestone.
+- Notable: the close ran the audit refresh with two parallel subagents (integration checker + verification aggregator), then synthesized; faster than serial reading and kept the main context lean.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Cumulative Quality
@@ -53,8 +93,10 @@
 | v2.0 | 341 passed | Modular core + CredentialStore (no plaintext on disk) |
 | v3.0 | 548 passed, 2 skipped | Anti-detection + ecosystem + price monitoring |
 | v4.0 | 755 passed, 2 skipped | Verified checkout + always-on reliability |
+| v4.1 | 807 passed, 2 skipped | Dashboard redesign + live SSE observability (zero-Node) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Prune archived-milestone detail from the live ROADMAP at close — keeps `roadmap.analyze` accurate and ROADMAP constant-size.
 2. Single enforcement points (one ABC gate, one RetryPolicy) backed by CI guards beat per-site patches for safety-critical invariants.
+3. Keep planning-doc metadata in sync with reality at close: inserted decimal phases need a top-level ROADMAP checkbox, plan SUMMARYs need a `requirements:` field, and VALIDATION status must flip post-exec — stale frontmatter misleads both humans and `roadmap.analyze`/audit tooling.

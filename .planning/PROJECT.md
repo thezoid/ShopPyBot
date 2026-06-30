@@ -16,33 +16,35 @@ Target user: technically capable individuals who want automated stock monitoring
 
 ## Current State
 
-**Shipped v4.0 Win-the-Drop — Acquisition Core + Reliability (2026-06-25).** Built on the v3.0 resilience/ecosystem layer and the v2.0 modular core (`BotService` API behind a CLI-default front-end plus an optional FastAPI web UI; runtime-selected `CredentialStore` with no plaintext on disk). v4.0 makes the bot complete *verified* orders on limited-release drops and survive multi-hour unattended runs: a central monitor-only gate + `place_order_guarded()` ABC closing the 6-of-7 `test_mode` hole; order-confirmation detection (`purchased` only on a real order number); checkout profile + BestBuy/Amazon form-fill with CVV-at-runtime; one unified `RetryPolicy` with per-step timeouts and idempotent cart-retry; per-coroutine supervisor with browser relaunch, DB read isolation, per-item timeout, and a SIGTERM/SIGINT teardown bridge; Fernet-encrypted session persistence; and a per-plugin health surface (`get_status`, `health_degraded` alert, `shoppybot status`) plus a headless pygame import-crash guard.
+**Shipped v4.1 Dashboard & Observability (2026-06-30).** The optional FastAPI web dashboard is rebuilt on a zero-Node vendored design system (3-file CSS split, light/dark with FOUC-safe inline theming, uPlot 1.6.32 vendored) and now surfaces live operational observability over a single `/api/events` SSE stream: per-plugin health cards (status / heartbeat-age / error+items counters / confirmed-orders), a confirmed-buys table, per-item price-history charts, a filterable color-coded log viewer with tail, and an uptime bar. Read-only REST endpoints (`/api/history`, `/api/price-history/{link_b64}`, filtered `/api/logs`) back the surfaces with every sync read wrapped in `asyncio.to_thread`, `last_error` scrubbed, and a credential-leak CI guard. The prior 2s poll is replaced by `EventSource` with a polling fallback and a Live/Reconnecting indicator. The CLI-default, localhost-bound, no-CDN, read-only-observability posture is unchanged.
 
-v4.0: 7 phases (18-24) / 29 plans, all complete. Full suite: 755 passed, 2 skipped. Audit status `tech_debt` (no blockers; pre-accepted live-UAT debt).
+v4.1: 6 phases (25-29 + inserted 29.1) / 20 plans, all complete. Full suite: 807 passed, 2 skipped. Audit status `tech_debt` (no blockers; 2 low-sev warnings + pre-accepted live-UAT debt).
 
-**Deferred (carried):** all live-environment UAT (monitor-only/confirmation/form-fill/relaunch/SIGTERM/session/headless) tracked in STATE.md → Deferred Items as the operator's pre-production live-buy checklist; Amazon WAF CAPTCHA auto-solve (manual-pause fallback); public-release hardening — git-history scrub/squash (SEED-001) + release-please tagging (SEED-002).
+**Built on v4.0 Win-the-Drop (2026-06-25):** verified-order checkout (monitor-only gate + `place_order_guarded()` ABC, order-confirmation capture, checkout profile + BestBuy/Amazon form-fill with CVV-at-runtime, one unified `RetryPolicy` with per-step timeouts and idempotent cart-retry, per-coroutine supervisor + browser relaunch + DB read isolation + SIGTERM/SIGINT teardown, Fernet session persistence, per-plugin health surface) over the v2.0 modular core (`BotService` behind a CLI-default front-end + optional FastAPI web UI; runtime `CredentialStore`, no plaintext on disk).
 
-**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
+**Deferred (carried):** all live-environment UAT (v4.0 acquisition checks + v4.1 dashboard live-browser/socket checks) tracked in STATE.md → Deferred Items as the operator's pre-production checklist; Amazon WAF CAPTCHA auto-solve (manual-pause fallback); public-release hardening — git-history scrub/squash (SEED-001) + release-please tagging (SEED-002).
 
-## Current Milestone: v4.1 Dashboard & Observability
+**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default; zero-Node (no package.json/CDN/external fonts — vendored CSS/JS only); observability is read-only over `get_status()` + DB with no new secrets.
 
-**Goal:** Redesign the optional FastAPI web dashboard with a polished zero-dependency design system and surface rich live operational observability over SSE — without breaking the CLI-default, localhost-bound, no-Node posture.
+<details>
+<summary>Shipped: v4.1 Dashboard & Observability — 2026-06-30</summary>
 
-**Target features:**
-- Polished vendored design system (tokens, components, light/dark) via the frontend-design skill — no Node/CDN/external fonts
-- Live per-plugin health cards (status / heartbeat / last-check / degraded) from `get_status()` + `HealthRegistry`
-- Run history + recent confirmed buys (order_id, confirmed_at — BUY-04 records)
-- Price-history charts (per-item, from the `price_history` table)
-- Better log viewer (filter by level/plugin, search, tail)
-- SSE push for live status/log/health updates (replaces the 2s poll)
+**Goal:** Redesign the optional FastAPI web dashboard with a polished zero-dependency design system and surface rich live operational observability over SSE, without breaking the CLI-default, localhost-bound, no-Node posture.
 
-**Constraints (held):** CLI default; web optional + localhost bind + CSRF + non-local warning; zero-Node (no package.json/CDN/external fonts — vendored CSS only); observability is read-only over `BotService.get_status()` + DB, no new secrets.
+**Delivered features:**
+- Vendored zero-Node design system (3-file CSS split: tokens/components/dashboard; light/dark with FOUC-safe inline theming; uPlot 1.6.32 vendored, no CDN/fonts; `loadItems()`/`loadCredentials()` XSS vector fixed).
+- Read-only observability REST endpoints (`/api/history`, `/api/price-history/{link_b64}`, filtered `/api/logs`), all `asyncio.to_thread`-wrapped; `last_error` scrubbed; credential-leak CI guard.
+- SSE infrastructure: single `/api/events` stream, uvicorn `_poll_loop` sole-producer cross-thread bridge, keepalive, clean disconnect, cursor log tail.
+- Four observability surfaces: per-plugin health cards, confirmed-buys table, per-item price-history charts (empty-state), filterable color-coded log viewer (follow + 500-line cap), uptime bar.
+- SSE client wiring: `EventSource('/api/events')` replaces the 2s poll, named listeners, polling fallback, Live/Reconnecting indicator; inserted 29.1 cleanup closed 3 audit warnings (uPlot load order, log-dedup, SSE stall watchdog + REST fallback).
 
-**Research flags:** charts must be dependency-free (vendored tiny lib or hand-rolled SVG/canvas); price data is Amazon-only today (PRICE-02) so charts stay sparse for other plugins.
+**Constraints held:** CLI default; web optional + localhost bind + CSRF + non-local warning; zero-Node (no package.json/CDN/external fonts); observability read-only over `BotService.get_status()` + DB, no new secrets.
 
-## Future Candidate Directions (post-v4.1)
+</details>
 
-**Active milestone:** v4.1 Dashboard & Observability (scoped 2026-06-25; phases continue from 24). Remaining candidates for later milestones:
+## Future Candidate Directions
+
+Candidates for later milestones (next milestone not yet scoped — run `/gsd:new-milestone`):
 - **Public-release hardening** — git-history scrub/squash (SEED-001) + release-please version tagging (SEED-002); a dedicated release milestone.
 - **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon).
 - **Request/API-mode (hybrid) checkout** — faster than DOM but per-site reverse-engineering and an arms race.
@@ -116,9 +118,17 @@ v4.0: 7 phases (18-24) / 29 plans, all complete. Full suite: 755 passed, 2 skipp
 - ✓ Reliability: unified RetryPolicy (one backoff source) — v4.0 (Phase 21)
 - ✓ Server-safety: headless pygame import-crash guard + SIGTERM/SIGINT teardown bridge — v4.0 (Phases 24, 22)
 
-### Active (v4.1 Dashboard & Observability)
+### Validated (shipped v4.1 Dashboard & Observability)
 
-_Requirements defined in `.planning/REQUIREMENTS.md` (mapped by the roadmap). Focus: dashboard redesign (vendored design system) + live observability — per-plugin health cards, run/buy history, price-history charts, better log viewer, SSE push._
+- ✓ Redesigned dashboard on a vendored zero-Node design system (tokens/components, light/dark, FOUC-safe) — v4.1 (Phase 25)
+- ✓ Read-only observability REST endpoints (history, price-history, filtered logs), to_thread-wrapped + credential-scrubbed — v4.1 (Phase 26)
+- ✓ SSE infrastructure: single /api/events stream, uvicorn sole-producer bridge, keepalive, disconnect cleanup — v4.1 (Phase 27)
+- ✓ Live observability surfaces: per-plugin health cards, confirmed-buys table, price-history charts, filterable log viewer, uptime bar — v4.1 (Phase 28)
+- ✓ SSE client wiring: EventSource replaces polling, fallback, Live/Reconnecting indicator — v4.1 (Phases 29, 29.1)
+
+### Active (next milestone)
+
+_None scoped yet. Run `/gsd:new-milestone` to define the next milestone and a fresh `REQUIREMENTS.md`._
 
 ### Deferred
 
@@ -154,6 +164,11 @@ _Requirements defined in `.planning/REQUIREMENTS.md` (mapped by the roadmap). Fo
 | (v4.0) One unified `RetryPolicy` | Supervisor-restart and cart-retry share one backoff module so the two retry concepts cannot diverge or compound into a runaway loop | ✓ Good |
 | (v4.0) Retailer-saved payment + CVV-at-runtime | Never persist full card/PAN (PCI scope); CVV via `getpass`, never logged; AST CI assertion guards against leaks | ✓ Good |
 | (v4.0) Live-environment UAT deferred as tracked debt | Live retail checkout is ToS/legal risk in CI; confirmation/form-fill selectors verified by manual UAT, tracked in STATE.md Deferred Items | — Pending (operator live-buy checklist) |
+| (v4.1) uPlot vendored, no CDN/Node | Zero-Node is a hard constraint; uPlot is MIT, ~52KB, Canvas, dependency-free — vendored under web/static | ✓ Good |
+| (v4.1) 3-file CSS split (tokens/components/dashboard) | Token-only component rules keep theming maintainable and FOUC-safe; each file under 200 lines | ✓ Good |
+| (v4.1) uvicorn _poll_loop is the SOLE SSE producer | Bot daemon thread never touches asyncio.Queue; avoids the cross-loop race that is the highest-risk SSE pitfall | ✓ Good |
+| (v4.1) No new Python deps for SSE | Raw starlette StreamingResponse(text/event-stream) covers all needs; no sse-starlette, no FastAPI upgrade | ✓ Good |
+| (v4.1) Live-browser/socket UAT deferred as tracked debt | SSE/EventSource and visual rendering need a real browser/live socket; all automated assertions GREEN, live checks tracked in STATE.md | — Pending (operator dashboard checklist) |
 
 ## Evolution
 
@@ -173,4 +188,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-25 — v4.1 Dashboard & Observability milestone started*
+*Last updated: 2026-06-30 — v4.1 Dashboard & Observability shipped; next milestone not yet scoped*

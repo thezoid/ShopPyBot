@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: Dashboard & Observability
-status: executing
-last_updated: "2026-06-30T14:12:07.261Z"
-last_activity: 2026-06-30
+status: Awaiting next milestone
+last_updated: "2026-06-30T17:09:41.708Z"
+last_activity: 2026-06-30 — Milestone v4.1 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -20,18 +20,18 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v4.1 Dashboard & Observability
-**Total Phases**: 5 (Phases 25-29)
-**Total Requirements**: 16 (UI-01..04, OBS-01..09, SSE-01..03)
+**Milestone**: v4.1 Dashboard & Observability — SHIPPED 2026-06-30 (next milestone not yet scoped)
+**Total Phases**: 6 (Phases 25-29 + inserted 29.1)
+**Total Requirements**: 16 (UI-01..04, OBS-01..09, SSE-01..03) — all satisfied
 
 ---
 
 ## Current Position
 
-Phase: 29.1
-Plan: Not started
-Status: Executing Phase 29.1
-Last activity: 2026-06-30
+Phase: Milestone v4.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-30 — Milestone v4.1 completed and archived
 
 ## Phase Status
 
@@ -117,6 +117,23 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
 
 **Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
+
+### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
+
+All deferred per the autonomous live-UAT policy; none are code gaps. Operator dashboard/observability checklist plus carried release items.
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 27 — SSE infra live-socket checks (27-VERIFICATION.md) | human_needed |
+| verification | Phase 28 — observability surfaces live-browser render (28-VERIFICATION.md) | human_needed |
+| verification | Phase 29 — SSE client wiring live-browser (29-VERIFICATION.md) | human_needed |
+| verification | Phase 29.1 — tech-debt fixes live-runtime (29.1-VERIFICATION.md) | human_needed |
+| uat | Phase 29.1 — cold-load chart / stall->fallback / repeated-msg after repaint (29.1-HUMAN-UAT.md) | partial (3 pending) |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); manual-pause fallback in place |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
+| seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
+
+**Audit warnings tracked to backlog (non-blocking, from v4.1 audit refresh):** UI-03 SSR remove-button dead click handler (Phase 25, graceful-degradation, not XSS); `last_heartbeat` raw monotonic float in `get_status()` / SSE status payload (Phase 27, cosmetic, no credential exposure).
 
 ---
 | Phase 25-design-system P01 | 566s | 2 tasks | 2 files |
@@ -253,3 +270,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 - [Phase ?]: Phase 28-02: select rule added to components.css to match input[type=text] styling for log level dropdown
 - [Phase ?]: Phase 28-03: renderHealthCards and renderUptime are pure functions; MAX_LOG_LINES = 500 placed here so DOM cap test goes GREEN in wave 3
 - [Phase ?]: Phase 29-01: test_no_onmessage_for_named_events is GREEN at Wave 0 (anti-pattern guard; .onmessage absent from template; stays green through all plans)
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd:new-milestone

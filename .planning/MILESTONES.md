@@ -1,5 +1,26 @@
 # Milestones
 
+## v4.1 Dashboard & Observability (Shipped: 2026-06-30)
+
+**Phases completed:** 6 phases (25-29 + inserted 29.1), 20 plans
+
+**Delivered:** The optional FastAPI dashboard is redesigned on a zero-Node vendored design system and surfaces live operational observability over SSE, without breaking the CLI-default, localhost-bound, no-CDN posture.
+
+**Key accomplishments:**
+
+- **Design system (P25):** Zero-Node vendored CSS split (`tokens.css` / `components.css` / `dashboard.css`), light/dark theme with FOUC-safe inline `<head>` script, uPlot 1.6.32 vendored (no CDN), and the `loadItems()`/`loadCredentials()` XSS vector replaced with `createElement`/`textContent`; MC-4 non-local banner + CSRF gate preserved.
+- **Read-only API (P26):** `GET /api/history`, `GET /api/price-history/{link_b64}`, and a filterable `GET /api/logs` (level/search/n) — every sync DB/log read wrapped in `asyncio.to_thread`; `last_error` scrubbed to `exc.__class__.__name__`; CI assertion guards the read path against credential-pattern leaks.
+- **SSE infrastructure (P27):** Single `/api/events` stream over a clean cross-thread bridge where uvicorn's `_poll_loop` is the sole producer (bot daemon never touches `asyncio.Queue`); keepalive comments, disconnect cleanup (no generator leak), `retry: 3000`, and a cursor-based log tail.
+- **Observability surfaces (P28):** Per-plugin health cards (status badge, monotonic heartbeat-age color bands, error/items counters, confirmed-orders counter), confirmed-buys table, per-item uPlot price charts with explicit empty-state, color-coded filterable log viewer (Follow/pause-on-scroll, 500-line DOM cap), and a uptime status bar.
+- **SSE client wiring (P29):** Replaced the 2s `setInterval` polling with a single feature-detected `EventSource('/api/events')` (named status/log listeners, one-shot backfill), a polling fallback for environments without `EventSource`, and a Live/Reconnecting indicator.
+- **Tech-debt cleanup (P29.1, inserted):** Closed 3 audit warnings — uPlot loader relocated to `<head>` (cold-load `ReferenceError` race removed), blanket consecutive-line log drop replaced with a one-shot backfill-boundary dedup, and an SSE idle watchdog + REST polling fallback so a stalled-but-open stream flips to Reconnecting and recovers to Live.
+
+**Audit:** `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (refresh 2026-06-30) — 16/16 requirements satisfied, 6/6 phases, 6/6 integration boundaries WIRED, 5/5 E2E flows complete. Full suite 807 passed / 2 skipped. Status `tech_debt` (no blockers): 2 low-sev warnings (UI-03 SSR remove-button dead handler; `last_heartbeat` cosmetic field in status payload).
+
+**Known deferred items at close: 8** (see STATE.md → Deferred Items) — 4 `human_needed` verifications (P27/28/29/29.1, live-browser/socket) + 1 partial HUMAN-UAT (29.1, 3 scenarios), all deferred per the autonomous live-UAT policy; 1 todo (Amazon WAF auto-solve, manual-pause fallback in place); 2 dormant seeds (SEED-001 repo scrub, SEED-002 release-please) — release-milestone items.
+
+---
+
 ## v4.0 Win-the-Drop (Shipped: 2026-06-25)
 
 **Phases completed:** 7 phases, 29 plans
