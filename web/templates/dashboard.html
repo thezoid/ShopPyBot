@@ -18,6 +18,9 @@
   <link rel="stylesheet" href="/static/components.css">
   <link rel="stylesheet" href="/static/dashboard.css">
   <link rel="stylesheet" href="/static/vendor/uplot.min.css">
+  <!-- OBS-05: load uPlot in <head> (synchronous, no defer) so the uPlot global is
+       defined before the inline block's new uPlot() runs at cold load (moved from body end) -->
+  <script src="/static/vendor/uplot.iife.min.js"></script>
 </head>
 <body>
   {% if is_non_local %}
@@ -891,6 +894,5 @@
     loadConfig();
     loadConfirmedBuys();
   </script>
-  <script src="/static/vendor/uplot.iife.min.js"></script>
 </body>
 </html>
