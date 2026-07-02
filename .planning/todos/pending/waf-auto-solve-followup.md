@@ -5,6 +5,7 @@ status: pending
 source: Phase 14 (Anti-Detection Layer 2 — CAPTCHA Solving)
 relates_to: ANTI-06
 priority: medium
+resolves_phase: 30
 ---
 
 # Follow-up: Amazon WAF CAPTCHA auto-solve wiring

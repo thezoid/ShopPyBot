@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: Dashboard & Observability
-status: Awaiting next milestone
-last_updated: "2026-06-30T17:09:41.708Z"
-last_activity: 2026-06-30 — Milestone v4.1 completed and archived
+milestone: v4.2
+milestone_name: Release Readiness
+status: planning
+last_updated: "2026-07-02T00:00:00.000Z"
+last_activity: 2026-07-02
 progress:
   total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # ShopPyBot — State
@@ -20,36 +20,37 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v4.1 Dashboard & Observability — SHIPPED 2026-06-30 (next milestone not yet scoped)
-**Total Phases**: 6 (Phases 25-29 + inserted 29.1)
-**Total Requirements**: 16 (UI-01..04, OBS-01..09, SSE-01..03) — all satisfied
+**Milestone**: v4.2 Release Readiness (Phases 30-35)
+**Total Phases**: 6 (Phases 30-35)
+**Total Requirements**: 20 (RH-01..07, AF-01..03, BF-01..03, CFG-01..02, FC-01..02, DH-01..03)
 
 ---
 
 ## Current Position
 
-Phase: Milestone v4.1 complete
+Phase: Not started (roadmap defined)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-30 — Milestone v4.1 completed and archived
+Status: Roadmap created; ready for Phase 30 planning
+Last activity: 2026-07-02 — v4.2 roadmap created
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 25 — Design System | vendored CSS tokens + components, light/dark FOUC-safe, XSS fix, uPlot vendor, MC-4 preserved | Not started | UI-01, UI-02, UI-03, UI-04 |
-| 26 — Read-Only API Endpoints | GET /api/history, GET /api/price-history, log filter/search params, asyncio.to_thread, secret-scrub CI assertion | Not started | OBS-08, SSE-03 |
-| 27 — SSE Infrastructure | web/sse_hub.py + web/routes/sse.py, cross-thread bridge (SPIKE), keepalive, disconnect cleanup, cursor log tail | Not started | SSE-02 |
-| 28 — Frontend Observability Surfaces | health cards, confirmed-buys table, price-history uPlot charts, log viewer + tail/filter, uptime bar | Not started | OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-09 |
-| 29 — SSE Client Wiring | replace setInterval with EventSource, dispatch by type, live health + log append, fallback, Live indicator | Not started | SSE-01 |
+| 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | Not started | BF-01, BF-02, BF-03 |
+| 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Not started | RH-01, RH-04, RH-05 |
+| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Not started | RH-02, RH-03, RH-06, RH-07 |
+| 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Not started | CFG-01, CFG-02 |
+| 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Not started | FC-01, FC-02 |
+| 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Not started | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
 
 ---
 
 ## Performance Metrics
 
 **Plans completed**: 0 of TBD
-**Requirements completed**: 0 of 16
-**Phases completed**: 0 of 5
+**Requirements completed**: 0 of 20
+**Phases completed**: 0 of 6
 **Blockers resolved**: 0
 
 ---
@@ -85,10 +86,19 @@ Last activity: 2026-06-30 — Milestone v4.1 completed and archived
 - Phase 28: Price data is Amazon-only today (PRICE-02); non-Amazon items get explicit "No price history available for this plugin" message — never a blank chart area.
 - All phases: Zero-Node constraint is hard — no package.json, no CDN references, no external font URLs; all JS/CSS vendored via `web/static/`.
 
+### Sequencing Notes (v4.2 — carry into planning)
+
+- Phase 30 (Breakfix Hardening) is sequenced first: BF-02 is the milestone's one HIGH-priority item (place-order-timeout double-buy latch); closing it before other debt reduces exposure the longest.
+- Phase 31 must land before Phase 32: RH-04 (CodeQL) and RH-05 (dependabot) put CI security scanning in a working state before RH-02 (release-please) starts tagging releases against that same CI.
+- Phase 32: RH-03 (pyproject version reconcile to 2.0.0) lands in the same phase as RH-02 (release-please seed) — release-please needs a correct pyproject source-of-truth from its first run.
+- Phase 33: CFG-01 (field harmonization) must be implemented before CFG-02 (flexible per-platform config) — both touch the same config-schema surface; CFG-02 builds on the harmonized field set.
+- Phase 34 FC-01 carries the v4.1 Phase 26 research flag forward: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the `/api/logs` plugin filter (was deferred from OBS-08 pending this verification).
+- Phase 35 folds Audit-Fixes (AF-*) and Doc-Hygiene (DH-*) together — both are low-effort, low-risk cleanup; sequenced last as the milestone's closing phase.
+
 ### Active Todos
 
-- Execute Phase 25 plan (`/gsd:plan-phase 25`).
-- Operator: complete the v4.0 live-UAT checklist (STATE.md Deferred Items) before first production live-buy.
+- Run `/gsd:plan-phase 30` to begin Phase 30 (Breakfix Hardening) planning.
+- Operator: complete the v4.0 + v4.1 live-UAT checklists (STATE.md Deferred Items) before first production live-buy — unchanged, out of scope for v4.2.
 
 ### Blockers
 
@@ -116,7 +126,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
 | seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
 
-**Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
+**Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening. **Addressed in v4.2 Phase 30 (BF-02).**
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -129,11 +139,11 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 | verification | Phase 29 — SSE client wiring live-browser (29-VERIFICATION.md) | human_needed |
 | verification | Phase 29.1 — tech-debt fixes live-runtime (29.1-VERIFICATION.md) | human_needed |
 | uat | Phase 29.1 — cold-load chart / stall->fallback / repeated-msg after repaint (29.1-HUMAN-UAT.md) | partial (3 pending) |
-| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); manual-pause fallback in place |
-| seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
-| seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); manual-pause fallback in place. **In scope as v4.2 Phase 30 (BF-01), code wiring only — live-challenge proof stays operator debt.** |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone). **Non-destructive audit half in scope as v4.2 Phase 31 (RH-01); destructive rewrite stays operator-gated.** |
+| seed | SEED-002 — release-please automatic version tagging | dormant (release milestone). **In scope as v4.2 Phase 32 (RH-02/RH-03).** |
 
-**Audit warnings tracked to backlog (non-blocking, from v4.1 audit refresh):** UI-03 SSR remove-button dead click handler (Phase 25, graceful-degradation, not XSS); `last_heartbeat` raw monotonic float in `get_status()` / SSE status payload (Phase 27, cosmetic, no credential exposure).
+**Audit warnings tracked to backlog (non-blocking, from v4.1 audit refresh):** UI-03 SSR remove-button dead click handler (Phase 25, graceful-degradation, not XSS) — **in scope as v4.2 Phase 35 (AF-01).** `last_heartbeat` raw monotonic float in `get_status()` / SSE status payload (Phase 27, cosmetic, no credential exposure) — **in scope as v4.2 Phase 35 (AF-02).**
 
 ---
 | Phase 25-design-system P01 | 566s | 2 tasks | 2 files |
@@ -152,9 +162,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: v4.1 roadmap defined (Phases 25-29, 16 requirements mapped).
-**Next action**: Execute `/gsd:plan-phase 25` to plan Phase 25 (Design System).
-**Context to carry**: uPlot chosen as charting library (vendored, MIT); 3-file CSS split (tokens/components/layout); FOUC prevention via inline sync script first in `<head>`; SSE bridge pattern is uvicorn-only poll (bot thread never touches queues); Phase 27 spike required before full implementation; MC-4 test must pass at Phase 25 close.
+**Last action**: v4.2 roadmap defined (Phases 30-35, 20 requirements mapped).
+**Next action**: Execute `/gsd:plan-phase 30` to plan Phase 30 (Breakfix Hardening).
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) ships first since BF-02 is the milestone's only HIGH item. Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
 
@@ -251,7 +261,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ---
 
-*Last updated: 2026-06-25 — v4.1 roadmap created (Phases 25-29)*
+*Last updated: 2026-07-02 — v4.2 roadmap created (Phases 30-35, 20 requirements mapped)*
 
 ## Decisions
 
@@ -273,4 +283,4 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd:new-milestone
+- Run `/gsd:plan-phase 30` to begin Phase 30 (Breakfix Hardening) planning
