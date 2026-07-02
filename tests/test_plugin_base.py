@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from core.plugin_base import RetailerPlugin, PLUGIN_API_VERSION
@@ -298,6 +298,97 @@ async def test_place_order_guarded_suppressed_when_debug_absent():
 
     assert result is False
     click_fn.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# CR-01: place_order_guarded owns the durable marker write (moved from callers)
+# ---------------------------------------------------------------------------
+
+
+async def test_place_order_guarded_suppressed_test_mode_writes_no_marker():
+    """CR-01: when test_mode suppresses the click, NO marker write occurs even when
+    order_marker_link is provided -- writing here would permanently poison the item
+    with no click ever having fired."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = True
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(
+            click_fn, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is False
+    click_fn.assert_not_called()
+    mock_marker.assert_not_called()
+
+
+async def test_place_order_guarded_suppressed_monitor_only_writes_no_marker():
+    """CR-01: when monitor_only suppresses the click, NO marker write occurs even when
+    order_marker_link is provided."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = True
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(
+            click_fn, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is False
+    click_fn.assert_not_called()
+    mock_marker.assert_not_called()
+
+
+async def test_place_order_guarded_writes_marker_before_click():
+    """CR-01/D-01: when both flags are False and order_marker_link is provided, the
+    durable marker write completes BEFORE click_fn() fires (write-before-click
+    ordering preserved at the one site that knows a real click is about to fire)."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+
+    call_order: list[str] = []
+
+    def _fake_marker_write(link, attempted_at):
+        call_order.append("marker")
+
+    async def _fake_click():
+        call_order.append("click")
+
+    with patch(
+        "models.mark_place_order_attempted_sync", side_effect=_fake_marker_write
+    ) as mock_marker:
+        result = await plugin.place_order_guarded(
+            _fake_click, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is True
+    assert call_order == ["marker", "click"]
+    mock_marker.assert_called_once()
+    assert mock_marker.call_args[0][0] == "https://ex.com/item"
+
+
+async def test_place_order_guarded_no_marker_link_skips_write():
+    """When order_marker_link is None (default; unwired community plugins, MED-01),
+    the click still fires but no marker write is attempted."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(click_fn)
+
+    assert result is True
+    click_fn.assert_awaited_once()
+    mock_marker.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

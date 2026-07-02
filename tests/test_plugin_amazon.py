@@ -417,9 +417,11 @@ def test_amazon_checkout_stage_default_is_empty_string():
 
 
 @pytest.mark.asyncio
-async def test_amazon_marks_place_order_before_click(fake_browser):
-    """BF-02/D-01: auto_buy must write the durable marker (via run_in_executor)
-    BEFORE dispatching the place-order click (place_order_guarded call)."""
+async def test_amazon_auto_buy_passes_order_marker_link(fake_browser):
+    """CR-01: auto_buy must delegate the durable marker write to place_order_guarded
+    by passing order_marker_link=url -- NOT write the marker itself unconditionally
+    before the guard runs (the pre-CR-01 regression: an unconditional pre-call write
+    permanently latched items reached under test_mode, where no click ever fires)."""
     cfg = MagicMock()
     cfg.debug.test_mode = False
     cfg.debug.monitor_only = False
@@ -428,42 +430,51 @@ async def test_amazon_marks_place_order_before_click(fake_browser):
 
     plugin = AmazonPlugin(config=cfg)
     plugin.driver = fake_browser
+    plugin.place_order_guarded = AsyncMock(return_value=True)
 
-    call_order: list[str] = []
-
-    def _fake_marker_write(link, attempted_at):
-        call_order.append("marker")
-
-    async def _fake_place_order_guarded(click_fn):
-        call_order.append("click_dispatch")
-        return True
-
-    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
-         patch.object(
-             plugin, "place_order_guarded",
-             new=AsyncMock(side_effect=_fake_place_order_guarded),
-         ), \
-         patch("models.mark_place_order_attempted_sync", side_effect=_fake_marker_write) as mock_marker:
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)):
         result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
 
-    assert call_order == ["marker", "click_dispatch"], (
-        f"Marker write must precede the place-order click dispatch; got {call_order}"
-    )
-    mock_marker.assert_called_once()
-    marker_args = mock_marker.call_args[0]
-    assert marker_args[0] == "https://www.amazon.com/dp/B00TEST"
     assert result is True
+    plugin.place_order_guarded.assert_awaited_once()
+    _, kwargs = plugin.place_order_guarded.call_args
+    assert kwargs.get("order_marker_link") == "https://www.amazon.com/dp/B00TEST"
+
+
+@pytest.mark.asyncio
+async def test_amazon_auto_buy_test_mode_writes_no_marker(fake_browser):
+    """CR-01: reaching place-order with test_mode=True must NOT write the durable
+    marker -- the click is suppressed inside place_order_guarded, and writing here
+    would permanently poison the item with a false possibly_placed alert."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = True
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+    plugin._wait_user_action = AsyncMock()  # skip the real 300s test-mode pause
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
+         patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    assert result is False
+    mock_marker.assert_not_called()
 
 
 def test_amazon_place_order_marker_not_via_write_queue():
-    """BF-02: the marker write must not be routed through write_queue (D-01 durability).
+    """CR-01/BF-02: the marker write must not be routed through write_queue (D-01
+    durability); auto_buy delegates the write to place_order_guarded via
+    order_marker_link rather than calling mark_place_order_attempted_sync itself.
 
     Checks non-comment lines only -- explanatory comments about *why* the marker
     avoids write_queue are fine; actual code referencing write_queue is not.
     """
     source_lines = _PLUGIN_PATH.read_text(encoding="utf-8").splitlines()
-    assert any("mark_place_order_attempted_sync" in line for line in source_lines), (
-        "Amazon plugin must call mark_place_order_attempted_sync"
+    assert any("order_marker_link=url" in line for line in source_lines), (
+        "Amazon plugin must pass order_marker_link=url to place_order_guarded"
     )
     violations = [
         (i + 1, line)

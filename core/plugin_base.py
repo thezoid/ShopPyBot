@@ -1,5 +1,7 @@
+import asyncio
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Literal
 
 from nodriver.cdp import network as cdp_network
@@ -145,11 +147,24 @@ class RetailerPlugin(ABC):
         """
         return getattr(self.driver, "main_tab", None)
 
-    async def place_order_guarded(self, click_fn) -> bool:
+    async def place_order_guarded(
+        self, click_fn, *, order_marker_link: str | None = None
+    ) -> bool:
         """Invoke click_fn only when test_mode and monitor_only are both False.
 
         Returns True when the click fires, False when suppressed.
         Never raises. PLUGIN_API_VERSION stays 2 (additive concrete method, BUY-02).
+
+        CR-01: this is the ONLY site that knows a real click is about to fire, so
+        the durable place-order marker write lives here rather than being written
+        unconditionally by the caller before the guard runs. When order_marker_link
+        is provided and the click is NOT suppressed, mark_place_order_attempted_sync
+        is durably awaited (via run_in_executor) immediately BEFORE click_fn() --
+        preserving the D-01 write-before-click ordering. The suppressed branch
+        returns before any marker write, so a test_mode/monitor_only run (where no
+        click ever fires) can no longer permanently latch the item as "possibly
+        placed" or fire a false possibly_placed alert (the pre-CR-01 regression:
+        callers wrote the marker unconditionally, ahead of this guard).
 
         Safe-default behavior when config or debug is absent:
         - test_mode defaults to True (suppressed): missing config prevents an order.
@@ -166,6 +181,12 @@ class RetailerPlugin(ABC):
         if test_mode or monitor_only:
             writeLog("place-order suppressed (monitor_only/test_mode)", "INFO")
             return False
+        if order_marker_link is not None:
+            from models import mark_place_order_attempted_sync
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await asyncio.get_running_loop().run_in_executor(
+                None, mark_place_order_attempted_sync, order_marker_link, now_iso
+            )
         await click_fn()
         return True
 

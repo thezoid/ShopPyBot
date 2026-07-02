@@ -14,7 +14,6 @@ directly. The orchestrator's write queue owns the sole write path.
 import asyncio
 import json as _json
 import logging
-from datetime import datetime, timezone
 
 import nodriver
 
@@ -412,19 +411,18 @@ class BestBuyPlugin(RetailerPlugin):
                     writeLog("Place order button not found", "ERROR")
                     return False
                 self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
-                # BF-02/D-01 parity write (byte-identical to Amazon's place-order
-                # marker, Task 1): durable write-ahead marker MUST complete (be
-                # awaited) before the click fires, so a crash/relaunch mid-place-order
-                # latches non-retryable. Not routed through the async write_queue
-                # (its put() does not guarantee on-disk durability before the click --
-                # would defeat D-01). Distinct from the purchased/confirmed write,
-                # which stays write_queue-owned, unchanged (ASYNC-05).
-                from models import mark_place_order_attempted_sync
-                now_iso = datetime.now(timezone.utc).isoformat()
-                await asyncio.get_running_loop().run_in_executor(
-                    None, mark_place_order_attempted_sync, url, now_iso
+                # CR-01/D-01 parity (byte-identical to Amazon's fix, Task 1): the
+                # durable write-ahead marker is written by place_order_guarded itself,
+                # immediately before the click, and ONLY when the click is not
+                # suppressed by test_mode/monitor_only. Writing it here unconditionally
+                # (pre-CR-01 behavior) permanently latched items reached under
+                # test_mode even though no click ever fired. Not routed through the
+                # async write_queue (its put() does not guarantee on-disk durability
+                # before the click -- would defeat D-01). Distinct from the
+                # purchased/confirmed write, which stays write_queue-owned (ASYNC-05).
+                return await self.place_order_guarded(
+                    place_order.click, order_marker_link=url
                 )
-                return await self.place_order_guarded(place_order.click)
         except Exception as exc:
             writeLog(
                 f"Error during BestBuy auto-buy at stage {self._checkout_stage!r}: {exc.__class__.__name__}",
