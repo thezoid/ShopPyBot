@@ -97,7 +97,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 - [x] **Phase 30: Breakfix Hardening** — Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification (completed 2026-07-02)
 - [x] **Phase 31: CI & Security Infrastructure** — Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vulnerability remediation (completed 2026-07-02)
-- [ ] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact
+- [x] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact (completed 2026-07-02)
 - [ ] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration
 - [ ] **Phase 34: Feature Completion** — `[plugin]` log tags + `/api/logs` filter, outcome analytics over verified-order records
 - [ ] **Phase 35: Audit-Fixes & Doc-Hygiene Cleanup** — SSR remove-button fix, `last_heartbeat` leak fix, dead `escHtml()` removal, v4.0/v4.1 frontmatter reconciliation
@@ -160,7 +160,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 - [x] 32-01-PLAN.md — RH-03 pyproject version reconcile to 2.0.0 + RH-02 release-please config/manifest/workflow seeded at 2.0.0
 - [x] 32-02-PLAN.md — RH-06 README rewrite (7-platform ecosystem, web dashboard, install/badges/clone-URL accuracy)
-- [ ] 32-03-PLAN.md — RH-07 replace SECURITY_CONTACT_PLACEHOLDER with GitHub Private Vulnerability Reporting
+- [x] 32-03-PLAN.md — RH-07 replace SECURITY_CONTACT_PLACEHOLDER with GitHub Private Vulnerability Reporting
 
 ### Phase 33: Config Refactor
 

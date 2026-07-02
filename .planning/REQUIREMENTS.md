@@ -17,7 +17,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 - [x] **RH-04**: The CodeQL static-security-scan workflow runs successfully (retired `checkout@v2` / `codeql-action@v1` bumped to supported versions)
 - [x] **RH-05**: `.github/dependabot.yml` exists and open dependency vulnerability alerts are reviewed and remediated to a clean state
 - [x] **RH-06**: README accurately reflects shipped capabilities (7-platform ecosystem, web dashboard/observability, price monitoring, anti-detection, sessions), correct prereqs (Python 3.11+), correct install (`pip install -e .[web]` / `shoppybot`), working badges, and a real clone URL
-- [ ] **RH-07**: `SECURITY.md` and `CODE_OF_CONDUCT.md` carry a real maintainer security contact in place of `SECURITY_CONTACT_PLACEHOLDER@example.com` (value operator-supplied)
+- [x] **RH-07**: `SECURITY.md` and `CODE_OF_CONDUCT.md` carry a real maintainer security contact in place of `SECURITY_CONTACT_PLACEHOLDER@example.com` (value operator-supplied)
 
 ### Audit-Fixes
 
@@ -85,7 +85,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | RH-02 | Phase 32 | Complete |
 | RH-03 | Phase 32 | Complete |
 | RH-06 | Phase 32 | Complete |
-| RH-07 | Phase 32 | Pending |
+| RH-07 | Phase 32 | Complete |
 | CFG-01 | Phase 33 | Pending |
 | CFG-02 | Phase 33 | Pending |
 | FC-01 | Phase 34 | Pending |
