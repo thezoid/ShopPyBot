@@ -359,6 +359,55 @@ async def test_legacy_purchased_item_zero_auto_buy_calls(tmp_data_dir):
     assert write_queue.empty()
 
 @pytest.mark.asyncio
+async def test_possibly_placed_aborts_retry(tmp_data_dir):
+    """BF-02: marker set + order_id None -> _PossiblyPlaced aborts retry (no re-click)."""
+    plugin, _ = _make_plugin([False, False, False])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    plugin.auto_buy.assert_not_awaited()
+    assert mock_inc.call_count == 0
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_possibly_placed_precedence_confirmed_order_wins(tmp_data_dir):
+    """Pitfall 6: an existing non-null order_id short-circuits via _AlreadyConfirmed
+    BEFORE the marker check is ever reached (sentinel != needs-manual-review)."""
+    plugin, _ = _make_plugin([True])
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(True, "ORD-EXISTING")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ) as mock_marker,
+        patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    plugin.auto_buy.assert_not_awaited()
+    mock_marker.assert_not_called()
+    assert mock_inc.call_count == 0
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
 async def test_no_retry_loop_in_orchestrator():
     """Structural: orchestrator must not contain `for attempt in range(` loops.
 

@@ -1219,3 +1219,36 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     assert snap_l.get("AmazonPlugin", {}).get("orders_confirmed", 0) == 1, (
         f"orders_confirmed must be 1 on legacy path; snap={snap_l}"
     )
+
+
+# ---------------------------------------------------------------------------
+# BF-02: _PossiblyPlaced guard -- possibly_placed operator alert (Plan 30-01)
+# ---------------------------------------------------------------------------
+
+
+async def test_possibly_placed_alert_fires_once(fake_notifier):
+    """_try_auto_buy fires exactly one possibly_placed alert when the marker is set."""
+    from core.orchestrator import _try_auto_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = _make_amazon_plugin(bought=False)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    q: asyncio.Queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, dispatcher)
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 1, (
+        f"Expected exactly 1 possibly_placed alert, got {len(possibly_placed_events)}"
+    )
+    assert q.empty(), "No enqueue on possibly_placed abort -- item skipped, not re-attempted"
