@@ -120,7 +120,7 @@ class BestBuyPlugin(RetailerPlugin):
                 token = await loop.run_in_executor(
                     None, solver.solve_recaptcha, sitekey, pageurl
                 )
-        except (asyncio.TimeoutError, Exception) as exc:
+        except Exception as exc:
             _log.warning("BestBuy CAPTCHA solve failed: %s", exc.__class__.__name__)
             await self._wait_user_action(
                 self.captcha_event,
