@@ -140,7 +140,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 **Plans**: 3 plans (1 wave)
 
-- [ ] 31-01-PLAN.md — RH-01 secret-scan: suppress the one test-fixture false positive, add tests/test_no_tracked_secrets.py guard, add gitleaks CI job
+- [x] 31-01-PLAN.md — RH-01 secret-scan: suppress the one test-fixture false positive, add tests/test_no_tracked_secrets.py guard, add gitleaks CI job
 - [ ] 31-02-PLAN.md — RH-04 CodeQL workflow bump (checkout@v6 + codeql-action@v4, build-mode none, autobuild removed) + folded-in ci.yml Node20 bumps
 - [ ] 31-03-PLAN.md — RH-05 create .github/dependabot.yml + bump cryptography/pydantic-settings/jinja2, full suite stays green
 

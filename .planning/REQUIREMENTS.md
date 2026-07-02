@@ -11,7 +11,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 
 ### Release-Hardening
 
-- [ ] **RH-01**: Repo git history and `.gitignore` are audited so no secret, populated `config.yml`, real `data/*.db`, or credential-store artifact is tracked (SEED-001 non-destructive prep; a clean `gitleaks`/`trufflehog` scan is the evidence)
+- [x] **RH-01**: Repo git history and `.gitignore` are audited so no secret, populated `config.yml`, real `data/*.db`, or credential-store artifact is tracked (SEED-001 non-destructive prep; a clean `gitleaks`/`trufflehog` scan is the evidence)
 - [ ] **RH-02**: release-please workflow + config tags releases and maintains `CHANGELOG.md` from conventional commits, seeded at product version **v2.0.0** (SEED-002)
 - [ ] **RH-03**: `pyproject.toml` canonical version is reconciled to `2.0.0` so release-please (python type) has a correct source of truth
 - [ ] **RH-04**: The CodeQL static-security-scan workflow runs successfully (retired `checkout@v2` / `codeql-action@v1` bumped to supported versions)
@@ -79,7 +79,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | BF-01 | Phase 30 | Complete |
 | BF-02 | Phase 30 | Complete |
 | BF-03 | Phase 30 | Complete |
-| RH-01 | Phase 31 | Pending |
+| RH-01 | Phase 31 | Complete |
 | RH-04 | Phase 31 | Pending |
 | RH-05 | Phase 31 | Pending |
 | RH-02 | Phase 32 | Pending |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
 status: executing
-last_updated: "2026-07-02T18:48:54.572Z"
+last_updated: "2026-07-02T19:46:06.442Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 17
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 31
-Plan: Not started
+Plan: 2 of 3
 Status: Ready to execute
 Last activity: 2026-07-02
 
@@ -133,6 +133,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 30-breakfix-hardening P04 | 5min | 2 tasks | 4 files |
 | Phase 30-breakfix-hardening P06 | 10min | 2 tasks | 10 files |
 | Phase 30-breakfix-hardening P05 | 19min | 2 tasks | 4 files |
+| Phase 31 P01 | 6min | 2 tasks | 3 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -168,9 +169,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: Phase 30 Plan 06 complete (BF-03 community plugin conversion: Walmart, Target, GameStop, NewEgg, SquareEnix `login()` now returns `bool` via the shared `_verify_login_generic` generic signal, D-12; each `auto_buy` sets `_checkout_stage="login"` before `login()` and aborts on `False`, D-15); STATE.md/ROADMAP.md/REQUIREMENTS.md updated. Full suite: 863 passed, 2 skipped.
-**Next action**: Execute `/gsd:execute-phase 30` (or continue with 30-05-PLAN.md) to close out Phase 30 (Breakfix Hardening) -- 30-05 (Amazon/BestBuy BF-03, depends on 30-03+30-04) is the only remaining plan.
-**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) ships first since BF-02 is the milestone's only HIGH item. Plan 30-01 closed BF-02's read side (place-order marker column/accessors + `_PossiblyPlaced` guard) and BF-03's orchestrator-layer login-failure short-circuit (`should_retry` predicate + `login_failed` alert). Plan 30-02 closed BF-01: the Amazon WAF gokuProps branch now calls `CaptchaSolver.solve_amazon_waf` once via `run_in_executor`/`asyncio.timeout(120)` and falls back to manual pause on every non-success path; live-challenge acceptance stays operator debt. Plan 30-03 closed the BF-03 ABC foundation: `RetailerPlugin.login()` now returns `bool` (True no-op default, D-14), `_verify_login_generic(tab, signin_url_fragment, form_selector)` is the single shared D-11 verification mechanism (ambiguous/exception -> False, D-13), and `relaunch()` captures `login()`'s return value and logs ERROR on failure (D-15 second half) with no dispatcher plumbing added. Plan 30-04 closed BF-02's write side for both live-tested plugins (Amazon Task 1, BestBuy parity Task 2) -- BF-02 is now fully code-complete and CI-green (read-side guard from 30-01 + write-side marker from 30-04). Plan 30-06 closed BF-03 for the 5 community plugins using the generic signal only (D-12; selector tuning stays operator debt) and the uniform abort-on-failed-login behavior (D-15, Pitfall 3 -- login() is called mid-flow after add-to-cart/checkout-proceed for all 5). Only 30-05 remains (Amazon/BestBuy BF-03, depends on 30-03+30-04) to close out Phase 30. Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
+**Last action**: Phase 31 Plan 01 complete (RH-01 secret-scan audit: inline `#gitleaks:allow` suppression on the one confirmed test-fixture false positive at tests/test_captcha.py:381, new tests/test_no_tracked_secrets.py local guard mirroring test_no_committed_sessions.py, new .github/workflows/gitleaks.yml full-history CI job with checkout@v6 + gitleaks-action@v3). RH-01 local-verifiable half complete; gitleaks Actions run + leaks-found:0 confirmation is CI debt (post-push). STATE.md/ROADMAP.md/REQUIREMENTS.md updated. Full suite: 889 passed, 2 skipped.
+**Next action**: Continue Phase 31 (CI & Security Infrastructure) with 31-02-PLAN.md (RH-04 CodeQL workflow fix: bump retired checkout@v2/codeql-action@v1 to checkout@v6/codeql-action@v4).
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). Plan 31-01 closed RH-01 (secret-scan audit). 31-02 (RH-04 CodeQL) and 31-03 (RH-05 dependabot + vuln remediation: cryptography 44.0.2→49.0.0, pydantic-settings 2.14.0→2.14.2, jinja2 3.1.4→3.1.6 per RESEARCH.md) remain. CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
 
@@ -300,6 +301,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 30-breakfix-hardening]: Amazon/BestBuy auto_buy sets _checkout_stage="login" and calls login() at their existing (unchanged) positions -- Amazon before DOM interaction, BestBuy mid-flow after add-to-cart/checkout-proceed -- with uniform abort-all-remaining-stages on False — D-15 implemented consistently across all 7 plugins regardless of where login() sits in each flow, matching the 30-06 community-plugin precedent
 - [Phase 30-breakfix-hardening]: Amazon's tighter D-12 signal is absence of #ap_email (already the generic signal, since no live-verified account-landing selector exists); BestBuy's is redirect-off-/identity/signin (URL-only, honest available signal) — Neither plugin's post-login landing-page DOM is live-verified, so the URL-fragment-based generic check is the most honest signal available without inventing an unverified selector
 - [Phase 30-breakfix-hardening]: 30-REVIEW.md (deep code review, 2026-07-02) found CR-01 (critical): the BF-02 place-order marker was written unconditionally by Amazon/BestBuy auto_buy() before place_order_guarded's test_mode/monitor_only suppression check, permanently latching items reached under the documented-default test_mode=true with no click ever fired, plus a false possibly_placed alert. Gap-closure (same day, TDD, 4 commits: ba16879/22ec887/861fc79/dbe1345) resolved CR-01 (marker write moved into place_order_guarded via order_marker_link kwarg), MED-02 (possibly_placed alert now fires once per latch via alerted_links, not every poll cycle), LOW-03 (added clear_place_order_marker_sync recovery accessor), LOW-01 (redundant asyncio.TimeoutError tuple removed). MED-01 (community-plugin marker write) and LOW-02 (_checkout_stage invariant) remain deferred, pre-declared debt. Full suite: 887 passed, 2 skipped (baseline 878 passed, 2 skipped).
+- [Phase 31-01]: Suppressed the one gitleaks finding (tests/test_captcha.py:381 sentinel_key) with an inline #gitleaks:allow comment, not a .gitleaks.toml path exemption -- avoids silently suppressing a future real leak under tests/
+- [Phase 31-01]: No local gitleaks binary run this session (not pre-installed); CI enforcement path (gitleaks-action@v3) is self-contained and does not need one -- workflow validated by YAML correctness + acceptance-criteria greps
 
 ## Operator Next Steps
 
