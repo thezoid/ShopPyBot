@@ -125,7 +125,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 - [x] 30-03-PLAN.md — BF-03 login()->bool ABC + `_verify_login_generic` + relaunch check (core/plugin_base.py) [wave 1]
 - [x] 30-04-PLAN.md — BF-02 Amazon + BestBuy place-order marker writes (BestBuy task droppable) [wave 2]
 - [x] 30-06-PLAN.md — BF-03 community login verification: Walmart/Target/GameStop/NewEgg/SquareEnix [wave 2]
-- [ ] 30-05-PLAN.md — BF-03 Amazon + BestBuy login verification + auto_buy abort [wave 3]
+- [x] 30-05-PLAN.md — BF-03 Amazon + BestBuy login verification + auto_buy abort [wave 3]
 
 ### Phase 31: CI & Security Infrastructure
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
 status: executing
-last_updated: "2026-07-02T17:24:52.998Z"
+last_updated: "2026-07-02T17:49:53.922Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 0
+  completed_plans: 6
+  percent: 17
 ---
 
 # ShopPyBot — State
@@ -29,8 +29,8 @@ progress:
 ## Current Position
 
 Phase: 30-breakfix-hardening
-Plan: 5 of 6 plans complete (30-06 executed; 30-05 still pending -- wave 2 plans run independently)
-Status: Ready to execute 30-05
+Plan: 6 of 6 plans complete (30-06 executed; 30-05 still pending -- wave 2 plans run independently)
+Status: Ready to execute
 Last activity: 2026-07-02
 
 ## Phase Status
@@ -132,6 +132,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 30-breakfix-hardening P03 | 10min | 2 tasks | 3 files |
 | Phase 30-breakfix-hardening P04 | 5min | 2 tasks | 4 files |
 | Phase 30-breakfix-hardening P06 | 10min | 2 tasks | 10 files |
+| Phase 30-breakfix-hardening P05 | 19min | 2 tasks | 4 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -296,6 +297,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 30-breakfix-hardening]: BestBuy parity marker write (Task 2) included rather than deferred — RESEARCH.md found the byte-identical swallowed-TimeoutError shape at bestbuy:389-396; the guard mechanism from 30-01 is platform-agnostic so closing the now-known symmetric exposure was low marginal cost
 - [Phase 30-breakfix-hardening]: 5 community plugins use the generic _verify_login_generic signal only (D-12), no platform-specific override — selectors are unverified TODOs; selector tuning stays operator debt per D-12
 - [Phase 30-breakfix-hardening]: D-15 implemented uniformly as abort-all-remaining-stages on failed login, not no-add-to-cart — all 5 community plugins call login() mid-flow after add-to-cart + checkout-proceed (Pitfall 3)
+- [Phase 30-breakfix-hardening]: Amazon/BestBuy auto_buy sets _checkout_stage="login" and calls login() at their existing (unchanged) positions -- Amazon before DOM interaction, BestBuy mid-flow after add-to-cart/checkout-proceed -- with uniform abort-all-remaining-stages on False — D-15 implemented consistently across all 7 plugins regardless of where login() sits in each flow, matching the 30-06 community-plugin precedent
+- [Phase 30-breakfix-hardening]: Amazon's tighter D-12 signal is absence of #ap_email (already the generic signal, since no live-verified account-landing selector exists); BestBuy's is redirect-off-/identity/signin (URL-only, honest available signal) — Neither plugin's post-login landing-page DOM is live-verified, so the URL-fragment-based generic check is the most honest signal available without inventing an unverified selector
 
 ## Operator Next Steps
 
