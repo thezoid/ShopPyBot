@@ -292,9 +292,15 @@ async def _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, 
 def _get_plugin_sleep(plugin, poll_interval: float) -> float:
     """Return per-platform jitter sleep or shared poll_interval as fallback.
 
-    Reads plugin.platform_key to resolve config.platforms.<key>. Returns
-    random.uniform(min_delay, max_delay) when both are defined; otherwise
-    returns poll_interval. Any attribute lookup failure falls back safely.
+    CFG-01: reads plugin.platform_key to resolve config.platforms.<key>, then reads
+    the canonical delay_seconds/delay_jitter fields uniformly for all 7 platforms.
+    Returns delay_seconds + random.uniform(0, delay_jitter) when both are defined;
+    otherwise returns poll_interval. Any attribute lookup failure falls back safely.
+
+    Option A (accepted, see 33-CONTEXT.md/33-RESEARCH.md): Amazon/BestBuy now receive
+    poll-cadence jitter from this uniform read path (e.g. 30 + uniform(0, 10) = 30-40s)
+    instead of always falling back to the flat poll_interval, since their models already
+    declare delay_seconds/delay_jitter with real defaults.
     """
     try:
         platform_key = getattr(plugin, "platform_key", None)
@@ -303,11 +309,11 @@ def _get_plugin_sleep(plugin, poll_interval: float) -> float:
         platform_cfg = getattr(plugin.config.platforms, platform_key, None)
         if platform_cfg is None:
             return poll_interval
-        min_delay = getattr(platform_cfg, "min_delay", None)
-        max_delay = getattr(platform_cfg, "max_delay", None)
-        if min_delay is None or max_delay is None:
+        delay_seconds = getattr(platform_cfg, "delay_seconds", None)
+        delay_jitter = getattr(platform_cfg, "delay_jitter", None)
+        if delay_seconds is None or delay_jitter is None:
             return poll_interval
-        return random.uniform(min_delay, max_delay)
+        return delay_seconds + random.uniform(0, delay_jitter)
     except Exception:
         return poll_interval
 
