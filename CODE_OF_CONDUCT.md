@@ -15,11 +15,10 @@ sexual identity and orientation.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported privately to the project maintainer at:
-
-`SECURITY_CONTACT_PLACEHOLDER@example.com`
-*(This is a placeholder. The maintainer must replace it with a real verified
-address before launch.)*
+reported privately via GitHub's private vulnerability reporting flow:
+[https://github.com/thezoid/ShopPyBot/security/advisories/new](https://github.com/thezoid/ShopPyBot/security/advisories/new)
+(Security tab → "Report a vulnerability"). This channel is private by design
+and reaches the project maintainer directly.
 
 All reports will be handled with discretion and confidentiality.
 
