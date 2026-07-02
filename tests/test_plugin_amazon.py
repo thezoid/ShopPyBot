@@ -456,11 +456,21 @@ async def test_amazon_marks_place_order_before_click(fake_browser):
 
 
 def test_amazon_place_order_marker_not_via_write_queue():
-    """BF-02: the marker write must not be routed through write_queue (D-01 durability)."""
-    source = _PLUGIN_PATH.read_text(encoding="utf-8")
-    assert "mark_place_order_attempted_sync" in source, (
+    """BF-02: the marker write must not be routed through write_queue (D-01 durability).
+
+    Checks non-comment lines only -- explanatory comments about *why* the marker
+    avoids write_queue are fine; actual code referencing write_queue is not.
+    """
+    source_lines = _PLUGIN_PATH.read_text(encoding="utf-8").splitlines()
+    assert any("mark_place_order_attempted_sync" in line for line in source_lines), (
         "Amazon plugin must call mark_place_order_attempted_sync"
     )
-    assert "write_queue" not in source, (
-        "Amazon plugin must not reference write_queue for the place-order marker (D-01)"
+    violations = [
+        (i + 1, line)
+        for i, line in enumerate(source_lines)
+        if "write_queue" in line and not line.lstrip().startswith("#")
+    ]
+    assert not violations, (
+        "Amazon plugin must not reference write_queue in code for the place-order "
+        f"marker (D-01): {violations}"
     )
