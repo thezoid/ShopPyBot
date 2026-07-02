@@ -173,7 +173,10 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
   2. A plugin can add a new, previously-undeclared per-platform config section (e.g. a test/fixture plugin) and have it load and validate with zero changes to the core config-schema file (CFG-02).
   3. The existing config-schema test suite plus new tests for both requirements are green.
 
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
+
+- [ ] 33-01-PLAN.md — CFG-01 canonical delay_seconds/delay_jitter + legacy shim + _get_plugin_sleep (Option A jitter activation) [wave 1]
+- [ ] 33-02-PLAN.md — CFG-02 PlatformsConfig extra="allow" + RetailerPlugin.get_platform_config helper + fixture-plugin proof [wave 2]
 
 ### Phase 34: Feature Completion
 
