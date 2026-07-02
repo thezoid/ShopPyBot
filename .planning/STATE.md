@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
 status: verifying
-last_updated: "2026-07-02T20:34:41.174Z"
+last_updated: "2026-07-02T21:25:19.948Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 12
+  completed_plans: 10
   percent: 33
 ---
 
@@ -29,8 +29,8 @@ progress:
 ## Current Position
 
 Phase: 32
-Plan: Not started
-Status: Phase complete — ready for verification
+Plan: 01 of 3
+Status: In Progress (1/3 plans)
 Last activity: 2026-07-02
 
 ## Phase Status
@@ -39,7 +39,7 @@ Last activity: 2026-07-02
 |-------|-------------|--------|------|
 | 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (5/6 plans) | BF-01, BF-02, BF-03 |
 | 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Complete (3/3 plans) | RH-01, RH-04, RH-05 |
-| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Not started | RH-02, RH-03, RH-06, RH-07 |
+| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | In Progress (1/3 plans) | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Not started | CFG-01, CFG-02 |
 | 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Not started | FC-01, FC-02 |
 | 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Not started | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
@@ -136,6 +136,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 31 P01 | 6min | 2 tasks | 3 files |
 | Phase 31-ci-security-infrastructure P02 | 5min | 2 tasks | 2 files |
 | Phase 31 P03 | 8min | 2 tasks | 3 files |
+| Phase 32-release-automation-community-readiness P01 | 10min | 3 tasks | 4 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -171,8 +172,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: Phase 31 Plan 03 complete (RH-05: created .github/dependabot.yml with pip + github-actions ecosystems; bumped cryptography 44.0.2→49.0.0, pydantic-settings[yaml] 2.14.0→2.14.2 in requirements.txt, jinja2 3.1.4→3.1.6 in pyproject.toml [web] extra). All 7 open Dependabot alerts cleared per live vulnerable_version_range cross-check; zero documented-dismissals needed; no cryptography 48.0.1 fallback required (49.0.0 went green first try). Full suite: 889 passed, 2 skipped. Phase 31 (CI & Security Infrastructure) is now fully code-complete across all 3 plans (RH-01, RH-04, RH-05). STATE.md/ROADMAP.md updated.
-**Next action**: Run `/gsd:plan-phase 32` to begin Phase 32 (Release Automation & Community Readiness) planning — RH-02, RH-03, RH-06, RH-07.
+**Last action**: Phase 32 Plan 01 complete (RH-03 + RH-02: bumped pyproject.toml [project].version 0.1.0→2.0.0, confirmed sole version source; created release-please-config.json + .release-please-manifest.json seeded at 2.0.0 manifest mode; created .github/workflows/release-please.yml using googleapis/release-please-action@v5, push→master trigger, contents:write + pull-requests:write only). Full suite: 889 passed, 2 skipped, no regression. Actions allowlist (third-party actions blocked) flagged as operator debt in 32-01-SUMMARY.md, not toggled autonomously. RH-03 and RH-02 are code-complete; automation will function once operator opens the allowlist. STATE.md/ROADMAP.md updated.
+**Next action**: Continue Phase 32 with plan 32-02 (RH-06 README refresh) and 32-03 (RH-07 security contact).
 **Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 31 → Phase 32 ordering matters (CI security fixes landed before release-please starts tagging). CI-verification debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03) — all three checked via `gh run list`/`gh api` after the branch pushes. CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
@@ -311,6 +312,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase ?]: [Phase 31-03]: Exact-pin style (==) kept for cryptography/pydantic-settings/jinja2 bumps, matching requirements.txt convention (resolves research Open Question #2)
 - [Phase ?]: [Phase 31-03]: cryptography bumped to latest 49.0.0 (not the minimum-patched 48.0.1 floor) -- removes the SECT-curve root-cause class outright; repo usage (Fernet/Scrypt only) has zero overlap with any deprecated/removed cipher surface
 - [Phase ?]: [Phase 31-03]: jinja2 bump applied in pyproject.toml [web] extra, not requirements.txt, despite the alert's manifest_path saying requirements.txt -- jinja2 is not declared in requirements.txt at all (research Pitfall 5)
+- [Phase 32-01]: Manifest-mode release-please with no extra-files entry; python release-type updates pyproject.toml natively
+- [Phase 32-01]: release-please workflow permissions scoped to exactly contents:write + pull-requests:write; no actions:write/id-token:write
+- [Phase 32-01]: Seeded .release-please-manifest.json at 2.0.0 = baseline only; release-please proposes the NEXT bump from commit history, does not re-tag 2.0.0
 
 ## Operator Next Steps
 

@@ -156,7 +156,11 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
   3. README accurately documents the 7-platform ecosystem, web dashboard/observability, price monitoring, anti-detection, and session persistence; states the Python 3.11+ prereq; documents `pip install -e .[web]` / `shoppybot` install and run; badges resolve; the clone URL is the real repo (RH-06).
   4. `SECURITY.md` and `CODE_OF_CONDUCT.md` carry the operator-supplied real maintainer contact, with zero remaining `SECURITY_CONTACT_PLACEHOLDER@example.com` occurrences anywhere in the repo (RH-07).
 
-**Plans**: TBD
+**Plans**: 3 plans (1 wave)
+
+- [x] 32-01-PLAN.md — RH-03 pyproject version reconcile to 2.0.0 + RH-02 release-please config/manifest/workflow seeded at 2.0.0
+- [ ] 32-02-PLAN.md — RH-06 README rewrite (7-platform ecosystem, web dashboard, install/badges/clone-URL accuracy)
+- [ ] 32-03-PLAN.md — RH-07 replace SECURITY_CONTACT_PLACEHOLDER with GitHub Private Vulnerability Reporting
 
 ### Phase 33: Config Refactor
 
