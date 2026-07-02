@@ -6,7 +6,7 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
 ## Overview
-ShopPyBot is a bot designed to automate the process of checking availability and purchasing items from online stores like Amazon and BestBuy.
+ShopPyBot is a drop-in plugin framework that monitors item availability and can automatically purchase across 7 retail platforms: Amazon, BestBuy, Walmart, Target, GameStop, NewEgg, and Square Enix. Community contributors can add support for a new platform by dropping a single plugin file into `plugins/` — no changes to the core framework required.
 
 ### Disclaimer
 
@@ -20,8 +20,12 @@ Account restrictions may be triggered by any of the following: 1) running multip
 
 ## Features
 
-- Automated availability checks
-- Automated purchasing
+- **Plugin framework** — add a new retail platform via a single file in `plugins/`, no core changes required
+- Automated availability checks and automated purchasing across all 7 supported platforms (Amazon, BestBuy, Walmart, Target, GameStop, NewEgg, Square Enix)
+- **Optional web dashboard** (`pip install -e .[web]`) with observability: a live status stream (Server-Sent Events), a health surface, and log filtering by plugin and level
+- **Price monitoring** — alert or auto-buy on a target price or a percentage price drop
+- **Anti-detection** — fingerprint and proxy rotation, plus 2captcha-backed CAPTCHA solving
+- **Encrypted session persistence** (Fernet + scrypt) so logins survive restarts
 - CAPTCHA detection and notification
 - Configurable via `config.yml`
 - Logging and error handling
@@ -75,9 +79,11 @@ This also registers the `shoppybot` console command (see [Running the Bot](#runn
 cp sample.config.yml config.yml
 ```
 
-2. Edit `config.ym`l to include your Amazon and BestBuy account details and the items you want to monitor.
+2. Edit `config.yml` to add the items you want to monitor. `config.yml` holds only non-secret item and behavior settings — it never holds account credentials.
 
-****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
+3. Account credentials go in environment variables, never in `config.yml`. Copy `.env.example` to `.env` and populate your platform credentials there; `.env` is gitignored and must never be committed. See [SECURITY.md](SECURITY.md#credentials-and-secrets) for the full credential-handling policy.
+
+****If you update `config.yml`, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
 
 ### Changing the Alert Sound
 
@@ -103,4 +109,4 @@ Contributions are welcome! Please read the contributing guidelines for more info
 
 ## Credits
 
-[Final Fantasy 14 Sound Fan Kit]https://na.finalfantasyxiv.com/lodestone/special/fankit/smartphone_ringtone/) - Square Enix
+[Final Fantasy 14 Sound Fan Kit](https://na.finalfantasyxiv.com/lodestone/special/fankit/smartphone_ringtone/) - Square Enix
