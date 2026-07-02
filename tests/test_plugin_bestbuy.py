@@ -391,3 +391,75 @@ def test_bestbuy_checkout_stage_default_is_empty_string():
     assert plugin._checkout_stage == "", (
         f"_checkout_stage must default to '' on BestBuyPlugin, got {plugin._checkout_stage!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# BF-02 (ISOLATED/DROPPABLE parity): durable place-order marker written
+# before the click (Plan 30-04, Task 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_place_order_latched(fake_browser):
+    """BF-02/D-01 parity: auto_buy must write the durable marker (via
+    run_in_executor) BEFORE dispatching the place-order click
+    (place_order_guarded call) -- mirrors Amazon's Task 1 guarantee."""
+    item_url = "https://www.bestbuy.com/site/test/1234.p"
+
+    plugin = BestBuyPlugin(config=_make_config(test_mode=False, monitor_only=False))
+    plugin.driver = fake_browser
+    plugin._cvv = "123"
+
+    from core.checkout_profile import CheckoutProfile
+    plugin._checkout_profile = CheckoutProfile(
+        first_name="Jane", last_name="Doe",
+        address_line1="123 Main St", city="Springfield",
+        state="IL", zip_code="62701", country="US", phone="5551234567",
+    )
+
+    call_order: list[str] = []
+
+    def _fake_marker_write(link, attempted_at):
+        call_order.append("marker")
+
+    async def _fake_place_order_guarded(click_fn):
+        call_order.append("click_dispatch")
+        return True
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
+         patch.object(
+             plugin, "place_order_guarded",
+             new=AsyncMock(side_effect=_fake_place_order_guarded),
+         ), \
+         patch("models.mark_place_order_attempted_sync", side_effect=_fake_marker_write) as mock_marker, \
+         patch.dict("os.environ", {"BB_EMAIL": "test@test.com", "BB_PASSWORD": "pw"}):
+        result = await plugin.auto_buy(item_url)
+
+    assert call_order == ["marker", "click_dispatch"], (
+        f"Marker write must precede the place-order click dispatch; got {call_order}"
+    )
+    mock_marker.assert_called_once()
+    marker_args = mock_marker.call_args[0]
+    assert marker_args[0] == item_url
+    assert result is True
+
+
+def test_bestbuy_place_order_marker_not_via_write_queue():
+    """BF-02: the marker write must not be routed through write_queue (D-01 durability).
+
+    Checks non-comment lines only -- explanatory comments about *why* the marker
+    avoids write_queue are fine; actual code referencing write_queue is not.
+    """
+    source_lines = _PLUGIN_PATH.read_text(encoding="utf-8").splitlines()
+    assert any("mark_place_order_attempted_sync" in line for line in source_lines), (
+        "BestBuy plugin must call mark_place_order_attempted_sync"
+    )
+    violations = [
+        (i + 1, line)
+        for i, line in enumerate(source_lines)
+        if "write_queue" in line and not line.lstrip().startswith("#")
+    ]
+    assert not violations, (
+        "BestBuy plugin must not reference write_queue in code for the place-order "
+        f"marker (D-01): {violations}"
+    )
