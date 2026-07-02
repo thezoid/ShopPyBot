@@ -125,12 +125,41 @@ class AmazonPlugin(RetailerPlugin):
         )
         await tab.evaluate(inject_js)
 
+    async def _inject_waf_token(self, tab, solution: dict) -> None:
+        """Inject a validated Amazon WAF voucher/token pair into the page.
+
+        Rejects either value if it contains a quote, backslash, or newline (V5/CR-02)
+        before any tab.evaluate() interpolation -- same invariant as _inject_token.
+        Raises on rejection so the caller falls back to the manual pause (D-08).
+
+        Best-effort injection via document.cookie: the exact live payload shape 2captcha
+        expects is undocumented (RESEARCH.md Assumption A1); this asserts the WIRING is
+        correct, not live-challenge acceptance, which stays operator debt.
+        """
+        voucher = solution.get("captcha_voucher") or ""
+        token = solution.get("existing_token") or ""
+        for value in (voucher, token):
+            if "'" in value or "\\" in value or "\n" in value:
+                raise ValueError("WAF voucher/token failed validation")
+
+        safe_voucher = _json.dumps(voucher)
+        safe_token = _json.dumps(token)
+        inject_js = (
+            f"(function(){{"
+            f"document.cookie='aws-waf-token='+encodeURIComponent({safe_token})+';path=/';"
+            f"document.cookie='aws-waf-voucher='+encodeURIComponent({safe_voucher})+';path=/';"
+            f"}})();"
+        )
+        await tab.evaluate(inject_js)
+
     async def _solve_or_pause(self, tab, pageurl: str) -> None:
         """Attempt automated reCAPTCHA v2 solve; fall back to manual pause on any failure.
 
-        Decision tree (ANTI-06, T-14-inject, T-14-block2, T-14-silent, T-14-waf):
+        Decision tree (ANTI-06, T-14-inject, T-14-block2, T-14-silent, T-14-waf, BF-01/D-06..D-09):
           1. No solver or can_solve() False -> manual pause
-          2. window.gokuProps present (WAF) -> INFO log + manual pause (deferred)
+          2. window.gokuProps present (WAF) -> single automated solve attempt;
+             decode failure / solve failure-or-timeout / injection failure -> manual pause;
+             success -> inject voucher/token; no manual pause
           3. Empty sitekey -> manual pause
           4. Solve raises / times out -> manual pause
           5. Token empty or contains quote/newline -> manual pause
@@ -144,17 +173,55 @@ class AmazonPlugin(RetailerPlugin):
             )
             return
 
-        # WAF detection: window.gokuProps present means Amazon WAF CAPTCHA (deferred).
+        # WAF detection: window.gokuProps present means Amazon WAF CAPTCHA (D-06).
         try:
             waf_raw = await tab.evaluate(_WAF_PROBE_JS)
         except Exception:
             waf_raw = None
         if waf_raw:
-            _log.info("Amazon WAF CAPTCHA detected -- auto-solve deferred; falling back to manual pause")
-            await self._wait_user_action(
-                self.captcha_event,
-                "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
-            )
+            try:
+                waf_data = _json.loads(waf_raw)
+            except Exception:
+                _log.warning("Amazon WAF gokuProps decode failed -- falling back to manual pause")
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
+            # Solve via run_in_executor; single attempt only (D-07: the ~30s gokuProps
+            # freshness window makes a second solve likely stale). Mirrors the
+            # solve_recaptcha branch below.
+            loop = asyncio.get_running_loop()
+            try:
+                async with asyncio.timeout(120):
+                    solution = await loop.run_in_executor(
+                        None,
+                        lambda: solver.solve_amazon_waf(
+                            waf_data.get("key"),
+                            waf_data.get("iv"),
+                            waf_data.get("context"),
+                            pageurl,
+                        ),
+                    )
+            except (asyncio.TimeoutError, Exception) as exc:
+                _log.warning("Amazon WAF solve failed: %s", exc.__class__.__name__)
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
+            try:
+                await self._inject_waf_token(tab, solution)
+            except Exception as exc:
+                _log.warning("Amazon WAF token injection failed: %s", exc.__class__.__name__)
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
             return
 
         sitekey = await self._extract_sitekey(tab)
