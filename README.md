@@ -1,14 +1,9 @@
 # ShopPyBot
 
-*master*
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=master)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=master)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=master)
-
-*dev*
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=dev)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=dev)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=dev)
+![CI](https://github.com/thezoid/ShopPyBot/actions/workflows/ci.yml/badge.svg?branch=master)
+![CodeQL](https://github.com/thezoid/ShopPyBot/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)
+![Gitleaks](https://github.com/thezoid/ShopPyBot/actions/workflows/gitleaks.yml/badge.svg?branch=master)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
 ## Overview
 ShopPyBot is a bot designed to automate the process of checking availability and purchasing items from online stores like Amazon and BestBuy.
@@ -35,7 +30,7 @@ Account restrictions may be triggered by any of the following: 1) running multip
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+
 - pip (Python package installer)
 
 #### Best Buy
@@ -52,7 +47,7 @@ Account restrictions may be triggered by any of the following: 1) running multip
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/yourusername/ShopPyBot.git
+git clone https://github.com/thezoid/ShopPyBot.git
 cd ShopPyBot
 ```
 
@@ -64,11 +59,13 @@ python -m venv .venv
 source .venv/bin/activate  # On macOS/Linux
 ```
 
-3. Install the required dependencies:
+3. Install the project in editable mode with the `web` extra (FastAPI/uvicorn/jinja2, needed for the optional web dashboard):
 
 ```sh
-pip install -r requirements.txt
+pip install -e .[web]
 ```
+
+This also registers the `shoppybot` console command (see [Running the Bot](#running-the-bot)).
 
 ## Configuration
 
@@ -95,8 +92,10 @@ To use your own sounds, drop a file of the same name (`notification`, `available
 ## Running the Bot
 
 ```sh
-python main.py
+shoppybot
 ```
+
+`shoppybot` is the console entry point registered by `pip install -e .[web]`. `python main.py` still works as an alternative if you prefer running from a source checkout directly.
 
 ## Contributing
 
