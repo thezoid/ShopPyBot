@@ -192,6 +192,22 @@ def mark_place_order_attempted_sync(link: str, attempted_at: str) -> None:
         )
 
 
+def clear_place_order_marker_sync(link: str) -> None:
+    """Reset place_order_attempted_at to NULL after manual operator review (LOW-03).
+
+    Recovery accessor: the only way to un-latch an item whose place-order marker
+    was set by a genuine (non-suppressed) click with no confirmed order_id. No
+    caller is wired up yet -- this is the reset primitive an operator-facing tool
+    or manual invocation uses after confirming (out-of-band) whether the order
+    went through. Mirrors clear_item_available_sync / clear_price_alert_armed_sync.
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET place_order_attempted_at=NULL WHERE link=?",
+            (link,),
+        )
+
+
 def add_items_sync(items):
     """Insert items that are not already present (unique by link)."""
     with get_db_connection() as conn:

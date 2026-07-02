@@ -288,3 +288,22 @@ def test_place_order_marker_missing_link_returns_none(tmp_data_dir):
     result = models.get_place_order_marker_sync("https://no-such-item")
 
     assert result is None
+
+
+def test_clear_place_order_marker_sync_resets_to_none(tmp_data_dir):
+    """LOW-03: clear_place_order_marker_sync resets place_order_attempted_at to NULL
+    after a manual operator review, so the item can resume auto-buy attempts."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/marker2", True, 1, False)])
+
+    models.mark_place_order_attempted_sync(
+        "https://ex.com/marker2", "2026-07-02T00:00:00+00:00"
+    )
+    assert models.get_place_order_marker_sync("https://ex.com/marker2") == (
+        "2026-07-02T00:00:00+00:00"
+    )
+
+    models.clear_place_order_marker_sync("https://ex.com/marker2")
+
+    assert models.get_place_order_marker_sync("https://ex.com/marker2") is None
