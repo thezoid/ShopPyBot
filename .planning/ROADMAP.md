@@ -175,7 +175,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 **Plans**: 2 plans (2 waves)
 
-- [ ] 33-01-PLAN.md — CFG-01 canonical delay_seconds/delay_jitter + legacy shim + _get_plugin_sleep (Option A jitter activation) [wave 1]
+- [x] 33-01-PLAN.md — CFG-01 canonical delay_seconds/delay_jitter + legacy shim + _get_plugin_sleep (Option A jitter activation) [wave 1]
 - [ ] 33-02-PLAN.md — CFG-02 PlatformsConfig extra="allow" + RetailerPlugin.get_platform_config helper + fixture-plugin proof [wave 2]
 
 ### Phase 34: Feature Completion
