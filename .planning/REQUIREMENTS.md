@@ -27,7 +27,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 
 ### Breakfix
 
-- [ ] **BF-01**: Amazon WAF challenge auto-solve is wired into the Amazon plugin via the existing 2captcha solver path, with the manual-pause fallback preserved (unit/integration-tested with mocked 2captcha; live-challenge proof stays operator debt)
+- [x] **BF-01**: Amazon WAF challenge auto-solve is wired into the Amazon plugin via the existing 2captcha solver path, with the manual-pause fallback preserved (unit/integration-tested with mocked 2captcha; live-challenge proof stays operator debt)
 - [ ] **BF-02** (HIGH): A place-order-stage timeout cannot cause a placed-but-unconfirmed double-buy on retry — an idempotency latch/guard around order placement, verified by injecting a timeout at that stage
 - [ ] **BF-03**: Plugin login verifies success via expected post-login DOM/URL signals instead of assuming success (WR-03)
 
@@ -76,7 +76,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BF-01 | Phase 30 | Pending |
+| BF-01 | Phase 30 | Complete |
 | BF-02 | Phase 30 | Pending |
 | BF-03 | Phase 30 | Pending |
 | RH-01 | Phase 31 | Pending |
@@ -98,6 +98,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | DH-03 | Phase 35 | Pending |
 
 **Coverage:**
+
 - v4.2 requirements: 20 total
 - Mapped to phases: 20/20 ✓
 - Unmapped: 0
