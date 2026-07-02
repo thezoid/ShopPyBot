@@ -118,8 +118,13 @@ class SquareEnixPlugin(RetailerPlugin):
             writeLog(f"Error checking Square Enix item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to Square Enix using SQUAREENIX_EMAIL / SQUAREENIX_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to Square Enix using SQUAREENIX_EMAIL / SQUAREENIX_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, an exception, or an unconfirmed
+        signal all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("SQUAREENIX_EMAIL") or ""
@@ -130,7 +135,7 @@ class SquareEnixPlugin(RetailerPlugin):
                 "SQUAREENIX_EMAIL or SQUAREENIX_PASSWORD not set -- skipping login",
                 "ERROR",
             )
-            return
+            return False
 
         try:
             tab = await self.driver.get("https://na.store.square-enix-games.com/account/login")
@@ -148,8 +153,14 @@ class SquareEnixPlugin(RetailerPlugin):
                 await sign_in_btn.click()
 
             writeLog("Signed in to Square Enix store", "INFO")
+            verified = await self._verify_login_generic(tab, "/account/login", '[type="email"]')
+            if not verified:
+                writeLog("Square Enix login verification failed", "WARNING")
+                return False
+            return True
         except Exception as exc:
             writeLog(f"Error during Square Enix sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -191,7 +202,11 @@ class SquareEnixPlugin(RetailerPlugin):
             await checkout_btn.click()
             writeLog("Proceeded to checkout on Square Enix store", "INFO")
 
-            await self.login()
+            self._checkout_stage = "login"
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog("Square Enix login failed during auto_buy -- aborting checkout", "ERROR")
+                return False
 
             # TODO: verify place order selector against live na.store.square-enix-games.com
             place_order = await tab.select('[data-testid="place-order-button"]', timeout=10)

@@ -121,8 +121,13 @@ class NeweggPlugin(RetailerPlugin):
             writeLog(f"Error checking NewEgg item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to NewEgg using NEWEGG_EMAIL / NEWEGG_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to NewEgg using NEWEGG_EMAIL / NEWEGG_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, an exception, or an unconfirmed
+        signal all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("NEWEGG_EMAIL") or ""
@@ -133,7 +138,7 @@ class NeweggPlugin(RetailerPlugin):
                 "NEWEGG_EMAIL or NEWEGG_PASSWORD not set -- skipping login",
                 "ERROR",
             )
-            return
+            return False
 
         try:
             tab = await self.driver.get("https://secure.newegg.com/identity/signin")
@@ -157,8 +162,16 @@ class NeweggPlugin(RetailerPlugin):
                 await submit_btn.click()
 
             writeLog("Signed in to NewEgg", "INFO")
+            verified = await self._verify_login_generic(
+                tab, "/identity/signin", "#labeled-input-signEmail"
+            )
+            if not verified:
+                writeLog("NewEgg login verification failed", "WARNING")
+                return False
+            return True
         except Exception as exc:
             writeLog(f"Error during NewEgg sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -200,7 +213,11 @@ class NeweggPlugin(RetailerPlugin):
             await checkout_btn.click()
             writeLog("Proceeded to checkout on NewEgg", "INFO")
 
-            await self.login()
+            self._checkout_stage = "login"
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog("NewEgg login failed during auto_buy -- aborting checkout", "ERROR")
+                return False
 
             # TODO: verify place order selector against live newegg.com
             place_order = await tab.select(".btn-primary.btn-wide", timeout=10)
