@@ -697,6 +697,7 @@ async def test_monitor_only_false_calls_try_auto_buy(fake_plugin, fake_notifier)
 
     with (
         patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
     ):
@@ -1020,7 +1021,7 @@ async def test_item_timeout_continues_to_next(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         check_and_buy_calls.append(name)
 
     async def fake_sleep(secs):
@@ -1088,7 +1089,7 @@ async def test_write_queue_put_outside_timeout(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         # Simulate _check_and_buy placing a write (as set_available would)
         await write_queue.put(("set_available", link, "2026-01-01T00:00:00+00:00"))
 
@@ -1154,7 +1155,7 @@ async def test_run_plugin_heartbeat_and_items_checked(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         pass
 
     async def fake_sleep(secs):
@@ -1259,3 +1260,121 @@ async def test_possibly_placed_alert_fires_once(fake_notifier):
         f"Expected exactly 1 possibly_placed alert, got {len(possibly_placed_events)}"
     )
     assert q.empty(), "No enqueue on possibly_placed abort -- item skipped, not re-attempted"
+
+
+# ---------------------------------------------------------------------------
+# MED-02: possibly_placed alert fires exactly once across poll cycles, not
+# once per cycle (_check_and_buy pre-check before _try_auto_buy)
+# ---------------------------------------------------------------------------
+
+
+async def test_check_and_buy_possibly_placed_alert_fires_once_across_cycles(
+    fake_plugin, fake_notifier
+):
+    """MED-02: across N consecutive _check_and_buy cycles with the marker set,
+    dispatcher.notify(possibly_placed) fires exactly once (not once per cycle),
+    and _try_auto_buy is never invoked after the item is latched."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+    alerted_links: set = set()
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+        patch("core.orchestrator.writeLog"),
+    ):
+        for _ in range(5):
+            await _check_and_buy(
+                plugin,
+                "Widget",
+                link,
+                auto_buy=True,
+                write_queue=queue,
+                dispatcher=dispatcher,
+                alerted_links=alerted_links,
+            )
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 1, (
+        f"Expected exactly 1 possibly_placed alert across 5 cycles, got "
+        f"{len(possibly_placed_events)}"
+    )
+    mock_try_buy.assert_not_awaited()
+
+
+async def test_check_and_buy_possibly_placed_recheck_marker_cleared_reallows_alert(
+    fake_plugin, fake_notifier
+):
+    """After the marker is cleared (operator resolved) and later re-latches, a
+    fresh possibly_placed alert must fire again (alerted_links discards on clear)."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+    alerted_links: set = set()
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    assert link in alerted_links
+
+    # Marker cleared (operator reviewed) -- next cycle sees no marker.
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    assert link not in alerted_links, "alerted_links must discard link once marker clears"
+    mock_try_buy.assert_awaited_once()
+
+    # Marker re-latches (a new genuine possibly-placed event) -- must alert again.
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T05:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 2, (
+        f"Expected 2 possibly_placed alerts (initial latch + re-latch after clear), "
+        f"got {len(possibly_placed_events)}"
+    )

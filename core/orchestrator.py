@@ -101,6 +101,13 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     plugin.relaunch() before re-entering run_plugin (REL-03).
 
     Backoff uses compute_delay from core/retry.py (REL-08 single source).
+
+    MED-02: alerted_links is created once here (outside the restart loop) and
+    threaded into every run_plugin() call, so the possibly_placed alert stays
+    "fires once" across run_plugin restarts within this process run. It does
+    NOT persist across a full process restart (fresh set on next launch) --
+    the marker itself (durable, in SQLite) is the source of truth for whether
+    the item is still latched; alerted_links only dedupes the alert cadence.
     """
     checkout_cfg = getattr(cfg, "checkout", None)
     n_budget = getattr(checkout_cfg, "alert_on_errors", 3)
@@ -111,10 +118,14 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     )
     failure_times: deque = deque()
     attempt = 0
+    alerted_links: set = set()
 
     while True:
         try:
-            await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, health=health)
+            await run_plugin(
+                plugin, write_queue, poll_interval,
+                dispatcher=dispatcher, cfg=cfg, health=health, alerted_links=alerted_links,
+            )
             attempt = 0  # healthy run completed; reset backoff so future failures start fresh (WR-02)
             if health is not None:
                 plugin_name = plugin.__class__.__name__
@@ -301,10 +312,26 @@ def _get_plugin_sleep(plugin, poll_interval: float) -> float:
         return poll_interval
 
 
-async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None, cfg=None, health=None) -> None:
-    """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
+async def run_plugin(
+    plugin,
+    write_queue: asyncio.Queue,
+    poll_interval: float,
+    dispatcher=None,
+    cfg=None,
+    health=None,
+    alerted_links: set | None = None,
+) -> None:
+    """Long-running poll coroutine for one plugin. Cancelled on shutdown.
+
+    alerted_links (MED-02): shared set of links already alerted for
+    possibly_placed, threaded from supervise() so the alert stays "fires once"
+    across run_plugin restarts within the same process run. Defaults to a
+    fresh set when called directly (e.g. tests) without going through supervise.
+    """
     loop = asyncio.get_running_loop()
     item_timeout = getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120)
+    if alerted_links is None:
+        alerted_links = set()
     while True:
         try:
             items = await loop.run_in_executor(None, get_items_sync)
@@ -333,7 +360,10 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
                 # orphan a pending DB write (REL-06). If the item times out before reaching
                 # put(), the write is simply not reached -- no orphan (WR-01).
                 async with asyncio.timeout(item_timeout):
-                    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher, health=health)
+                    await _check_and_buy(
+                        plugin, name, link, auto_buy, write_queue,
+                        dispatcher=dispatcher, health=health, alerted_links=alerted_links,
+                    )
             except TimeoutError:
                 writeLog(
                     f"[{plugin.__class__.__name__}] item timeout ({item_timeout}s): {name} -- skipping",
@@ -489,7 +519,9 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         health.inc_orders_confirmed(platform)
 
 
-async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+async def _check_and_buy(
+    plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None
+):
     """Check one item and optionally buy it. Logs and continues on any error."""
     loop = asyncio.get_running_loop()
     try:
@@ -537,6 +569,33 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
                 "INFO",
             )
             return
+        # MED-02: pre-check the place-order marker BEFORE entering the cart-retry
+        # loop. _pre_attempt_check (inside _try_auto_buy) still raises _PossiblyPlaced
+        # as defense-in-depth against a marker appearing mid-retry, but checking here
+        # first means a latched item short-circuits on every subsequent poll cycle
+        # without re-entering with_retry -- the operator alert fires exactly once
+        # (per process run; alerted_links resets on process restart) via alerted_links
+        # instead of every poll cycle.
+        marker = await loop.run_in_executor(None, get_place_order_marker_sync, link)
+        if marker is not None:
+            if alerted_links is None or link not in alerted_links:
+                if alerted_links is not None:
+                    alerted_links.add(link)
+                writeLog(
+                    f"[{plugin.__class__.__name__}] place-order marker set "
+                    f"(attempted_at={marker}) -- possibly placed, skipping until "
+                    "manually reviewed",
+                    "WARNING",
+                )
+                if dispatcher is not None:
+                    await dispatcher.notify(
+                        _build_event(name, link, plugin.__class__.__name__, "possibly_placed")
+                    )
+            return
+        if alerted_links is not None:
+            # Marker cleared (e.g. operator ran clear_place_order_marker_sync) --
+            # allow a future genuine re-latch to alert again.
+            alerted_links.discard(link)
         await _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=health)
 
 
