@@ -95,7 +95,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 ### v4.2 Release Readiness (Phases 30-35)
 
-- [ ] **Phase 30: Breakfix Hardening** — Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification
+- [x] **Phase 30: Breakfix Hardening** — Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification (completed 2026-07-02)
 - [ ] **Phase 31: CI & Security Infrastructure** — Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vulnerability remediation
 - [ ] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact
 - [ ] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration
