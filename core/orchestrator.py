@@ -36,6 +36,7 @@ from models import (
     clear_item_available_sync,
     get_item_notification_state_sync,
     get_item_order_state_sync,
+    get_place_order_marker_sync,
     increment_checkout_attempts_sync,
     append_price_history_sync,
     get_last_price_sync,
@@ -379,6 +380,15 @@ class _AlreadyConfirmed(Exception):
         self.order_id = order_id
 
 
+class _PossiblyPlaced(Exception):
+    """Sentinel: raised inside on_attempt when a place-order click was dispatched
+    (marker set) but no order_id was ever confirmed. Aborts retry -- D-03/D-04:
+    fail-safe = miss-a-buy over risk-a-double-buy. Caught in _try_auto_buy, which
+    alerts the operator (D-04) instead of silently returning."""
+    def __init__(self, attempted_at: str) -> None:
+        self.attempted_at = attempted_at
+
+
 async def _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher) -> None:
     """Enqueue confirmation or legacy-purchased after a successful buy (WR-02).
 
@@ -420,6 +430,14 @@ async def _pre_attempt_check(loop, link: str, platform: str) -> None:
             "INFO",
         )
         raise _AlreadyConfirmed("")
+    attempted_at = await loop.run_in_executor(None, get_place_order_marker_sync, link)
+    if attempted_at is not None:
+        writeLog(
+            f"[{platform}] place-order marker set (attempted_at={attempted_at}) "
+            "with no confirmed order_id -- possibly placed, aborting retry",
+            "WARNING",
+        )
+        raise _PossiblyPlaced(attempted_at)
     await loop.run_in_executor(None, increment_checkout_attempts_sync, link)
 
 
@@ -443,6 +461,15 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         )
     except _AlreadyConfirmed as confirmed:
         writeLog(f"[{platform}] idempotency exit: order_id={confirmed.order_id}", "INFO")
+        return
+    except _PossiblyPlaced as pp:
+        writeLog(
+            f"[{platform}] possibly-placed exit: attempted_at={pp.attempted_at} -- "
+            "alerting operator, skipping until manually reviewed",
+            "WARNING",
+        )
+        if dispatcher is not None:
+            await dispatcher.notify(_build_event(name, link, platform, "possibly_placed"))
         return
     success, order_id = result
     if not success:

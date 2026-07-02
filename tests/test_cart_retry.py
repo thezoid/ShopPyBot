@@ -125,6 +125,7 @@ async def test_retries_up_to_max_then_stops(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
         patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
         patch("asyncio.sleep", new=AsyncMock()),
@@ -145,6 +146,7 @@ async def test_max_cart_retries_zero_single_attempt(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
         patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
         patch("asyncio.sleep", new=AsyncMock()),
@@ -177,6 +179,7 @@ async def test_checkout_attempts_increments_before_each_attempt(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync", side_effect=record_inc),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -203,6 +206,7 @@ async def test_single_enqueue_on_success_confirmed(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -228,6 +232,7 @@ async def test_single_enqueue_on_success_legacy(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -258,6 +263,7 @@ async def test_backoff_sleep_called_between_failed_attempts(tmp_data_dir):
     order_id = "ORD-BACKOFF"
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -290,6 +296,7 @@ async def test_second_attempt_sees_confirmed_order_from_first(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", side_effect=order_state_side_effect),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -322,6 +329,7 @@ async def test_no_retry_on_success_with_no_order_id(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",

@@ -546,6 +546,7 @@ async def test_check_and_buy_purchase_dispatches_purchased_event(fake_plugin, fa
     with (
         patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch("core.orchestrator.writeLog"),
     ):
@@ -772,6 +773,7 @@ async def test_orchestrator_confirmed_path():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -802,6 +804,7 @@ async def test_orchestrator_fallback_path():
     with (
         patch("core.orchestrator.writeLog", side_effect=capture_log),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -827,6 +830,7 @@ async def test_no_double_buy_single_put():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -879,6 +883,7 @@ async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -1191,6 +1196,7 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin_c, "Widget", "https://amazon.com/item", q_c, None, health=health_c)
@@ -1211,6 +1217,7 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin_l, "Widget", "https://amazon.com/item", q_l, None, health=health_l)
