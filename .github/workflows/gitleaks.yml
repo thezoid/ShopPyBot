@@ -7,10 +7,16 @@ on:
     branches: [master, dev]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   scan:
     name: gitleaks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
