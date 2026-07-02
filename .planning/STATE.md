@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
 status: executing
-last_updated: "2026-07-02T16:31:47.119Z"
+last_updated: "2026-07-02T16:43:31.979Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ progress:
 ## Current Position
 
 Phase: 30-breakfix-hardening
-Plan: 3 of 6 in current phase
+Plan: 4 of 6 in current phase
 Status: Ready to execute
 Last activity: 2026-07-02
 
@@ -37,7 +37,7 @@ Last activity: 2026-07-02
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (2/6 plans) | BF-01, BF-02, BF-03 |
+| 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (3/6 plans) | BF-01, BF-02, BF-03 |
 | 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Not started | RH-01, RH-04, RH-05 |
 | 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Not started | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Not started | CFG-01, CFG-02 |
@@ -129,6 +129,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 **Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening. **Addressed in v4.2 Phase 30 (BF-02).**
 | Phase 30 P01 | 22min | 3 tasks | 5 files |
 | Phase 30-breakfix-hardening P02 | 12min | 2 tasks | 2 files |
+| Phase 30-breakfix-hardening P03 | 10min | 2 tasks | 3 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -164,9 +165,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: Phase 30 Plan 02 complete (BF-01 Amazon WAF auto-solve wiring: solve_amazon_waf wired into _solve_or_pause + _inject_waf_token escaping helper); STATE.md/ROADMAP.md/REQUIREMENTS.md updated.
-**Next action**: Execute `/gsd:execute-phase 30` (or continue with 30-03-PLAN.md) to continue Phase 30 (Breakfix Hardening).
-**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) ships first since BF-02 is the milestone's only HIGH item. Plan 30-01 closed BF-02 (place-order marker + `_PossiblyPlaced` guard) and BF-03's orchestrator-layer login-failure short-circuit (`should_retry` predicate + `login_failed` alert). Plan 30-02 closed BF-01: the Amazon WAF gokuProps branch now calls `CaptchaSolver.solve_amazon_waf` once via `run_in_executor`/`asyncio.timeout(120)` and falls back to manual pause on every non-success path; live-challenge acceptance stays operator debt. Remaining Phase 30 plans (30-03 through 30-06) cover the BF-03 ABC contract change + per-plugin `login() -> bool` conversions (30-03 is the ABC + generic helper, 30-04 depends on 30-01+30-02 for Amazon, 30-05 depends on 30-03+30-04, 30-06 depends on 30-03 for the community plugins). Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
+**Last action**: Phase 30 Plan 03 complete (BF-03 ABC foundation: `login()` ABC changed to `-> bool` with True no-op default, `_verify_login_generic` shared helper added, `relaunch()` now logs ERROR on a failed re-login); STATE.md/ROADMAP.md/REQUIREMENTS.md updated. Full suite: 829 passed, 2 skipped.
+**Next action**: Execute `/gsd:execute-phase 30` (or continue with 30-04-PLAN.md) to continue Phase 30 (Breakfix Hardening).
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) ships first since BF-02 is the milestone's only HIGH item. Plan 30-01 closed BF-02 (place-order marker + `_PossiblyPlaced` guard) and BF-03's orchestrator-layer login-failure short-circuit (`should_retry` predicate + `login_failed` alert). Plan 30-02 closed BF-01: the Amazon WAF gokuProps branch now calls `CaptchaSolver.solve_amazon_waf` once via `run_in_executor`/`asyncio.timeout(120)` and falls back to manual pause on every non-success path; live-challenge acceptance stays operator debt. Plan 30-03 closed the BF-03 ABC foundation: `RetailerPlugin.login()` now returns `bool` (True no-op default, D-14), `_verify_login_generic(tab, signin_url_fragment, form_selector)` is the single shared D-11 verification mechanism (ambiguous/exception -> False, D-13), and `relaunch()` captures `login()`'s return value and logs ERROR on failure (D-15 second half) with no dispatcher plumbing added. Remaining Phase 30 plans (30-04 through 30-06) call `_verify_login_generic` directly per plugin: 30-04 depends on 30-01+30-02 for Amazon, 30-05 depends on 30-03+30-04 for BestBuy, 30-06 depends on 30-03 for the 5 community plugins. Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
 
@@ -286,6 +287,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 30-01]: D-15 login-failure loop suppression implemented via the should_retry closure predicate (plugin._checkout_stage != login), not a new exception or hand-rolled loop -- lowest-risk mechanism, reuses existing telemetry
 - [Phase 30-02]: WAF token injection via document.cookie tab.evaluate() (JS-eval), not CDP set_cookies — Plan permits either as best-effort per RESEARCH.md Assumption A1 (2captcha AmazonTask payload shape undocumented); JS-eval keeps the diff minimal with no new CDP imports
 - [Phase 30-02]: No redundant can_solve() re-check inside the WAF branch — The existing top-of-function solver gate already covers D-08 solver-unavailable fallback before WAF detection runs, mirroring the solve_recaptcha branch
+- [Phase 30-breakfix-hardening]: login() ABC default returns True (login-less plugin trivially logged in, D-14); every real plugin can now report a login failure — Enables the shared BF-03 verification mechanism without breaking existing no-op-login plugins
+- [Phase 30-breakfix-hardening]: _verify_login_generic is the single shared BF-03 verification mechanism (D-11), no per-plugin duplication — url-off-signin AND form-absent -> True; any ambiguity or exception -> False (D-13)
+- [Phase 30-breakfix-hardening]: relaunch() captures login_ok and logs ERROR on failure; no dispatcher plumbing added — relaunch() has never had orchestrator access; the D-15 operator alert already surfaces from the orchestrator's login_failed short-circuit (30-01) on the next monitoring cycle
 
 ## Operator Next Steps
 

@@ -122,7 +122,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 - [x] 30-01-PLAN.md — BF-02 DB marker + orchestrator possibly-placed guard + BF-03 login-failure short-circuit (models.py, core/orchestrator.py) [wave 1]
 - [x] 30-02-PLAN.md — BF-01 Amazon WAF auto-solve wiring + `_inject_waf_token` (plugins/shopbot_plugin_amazon.py) [wave 1]
-- [ ] 30-03-PLAN.md — BF-03 login()->bool ABC + `_verify_login_generic` + relaunch check (core/plugin_base.py) [wave 1]
+- [x] 30-03-PLAN.md — BF-03 login()->bool ABC + `_verify_login_generic` + relaunch check (core/plugin_base.py) [wave 1]
 - [ ] 30-04-PLAN.md — BF-02 Amazon + BestBuy place-order marker writes (BestBuy task droppable) [wave 2]
 - [ ] 30-06-PLAN.md — BF-03 community login verification: Walmart/Target/GameStop/NewEgg/SquareEnix [wave 2]
 - [ ] 30-05-PLAN.md — BF-03 Amazon + BestBuy login verification + auto_buy abort [wave 3]
