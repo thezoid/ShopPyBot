@@ -276,14 +276,19 @@ class RetailerPlugin(ABC):
         guarantees passthrough of that section, not validation -- model_cls's
         own Field constraints apply here.
 
-        Handles three cases uniformly (getattr-safe; never raises AttributeError
-        on missing config/platform_key/section):
-        - Missing config, platform_key, or section: returns model_cls() defaults.
+        Handles four cases (getattr-safe; never raises AttributeError on missing
+        config/platform_key/section):
+        - Missing config, platform_key, or section (raw is None): returns
+          model_cls() defaults -- a plugin with no matching section is valid.
         - One of the 7 built-in platforms: raw is already a validated model_cls
           instance -- returned as-is.
         - A new plugin's undeclared section: raw is a passthrough dict --
           constructed into model_cls, letting pydantic raise ValidationError on
           bad data (fail loudly, matching the 7 existing platforms' behavior).
+        - A platform_key collision: raw is already a validated instance of a
+          DIFFERENT pydantic model (that section validated against some other
+          model_cls). Raises TypeError (WR-02) instead of silently discarding
+          the real, already-validated config and returning model_cls() defaults.
 
         PLUGIN_API_VERSION stays 2 -- additive concrete method (CFG-02).
         """
@@ -296,7 +301,11 @@ class RetailerPlugin(ABC):
             return raw
         if isinstance(raw, dict):
             return model_cls(**raw)   # raises ValidationError on invalid data -- intentional
-        return model_cls()
+        raise TypeError(
+            f"get_platform_config({model_cls.__name__}) called for platform_key="
+            f"{key!r}, but that section already validated as {type(raw).__name__}: "
+            "refusing to silently discard real config data"
+        )
 
     def _session_platform_key(self) -> str | None:
         """Return platform_key attribute if defined on the subclass, else None."""

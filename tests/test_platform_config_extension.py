@@ -100,3 +100,15 @@ def test_get_platform_config_defaults_when_section_absent(tmp_path):
 
     assert parsed.delay_seconds == 10.0
     assert parsed.delay_jitter == 5.0
+
+
+def test_get_platform_config_mismatched_model_raises_type_error(tmp_path):
+    """WR-02: a platform_key collision with a section already validated against a
+    DIFFERENT model_cls must fail loudly (TypeError), not silently return
+    model_cls() defaults and discard the real, already-validated config."""
+    registry = _build_costco_registry(tmp_path, {"amazon": {"delay_seconds": 77.0}})
+    plugin = registry._all_plugins[0]
+    plugin.platform_key = "amazon"  # collide with a built-in, already-validated section
+
+    with pytest.raises(TypeError):
+        plugin.get_platform_config(CostcoPlatformConfig)
