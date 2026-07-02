@@ -47,8 +47,12 @@ def _shim_legacy_delay_fields(data: dict) -> dict:
     Consumed as delay_seconds + random.uniform(0, delay_jitter), this is algebraically
     identical to the legacy random.uniform(min_delay, max_delay).
 
-    Does NOT clamp the derived delay_jitter -- an inverted/negative legacy range flows
-    into the canonical field's own Field(ge=0.0) and raises ValidationError naturally.
+    NOTE (WR-01/IN-02): unlike the legacy random.uniform(min_delay, max_delay) call --
+    which tolerated min_delay > max_delay and simply returned a value in the resulting
+    range -- an inverted legacy range is now rejected with a ValueError naming
+    min_delay/max_delay. This is a deliberate tightening, not a preserved behavior: the
+    derived delay_jitter would otherwise be negative and fail the canonical field's own
+    Field(ge=0.0) constraint with a confusing message about a field the user never set.
     """
     if not isinstance(data, dict):
         return data
@@ -62,8 +66,21 @@ def _shim_legacy_delay_fields(data: dict) -> dict:
             stacklevel=2,
         )
         data = dict(data)
+        # WR-03: these fallbacks are implicitly coupled to the 5 community models'
+        # delay_seconds=8.0/delay_jitter=7.0 Field defaults (8.0 + 7.0 = 15.0). If a
+        # future tuning pass changes those model defaults, update these two literals
+        # to match -- see test_shim_legacy_fallback_defaults_match_community_model_defaults.
         min_d = float(data.pop("min_delay", 8.0))
         max_d = float(data.pop("max_delay", 15.0))
+        if max_d < min_d:
+            # WR-01: fail loudly and name the legacy fields the user actually set,
+            # rather than letting this flow into delay_jitter's Field(ge=0.0) and
+            # raise a ValidationError about a field the user never touched.
+            raise ValueError(
+                f"config.yml: legacy min_delay ({min_d}) must be <= max_delay "
+                f"({max_d}): inverted delay range, fix your config so "
+                "max_delay >= min_delay"
+            )
         data["delay_seconds"] = min_d
         data["delay_jitter"] = max_d - min_d
     return data

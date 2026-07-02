@@ -215,6 +215,44 @@ def test_legacy_delay_shim_emits_deprecation_warning():
     assert any(issubclass(w.category, DeprecationWarning) for w in caught)
 
 
+def test_legacy_delay_shim_inverted_range_raises_clear_error():
+    """WR-01: an inverted legacy range (max_delay < min_delay) still hard-fails
+    (fail-loud is intentional, not clamped) but the error must name min_delay/
+    max_delay -- not a bare delay_jitter Field(ge=0.0) error the user never set."""
+    from core.config_schema import WalmartPlatformConfig
+
+    with pytest.raises(ValidationError) as exc_info:
+        WalmartPlatformConfig(min_delay=20.0, max_delay=5.0)
+    message = str(exc_info.value)
+    assert "min_delay" in message
+    assert "max_delay" in message
+
+
+def test_shim_legacy_fallback_defaults_match_community_model_defaults():
+    """WR-03: the shim's hardcoded min_delay/max_delay fallbacks (8.0/15.0) must stay
+    in sync with the 5 community platform models' delay_seconds/delay_jitter Field
+    defaults (8.0 + 7.0 = 15.0). Cheap drift guard: a future tuning pass that changes
+    one of the 5 models' defaults without updating the shim fails this test loudly."""
+    from core.config_schema import (
+        GameStopPlatformConfig,
+        NeweggPlatformConfig,
+        SquareEnixPlatformConfig,
+        TargetPlatformConfig,
+        WalmartPlatformConfig,
+    )
+
+    for model_cls in (
+        WalmartPlatformConfig,
+        TargetPlatformConfig,
+        GameStopPlatformConfig,
+        SquareEnixPlatformConfig,
+        NeweggPlatformConfig,
+    ):
+        defaults = model_cls()
+        assert defaults.delay_seconds == 8.0
+        assert defaults.delay_jitter == 7.0
+
+
 # ---------------------------------------------------------------------------
 # Phase 18: DebugConfig.monitor_only + CheckoutConfig (BUY-01, BUY-02)
 # ---------------------------------------------------------------------------
