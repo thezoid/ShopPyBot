@@ -1,3 +1,14 @@
+# NOTE: requires googleapis/release-please-action to be allowlisted under
+# Settings -> Actions -> General -> Actions permissions (repo currently
+# restricts to selected/GitHub-owned actions only, or "Allow all actions").
+# Otherwise the run ends in startup_failure with zero jobs.
+#
+# Operator note: this workflow authenticates with the default
+# secrets.GITHUB_TOKEN. GitHub suppresses pull_request-triggered checks
+# (CI/CodeQL) on PRs opened by the default GITHUB_TOKEN, so if branch
+# protection on master later requires those checks to pass, the
+# release-please PR will need a fine-grained PAT / GitHub App token
+# instead of GITHUB_TOKEN to trigger them normally.
 name: release-please
 
 on:
