@@ -456,7 +456,11 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         result = await with_retry(
             lambda: _attempt_buy(plugin, link),
             policy,
-            should_retry=lambda r: not r[0],  # only retry on auto_buy failure; True+no-order_id flows to legacy enqueue (no-double-buy)
+            # Retry on auto_buy failure EXCEPT a verified-failed login (D-15): once
+            # plugin._checkout_stage == "login" on a failed attempt, the login stage
+            # is non-retryable inside this loop -- suppression lives in the predicate
+            # itself, not a post-hoc check, so login() is never re-invoked.
+            should_retry=lambda r: not r[0] and plugin._checkout_stage != "login",
             on_attempt=lambda _: _pre_attempt_check(loop, link, platform),
         )
     except _AlreadyConfirmed as confirmed:
@@ -473,6 +477,11 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         return
     success, order_id = result
     if not success:
+        if plugin._checkout_stage == "login":
+            writeLog(f"[{platform}] login verification failed -- aborting, not retrying", "WARNING")
+            if dispatcher is not None:
+                await dispatcher.notify(_build_event(name, link, platform, "login_failed"))
+            return
         writeLog(f"[{platform}] cart-retry exhausted (stage={plugin._checkout_stage})", "WARNING")
         return
     await _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher)
