@@ -222,8 +222,13 @@ class BestBuyPlugin(RetailerPlugin):
             writeLog(f"Error checking BestBuy item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to BestBuy using BB_EMAIL / BB_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to BestBuy using BB_EMAIL / BB_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms a redirect off
+        /identity/signin (D-12); missing creds, an unconfirmed signal, or an
+        exception all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("BB_EMAIL") or ""
@@ -231,7 +236,7 @@ class BestBuyPlugin(RetailerPlugin):
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("BB_EMAIL or BB_PASSWORD not set -- skipping login", "ERROR")
-            return
+            return False
 
         try:
             tab = await self.driver.get("https://www.bestbuy.com/identity/signin")
@@ -249,9 +254,18 @@ class BestBuyPlugin(RetailerPlugin):
                 await submit.click()
 
             writeLog("Signed in to BestBuy", "INFO")
+            # D-12: tighter signal = redirect off /identity/signin -- BestBuy's
+            # post-login landing-page selector is unverified, so URL-only is the
+            # honest available signal (#fld-e is the generic form_selector).
+            verified = await self._verify_login_generic(tab, "/identity/signin", "#fld-e")
+            if not verified:
+                writeLog("BestBuy login verification failed", "WARNING")
+                return False
             await self.save_session()
+            return True
         except Exception as exc:
             writeLog(f"Error during BestBuy sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def _fill_field(self, tab, selector: str, value: str) -> bool:
         """Fill one required form field via clear_input + send_keys.
@@ -347,7 +361,11 @@ class BestBuyPlugin(RetailerPlugin):
             # login() is intentionally NOT wrapped in asyncio.timeout: BestBuy login
             # may require manual OTP/passkey entry -- a human-gated step that must not
             # be killed by a step timer. See _wait_user_action for the 300s unattended guard.
-            await self.login()
+            self._checkout_stage = "login"
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog("BestBuy login failed during auto_buy -- aborting checkout", "ERROR")
+                return False
 
             # BUY-07: fill shipping address fields from checkout profile before CVV.
             # Missing profile: log WARNING and abort (no partial order -- T-20-09/Pitfall 6).
