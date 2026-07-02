@@ -169,9 +169,33 @@ class RetailerPlugin(ABC):
         await click_fn()
         return True
 
-    async def login(self) -> None:
-        """Authenticate with the retail platform. No-op default."""
-        return None
+    async def login(self) -> bool:
+        """Authenticate with the retail platform. No-op default returns True
+        (a login-less plugin is trivially "logged in", D-14)."""
+        return True
+
+    async def _verify_login_generic(
+        self, tab, signin_url_fragment: str, form_selector: str
+    ) -> bool:
+        """D-12 generic post-login signal: URL no longer contains signin_url_fragment
+        AND form_selector is no longer present. D-13: ambiguous/exception -> False.
+
+        Never raises -- callers treat a raised exception the same as False
+        (fail-safe). PLUGIN_API_VERSION stays 2 -- additive concrete method (BF-03).
+        """
+        try:
+            current_url = tab.target.url
+            if signin_url_fragment in current_url:
+                return False
+            form_present = await tab.select(form_selector, timeout=5)
+            return form_present is None
+        except Exception as exc:
+            writeLog(
+                f"[{self.__class__.__name__}] login verification error:"
+                f" {exc.__class__.__name__}",
+                "WARNING",
+            )
+            return False
 
     async def detect_captcha(self) -> bool:
         """Return True if a CAPTCHA is present. No-op default."""

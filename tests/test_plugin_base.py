@@ -69,9 +69,10 @@ def test_minimal_plugin_instantiates():
 
 
 async def test_login_noop():
+    """D-14: ABC default login() returns True (login-less plugin is trivially logged in)."""
     p = MinimalPlugin(config=None)
     result = await p.login()
-    assert result is None
+    assert result is True
 
 
 async def test_detect_captcha_noop():
@@ -382,3 +383,69 @@ def test_plugin_api_version_unchanged():
     """PLUGIN_API_VERSION must stay 2 after adding relaunch() + restore_session() (additive REL-03)."""
     import core.plugin_base
     assert core.plugin_base.PLUGIN_API_VERSION == 2
+
+
+# ---------------------------------------------------------------------------
+# BF-03: _verify_login_generic -- shared post-login verification helper (D-11/D-12/D-13)
+# ---------------------------------------------------------------------------
+
+
+async def test_verify_login_generic_url_still_signin_returns_false():
+    """D-13: URL still contains the sign-in fragment -> False (login form may be gone,
+    but ambiguity/lack of positive URL-change signal must not be treated as success)."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/ap/signin?openid=1"
+    fake_tab.select = AsyncMock(return_value=None)
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+    fake_tab.select.assert_not_called()  # short-circuits before checking the form
+
+
+async def test_verify_login_generic_form_still_present_returns_false():
+    """URL changed off sign-in but the login form selector is still present -> False."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/some-other-page"
+    fake_tab.select = AsyncMock(return_value=object())  # form element still found
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+    fake_tab.select.assert_awaited_once_with("#ap_email", timeout=5)
+
+
+async def test_verify_login_generic_url_changed_and_form_absent_returns_true():
+    """URL no longer contains the sign-in fragment AND the form is gone -> True."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/account/landing"
+    fake_tab.select = AsyncMock(return_value=None)  # form no longer present
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is True
+
+
+async def test_verify_login_generic_exception_returns_false():
+    """D-13: any exception during verification -> False, never raises."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/account/landing"
+    fake_tab.select = AsyncMock(side_effect=RuntimeError("cdp error"))
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+
+
+async def test_verify_login_generic_attribute_error_returns_false():
+    """D-13: an exception reading tab.target.url (e.g. AttributeError) -> False, never raises."""
+    p = MinimalPlugin(config=None)
+    fake_tab = object()  # no .target attribute at all
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
