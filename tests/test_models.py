@@ -225,3 +225,66 @@ def test_get_confirmed_orders_sync_excludes_unpurchased(tmp_data_dir):
     result = get_confirmed_orders_sync()
 
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 30: place-order marker column + accessors (BF-02)
+# ---------------------------------------------------------------------------
+
+
+def test_place_order_marker_columns_added(tmp_data_dir):
+    """initialize_db(delete=True) adds place_order_attempted_at column."""
+    import models
+    models.initialize_db(delete=True)
+
+    conn = sqlite3.connect(models.DB_PATH)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    conn.close()
+
+    assert "place_order_attempted_at" in cols
+
+
+def test_place_order_marker_migration_on_legacy_schema(tmp_data_dir):
+    """initialize_db() on a DB missing place_order_attempted_at adds it (idempotent)."""
+    import models
+    conn = sqlite3.connect(models.DB_PATH)
+    conn.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "link TEXT NOT NULL UNIQUE, auto_buy BOOLEAN NOT NULL, "
+        "quantity INTEGER NOT NULL, purchased BOOLEAN NOT NULL DEFAULT 0)"
+    )
+    conn.commit()
+    conn.close()
+
+    models.initialize_db()
+    models.initialize_db()  # second call must be a no-op (idempotent)
+
+    conn = sqlite3.connect(models.DB_PATH)
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    conn.close()
+
+    assert cols.count("place_order_attempted_at") == 1
+
+
+def test_place_order_marker_round_trip(tmp_data_dir):
+    """mark_place_order_attempted_sync then get_place_order_marker_sync returns the timestamp."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/marker1", True, 1, False)])
+
+    models.mark_place_order_attempted_sync(
+        "https://ex.com/marker1", "2026-07-02T00:00:00+00:00"
+    )
+    result = models.get_place_order_marker_sync("https://ex.com/marker1")
+
+    assert result == "2026-07-02T00:00:00+00:00"
+
+
+def test_place_order_marker_missing_link_returns_none(tmp_data_dir):
+    """get_place_order_marker_sync on an unknown link returns None (no raise)."""
+    import models
+    models.initialize_db(delete=True)
+
+    result = models.get_place_order_marker_sync("https://no-such-item")
+
+    assert result is None
