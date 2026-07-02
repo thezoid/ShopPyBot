@@ -34,7 +34,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 ### Config-Refactor
 
 - [x] **CFG-01**: Platform delay-config field names are unified across all plugins (`delay_seconds/delay_jitter` vs `min_delay/max_delay`) with a back-compat shim for existing configs
-- [ ] **CFG-02**: A plugin can declare its own per-platform config section without editing core schema (generic per-platform config in schema + loader)
+- [x] **CFG-02**: A plugin can declare its own per-platform config section without editing core schema (generic per-platform config in schema + loader)
 
 ### Feature-Completion
 
@@ -87,7 +87,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | RH-06 | Phase 32 | Complete |
 | RH-07 | Phase 32 | Complete |
 | CFG-01 | Phase 33 | Complete |
-| CFG-02 | Phase 33 | Pending |
+| CFG-02 | Phase 33 | Complete |
 | FC-01 | Phase 34 | Pending |
 | FC-02 | Phase 34 | Pending |
 | AF-01 | Phase 35 | Pending |

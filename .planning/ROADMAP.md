@@ -98,7 +98,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 - [x] **Phase 30: Breakfix Hardening** — Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification (completed 2026-07-02)
 - [x] **Phase 31: CI & Security Infrastructure** — Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vulnerability remediation (completed 2026-07-02)
 - [x] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact (completed 2026-07-02)
-- [ ] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration
+- [x] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration (completed 2026-07-02)
 - [ ] **Phase 34: Feature Completion** — `[plugin]` log tags + `/api/logs` filter, outcome analytics over verified-order records
 - [ ] **Phase 35: Audit-Fixes & Doc-Hygiene Cleanup** — SSR remove-button fix, `last_heartbeat` leak fix, dead `escHtml()` removal, v4.0/v4.1 frontmatter reconciliation
 
@@ -176,7 +176,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Plans**: 2 plans (2 waves)
 
 - [x] 33-01-PLAN.md — CFG-01 canonical delay_seconds/delay_jitter + legacy shim + _get_plugin_sleep (Option A jitter activation) [wave 1]
-- [ ] 33-02-PLAN.md — CFG-02 PlatformsConfig extra="allow" + RetailerPlugin.get_platform_config helper + fixture-plugin proof [wave 2]
+- [x] 33-02-PLAN.md — CFG-02 PlatformsConfig extra="allow" + RetailerPlugin.get_platform_config helper + fixture-plugin proof [wave 2]
 
 ### Phase 34: Feature Completion
 
