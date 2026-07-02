@@ -409,3 +409,58 @@ def test_amazon_checkout_stage_default_is_empty_string():
     assert plugin._checkout_stage == "", (
         f"_checkout_stage must default to '' on AmazonPlugin, got {plugin._checkout_stage!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# BF-02: durable place-order marker written before the click (Plan 30-04)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_amazon_marks_place_order_before_click(fake_browser):
+    """BF-02/D-01: auto_buy must write the durable marker (via run_in_executor)
+    BEFORE dispatching the place-order click (place_order_guarded call)."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+
+    call_order: list[str] = []
+
+    def _fake_marker_write(link, attempted_at):
+        call_order.append("marker")
+
+    async def _fake_place_order_guarded(click_fn):
+        call_order.append("click_dispatch")
+        return True
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
+         patch.object(
+             plugin, "place_order_guarded",
+             new=AsyncMock(side_effect=_fake_place_order_guarded),
+         ), \
+         patch("models.mark_place_order_attempted_sync", side_effect=_fake_marker_write) as mock_marker:
+        result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    assert call_order == ["marker", "click_dispatch"], (
+        f"Marker write must precede the place-order click dispatch; got {call_order}"
+    )
+    mock_marker.assert_called_once()
+    marker_args = mock_marker.call_args[0]
+    assert marker_args[0] == "https://www.amazon.com/dp/B00TEST"
+    assert result is True
+
+
+def test_amazon_place_order_marker_not_via_write_queue():
+    """BF-02: the marker write must not be routed through write_queue (D-01 durability)."""
+    source = _PLUGIN_PATH.read_text(encoding="utf-8")
+    assert "mark_place_order_attempted_sync" in source, (
+        "Amazon plugin must call mark_place_order_attempted_sync"
+    )
+    assert "write_queue" not in source, (
+        "Amazon plugin must not reference write_queue for the place-order marker (D-01)"
+    )
