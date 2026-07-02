@@ -36,6 +36,10 @@ Account restrictions may be triggered by any of the following: 1) running multip
 
 - Python 3.11+
 - pip (Python package installer)
+- Google Chrome or Chromium installed locally. Selenium drives this browser
+  directly; `chromedriver` itself is auto-downloaded via `webdriver_manager`
+  (see `selenium.driver_path` in `config.yml`), but the Chrome/Chromium binary
+  is not installed for you.
 
 #### Best Buy
 
@@ -105,7 +109,16 @@ shoppybot
 
 ## Contributing
 
-Contributions are welcome! Please read the contributing guidelines for more information.
+Contributions are welcome! Please read [the contributing guidelines](CONTRIBUTING.md) for more information.
+
+## Versioning
+
+Product releases follow [SemVer](https://semver.org/), automated via
+[release-please](https://github.com/googleapis/release-please) and seeded at
+`2.0.0` (matching the pre-existing `v2.0` git tag). The `v4.0`/`v4.1` tags in
+this repository's history are **internal planning-milestone markers**, not
+product releases, and are unrelated to the `release-please`-managed SemVer
+series — do not compare them numerically.
 
 ## Credits
 
