@@ -78,6 +78,11 @@ def initialize_db(delete=False):
             conn.execute(
                 "ALTER TABLE items ADD COLUMN checkout_attempts INTEGER NOT NULL DEFAULT 0"
             )
+        # Phase 30: place-order write-ahead marker (BF-02 double-buy guard).
+        if "place_order_attempted_at" not in existing:
+            conn.execute(
+                "ALTER TABLE items ADD COLUMN place_order_attempted_at TEXT"
+            )
         # Phase 16: append-only price history table (PRICE-02).
         conn.execute('''
             CREATE TABLE IF NOT EXISTS price_history (
@@ -155,6 +160,35 @@ def update_item_confirmed_sync(link: str, order_id: str, confirmed_at: str) -> N
         conn.execute(
             "UPDATE items SET purchased=1, order_id=?, confirmed_at=? WHERE link=?",
             (order_id, confirmed_at, link),
+        )
+
+
+def get_place_order_marker_sync(link: str) -> str | None:
+    """Return place_order_attempted_at for the link, or None if unset/missing (BF-02).
+
+    A non-None marker means a place-order click was dispatched for this link but
+    no confirmed order_id has been captured -- the retry guard's "possibly placed"
+    signal (D-02/D-03). Returns None for a missing row (safe no-op for the guard).
+    """
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT place_order_attempted_at FROM items WHERE link=?",
+            (link,),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def mark_place_order_attempted_sync(link: str, attempted_at: str) -> None:
+    """Set the place-order write-ahead marker immediately before the click (D-01/BF-02).
+
+    Must be called via run_in_executor and awaited so the write durably commits
+    before the click fires -- this is the crash-durability guarantee the marker
+    exists for. Does not touch order_id/confirmed_at/checkout_attempts.
+    """
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE items SET place_order_attempted_at=? WHERE link=?",
+            (attempted_at, link),
         )
 
 
