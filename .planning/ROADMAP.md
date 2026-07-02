@@ -159,7 +159,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Plans**: 3 plans (1 wave)
 
 - [x] 32-01-PLAN.md — RH-03 pyproject version reconcile to 2.0.0 + RH-02 release-please config/manifest/workflow seeded at 2.0.0
-- [ ] 32-02-PLAN.md — RH-06 README rewrite (7-platform ecosystem, web dashboard, install/badges/clone-URL accuracy)
+- [x] 32-02-PLAN.md — RH-06 README rewrite (7-platform ecosystem, web dashboard, install/badges/clone-URL accuracy)
 - [ ] 32-03-PLAN.md — RH-07 replace SECURITY_CONTACT_PLACEHOLDER with GitHub Private Vulnerability Reporting
 
 ### Phase 33: Config Refactor

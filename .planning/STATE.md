@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
-status: verifying
-last_updated: "2026-07-02T21:25:19.948Z"
+status: executing
+last_updated: "2026-07-02T21:39:49.588Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 33
 ---
 
@@ -29,8 +29,8 @@ progress:
 ## Current Position
 
 Phase: 32
-Plan: 01 of 3
-Status: In Progress (1/3 plans)
+Plan: 2 of 3
+Status: In Progress (2/3 plans)
 Last activity: 2026-07-02
 
 ## Phase Status
@@ -39,7 +39,7 @@ Last activity: 2026-07-02
 |-------|-------------|--------|------|
 | 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (5/6 plans) | BF-01, BF-02, BF-03 |
 | 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Complete (3/3 plans) | RH-01, RH-04, RH-05 |
-| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | In Progress (1/3 plans) | RH-02, RH-03, RH-06, RH-07 |
+| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | In Progress (2/3 plans) | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Not started | CFG-01, CFG-02 |
 | 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Not started | FC-01, FC-02 |
 | 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Not started | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
@@ -137,6 +137,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 31-ci-security-infrastructure P02 | 5min | 2 tasks | 2 files |
 | Phase 31 P03 | 8min | 2 tasks | 3 files |
 | Phase 32-release-automation-community-readiness P01 | 10min | 3 tasks | 4 files |
+| Phase 32 P02 | 9min | 2 tasks | 1 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -172,8 +173,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: Phase 32 Plan 01 complete (RH-03 + RH-02: bumped pyproject.toml [project].version 0.1.0→2.0.0, confirmed sole version source; created release-please-config.json + .release-please-manifest.json seeded at 2.0.0 manifest mode; created .github/workflows/release-please.yml using googleapis/release-please-action@v5, push→master trigger, contents:write + pull-requests:write only). Full suite: 889 passed, 2 skipped, no regression. Actions allowlist (third-party actions blocked) flagged as operator debt in 32-01-SUMMARY.md, not toggled autonomously. RH-03 and RH-02 are code-complete; automation will function once operator opens the allowlist. STATE.md/ROADMAP.md updated.
-**Next action**: Continue Phase 32 with plan 32-02 (RH-06 README refresh) and 32-03 (RH-07 security contact).
+**Last action**: Phase 32 Plan 02 complete (RH-06: rewrote README.md for accuracy — replaced 6 dead app_*Build badges with CI/CodeQL/Gitleaks badges plus a static Python 3.11+ badge, no fabricated license badge; bumped Python prereq 3.8+→3.11+; replaced `pip install -r requirements.txt` with `pip install -e .[web]`; documented `shoppybot` entry point; fixed placeholder clone URL to `thezoid/ShopPyBot`; rewrote Overview/Features to name all 7 platforms and document the plugin framework, web dashboard/observability, price monitoring, anti-detection, and encrypted session persistence; replaced the config.yml-credentials instruction with the env-var/.env model aligned to SECURITY.md; fixed malformed Credits link). Full suite: 889 passed, 2 skipped, no regression. STATE.md/ROADMAP.md/REQUIREMENTS.md updated.
+**Next action**: Continue Phase 32 with plan 32-03 (RH-07 security contact — replace SECURITY_CONTACT_PLACEHOLDER@example.com in SECURITY.md and CODE_OF_CONDUCT.md with GitHub Private Vulnerability Reporting language).
 **Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 31 → Phase 32 ordering matters (CI security fixes landed before release-please starts tagging). CI-verification debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03) — all three checked via `gh run list`/`gh api` after the branch pushes. CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
@@ -315,6 +316,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 32-01]: Manifest-mode release-please with no extra-files entry; python release-type updates pyproject.toml natively
 - [Phase 32-01]: release-please workflow permissions scoped to exactly contents:write + pull-requests:write; no actions:write/id-token:write
 - [Phase 32-01]: Seeded .release-please-manifest.json at 2.0.0 = baseline only; release-please proposes the NEXT bump from commit history, does not re-tag 2.0.0
+- [Phase ?]: [Phase 32-02]: Collapsed README master/dev two-block badge layout to a single master-branch badge row (CI, CodeQL, Gitleaks) plus a static python-3.11+ badge; no fabricated license badge (no LICENSE file exists)
+- [Phase ?]: [Phase 32-02]: README Configuration section restructured to 3 explicit steps (non-secret config.yml edits vs .env credential setup) to align with SECURITY.md's env-var-only credential model
 
 ## Operator Next Steps
 
