@@ -364,8 +364,13 @@ class AmazonPlugin(RetailerPlugin):
             writeLog(f"Error checking Amazon item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to Amazon using AMZ_EMAIL / AMZ_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to Amazon using AMZ_EMAIL / AMZ_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, missing DOM elements, an unconfirmed
+        signal, or an exception all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("AMZ_EMAIL") or ""
@@ -373,7 +378,7 @@ class AmazonPlugin(RetailerPlugin):
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("AMZ_EMAIL or AMZ_PASSWORD not set -- skipping login", "ERROR")
-            return
+            return False
 
         try:
             tab = await self.driver.get(
@@ -390,7 +395,7 @@ class AmazonPlugin(RetailerPlugin):
             email_field = await tab.select("#ap_email", timeout=10)
             if not email_field:
                 writeLog("Email field not found on Amazon sign-in page", "ERROR")
-                return
+                return False
             await email_field.send_keys(email)
 
             continue_btn = await tab.select("#continue", timeout=10)
@@ -407,14 +412,14 @@ class AmazonPlugin(RetailerPlugin):
             password_field = await tab.select("#ap_password", timeout=10)
             if not password_field:
                 writeLog("Password field not found on Amazon sign-in page", "ERROR")
-                return
+                return False
             await password_field.send_keys(password)
 
             writeLog("Attempting to click sign-in button", "INFO")
             sign_in_btn = await tab.select("#signInSubmit", timeout=10)
             if not sign_in_btn:
                 writeLog("Sign-in submit button not found", "ERROR")
-                return
+                return False
             await sign_in_btn.click()
 
             # Check for MFA prompt.
@@ -427,9 +432,15 @@ class AmazonPlugin(RetailerPlugin):
                 )
 
             writeLog("Signed in to Amazon", "INFO")
+            verified = await self._verify_login_generic(tab, "/ap/signin", "#ap_email")
+            if not verified:
+                writeLog("Amazon login verification failed", "WARNING")
+                return False
             await self.save_session()
+            return True
         except Exception as exc:
             writeLog(f"Error during Amazon sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -454,7 +465,11 @@ class AmazonPlugin(RetailerPlugin):
         # login() is intentionally NOT wrapped in asyncio.timeout: Amazon requires
         # manual passkey dismissal and OTP entry -- a human-gated step that must not
         # be killed by a step timer. See _wait_user_action for the 300s unattended guard.
-        await self.login()
+        self._checkout_stage = "login"
+        login_ok = await self.login()
+        if not login_ok:
+            writeLog("Amazon login failed during auto_buy -- aborting checkout", "ERROR")
+            return False
         try:
             step_timeout_secs = getattr(
                 getattr(self.config, "checkout", None), "step_timeout_secs", 30

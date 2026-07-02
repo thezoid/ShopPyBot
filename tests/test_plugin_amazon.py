@@ -9,7 +9,7 @@ import importlib.util
 import inspect
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -361,7 +361,7 @@ async def test_amazon_auto_buy_returns_false_on_step_timeout(fake_browser):
 
     fake_browser.get = AsyncMock(side_effect=asyncio.TimeoutError())
 
-    with patch.object(plugin, "login", new=AsyncMock(return_value=None)):
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)):
         result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
 
     assert result is False, "auto_buy must return False when a step timeout fires"
@@ -390,7 +390,7 @@ async def test_amazon_auto_buy_logs_stage_name_on_timeout(fake_browser):
     def _capture_log(msg, level):
         log_calls.append((msg, level))
 
-    with patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
          patch.object(_amazon_module, "writeLog", _capture_log):
         await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
 
@@ -474,3 +474,158 @@ def test_amazon_place_order_marker_not_via_write_queue():
         "Amazon plugin must not reference write_queue in code for the place-order "
         f"marker (D-01): {violations}"
     )
+
+
+# ---------------------------------------------------------------------------
+# BF-03: login() -> bool via _verify_login_generic (D-11/D-12/D-13/D-14/D-15)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_missing_credentials(monkeypatch, fake_browser):
+    """login() returns False when AMZ_EMAIL/AMZ_PASSWORD are unset (D-14)."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.return_value = None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_missing_email_field(monkeypatch, fake_browser):
+    """login() returns False when #ap_email is not found on the sign-in page."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    fake_browser.main_tab.select = AsyncMock(return_value=None)
+    fake_browser.get.return_value.select = AsyncMock(return_value=None)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_on_exception(monkeypatch, fake_browser):
+    """login() returns False (never raises) on any exception during sign-in (D-13)."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    fake_browser.get = AsyncMock(side_effect=RuntimeError("network error"))
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_true_when_verified(monkeypatch, fake_browser):
+    """login() returns True only after _verify_login_generic confirms (D-12)."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    # No MFA form present -- skip the OTP wait branch. Passkey wait is always
+    # hit in the happy path -- stub it out so the test doesn't block on the
+    # real 300s asyncio.wait_for guard (never fires in this fake-browser test).
+    plugin._wait_user_action = AsyncMock()
+    fake_browser.get.return_value.select = AsyncMock(
+        side_effect=lambda selector, timeout=10: None
+        if selector == "#auth-mfa-form"
+        else MagicMock(send_keys=AsyncMock(), click=AsyncMock())
+    )
+    plugin._verify_login_generic = AsyncMock(return_value=True)
+    result = await plugin.login()
+    assert result is True
+    plugin._verify_login_generic.assert_awaited_once_with(ANY, "/ap/signin", "#ap_email")
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_when_verification_fails(monkeypatch, fake_browser):
+    """login() returns False when _verify_login_generic cannot confirm success (D-13)."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    plugin._wait_user_action = AsyncMock()
+    fake_browser.get.return_value.select = AsyncMock(
+        side_effect=lambda selector, timeout=10: None
+        if selector == "#auth-mfa-form"
+        else MagicMock(send_keys=AsyncMock(), click=AsyncMock())
+    )
+    plugin._verify_login_generic = AsyncMock(return_value=False)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_save_session_called_only_after_verification(monkeypatch, fake_browser):
+    """save_session() must be called only after _verify_login_generic confirms success."""
+    plugin = AmazonPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_amazon_module, "get_store", lambda: fake_store)
+    plugin._wait_user_action = AsyncMock()
+    fake_browser.get.return_value.select = AsyncMock(
+        side_effect=lambda selector, timeout=10: None
+        if selector == "#auth-mfa-form"
+        else MagicMock(send_keys=AsyncMock(), click=AsyncMock())
+    )
+    plugin._verify_login_generic = AsyncMock(return_value=False)
+    plugin.save_session = AsyncMock()
+    result = await plugin.login()
+    assert result is False
+    plugin.save_session.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_sets_checkout_stage_login_before_login_call(fake_browser):
+    """auto_buy sets _checkout_stage='login' immediately before calling login() (Amazon:
+    login precedes DOM interaction, Pitfall 3)."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+    stage_at_login_call = {}
+
+    async def _fake_login():
+        stage_at_login_call["stage"] = plugin._checkout_stage
+        return True
+
+    plugin.login = _fake_login
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+
+    with patch("models.mark_place_order_attempted_sync"):
+        result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    assert stage_at_login_call.get("stage") == "login"
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_aborts_on_failed_login(fake_browser):
+    """auto_buy returns False and never reaches place-order when login() returns False (D-15)."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    cfg.checkout.step_timeout_secs = 30
+    cfg.available.items = []
+
+    plugin = AmazonPlugin(config=cfg)
+    plugin.driver = fake_browser
+    plugin.login = AsyncMock(return_value=False)
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+
+    result = await plugin.auto_buy("https://www.amazon.com/dp/B00TEST")
+
+    assert result is False
+    plugin.place_order_guarded.assert_not_awaited()
