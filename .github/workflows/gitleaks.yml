@@ -1,3 +1,7 @@
+# NOTE: requires gitleaks/gitleaks-action to be allowlisted under
+# Settings -> Actions -> General -> Actions permissions (repo currently
+# restricts to selected/GitHub-owned actions only, or "Allow all actions").
+# Otherwise the run ends in startup_failure with zero jobs.
 name: gitleaks
 
 on:
