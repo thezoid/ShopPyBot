@@ -14,11 +14,18 @@ sexual identity and orientation.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported privately via GitHub's private vulnerability reporting flow:
-[https://github.com/thezoid/ShopPyBot/security/advisories/new](https://github.com/thezoid/ShopPyBot/security/advisories/new)
-(Security tab → "Report a vulnerability"). This channel is private by design
-and reaches the project maintainer directly.
+Instances of abusive, harassing, or otherwise unacceptable behavior should be
+reported privately by contacting the project maintainer directly (see the
+maintainer's GitHub profile, [@thezoid](https://github.com/thezoid), for
+current contact options).
+
+> **Operator debt:** No dedicated private conduct-report channel (e.g. a
+> conduct-report email address) is configured yet. The maintainer should set
+> one up before public launch. GitHub's [Private Vulnerability
+> Reporting](https://github.com/thezoid/ShopPyBot/security/advisories/new)
+> flow documented in `SECURITY.md` is purpose-built for security
+> vulnerabilities and must not be used as a substitute for Code of Conduct
+> reports.
 
 All reports will be handled with discretion and confidentiality.
 
