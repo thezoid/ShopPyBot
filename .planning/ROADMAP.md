@@ -116,7 +116,13 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
   2. The Amazon plugin's WAF-challenge path calls the existing 2captcha solver when a challenge is detected, with the manual-pause fallback preserved when solving is unavailable or fails; unit/integration tests mock the 2captcha call and assert both paths (BF-01).
   3. Plugin login verification checks expected post-login DOM/URL signals instead of assuming success from a click; a test simulating a failed/ambiguous login asserts login is NOT reported as successful (BF-03).
   4. Full test suite is green with new/updated tests covering all three breakfixes.
-**Plans**: TBD
+**Plans**: 6 plans (3 waves)
+- [ ] 30-01-PLAN.md — BF-02 DB marker + orchestrator possibly-placed guard + BF-03 login-failure short-circuit (models.py, core/orchestrator.py) [wave 1]
+- [ ] 30-02-PLAN.md — BF-01 Amazon WAF auto-solve wiring + `_inject_waf_token` (plugins/shopbot_plugin_amazon.py) [wave 1]
+- [ ] 30-03-PLAN.md — BF-03 login()->bool ABC + `_verify_login_generic` + relaunch check (core/plugin_base.py) [wave 1]
+- [ ] 30-04-PLAN.md — BF-02 Amazon + BestBuy place-order marker writes (BestBuy task droppable) [wave 2]
+- [ ] 30-06-PLAN.md — BF-03 community login verification: Walmart/Target/GameStop/NewEgg/SquareEnix [wave 2]
+- [ ] 30-05-PLAN.md — BF-03 Amazon + BestBuy login verification + auto_buy abort [wave 3]
 
 ### Phase 31: CI & Security Infrastructure
 
