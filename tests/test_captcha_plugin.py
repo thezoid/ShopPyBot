@@ -135,13 +135,104 @@ async def test_amazon_solver_cannot_solve_falls_to_manual_pause():
 
 
 # ---------------------------------------------------------------------------
-# Amazon: WAF (gokuProps present) -> INFO log + manual pause, solve_amazon_waf NOT called
+# Amazon: WAF (gokuProps present) -> solve_amazon_waf called, voucher injected,
+# NO manual pause on success (BF-01/D-06..D-10 solve-success path)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_amazon_waf_detected_falls_to_manual_pause():
-    """window.gokuProps present -> INFO log + manual pause; solve_amazon_waf NOT called."""
+    """window.gokuProps present + solver available -> solve_amazon_waf IS called,
+    voucher injected via _inject_waf_token, NO manual pause (D-06/D-10 success path)."""
+    solver = _make_solver()
+    solver.solve_amazon_waf = MagicMock(
+        return_value={"captcha_voucher": "VOUCHER123", "existing_token": "TOKEN456"}
+    )
+    plugin = _make_amazon_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    # WAF probe returns JSON string (truthy); injection is the 2nd evaluate() call.
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=[
+        '{"key":"k","iv":"i","context":"c"}',  # WAF probe
+        None,                                   # injection
+    ])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
+
+    assert len(wait_called) == 0, "_wait_user_action must NOT be called on WAF solve success"
+    solver.solve_amazon_waf.assert_called_once_with("k", "i", "c", "https://amazon.com/dp/TEST")
+    assert tab.evaluate.call_count == 2, "tab.evaluate must be called for WAF probe + injection"
+
+
+# ---------------------------------------------------------------------------
+# Amazon: WAF + solver unavailable (can_solve() False) -> manual pause,
+# solve_amazon_waf NOT called (BF-01/D-08 fallback path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_solver_unavailable_falls_to_manual_pause():
+    """WAF challenge present but can_solve() False -> manual pause; solve_amazon_waf
+    NOT called (the top-of-function solver gate short-circuits before WAF detection)."""
+    solver = _make_solver(can=False)
+    plugin = _make_amazon_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=['{"key":"k","iv":"i","context":"c"}'])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
+
+    assert len(wait_called) == 1
+    solver.solve_amazon_waf.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Amazon: WAF + solve_amazon_waf raises -> manual pause, no crash (D-08/D-10)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_solve_raises_falls_to_manual_pause():
+    """solve_amazon_waf raises -> manual pause, graceful (no crash)."""
+    solver = _make_solver()
+    solver.solve_amazon_waf = MagicMock(side_effect=RuntimeError("2captcha AmazonTask error"))
+    plugin = _make_amazon_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=['{"key":"k","iv":"i","context":"c"}'])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
+
+    assert len(wait_called) == 1
+    solver.solve_amazon_waf.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Amazon: WAF gokuProps decode failure -> manual pause, solve_amazon_waf NOT called
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_gokuprops_decode_failure_falls_to_manual_pause():
+    """gokuProps JSON decode failure -> manual pause; solve_amazon_waf NOT called."""
     solver = _make_solver()
     plugin = _make_amazon_plugin(solver=solver)
 
@@ -150,16 +241,45 @@ async def test_amazon_waf_detected_falls_to_manual_pause():
     async def _fake_wait(event, msg):
         wait_called.append(msg)
 
-    # WAF probe returns JSON string (truthy)
-    tab = _make_tab(goku='{"key":"k","iv":"i","context":"c"}')
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=["not valid json{{{"])
 
     with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
         await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
 
-    assert len(wait_called) == 1, "_wait_user_action must be called on WAF"
-    assert not hasattr(solver, "solve_amazon_waf") or not solver.solve_amazon_waf.called, (
-        "solve_amazon_waf must NOT be called this phase"
+    assert len(wait_called) == 1
+    solver.solve_amazon_waf.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Amazon: WAF injection failure -> manual pause (D-08)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_injection_failure_falls_to_manual_pause():
+    """_inject_waf_token raising (e.g. tab.evaluate error) -> manual pause, no crash."""
+    solver = _make_solver()
+    solver.solve_amazon_waf = MagicMock(
+        return_value={"captcha_voucher": "VOUCHER123", "existing_token": "TOKEN456"}
     )
+    plugin = _make_amazon_plugin(solver=solver)
+
+    wait_called = []
+
+    async def _fake_wait(event, msg):
+        wait_called.append(msg)
+
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(side_effect=[
+        '{"key":"k","iv":"i","context":"c"}',  # WAF probe
+        RuntimeError("tab closed"),             # injection raises
+    ])
+
+    with patch.object(plugin, "_wait_user_action", side_effect=_fake_wait):
+        await plugin._solve_or_pause(tab, "https://amazon.com/dp/TEST")
+
+    assert len(wait_called) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -350,18 +470,17 @@ async def test_amazon_token_with_newline_rejected():
 
 
 # ---------------------------------------------------------------------------
-# Amazon: solve_amazon_waf NOT called at all (WAF deferred assertion)
+# Amazon: solve_amazon_waf IS called from the plugin source (BF-01/D-06 wiring)
 # ---------------------------------------------------------------------------
 
 
-def test_amazon_source_does_not_call_solve_amazon_waf():
-    """solve_amazon_waf must NOT be called from the plugin source this phase."""
+def test_amazon_source_calls_solve_amazon_waf():
+    """solve_amazon_waf( call site must now exist in the plugin source (D-06 wiring)."""
     source = _AMAZON_PATH.read_text()
-    # The method may be referenced in a comment; only catch actual call sites
     import re
     call_sites = re.findall(r"(?<!#).*solve_amazon_waf\s*\(", source)
-    assert len(call_sites) == 0, (
-        f"solve_amazon_waf() must not be called this phase; found: {call_sites}"
+    assert len(call_sites) > 0, (
+        "solve_amazon_waf( call site expected in shopbot_plugin_amazon.py after WAF wiring"
     )
 
 
@@ -630,3 +749,46 @@ async def test_bestbuy_inject_token_uses_json_dumps():
     assert safe in injected_js, (
         f"json.dumps output {safe!r} must appear in injected BestBuy JS; got: {injected_js!r}"
     )
+
+
+# ===========================================================================
+# BF-01: _inject_waf_token escaping + rejection (V5/CR-02, -k inject)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_inject_rejects_quote_backslash_newline():
+    """_inject_waf_token rejects a voucher/token containing quote, backslash, or
+    newline BEFORE any tab.evaluate() interpolation (V5/CR-02, T-30-01)."""
+    plugin = _make_amazon_plugin()
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(return_value=None)
+
+    for bad_value in ("has'quote", "has\\backslash", "has\nnewline"):
+        with pytest.raises(Exception):
+            await plugin._inject_waf_token(
+                tab, {"captcha_voucher": bad_value, "existing_token": "safe"}
+            )
+        with pytest.raises(Exception):
+            await plugin._inject_waf_token(
+                tab, {"captcha_voucher": "safe", "existing_token": bad_value}
+            )
+
+    tab.evaluate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_amazon_waf_inject_uses_json_dumps():
+    """_inject_waf_token must embed voucher/token via json.dumps (CR-02)."""
+    import json
+    plugin = _make_amazon_plugin()
+    tab = MagicMock()
+    tab.evaluate = AsyncMock(return_value=None)
+
+    solution = {"captcha_voucher": 'v"oucher', "existing_token": "tok en"}
+    await plugin._inject_waf_token(tab, solution)
+
+    assert tab.evaluate.called
+    injected_js = tab.evaluate.call_args[0][0]
+    assert json.dumps(solution["captcha_voucher"]) in injected_js
+    assert json.dumps(solution["existing_token"]) in injected_js
