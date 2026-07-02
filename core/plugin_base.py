@@ -235,7 +235,12 @@ class RetailerPlugin(ABC):
         session_restored = await self.restore_session()
         if not session_restored:
             writeLog(f"[{plugin_name}] restore_session=False; re-logging in", "INFO")
-            await self.login()
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog(
+                    f"[{plugin_name}] relaunch: re-login failed; NOT authenticated",
+                    "ERROR",
+                )
         else:
             writeLog(f"[{plugin_name}] relaunch: session restored; skipping login", "INFO")
 

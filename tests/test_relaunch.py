@@ -5,7 +5,7 @@ All tests are RED until relaunch() is added to the ABC in Task 2.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from core.plugin_base import RetailerPlugin
 
@@ -152,3 +152,52 @@ async def test_relaunch_apply_stealth_called():
 
     plugin.setup.assert_awaited_once()
     assert "setup" in call_order
+
+
+# ---------------------------------------------------------------------------
+# BF-03 / D-15: relaunch() must honor a failed re-login, not silently treat it
+# as authenticated.
+# ---------------------------------------------------------------------------
+
+
+async def test_relaunch_logs_error_on_failed_relogin():
+    """When restore_session() is False and login() returns False, relaunch() must
+    log an ERROR and must not treat the session as authenticated."""
+    plugin, call_order = _make_recording_plugin()
+
+    async def _login_fails():
+        call_order.append("login")
+        return False
+
+    plugin.login = AsyncMock(side_effect=_login_fails)
+
+    with patch("core.plugin_base.writeLog") as mock_write_log:
+        await plugin.relaunch()
+
+    assert call_order == ["teardown", "setup", "restore_session", "login"]
+    error_calls = [
+        c for c in mock_write_log.call_args_list if c.args and c.args[1] == "ERROR"
+    ]
+    assert any("re-login failed" in c.args[0] for c in error_calls), (
+        f"Expected an ERROR log about failed re-login; got: {mock_write_log.call_args_list}"
+    )
+
+
+async def test_relaunch_no_error_log_on_successful_relogin():
+    """When login() returns True after a failed restore_session, relaunch() must
+    NOT log the re-login-failed ERROR."""
+    plugin, call_order = _make_recording_plugin()
+
+    async def _login_succeeds():
+        call_order.append("login")
+        return True
+
+    plugin.login = AsyncMock(side_effect=_login_succeeds)
+
+    with patch("core.plugin_base.writeLog") as mock_write_log:
+        await plugin.relaunch()
+
+    error_calls = [
+        c for c in mock_write_log.call_args_list if c.args and c.args[1] == "ERROR"
+    ]
+    assert not any("re-login failed" in c.args[0] for c in error_calls)
