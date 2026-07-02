@@ -96,7 +96,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 ### v4.2 Release Readiness (Phases 30-35)
 
 - [x] **Phase 30: Breakfix Hardening** — Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification (completed 2026-07-02)
-- [ ] **Phase 31: CI & Security Infrastructure** — Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vulnerability remediation
+- [x] **Phase 31: CI & Security Infrastructure** — Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vulnerability remediation (completed 2026-07-02)
 - [ ] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact
 - [ ] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration
 - [ ] **Phase 34: Feature Completion** — `[plugin]` log tags + `/api/logs` filter, outcome analytics over verified-order records
@@ -142,7 +142,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 - [x] 31-01-PLAN.md — RH-01 secret-scan: suppress the one test-fixture false positive, add tests/test_no_tracked_secrets.py guard, add gitleaks CI job
 - [x] 31-02-PLAN.md — RH-04 CodeQL workflow bump (checkout@v6 + codeql-action@v4, build-mode none, autobuild removed) + folded-in ci.yml Node20 bumps
-- [ ] 31-03-PLAN.md — RH-05 create .github/dependabot.yml + bump cryptography/pydantic-settings/jinja2, full suite stays green
+- [x] 31-03-PLAN.md — RH-05 create .github/dependabot.yml + bump cryptography/pydantic-settings/jinja2, full suite stays green
 
 ### Phase 32: Release Automation & Community Readiness
 

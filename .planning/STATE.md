@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
-status: executing
-last_updated: "2026-07-02T19:59:42.608Z"
+status: verifying
+last_updated: "2026-07-02T20:12:55.680Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 17
+  completed_plans: 9
+  percent: 33
 ---
 
 # ShopPyBot — State
@@ -30,7 +30,7 @@ progress:
 
 Phase: 31
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-02
 
 ## Phase Status
@@ -38,7 +38,7 @@ Last activity: 2026-07-02
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
 | 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (5/6 plans) | BF-01, BF-02, BF-03 |
-| 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | In Progress (2/3 plans) | RH-01, RH-04, RH-05 |
+| 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Complete (3/3 plans) | RH-01, RH-04, RH-05 |
 | 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Not started | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Not started | CFG-01, CFG-02 |
 | 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Not started | FC-01, FC-02 |
@@ -135,6 +135,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 30-breakfix-hardening P05 | 19min | 2 tasks | 4 files |
 | Phase 31 P01 | 6min | 2 tasks | 3 files |
 | Phase 31-ci-security-infrastructure P02 | 5min | 2 tasks | 2 files |
+| Phase 31 P03 | 8min | 2 tasks | 3 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -170,9 +171,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Session Continuity
 
-**Last action**: Phase 31 Plan 02 complete (RH-04 CodeQL workflow fix: codeql-analysis.yml rewritten to checkout@v6 + codeql-action/{init,analyze}@v4 with build-mode: none, autobuild step removed, category input added, matrix restructured to an include list; folded-in ci.yml Node20 bump: checkout@v4→v6, setup-python@v5→v6). RH-04 local-verifiable half complete (no retired action versions remain, grep-verified); CodeQL Actions green-run confirmation is CI debt (post-push). STATE.md/ROADMAP.md updated. Full suite: 889 passed, 2 skipped.
-**Next action**: Continue Phase 31 (CI & Security Infrastructure) with 31-03-PLAN.md (RH-05: create .github/dependabot.yml + remediate the 7 open vuln alerts via cryptography 44.0.2→49.0.0, pydantic-settings 2.14.0→2.14.2, jinja2 3.1.4→3.1.6 per RESEARCH.md).
-**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 → Phase 32 ordering matters (CI security fixes land before release-please). Plan 31-01 closed RH-01 (secret-scan audit). Plan 31-02 closed RH-04 (CodeQL fix + ci.yml Node20 bump). 31-03 (RH-05 dependabot + vuln remediation) remains — the final plan in Phase 31. CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
+**Last action**: Phase 31 Plan 03 complete (RH-05: created .github/dependabot.yml with pip + github-actions ecosystems; bumped cryptography 44.0.2→49.0.0, pydantic-settings[yaml] 2.14.0→2.14.2 in requirements.txt, jinja2 3.1.4→3.1.6 in pyproject.toml [web] extra). All 7 open Dependabot alerts cleared per live vulnerable_version_range cross-check; zero documented-dismissals needed; no cryptography 48.0.1 fallback required (49.0.0 went green first try). Full suite: 889 passed, 2 skipped. Phase 31 (CI & Security Infrastructure) is now fully code-complete across all 3 plans (RH-01, RH-04, RH-05). STATE.md/ROADMAP.md updated.
+**Next action**: Run `/gsd:plan-phase 32` to begin Phase 32 (Release Automation & Community Readiness) planning — RH-02, RH-03, RH-06, RH-07.
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 31 → Phase 32 ordering matters (CI security fixes landed before release-please starts tagging). CI-verification debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03) — all three checked via `gh run list`/`gh api` after the branch pushes. CFG-01 precedes CFG-02 within Phase 33. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
 ---
 
@@ -307,6 +308,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 31-02]: checkout@v6 + codeql-action@v4 used (not CONTEXT.md placeholder v4/v3) per live-verified research: current Node24 majors, not stale defaults
 - [Phase 31-02]: Folded ci.yml checkout@v4->v6 and setup-python@v5->v6 into this plan (orchestrator-directed) to close the adjacent Node20 exposure alongside the CodeQL fix
 - [Phase 31-02]: Autobuild step removed entirely rather than kept alongside build-mode -- Python is interpreted and autobuild is being phased out
+- [Phase ?]: [Phase 31-03]: Exact-pin style (==) kept for cryptography/pydantic-settings/jinja2 bumps, matching requirements.txt convention (resolves research Open Question #2)
+- [Phase ?]: [Phase 31-03]: cryptography bumped to latest 49.0.0 (not the minimum-patched 48.0.1 floor) -- removes the SECT-curve root-cause class outright; repo usage (Fernet/Scrypt only) has zero overlap with any deprecated/removed cipher surface
+- [Phase ?]: [Phase 31-03]: jinja2 bump applied in pyproject.toml [web] extra, not requirements.txt, despite the alert's manifest_path saying requirements.txt -- jinja2 is not declared in requirements.txt at all (research Pitfall 5)
 
 ## Operator Next Steps
 
