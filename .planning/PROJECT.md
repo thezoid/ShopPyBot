@@ -42,6 +42,20 @@ v4.1: 6 phases (25-29 + inserted 29.1) / 20 plans, all complete. Full suite: 807
 
 </details>
 
+## Current Milestone: v4.2 Release Readiness
+
+**Goal:** Close every outstanding code-actionable item — seeds, breakfixes, audit warnings, deferred sub-features, and release-hardening gaps — so the public repo reaches a stable, release-ready state. "Done" = code-complete and green in CI, pending only the live-environment operator UAT that is inherently untestable in CI.
+
+**Target features:**
+- **Release-Hardening** — SEED-001 non-destructive history/`.gitignore`/artifact secret audit; SEED-002 release-please automation seeded at product **v2.0.0** + `pyproject.toml` version reconcile; fix the silently-failing CodeQL scan (retired v1 actions); add `dependabot.yml` + remediate open vuln alerts; refresh the stale README; real maintainer security contact.
+- **Audit-Fixes** — SSR remove-button graceful-degradation handler (UI-03); stop the raw `last_heartbeat` float leaking into `get_status()`/SSE; remove the dead `escHtml()` helper.
+- **Breakfix** — Amazon WAF auto-solve plugin wiring (manual-pause fallback kept); HIGH place-order-timeout double-buy hardening; robust post-login DOM/URL verification.
+- **Config-Refactor** — harmonize platform delay-config field names with back-compat; flexible per-platform config sections so plugins self-declare config.
+- **Feature-Completion** — `[plugin]` log tags + `/api/logs` plugin filter (completes OBS-08); outcome analytics (success-rate / time-to-checkout) over BUY-04 order records.
+- **Doc-Hygiene** — reconcile lagging v4.1 VALIDATION/SUMMARY frontmatter and v4.0 nyquist flags.
+
+**Key context:** Debt-closure milestone scoped from an exhaustive automated inventory sweep (64 raw → 20 code-actionable). Live-environment UAT (Phases 18-24/27/28/29/29.1), ~37 community-plugin selector TODOs, remaining-5-retailer form-fill, and XL arms-race items (request/API mode, waiting-room survival, multi-account) remain tracked operator debt — explicitly out of scope per the "pending testing = done" definition. SEED-001 is split: the non-destructive audit/scan is in scope; the destructive history rewrite / force-push / secret rotation is an operator-gated one-time action.
+
 ## Future Candidate Directions
 
 Candidates for later milestones (next milestone not yet scoped — run `/gsd:new-milestone`):
@@ -126,9 +140,15 @@ Candidates for later milestones (next milestone not yet scoped — run `/gsd:new
 - ✓ Live observability surfaces: per-plugin health cards, confirmed-buys table, price-history charts, filterable log viewer, uptime bar — v4.1 (Phase 28)
 - ✓ SSE client wiring: EventSource replaces polling, fallback, Live/Reconnecting indicator — v4.1 (Phases 29, 29.1)
 
-### Active (next milestone)
+### Active (v4.2 Release Readiness)
 
-_None scoped yet. Run `/gsd:new-milestone` to define the next milestone and a fresh `REQUIREMENTS.md`._
+Scoped in `REQUIREMENTS.md` — 20 requirements across 6 categories:
+- **RH-01..07** Release-Hardening (history/gitignore audit, release-please + version reconcile, CodeQL fix, dependabot + vuln review, README refresh, security contact)
+- **AF-01..03** Audit-Fixes (SSR remove handler, last_heartbeat leak, dead escHtml)
+- **BF-01..03** Breakfix (WAF wiring, place-order double-buy hardening [HIGH], post-login verification)
+- **CFG-01..02** Config-Refactor (field harmonization, flexible per-platform config)
+- **FC-01..02** Feature-Completion (plugin log tags + filter, outcome analytics)
+- **DH-01..03** Doc-Hygiene (v4.1 VALIDATION/SUMMARY frontmatter, v4.0 nyquist flags)
 
 ### Deferred
 
@@ -188,4 +208,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-30 — v4.1 Dashboard & Observability shipped; next milestone not yet scoped*
+*Last updated: 2026-07-02 — v4.2 Release Readiness scoped (debt-closure milestone, 20 requirements)*
