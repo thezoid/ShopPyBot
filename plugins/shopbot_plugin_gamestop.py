@@ -117,8 +117,13 @@ class GameStopPlugin(RetailerPlugin):
             writeLog(f"Error checking GameStop item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to GameStop using GAMESTOP_EMAIL / GAMESTOP_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to GameStop using GAMESTOP_EMAIL / GAMESTOP_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, an exception, or an unconfirmed
+        signal all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("GAMESTOP_EMAIL") or ""
@@ -126,7 +131,7 @@ class GameStopPlugin(RetailerPlugin):
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("GAMESTOP_EMAIL or GAMESTOP_PASSWORD not set -- skipping login", "ERROR")
-            return
+            return False
 
         try:
             tab = await self.driver.get("https://www.gamestop.com/login")
@@ -144,8 +149,14 @@ class GameStopPlugin(RetailerPlugin):
                 await sign_in_btn.click()
 
             writeLog("Signed in to GameStop", "INFO")
+            verified = await self._verify_login_generic(tab, "/login", "input#login-form-email")
+            if not verified:
+                writeLog("GameStop login verification failed", "WARNING")
+                return False
+            return True
         except Exception as exc:
             writeLog(f"Error during GameStop sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -185,7 +196,11 @@ class GameStopPlugin(RetailerPlugin):
             await checkout_btn.click()
             writeLog("Proceeded to checkout on GameStop", "INFO")
 
-            await self.login()
+            self._checkout_stage = "login"
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog("GameStop login failed during auto_buy -- aborting checkout", "ERROR")
+                return False
 
             # TODO: verify place order selector against live gamestop.com
             # NOTE: CAPTCHA may appear here and block the order.
