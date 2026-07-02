@@ -112,12 +112,15 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Nothing (first phase of v4.2; independent of the RH/AF/CFG/FC work streams)
 **Requirements**: BF-01, BF-02, BF-03
 **Success Criteria** (what must be TRUE):
+
   1. An idempotency latch/guard test that injects a timeout at the place-order stage proves no duplicate order is placed on retry (BF-02, HIGH).
   2. The Amazon plugin's WAF-challenge path calls the existing 2captcha solver when a challenge is detected, with the manual-pause fallback preserved when solving is unavailable or fails; unit/integration tests mock the 2captcha call and assert both paths (BF-01).
   3. Plugin login verification checks expected post-login DOM/URL signals instead of assuming success from a click; a test simulating a failed/ambiguous login asserts login is NOT reported as successful (BF-03).
   4. Full test suite is green with new/updated tests covering all three breakfixes.
+
 **Plans**: 6 plans (3 waves)
-- [ ] 30-01-PLAN.md — BF-02 DB marker + orchestrator possibly-placed guard + BF-03 login-failure short-circuit (models.py, core/orchestrator.py) [wave 1]
+
+- [x] 30-01-PLAN.md — BF-02 DB marker + orchestrator possibly-placed guard + BF-03 login-failure short-circuit (models.py, core/orchestrator.py) [wave 1]
 - [ ] 30-02-PLAN.md — BF-01 Amazon WAF auto-solve wiring + `_inject_waf_token` (plugins/shopbot_plugin_amazon.py) [wave 1]
 - [ ] 30-03-PLAN.md — BF-03 login()->bool ABC + `_verify_login_generic` + relaunch check (core/plugin_base.py) [wave 1]
 - [ ] 30-04-PLAN.md — BF-02 Amazon + BestBuy place-order marker writes (BestBuy task droppable) [wave 2]
@@ -130,9 +133,11 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Nothing
 **Requirements**: RH-01, RH-04, RH-05
 **Success Criteria** (what must be TRUE):
+
   1. A gitleaks/trufflehog scan of the repo (history + working tree) reports zero findings, and `.gitignore` demonstrably excludes `config.yml`, `data/*.db`, and credential-store artifacts (RH-01).
   2. The CodeQL workflow runs to a green completion in Actions after retired `checkout@v2` / `codeql-action@v1` are bumped to currently-supported versions (RH-04).
   3. `.github/dependabot.yml` exists and is valid, and all currently-open dependency vulnerability alerts are reviewed and remediated (updated or explicitly dismissed with rationale) so the alert queue is clean (RH-05).
+
 **Plans**: TBD
 
 ### Phase 32: Release Automation & Community Readiness
@@ -141,10 +146,12 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Phase 31 (release-please should land against a CI pipeline with working CodeQL/dependabot signal)
 **Requirements**: RH-02, RH-03, RH-06, RH-07
 **Success Criteria** (what must be TRUE):
+
   1. `pyproject.toml`'s canonical version is reconciled to `2.0.0` (RH-03).
   2. The release-please workflow + config exist, target the `python` release-type, and are seeded from `2.0.0`; a dry-run / manifest confirms the seed and correct parsing of conventional-commit history (RH-02).
   3. README accurately documents the 7-platform ecosystem, web dashboard/observability, price monitoring, anti-detection, and session persistence; states the Python 3.11+ prereq; documents `pip install -e .[web]` / `shoppybot` install and run; badges resolve; the clone URL is the real repo (RH-06).
   4. `SECURITY.md` and `CODE_OF_CONDUCT.md` carry the operator-supplied real maintainer contact, with zero remaining `SECURITY_CONTACT_PLACEHOLDER@example.com` occurrences anywhere in the repo (RH-07).
+
 **Plans**: TBD
 
 ### Phase 33: Config Refactor
@@ -153,9 +160,11 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Nothing (CFG-01 must land before CFG-02 within this phase — shared config-schema surface)
 **Requirements**: CFG-01, CFG-02
 **Success Criteria** (what must be TRUE):
+
   1. All plugins read a single canonical delay-field naming scheme; a config using the legacy field names still loads correctly via a back-compat shim, proven by a test loading both old- and new-style config (CFG-01).
   2. A plugin can add a new, previously-undeclared per-platform config section (e.g. a test/fixture plugin) and have it load and validate with zero changes to the core config-schema file (CFG-02).
   3. The existing config-schema test suite plus new tests for both requirements are green.
+
 **Plans**: TBD
 
 ### Phase 34: Feature Completion
@@ -164,9 +173,11 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Nothing (builds on existing v4.0 order records + v4.1 log/dashboard infrastructure)
 **Requirements**: FC-01, FC-02
 **Success Criteria** (what must be TRUE):
+
   1. Every log line written carries a `[plugin]` tag, and `/api/logs` accepts a plugin filter parameter that returns only matching lines (FC-01, completes OBS-08).
   2. An operator-facing analytics view/endpoint computes success-rate and time-to-checkout from existing confirmed-order (BUY-04) records, with correct output verified against a fixture set of orders (FC-02).
   3. New tests for both requirements are green.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -176,11 +187,13 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Depends on**: Nothing (documentation + small frontend/backend cleanup; no feature coupling to other v4.2 phases)
 **Requirements**: AF-01, AF-02, AF-03, DH-01, DH-02, DH-03
 **Success Criteria** (what must be TRUE):
+
   1. The dashboard SSR items-table remove button removes an item even when the JS `loadItems()` fetch/render path fails — a test simulating a failed fetch confirms the SSR-rendered remove action still functions (AF-01).
   2. `get_status()` and SSE status frames no longer contain the raw `last_heartbeat` monotonic float; only `heartbeat_age_secs` is present — a test asserts the raw field's absence from both surfaces (AF-02).
   3. The dead `escHtml()` helper no longer exists anywhere in the dashboard frontend source (AF-03).
   4. v4.1 VALIDATION.md frontmatter for phases 25/26/27 reads `status: validated` / `wave_0_complete: true`, and v4.1 SUMMARY.md frontmatter for phases 27/28/29 carries `requirements:` so the audit 3-source cross-reference reports OBS-01/02/03/04/06/09 as VERIFIED (DH-01, DH-02).
   5. v4.0 phase VALIDATION.md `nyquist_compliant` flags read `true` for phases 18-24 (DH-03).
+
 **Plans**: TBD
 **UI hint**: yes
 
