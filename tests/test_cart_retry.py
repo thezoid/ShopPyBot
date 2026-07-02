@@ -416,6 +416,72 @@ async def test_possibly_placed_precedence_confirmed_order_wins(tmp_data_dir):
 
 
 @pytest.mark.asyncio
+async def test_login_failure_short_circuits_retry_and_alerts_once(fake_notifier):
+    """BF-03/D-15: a login-stage (False, None) result is non-retryable INSIDE with_retry
+    (login/auto_buy invoked exactly once, not max_attempts) and fires exactly one
+    login_failed alert -- proves loop suppression, not merely a post-hoc alert."""
+    from notifications.dispatcher import NotificationDispatcher
+
+    call_counter = {"n": 0}
+
+    plugin = MagicMock()
+    plugin.__class__.__name__ = "FakePlugin"
+    plugin._checkout_stage = "login"
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+
+    async def fake_auto_buy(url):
+        call_counter["n"] += 1
+        plugin._checkout_stage = "login"
+        return False
+
+    plugin.auto_buy = AsyncMock(side_effect=fake_auto_buy)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, dispatcher)
+
+    assert call_counter["n"] == 1, (
+        f"login/auto_buy must be invoked exactly once on a login-stage failure "
+        f"(max_attempts=4 configured); got {call_counter['n']} -- loop suppression failed"
+    )
+    login_failed_events = [e for e in notifier.events if e.action == "login_failed"]
+    assert len(login_failed_events) == 1, (
+        f"Expected exactly 1 login_failed alert, got {len(login_failed_events)}"
+    )
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_non_login_stage_failure_still_retries(tmp_data_dir):
+    """Regression: a (False, None) result at a non-login stage must still retry
+    (should_retry only suppresses on stage=='login'; every other stage is unchanged)."""
+    plugin, _ = _make_plugin([False, False, False])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=2, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    # _make_plugin defaults _checkout_stage to "place-order" (not "login")
+    assert plugin.auto_buy.await_count == 3, "Non-login-stage failures must still retry to max_attempts"
+
+
+@pytest.mark.asyncio
 async def test_no_retry_loop_in_orchestrator():
     """Structural: orchestrator must not contain `for attempt in range(` loops.
 
