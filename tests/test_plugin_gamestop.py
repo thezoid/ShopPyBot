@@ -16,7 +16,7 @@ Tests cover:
 import importlib.util
 import inspect
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
@@ -183,3 +183,90 @@ async def test_check_availability_never_raises(fake_browser):
     fake_browser.get = AsyncMock(side_effect=RuntimeError("network error"))
     result = await plugin.check_availability("https://www.gamestop.com/products/test/12345")
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Login + auto_buy tests (BF-03: login() -> bool via _verify_login_generic; D-11/D-12/D-13)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_missing_credentials(monkeypatch, fake_browser):
+    """login() returns False when GAMESTOP_EMAIL/GAMESTOP_PASSWORD are unset (D-14)."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.return_value = None
+    monkeypatch.setattr(_gamestop_module, "get_store", lambda: fake_store)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_on_exception(monkeypatch, fake_browser):
+    """login() returns False (never raises) on any exception during sign-in (D-13)."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_gamestop_module, "get_store", lambda: fake_store)
+    fake_browser.get = AsyncMock(side_effect=RuntimeError("network error"))
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_true_when_verified(monkeypatch, fake_browser):
+    """login() returns True only after _verify_login_generic confirms (D-12)."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_gamestop_module, "get_store", lambda: fake_store)
+    plugin._verify_login_generic = AsyncMock(return_value=True)
+    result = await plugin.login()
+    assert result is True
+    plugin._verify_login_generic.assert_awaited_once_with(ANY, "/login", "input#login-form-email")
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_when_verification_fails(monkeypatch, fake_browser):
+    """login() returns False when _verify_login_generic cannot confirm success (D-13)."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_gamestop_module, "get_store", lambda: fake_store)
+    plugin._verify_login_generic = AsyncMock(return_value=False)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_sets_checkout_stage_login_before_login_call(fake_browser):
+    """auto_buy sets _checkout_stage='login' immediately before calling login()."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+    stage_at_login_call = {}
+
+    async def _fake_login():
+        stage_at_login_call["stage"] = plugin._checkout_stage
+        return True
+
+    plugin.login = _fake_login
+    result = await plugin.auto_buy("https://www.gamestop.com/products/test/12345")
+    assert stage_at_login_call.get("stage") == "login"
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_aborts_on_failed_login(fake_browser):
+    """auto_buy returns False and never reaches place-order when login() returns False (D-15)."""
+    plugin = GameStopPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    plugin.login = AsyncMock(return_value=False)
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+    result = await plugin.auto_buy("https://www.gamestop.com/products/test/12345")
+    assert result is False
+    plugin.place_order_guarded.assert_not_awaited()
