@@ -17,6 +17,7 @@ is passed in directly by the test.
 """
 
 import pytest
+import yaml
 from pydantic import BaseModel, Field, ValidationError
 
 from core.config_schema import AppConfig, PlatformsConfig
@@ -47,8 +48,20 @@ _COSTCO_PLUGIN_CODE = (
 
 
 def _build_costco_registry(tmp_path, platforms_section: dict) -> PluginRegistry:
+    """Write the fixture plugin + a config.yml carrying platforms_section, build a registry.
+
+    AppConfig.settings_customise_sources excludes init_settings from its source
+    tuple (only env_settings + YamlConfigSettingsSource are wired in), so passing
+    a "platforms" dict as an AppConfig(**kwargs) constructor argument is silently
+    ignored. The established, working injection path throughout this codebase's
+    test suite (tests/conftest.py, tests/test_config_schema.py) is a real
+    yaml_file=<Path> pointing at a written config.yml -- used here for the same
+    reason.
+    """
     (tmp_path / "shopbot_plugin_costco.py").write_text(_COSTCO_PLUGIN_CODE)
-    cfg = AppConfig(**{"platforms": platforms_section})
+    config_yml = tmp_path / "config.yml"
+    config_yml.write_text(yaml.dump({"platforms": platforms_section}))
+    cfg = AppConfig(yaml_file=config_yml)
     return PluginRegistry(cfg, tmp_path)
 
 

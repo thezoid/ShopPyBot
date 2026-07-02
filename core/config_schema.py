@@ -8,7 +8,7 @@ from typing import Optional
 
 from urllib.parse import urlparse as _urlparse
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -217,6 +217,13 @@ class NeweggPlatformConfig(BaseModel):
 
 
 class PlatformsConfig(BaseModel):
+    # CFG-02: unknown platform keys pass through as raw dicts instead of being
+    # silently dropped (the default extra="ignore" behavior). A new plugin's
+    # own model validates its section via RetailerPlugin.get_platform_config().
+    # The 7 declared platform fields below keep full strict validation --
+    # extra="allow" governs ONLY undeclared keys.
+    model_config = ConfigDict(extra="allow")
+
     amazon: AmazonPlatformConfig = AmazonPlatformConfig()
     bestbuy: BestBuyPlatformConfig = BestBuyPlatformConfig()
     walmart: WalmartPlatformConfig = WalmartPlatformConfig()

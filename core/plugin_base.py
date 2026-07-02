@@ -6,6 +6,7 @@ from typing import Literal
 
 from nodriver.cdp import network as cdp_network
 from nodriver.cdp import storage as cdp_storage
+from pydantic import BaseModel
 
 from core.session_store import build_session_store
 from core.stealth import _is_ban_response
@@ -264,6 +265,38 @@ class RetailerPlugin(ABC):
                 )
         else:
             writeLog(f"[{plugin_name}] relaunch: session restored; skipping login", "INFO")
+
+    def get_platform_config(self, model_cls: type[BaseModel]) -> BaseModel:
+        """Return this plugin's per-platform config, validated against model_cls.
+
+        CFG-02: lets a plugin declare and validate its own platforms.<platform_key>
+        section with zero edits to core/config_schema.py. PlatformsConfig has
+        model_config = ConfigDict(extra="allow"), so an undeclared platform key
+        passes through as a raw dict instead of being dropped; core only
+        guarantees passthrough of that section, not validation -- model_cls's
+        own Field constraints apply here.
+
+        Handles three cases uniformly (getattr-safe; never raises AttributeError
+        on missing config/platform_key/section):
+        - Missing config, platform_key, or section: returns model_cls() defaults.
+        - One of the 7 built-in platforms: raw is already a validated model_cls
+          instance -- returned as-is.
+        - A new plugin's undeclared section: raw is a passthrough dict --
+          constructed into model_cls, letting pydantic raise ValidationError on
+          bad data (fail loudly, matching the 7 existing platforms' behavior).
+
+        PLUGIN_API_VERSION stays 2 -- additive concrete method (CFG-02).
+        """
+        platforms = getattr(self.config, "platforms", None) if self.config else None
+        key = getattr(self, "platform_key", None)
+        raw = getattr(platforms, key, None) if key else None
+        if raw is None:
+            return model_cls()
+        if isinstance(raw, model_cls):
+            return raw
+        if isinstance(raw, dict):
+            return model_cls(**raw)   # raises ValidationError on invalid data -- intentional
+        return model_cls()
 
     def _session_platform_key(self) -> str | None:
         """Return platform_key attribute if defined on the subclass, else None."""
