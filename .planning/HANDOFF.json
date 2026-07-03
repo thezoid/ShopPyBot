@@ -1,42 +1,37 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-07T08:13:27.961Z",
-  "context": "research",
-  "milestone": "v3.0",
-  "milestone_name": "Resilience + Ecosystem",
-  "workflow": "new-milestone",
-  "stage": "research-synthesis-incomplete",
-  "status": "paused",
+  "timestamp": "2026-07-03T18:39:59.814Z",
+  "context": "default",
+  "milestone": "v4.2",
+  "milestone_name": "Release Readiness",
+  "workflow": "gsd-autonomous",
+  "stage": "milestone-complete-archived",
+  "status": "milestone_complete",
   "completed_steps": [
-    {"step": "gather goals + version", "detail": "v3.0, all four areas FULL (anti-detection hardening, plugin ecosystem, price monitoring, stability/polish)"},
-    {"step": "PROJECT.md updated", "detail": "Current Milestone v3.0 section + Active reqs + footer", "commit": "e159f24"},
-    {"step": "STATE.md switched", "detail": "state.milestone-switch v3.0; status=planning", "commit": "e159f24"},
-    {"step": "research spawned", "detail": "4 gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls) completed; files written but UNCOMMITTED until this WIP commit"}
+    {"step": "Phase 30 Breakfix Hardening", "detail": "BF-01 Amazon WAF auto-solve, BF-02 place-order double-buy latch (HIGH), BF-03 7-plugin login verification"},
+    {"step": "Phase 31 CI & Security Infrastructure", "detail": "RH-01 gitleaks CI, RH-04 CodeQL fix, RH-05 dependabot.yml + 7 vuln bumps"},
+    {"step": "Phase 32 Release Automation & Community Readiness", "detail": "RH-03 pyproject 2.0.0, RH-02 release-please seed, RH-06 README rewrite, RH-07 PVR security contact"},
+    {"step": "Phase 33 Config Refactor", "detail": "CFG-01 delay-field harmonization + shim, CFG-02 generic per-platform config (extra=allow + get_platform_config)"},
+    {"step": "Phase 34 Feature Completion", "detail": "FC-01 plugin log-tag filter (contextvar), FC-02 outcome analytics (/api/analytics)"},
+    {"step": "Phase 35 Audit-Fixes & Doc-Hygiene", "detail": "AF-01 SSR remove route, AF-02 last_heartbeat scrub, AF-03 escHtml removal, DH-01/02/03 frontmatter reconcile"},
+    {"step": "Milestone lifecycle", "detail": "audit (tech_debt) -> complete (archived, tag v4.2) -> cleanup (phases moved to milestones/v4.2-phases/)", "commit": "3a52cc1"}
   ],
-  "remaining_steps": [
-    {"step": "synthesize SUMMARY.md", "status": "not_done", "detail": "gsd-research-synthesizer errored (tool result missing) then was stopped. .planning/research/SUMMARY.md on disk is STALE v1 content (Selenium->nodriver) — must regenerate for v3.0."},
-    {"step": "define requirements", "status": "not_started", "detail": "scope per area via AskUserQuestion multiselect; new REQ-IDs continuing existing (ANTI-04+, new PRICE-/ECO-/STAB- categories); write .planning/REQUIREMENTS.md (does not exist yet)"},
-    {"step": "create roadmap", "status": "not_started", "detail": "spawn gsd-roadmapper, START PHASE NUMBERING AT 12 (continue from 11). Researchers converged on build order: 12 anti-detect infra -> 13 price (parallelizable) -> 14 ecosystem/metadata -> 15 BotService+front-ends -> 16 stability"},
-    {"step": "link pending todos", "status": "not_started"}
+  "remaining_steps": [],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Enable GitHub Private Vulnerability Reporting (Settings -> Security & analysis)", "context": "SECURITY.md + CODE_OF_CONDUCT.md link security/advisories/new which 404s until enabled (RH-07)", "blocking": false},
+    {"action": "Widen repo Actions allowlist (Settings -> Actions -> General) for gitleaks/gitleaks-action@* + googleapis/release-please-action@*", "context": "currently 'selected' with no third-party patterns -> gitleaks startup_failure every push, release-please cannot run", "blocking": false},
+    {"action": "Merge the release-please PR (#11 at close) to cut release 2.0.0", "context": "release-please seeded at 2.0.0; first release is operator-triggered", "blocking": false},
+    {"action": "Add a LICENSE file if open-sourcing", "context": "none exists; no license badge fabricated", "blocking": false},
+    {"action": "Live-UAT deferred checks", "context": "Amazon WAF live-challenge, BF-02 live double-buy edge, community-plugin selectors, BestBuy post-login DOM, Amazon/BestBuy jittered poll cadence", "blocking": false}
   ],
-  "blockers": [
-    {"description": "v3.0 research SUMMARY.md was never generated; the file on disk is the OLD v1 summary. Do NOT consume it as v3.0 research.", "type": "technical", "workaround": "Re-spawn gsd-research-synthesizer (sonnet) reading the 4 fresh v3.0 files to overwrite SUMMARY.md."}
-  ],
-  "human_actions_pending": [],
   "decisions": [
-    {"decision": "v3.0 = all four areas, FULL scope (major release)", "rationale": "user selected all four + full framing", "phase": "v3.0"},
-    {"decision": "research-first before requirements", "rationale": "new domains (proxy/CAPTCHA/fingerprint) move fast", "phase": "v3.0"},
-    {"decision": "Only one new dep: 2captcha-python 2.0.7 (AsyncTwoCaptcha, MIT)", "rationale": "STACK research; proxy/fingerprint/price/wiki need zero new deps", "phase": "v3.0"},
-    {"decision": "Walmart/Target use behavioral managers (HUMAN/Akamai) NOT CAPTCHA-solvable -- keep manual-pause", "rationale": "FEATURES+PITFALLS research", "phase": "v3.0"},
-    {"decision": "core/browser_factory.py is the shared hook for proxy/fingerprint/CAPTCHA; ABC setup() default calls it; per-plugin migration, zero forced rewrites of the 7 existing plugins", "rationale": "ARCHITECTURE research", "phase": "v3.0"},
-    {"decision": "CAPTCHA/proxy secrets via CredentialStore SECRET_KEYS (TWOCAPTCHA_API_KEY, CAPSOLVER_API_KEY, PROXY_USERNAME, PROXY_PASSWORD); CAPTCHA opt-in default false like SMS gate; price-drop dedup uses SEPARATE columns from stock dedup", "rationale": "ARCHITECTURE+PITFALLS research", "phase": "v3.0"}
+    {"decision": "RH-07 security contact = GitHub Private Vulnerability Reporting (no email published)", "rationale": "operator away at decision; avoids publishing a private email on a public repo; reversible", "phase": "32"},
+    {"decision": "Config canonical delay fields = delay_seconds/delay_jitter; Amazon/BestBuy jitter ACTIVATED (Option A)", "rationale": "those fields were dead (flat poll_interval); unifying consumption activates jitter 30-40s; poll-cadence only, anti-detection improvement", "phase": "33"},
+    {"decision": "BF-02 double-buy marker wired to Amazon/BestBuy only", "rationale": "deliberate pre-declared deferral; the 5 community plugins cannot reliably place live orders yet (operator debt)", "phase": "30"},
+    {"decision": "Autonomous run: auto-commit per plan, push to branch per phase, no direct master push", "rationale": "prior GSD authorization; avoids data loss; branch+PR route", "phase": "all"}
   ],
-  "uncommitted_files": [
-    ".planning/research/STACK.md",
-    ".planning/research/FEATURES.md",
-    ".planning/research/ARCHITECTURE.md",
-    ".planning/research/PITFALLS.md"
-  ],
-  "next_action": "Re-spawn gsd-research-synthesizer (model sonnet) to OVERWRITE .planning/research/SUMMARY.md from the 4 v3.0 research files, then resume new-milestone.md at step 9 (Define Requirements) -> step 10 (roadmap, start phase 12).",
-  "context_notes": "Mid /gsd:new-milestone for v3.0. Phases dir empty (cleared at switch). REQUIREMENTS.md does not exist yet (removed at v2.0 close; new-milestone recreates it). 4 research files are solid and converge on a clean build order. ONLY broken thing = SUMMARY synthesis. Resume = synthesize -> requirements -> roadmap(start 12). Bash tool is bash. Commit via gsd-sdk query commit. No Claude co-author trailer per user CLAUDE.md."
+  "uncommitted_files": [],
+  "next_action": "v4.2 fully closed, archived, pushed (tag v4.2 on origin). No in-progress GSD work. NEXT: operator completes human_actions_pending (GitHub settings + release PR #11), then /gsd:new-milestone to start v4.3, OR open a PR from chore/v4.0-milestone-close to master.",
+  "context_notes": "v4.2 Release Readiness executed autonomously via /gsd-autonomous: 6 phases (30-35) each discuss->plan->plan-check->execute->verify->code-review->fix. 20/20 requirements satisfied, full suite 940 passed / 2 skipped. Working tree clean, all committed + pushed to chore/v4.0-milestone-close. Audit = tech_debt (deferred UAT + operator actions only, no code gaps), archived to .planning/milestones/v4.2-MILESTONE-AUDIT.md. Tests: use .venv/Scripts/python.exe -m pytest, NOT rtk pytest. STATE.md uses a custom prose-field schema the gsd-sdk state verbs cannot parse (hand-edit)."
 }
