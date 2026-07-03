@@ -237,6 +237,7 @@
     });
 
     const POLL_MS = 2000;
+    const ANALYTICS_POLL_MS = 30000;  // IN-02: analytics changes slowly; a much slower cadence than POLL_MS is sufficient
     const SSE_STALL_MS = 8000;  // SSE-01: stall threshold (8 missed 1s status ticks; under the 15s keepalive)
     let failCount = 0;
 
@@ -508,7 +509,8 @@
       });
     }
 
-    // --- pollAnalytics: fetch function; called once on page load (FC-02) ---
+    // --- pollAnalytics: fetch function; called on page load and every
+    // ANALYTICS_POLL_MS thereafter (FC-02, IN-02) ---
     async function pollAnalytics() {
       try {
         const resp = await fetch('/api/analytics');
@@ -744,6 +746,11 @@
     pollStatus();
     pollLogs();
     pollAnalytics();
+
+    // IN-02: analytics has no SSE event type -- refresh on a slow, independent
+    // timer (unlike pollStatus/pollLogs, which piggyback on SSE or its fallback)
+    // so the success-rate/time-to-checkout cards do not go stale for the session.
+    setInterval(pollAnalytics, ANALYTICS_POLL_MS);
 
     // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
     if (typeof EventSource !== 'undefined') {
