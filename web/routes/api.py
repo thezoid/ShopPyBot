@@ -153,6 +153,18 @@ async def get_history(request: Request):
     return JSONResponse({"confirmed_orders": orders})
 
 
+@router.get("/analytics")
+async def get_analytics(request: Request):
+    """Return outcome analytics (FC-02): overall + per-plugin success-rate and
+    time-to-checkout, computed from existing confirmed-order records.
+
+    Aggregate-only JSON -- no link, URL, or credential fields (T-34-05).
+    Read is async-safe via asyncio.to_thread (SSE-03).
+    """
+    data = await asyncio.to_thread(request.app.state.svc.get_analytics)
+    return JSONResponse(data)
+
+
 @router.get("/price-history/{link_b64}")
 async def get_price_history(link_b64: str, request: Request):
     """Return price series (oldest-first) for a URL encoded as URL-safe base64.

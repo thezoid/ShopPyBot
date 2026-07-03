@@ -112,6 +112,79 @@ def test_get_price_history_bad_link(client):
     assert resp.json() == {"series": []}
 
 
+def test_get_analytics_aggregate_only_no_link_leak(client, mock_svc):
+    """GET /api/analytics returns overall + per_plugin JSON with no link/credential leak (FC-02)."""
+    mock_svc.get_analytics.return_value = {
+        "overall": {
+            "attempted": 4,
+            "confirmed": 3,
+            "success_rate": 0.75,
+            "avg_time_to_checkout_secs": 46.666666666666664,
+            "sample_size": 3,
+        },
+        "per_plugin": [
+            {
+                "plugin": "amazon",
+                "attempted": 2,
+                "confirmed": 2,
+                "success_rate": 1.0,
+                "avg_time_to_checkout_secs": 40.0,
+                "sample_size": 2,
+            },
+            {
+                "plugin": "bestbuy",
+                "attempted": 2,
+                "confirmed": 1,
+                "success_rate": 0.5,
+                "avg_time_to_checkout_secs": 60.0,
+                "sample_size": 1,
+            },
+        ],
+    }
+    resp = client.get("/api/analytics")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "overall" in data and "per_plugin" in data
+    assert data["overall"]["success_rate"] == 0.75
+    assert data["per_plugin"][0]["plugin"] == "amazon"
+
+    # Aggregate-only: no link/URL field anywhere in the response, and no
+    # credential-pattern string (mirrors the get_status boundary convention).
+    def _no_link_key(obj):
+        if isinstance(obj, dict):
+            assert "link" not in obj, f"link key leaked in analytics response: {obj}"
+            for v in obj.values():
+                _no_link_key(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _no_link_key(item)
+
+    _no_link_key(data)
+    assert not CRED_PATTERN.search(resp.text), (
+        f"Credential pattern found in /api/analytics response: {CRED_PATTERN.findall(resp.text)}"
+    )
+
+
+def test_get_analytics_empty_dataset(client, mock_svc):
+    """GET /api/analytics with no order data returns valid JSON, no ZeroDivisionError."""
+    mock_svc.get_analytics.return_value = {
+        "overall": {
+            "attempted": 0,
+            "confirmed": 0,
+            "success_rate": None,
+            "avg_time_to_checkout_secs": None,
+            "sample_size": 0,
+        },
+        "per_plugin": [],
+    }
+    resp = client.get("/api/analytics")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["overall"]["success_rate"] is None
+    assert data["overall"]["avg_time_to_checkout_secs"] is None
+    assert data["per_plugin"] == []
+
+
 def test_logs_filtered_level_and_search(client):
     """GET /api/logs?level=ERROR&search=captcha&n=50 calls read_logs_filtered correctly."""
     fake_logs = ["[ERROR][2026-01-01@00:00:00] captcha detected"]

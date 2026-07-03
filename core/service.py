@@ -117,6 +117,47 @@ class BotService:
         """
         return get_price_history_sync(link, limit)
 
+    def get_analytics(self) -> dict:
+        """Compute outcome analytics from existing order records (FC-02).
+
+        Read-only; no bot start required. Resolves link -> platform_key via the
+        registry's domain_patterns (no plugin/platform column exists on items),
+        then delegates the actual metric math to the PURE core.analytics module.
+        link is read ONLY here to derive platform_key -- it never enters the
+        returned dict (T-34-06).
+        """
+        from urllib.parse import urlparse
+
+        from core.analytics import compute_analytics
+        from core.registry import PluginRegistry
+        from models import get_order_analytics_rows_sync
+
+        plugins_dir = Path(__file__).parent.parent / "plugins"
+        registry = PluginRegistry(self._cfg, plugins_dir)
+        domain_map = [
+            (
+                getattr(plugin, "platform_key", None) or type(plugin).__name__.lower(),
+                [plugin.domain_patterns]
+                if isinstance(plugin.domain_patterns, str)
+                else list(getattr(plugin, "domain_patterns", [])),
+            )
+            for plugin in registry._all_plugins
+        ]
+
+        def platform_of(link: str) -> str:
+            host = urlparse(link or "").hostname or ""
+            for key, patterns in domain_map:
+                if any(pattern in host for pattern in patterns):
+                    return key
+            return "core"
+
+        columns = (
+            "name", "link", "order_id", "confirmed_at",
+            "checkout_attempts", "place_order_attempted_at", "purchased",
+        )
+        rows = [dict(zip(columns, row)) for row in get_order_analytics_rows_sync()]
+        return compute_analytics(rows, platform_of)
+
     def list_plugins(self) -> list[dict]:
         """Return one dict per discovered plugin from _all_plugins.
 
