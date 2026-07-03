@@ -2,9 +2,12 @@
 
 import asyncio
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+
+from web.security import check_origin
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -27,3 +30,16 @@ async def dashboard(request: Request):
         "items": svc.list_items(),
         "plugins": plugins,
     })
+
+
+@router.post("/items/remove", dependencies=[Depends(check_origin)])
+async def remove_item_form(request: Request):
+    """Zero-JS SSR remove action (AF-01): HTML forms cannot issue DELETE,
+    so this POST mirrors DELETE /api/items/{link_b64}'s effect via the
+    same BotService.remove_item() call, then redirects back to '/'.
+    """
+    form = await request.form()
+    link = (form.get("link") or "").strip()
+    if link:
+        request.app.state.svc.remove_item(link)
+    return RedirectResponse(url="/", status_code=303)
