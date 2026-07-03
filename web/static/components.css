@@ -96,6 +96,7 @@ h2 {
 .btn-destructive      { background: var(--color-destructive); color: var(--color-destructive-fg); }
 .btn-sm               { min-height: 30px; padding: 0 var(--space-sm); font-size: var(--text-sm); }
 .btn-text-destructive { background: none; border: none; color: var(--color-destructive); cursor: pointer; font-size: var(--text-body); padding: 0; }
+.inline-remove-form   { display: inline; margin: 0; }
 
 /* --- Log panel --- */
 .logs-panel    { margin-top: var(--space-md); }
