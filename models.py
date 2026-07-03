@@ -116,6 +116,23 @@ def get_confirmed_orders_sync():
         ).fetchall()
 
 
+def get_order_analytics_rows_sync():
+    """Return rows needed for outcome analytics (FC-02). Read-only.
+
+    Selects every item that was attempted (place-order marker set) OR has an
+    order_id, plus the two durable buy-flow timestamps. link is included ONLY
+    for platform resolution by the caller (core/service.py:get_analytics) --
+    it must never be forwarded into the analytics response.
+    """
+    with get_db_connection() as conn:
+        return conn.execute(
+            "SELECT name, link, order_id, confirmed_at, checkout_attempts,"
+            " place_order_attempted_at, purchased"
+            " FROM items"
+            " WHERE place_order_attempted_at IS NOT NULL OR order_id IS NOT NULL"
+        ).fetchall()
+
+
 def update_item_purchased_sync(link):
     """Set purchased=1 for the item with the given link."""
     with get_db_connection() as conn:
