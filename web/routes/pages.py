@@ -39,7 +39,8 @@ async def remove_item_form(request: Request):
     same BotService.remove_item() call, then redirects back to '/'.
     """
     form = await request.form()
-    link = (form.get("link") or "").strip()
+    raw_link = form.get("link")
+    link = raw_link.strip() if isinstance(raw_link, str) else ""
     if link:
         request.app.state.svc.remove_item(link)
     return RedirectResponse(url="/", status_code=303)
