@@ -2,7 +2,7 @@
 phase: 22
 slug: supervisor-browser-relaunch-server-safety
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-12
 ---

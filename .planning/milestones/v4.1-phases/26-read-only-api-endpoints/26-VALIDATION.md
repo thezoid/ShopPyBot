@@ -1,9 +1,9 @@
 ---
 phase: 26
 slug: read-only-api-endpoints
-status: planned
+status: validated
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-25
 updated: 2026-06-25
 ---

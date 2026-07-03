@@ -1,9 +1,9 @@
 ---
 phase: 25
 slug: design-system
-status: planned
+status: validated
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-25
 ---
 
