@@ -10,7 +10,6 @@ For the live running-process state use the web /status endpoint instead
 """
 
 import json
-import time
 
 from core.service import BotService
 
@@ -28,12 +27,11 @@ def _format_status_table(status: dict) -> str:
     if not plugins:
         return f"{header}\nNo plugin data yet."
     col_headers = ("Name", "Status", "Last Heartbeat", "Errors", "Checked", "Orders")
-    now = time.monotonic()
     data = [
         (
             name,
             rec.get("status", "idle"),
-            (f"{now - rec['last_heartbeat']:.1f}s ago" if rec.get("last_heartbeat", 0.0) > 0.0 else "never"),
+            (f"{rec['heartbeat_age_secs']}s ago" if rec.get("heartbeat_age_secs") is not None else "never"),
             str(rec.get("consecutive_errors", 0)),
             str(rec.get("items_checked", 0)),
             str(rec.get("orders_confirmed", 0)),

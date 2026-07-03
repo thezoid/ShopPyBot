@@ -88,7 +88,10 @@ class HealthRegistry:
         now = time.monotonic()
         result = {}
         for name, rec in self._plugins.items():
-            public = {k: v for k, v in rec.items() if not k.startswith("_")}
+            public = {
+                k: v for k, v in rec.items()
+                if not k.startswith("_") and k != "last_heartbeat"
+            }
             lhb = rec["last_heartbeat"]
             public["heartbeat_age_secs"] = (
                 None if lhb == 0.0 else round(now - lhb, 1)

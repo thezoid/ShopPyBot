@@ -13,7 +13,7 @@ _STATUS_PAYLOAD = {
     "plugins": {
         "AmazonPlugin": {
             "status": "running",
-            "last_heartbeat": 100.0,
+            "heartbeat_age_secs": 5.3,
             "consecutive_errors": 0,
             "items_checked": 5,
             "orders_confirmed": 1,
@@ -41,6 +41,8 @@ def test_status_table(capsys, tmp_data_dir):
     out = capsys.readouterr().out
     assert "AmazonPlugin" in out
     assert "running=" in out
+    assert "never" not in out, "heartbeating plugin must not render as 'never' (AF-02 lockstep)"
+    assert "5.3s ago" in out
 
 
 def test_status_json(capsys, tmp_data_dir):
