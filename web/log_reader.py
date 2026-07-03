@@ -30,6 +30,7 @@ def read_logs_filtered(
     n: int = 50,
     level: str | None = None,
     search: str | None = None,
+    plugin: str | None = None,
 ) -> list[str]:
     """Return the last n log lines that match the optional filters.
 
@@ -38,14 +39,19 @@ def read_logs_filtered(
     (a level/search query won't silently return fewer than n just because the
     matches sit earlier than the n-line tail).
     level: keep only lines starting with f"[{level.upper()}]".
+    plugin: keep only lines containing f"[{plugin}]" -- the guaranteed second-bracket
+        [plugin] tag injected by logger.py's ContextVar (FC-01, 34-01).
     search: keep only lines containing search (case-insensitive substring match).
-    Both filters are AND-combined when both are provided.
+    All filters are AND-combined when provided together.
     No filters returns the same result as read_recent_logs(n).
     """
     lines = _read_today_lines()
     if level is not None:
         prefix = f"[{level.upper()}]"
         lines = [line for line in lines if line.startswith(prefix)]
+    if plugin is not None:
+        tag = f"[{plugin}]"
+        lines = [line for line in lines if tag in line]
     if search is not None:
         needle = search.lower()
         lines = [line for line in lines if needle in line.lower()]

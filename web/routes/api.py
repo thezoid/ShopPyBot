@@ -7,6 +7,7 @@ Credential routes live in web/routes/credentials.py (SECRET_KEYS gate).
 
 import asyncio
 import base64
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -15,6 +16,13 @@ from web.security import check_origin
 from web.log_reader import read_logs_filtered
 
 router = APIRouter()
+
+# V5 defense-in-depth whitelist for the /logs plugin query param: internal
+# platform_key tags are always lowercase-alphanumeric (T-34-03/T-34-04). An
+# enum check against the live plugin list is deliberately NOT used here -- it
+# would require a filesystem+importlib PluginRegistry scan (via list_plugins,
+# see core/service.py) on every poll of this hot, frequently-polled endpoint.
+_PLUGIN_PARAM_RE = re.compile(r"[a-z0-9]+")
 
 
 # ---------------------------------------------------------------------------
@@ -33,19 +41,25 @@ async def get_logs(
     request: Request,
     level: str | None = None,
     search: str | None = None,
+    plugin: str | None = None,
     n: int = 50,
 ):
-    """Return recent log lines, optionally filtered (OBS-08).
+    """Return recent log lines, optionally filtered (OBS-08, FC-01).
 
     Query params (all optional, AND-combined):
       level  exact `[LEVEL]` prefix match
+      plugin exact `[plugin]` tag substring match (platform_key, e.g. "amazon");
+             validated against a lowercase-alphanumeric whitelist -- an
+             invalid value is dropped to None rather than reaching the filter
       search case-insensitive substring match
       n      line count, clamped to 1..500 (default 50)
     With no params this returns the last 50 lines (unchanged behavior).
     Read is async-safe via asyncio.to_thread (SSE-03).
     """
     n = min(max(n, 1), 500)
-    logs = await asyncio.to_thread(read_logs_filtered, n, level, search)
+    if plugin is not None and not _PLUGIN_PARAM_RE.fullmatch(plugin):
+        plugin = None
+    logs = await asyncio.to_thread(read_logs_filtered, n, level, search, plugin)
     return JSONResponse({"logs": logs})
 
 
