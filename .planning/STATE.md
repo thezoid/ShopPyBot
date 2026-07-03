@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
-status: completed
-last_updated: "2026-07-03T03:42:51.602Z"
-last_activity: 2026-07-03
+status: Awaiting next milestone
+last_updated: "2026-07-03T04:26:44.105Z"
+last_activity: 2026-07-03 — Milestone v4.2 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
-Status: v4.2 milestone code-complete
-Last activity: 2026-07-03
+Phase: Milestone v4.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-03 — Milestone v4.2 completed and archived
 
 ## Phase Status
 
@@ -164,6 +164,25 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 | seed | SEED-002 — release-please automatic version tagging | dormant (release milestone). **In scope as v4.2 Phase 32 (RH-02/RH-03).** |
 
 **Audit warnings tracked to backlog (non-blocking, from v4.1 audit refresh):** UI-03 SSR remove-button dead click handler (Phase 25, graceful-degradation, not XSS) — **in scope as v4.2 Phase 35 (AF-01).** `last_heartbeat` raw monotonic float in `get_status()` / SSE status payload (Phase 27, cosmetic, no credential exposure) — **in scope as v4.2 Phase 35 (AF-02).**
+
+### Acknowledged at v4.2 milestone close (2026-07-03) — 8 items
+
+All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledged via the pre-close open-artifact audit (`gsd-sdk query audit-open`) — live-browser/live-retailer/live-GitHub-Actions checks are structurally impossible in CI per this milestone's own "done = code-complete + CI-green" definition.
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 30 — Breakfix Hardening live-UAT (WAF challenge, double-buy edge, community-plugin login selectors) (30-VERIFICATION.md) | human_needed |
+| verification | Phase 31 — CI & Security Infrastructure live Actions runs (gitleaks/CodeQL green-run, Dependabot queue drain) (31-VERIFICATION.md) | human_needed |
+| verification | Phase 32 — Release Automation live Actions run + PVR toggle (32-VERIFICATION.md) | human_needed |
+| verification | Phase 33 — Config Refactor live poll-cadence jitter observation (33-VERIFICATION.md) | human_needed |
+| verification | Phase 34 — Feature Completion live-browser visual/theme rendering (log filter, analytics view) (34-VERIFICATION.md) | human_needed |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); code wiring shipped in v4.2 Phase 30 (BF-01) — live-challenge proof stays operator debt |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant; non-destructive audit shipped in v4.2 Phase 31 (RH-01) — destructive rewrite stays operator-gated |
+| seed | SEED-002 — release-please automatic version tagging | dormant; code-complete in v4.2 Phase 32 (RH-02/RH-03) — first live Actions run pending operator Actions-allowlist widen |
+
+**Code-level tech debt carried forward (from v4.2-MILESTONE-AUDIT.md):** BF-02's write-ahead place-order marker is wired for Amazon + BestBuy only — the 5 community plugins (Walmart, Target, GameStop, NewEgg, SquareEnix) do not yet pass `order_marker_link` to `place_order_guarded`, leaving the same double-buy exposure BF-02 was created to close (pre-declared deferred scope; all 5 plugins independently EXPERIMENTAL/selector-unverified).
+
+**Operator-action items (confirmed still open by live checks during the v4.2 audit):** enable GitHub Private Vulnerability Reporting; widen the Actions allowlist for `gitleaks/gitleaks-action` + `googleapis/release-please-action`; merge release-please PR #11 to master; add a LICENSE file if open-sourcing; decide on a dedicated conduct-report channel; sign off on RH-07's PVR-only channel decision (made autonomously in the operator's absence).
 
 ---
 | Phase 25-design-system P01 | 566s | 2 tasks | 2 files |
@@ -363,4 +382,4 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 
 ## Operator Next Steps
 
-- Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete -- all 3 plans (35-01, 35-02, 35-03) landed. **The v4.2 Release Readiness milestone is now code-complete: all 20 requirements landed, full suite green (939 passed, 2 skipped).** Next: run `/gsd:complete-milestone` (or equivalent milestone-close workflow); live-environment UAT remains tracked operator debt per the milestone's "done = code-complete and CI-green" definition.
+- Start the next milestone with /gsd:new-milestone

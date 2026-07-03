@@ -84,6 +84,46 @@
 
 ---
 
+## Milestone: v4.2 — Release Readiness
+
+**Shipped:** 2026-07-03
+**Phases:** 6 (30-35) | **Plans:** 20 | **Tasks:** 45 | **Suite:** 940 passed, 2 skipped
+
+### What Was Built
+- Breakfix hardening: place-order-timeout double-buy latch (`_PossiblyPlaced` marker + guard, HIGH), Amazon WAF auto-solve via the existing 2captcha path with manual-pause fallback preserved, real post-login DOM/URL verification (`_verify_login_generic`) rolled out to all 7 plugins (P30).
+- CI & security infrastructure: gitleaks secret-scan CI job + local guard test, repaired CodeQL workflow (retired Node16 actions bumped to `checkout@v6`/`codeql-action@v4`), `.github/dependabot.yml` + all 7 open vulnerability alerts remediated (P31).
+- Release automation & community readiness: `pyproject.toml` reconciled to 2.0.0, release-please seeded (manifest-mode, python release-type), README rewritten, SECURITY.md/CODE_OF_CONDUCT.md routed through GitHub Private Vulnerability Reporting (P32).
+- Config refactor: canonical `delay_seconds`/`delay_jitter` fields with a legacy back-compat shim; generic per-platform config extension point (`PlatformsConfig(extra="allow")` + `RetailerPlugin.get_platform_config()`) (P33).
+- Feature completion: `[plugin]` log tag on every log line + `/api/logs` plugin filter (completes OBS-08); outcome analytics (success-rate, time-to-checkout) over confirmed-order records (P34).
+- Audit-fixes & doc-hygiene: SSR remove-button graceful degradation, `last_heartbeat` leak scrubbed from `get_status()`/SSE, dead `escHtml()` removed, v4.0/v4.1 planning-artifact frontmatter reconciled (P35).
+
+### What Worked
+- **Deep code review after verification caught real bugs twice.** A dedicated REVIEW.md pass (distinct from VERIFICATION.md) found and the executor fixed a genuine CRITICAL regression in both P30 (BF-02's marker was originally written before the `test_mode`/monitor_only suppression check — would have permanently latched any item reached under the documented `test_mode:true` default) and P35 (`POST /items/remove` crashed with an unhandled 500 on a malformed multipart field). Both were confirmed fixed by the milestone audit, both covered by dedicated regression tests.
+- **Single shared mechanisms held the line again.** `_verify_login_generic` (one login-verification path for all 7 plugins instead of 7 bespoke checks), the single `get_snapshot()` shaping boundary that fixed `last_heartbeat` for both `get_status()` and SSE atomically, and `get_platform_config()` as the one sanctioned per-plugin config-extension mechanism — DRY held under a milestone that touched every plugin file.
+- **Debt-inventory-driven milestone scoping.** An exhaustive automated sweep (64 raw findings → 20 code-actionable requirements) converted a loose backlog of seeds/breakfixes/audit-warnings/deferred-subfeatures into a boundaried, closeable milestone with a clean "code-complete + CI-green, live-UAT stays operator debt" definition of done.
+- **Sequencing by risk and dependency paid off.** BF-02 (the one HIGH item) shipped first in Phase 30 to close the longest-standing exposure earliest; Phase 31 (CI security) landed before Phase 32 (release-please) so release automation tagged against a working CI signal.
+
+### What Was Inefficient
+- **The milestone's own Nyquist frontmatter lag was not self-applied.** Phase 35 (DH-01/DH-03) reconciled stale `VALIDATION.md` flags for OLDER phases (v4.0 18-24, v4.1 25-27) — but the audit found all 6 of v4.2's own phase `VALIDATION.md` files still read `status:draft` / `nyquist_compliant:false` at audit time, the exact same staleness pattern the milestone itself was closing for others. Doc-hygiene work should include a final pass over the current milestone's own phases, not just older ones.
+- **An autonomous policy decision (RH-07) needed explicit operator sign-off.** Resolving the security-contact requirement to "GitHub PVR only, no email" is a reasonable default, but it is a scope/policy call made in the operator's absence — surfaced correctly as tech debt by the audit, but a reminder that CLAUDE.md's approval-gate rule applies to policy substitutions, not just code changes.
+- **Real residual risk was accepted, not just deferred, in one place.** BF-02's marker only covers Amazon + BestBuy this milestone; the 5 community plugins remain exposed to the identical double-buy mechanism the HIGH item was created to close. The scope cut was deliberate and pre-declared (all 5 plugins are independently EXPERIMENTAL/selector-unverified), but it is the one item in this milestone that reads as "should not stay open indefinitely" rather than ordinary live-UAT debt.
+
+### Patterns Established
+- **REVIEW.md as a mandatory post-verification step on safety/security-touching phases** — a second, adversarial read of the diff after VERIFICATION.md passes, specifically hunting for ordering bugs (guard-after-effect) and malformed-input crashes that fixture-driven tests don't naturally cover.
+- **Inventory-sweep milestone scoping** for debt-closure milestones: enumerate everything outstanding across seeds/todos/audit-warnings/deferred-subfeatures first, then filter to what's CI-verifiable, before writing requirements.
+- **Self-referential doc-hygiene check**: when a phase's job is to reconcile stale frontmatter, explicitly check whether the CURRENT milestone's own phases need the same fix, not only prior milestones'.
+
+### Key Lessons
+1. **Run a REVIEW.md-style deep code review after VERIFICATION.md on any phase touching a safety-critical guard or a new unauthenticated input surface** — it found 2 CRITICAL bugs this milestone that automated/fixture-driven verification missed.
+2. **When closing a milestone whose own phases include doc-hygiene reconciliation, apply the same reconciliation to the current milestone's phases before calling it done** — otherwise the very next audit finds the milestone did not eat its own dog food.
+3. **Flag autonomous-mode policy substitutions (not just code deviations) for explicit operator sign-off** — a working substitute (PVR instead of email) still represents a decision the operator did not make themselves.
+
+### Cost Observations
+- Model mix: not tracked this milestone.
+- Notable: milestone scoped via an exhaustive automated inventory sweep (64 raw → 20 code-actionable) rather than fresh feature ideation — an efficient way to convert accumulated cross-milestone debt into a single boundaried, closeable unit of work.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Cumulative Quality
@@ -94,9 +134,11 @@
 | v3.0 | 548 passed, 2 skipped | Anti-detection + ecosystem + price monitoring |
 | v4.0 | 755 passed, 2 skipped | Verified checkout + always-on reliability |
 | v4.1 | 807 passed, 2 skipped | Dashboard redesign + live SSE observability (zero-Node) |
+| v4.2 | 940 passed, 2 skipped | Debt-closure + release-hardening (double-buy guard, CI security, release-please, config harmonization, log/analytics, audit-fixes) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Prune archived-milestone detail from the live ROADMAP at close — keeps `roadmap.analyze` accurate and ROADMAP constant-size.
-2. Single enforcement points (one ABC gate, one RetryPolicy) backed by CI guards beat per-site patches for safety-critical invariants.
-3. Keep planning-doc metadata in sync with reality at close: inserted decimal phases need a top-level ROADMAP checkbox, plan SUMMARYs need a `requirements:` field, and VALIDATION status must flip post-exec — stale frontmatter misleads both humans and `roadmap.analyze`/audit tooling.
+2. Single enforcement points (one ABC gate, one RetryPolicy, one shared verification/shaping helper) backed by CI guards beat per-site patches for safety-critical invariants.
+3. Keep planning-doc metadata in sync with reality at close: inserted decimal phases need a top-level ROADMAP checkbox, plan SUMMARYs need a `requirements:` field, and VALIDATION status must flip post-exec — including for the CURRENT milestone's own phases, not only older ones — or stale frontmatter misleads both humans and `roadmap.analyze`/audit tooling.
+4. A post-verification deep code review (REVIEW.md) is worth running on any phase touching a safety-critical guard or new unauthenticated input surface — it has caught CRITICAL bugs (v4.2 P30, P35) that fixture-driven verification missed.
