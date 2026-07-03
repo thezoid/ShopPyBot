@@ -22,7 +22,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 ### Audit-Fixes
 
 - [x] **AF-01**: Dashboard SSR items-table remove buttons remove an item without depending on the JS `loadItems()` render path (graceful degradation if the fetch fails)
-- [ ] **AF-02**: `get_status()` and SSE status frames no longer expose the raw `last_heartbeat` monotonic float (only derived `heartbeat_age_secs`)
+- [x] **AF-02**: `get_status()` and SSE status frames no longer expose the raw `last_heartbeat` monotonic float (only derived `heartbeat_age_secs`)
 - [x] **AF-03**: The dead `escHtml()` helper is removed from the dashboard frontend
 
 ### Breakfix
@@ -91,7 +91,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | FC-01 | Phase 34 | Complete |
 | FC-02 | Phase 34 | Complete |
 | AF-01 | Phase 35 | Complete |
-| AF-02 | Phase 35 | Pending |
+| AF-02 | Phase 35 | Complete |
 | AF-03 | Phase 35 | Complete |
 | DH-01 | Phase 35 | Pending |
 | DH-02 | Phase 35 | Pending |

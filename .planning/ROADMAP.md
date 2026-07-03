@@ -208,7 +208,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 **Plans**: 3 plans (1 wave)
 
 - [x] 35-01-PLAN.md — AF-01 SSR remove-button graceful degradation (zero-JS POST /items/remove) + AF-03 dead escHtml() removal
-- [ ] 35-02-PLAN.md — AF-02 raw last_heartbeat scrub from get_status() + SSE frame, with core/cli/status.py lockstep
+- [x] 35-02-PLAN.md — AF-02 raw last_heartbeat scrub from get_status() + SSE frame, with core/cli/status.py lockstep
 - [ ] 35-03-PLAN.md — DH-01/02/03 v4.0/v4.1 frontmatter reconciliation (validated / nyquist_compliant / requirements:)
 
 **UI hint**: yes
