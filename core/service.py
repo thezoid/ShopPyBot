@@ -164,7 +164,7 @@ class BotService:
         Reads registry._all_plugins (eager, no browser, no network).
         Never reads _active_plugins (empty until setup_for_items runs).
         Returns dicts with keys: name, domain_patterns, difficulty,
-        requires_proxy, requires_captcha.
+        requires_proxy, requires_captcha, platform_key.
         """
         from core.registry import PluginRegistry
 
@@ -181,6 +181,7 @@ class BotService:
                 "difficulty": getattr(plugin, "difficulty", "medium"),
                 "requires_proxy": getattr(plugin, "requires_proxy", False),
                 "requires_captcha": getattr(plugin, "requires_captcha", False),
+                "platform_key": getattr(plugin, "platform_key", None),
             }
             for plugin in registry._all_plugins
         ]

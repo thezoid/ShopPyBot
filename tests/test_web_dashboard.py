@@ -259,3 +259,70 @@ def test_uplot_served(client):
     """uPlot vendor JS must be served from /static/vendor/uplot.iife.min.js."""
     resp = client.get("/static/vendor/uplot.iife.min.js")
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Phase 34 Plan 02 -- #log-plugin-filter dropdown (FC-01 completion)
+# ---------------------------------------------------------------------------
+
+
+def test_dashboard_log_plugin_filter_populated_from_platform_key(mock_svc):
+    """GET / renders #log-plugin-filter with an option per platform_key (FC-01)."""
+    from web import create_app
+
+    mock_svc.list_plugins.return_value = [
+        {"name": "AmazonPlugin", "platform_key": "amazon"},
+        {"name": "BestBuyPlugin", "platform_key": "bestbuy"},
+        {"name": "SquareEnixPlugin", "platform_key": "squareenix"},
+    ]
+    resp = TestClient(create_app(mock_svc)).get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="log-plugin-filter"' in html
+    assert '<option value="">All plugins</option>' in html
+    assert '<option value="amazon">amazon</option>' in html
+    assert '<option value="bestbuy">bestbuy</option>' in html
+    # Squareenix (no underscore) uses platform_key verbatim, never the class name.
+    assert '<option value="squareenix">squareenix</option>' in html
+    assert "SquareEnixPlugin" not in html
+
+
+def test_dashboard_log_plugin_filter_skips_falsy_platform_key(mock_svc):
+    """A plugin with platform_key=None renders no <option> (only the default)."""
+    from web import create_app
+
+    mock_svc.list_plugins.return_value = [
+        {"name": "UnkeyedPlugin", "platform_key": None},
+    ]
+    resp = TestClient(create_app(mock_svc)).get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    select_start = html.index('id="log-plugin-filter"')
+    select_end = html.index("</select>", select_start)
+    select_html = html[select_start:select_end]
+    assert select_html.count("<option") == 1, (
+        f"Expected only the default 'All plugins' option, got: {select_html!r}"
+    )
+
+
+def test_dashboard_poll_logs_sets_plugin_param(client):
+    """pollLogs() JS reads #log-plugin-filter and sets the plugin query param."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    poll_idx = html.index("async function pollLogs()")
+    poll_end = html.index("\n    }", html.index("try {", poll_idx))
+    poll_body = html[poll_idx:poll_end]
+    assert "log-plugin-filter" in poll_body
+    assert "params.set('plugin', plugin)" in poll_body
+
+
+def test_dashboard_plugin_filter_change_wired_to_poll_logs(client):
+    """#log-plugin-filter has a 'change' listener that calls pollLogs (mirrors level)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    idx = html.index("getElementById('log-plugin-filter').addEventListener('change'")
+    assert idx != -1
+    snippet_end = html.index("});", idx)
+    assert "pollLogs()" in html[idx:snippet_end]

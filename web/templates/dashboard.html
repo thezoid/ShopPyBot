@@ -197,6 +197,15 @@
             <option value="DEBUG">DEBUG</option>
             <option value="TRACE">TRACE</option>
           </select>
+          <label for="log-plugin-filter">Plugin</label>
+          <select id="log-plugin-filter">
+            <option value="">All plugins</option>
+            {% for p in plugins %}
+              {% if p.platform_key %}
+              <option value="{{ p.platform_key }}">{{ p.platform_key }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
           <label for="log-search">Search</label>
           <input type="text" id="log-search" placeholder="Search logs...">
           <button type="button" id="btn-log-follow" class="btn btn-accent"
@@ -602,6 +611,18 @@
       return map[m[1].toUpperCase()] || 'log-level-info';
     }
 
+    // --- lineMatchesFilters: pure guard mirroring read_logs_filtered's AND-composed
+    // level/plugin/search match logic (web/log_reader.py). Used by the SSE 'log'
+    // listener so live-tail lines respect the same active filters as the one-shot
+    // pollLogs snapshot -- without this, every streamed line bypassed the filters
+    // (FC-01 completion: the plugin filter only worked on the initial snapshot). ---
+    function lineMatchesFilters(line, level, search, plugin) {
+      if (level && !line.startsWith('[' + level.toUpperCase() + ']')) return false;
+      if (plugin && line.indexOf('[' + plugin + ']') === -1) return false;
+      if (search && line.toLowerCase().indexOf(search.toLowerCase()) === -1) return false;
+      return true;
+    }
+
     function appendLogLine(lineText) {
       // OBS-07: one-shot boundary dedup — drop a line only when armed (the first line after a
       // backfill repaint) AND it equals the last backfilled line. All later lines append
@@ -674,9 +695,11 @@
 
     async function pollLogs() {
       var level = document.getElementById('log-level-filter').value;
+      var plugin = document.getElementById('log-plugin-filter').value;
       var search = document.getElementById('log-search').value;
       var params = new URLSearchParams({ n: 500 });
       if (level) params.set('level', level);
+      if (plugin) params.set('plugin', plugin);
       if (search) params.set('search', search);
       try {
         const resp = await fetch('/api/logs?' + params.toString());
@@ -693,9 +716,12 @@
       }
     }
 
-    // Filter controls wired to pollLogs (debounced search, immediate level/refresh)
+    // Filter controls wired to pollLogs (debounced search, immediate level/plugin/refresh)
     (function() {
       document.getElementById('log-level-filter').addEventListener('change', function() {
+        pollLogs();
+      });
+      document.getElementById('log-plugin-filter').addEventListener('change', function() {
         pollLogs();
       });
       document.getElementById('log-search').addEventListener('input', function() {
@@ -743,7 +769,17 @@
         } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
       });
       es.addEventListener('log', function(e) {
-        try { var p = JSON.parse(e.data); appendLogLine(p.line); maybeScrollToBottom(); } catch (err) { /* CR-01: ignore malformed SSE frame */ }
+        try {
+          var p = JSON.parse(e.data);
+          var level = document.getElementById('log-level-filter').value;
+          var search = document.getElementById('log-search').value;
+          var plugin = document.getElementById('log-plugin-filter').value;
+          // FC-01: gate live-tail lines through the same filters as pollLogs.
+          if (lineMatchesFilters(p.line, level, search, plugin)) {
+            appendLogLine(p.line);
+            maybeScrollToBottom();
+          }
+        } catch (err) { /* CR-01: ignore malformed SSE frame */ }
       });
       es.onopen = function() { setIndicator('live'); _sseLastStatusTs = Date.now(); };  // SSE-01: reset watchdog on clean open
       es.onerror = function() { setIndicator('reconnecting'); };

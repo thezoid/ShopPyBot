@@ -309,3 +309,45 @@ def test_dedup_flag_armed_after_render(client):
     assert arm_idx != -1, (
         "_dedupNextLine = true must be set after the forEach in renderLogLines"
     )
+
+
+# ===========================================================================
+# Phase 34 Plan 02 -- live SSE log lines respect the active level/search/plugin
+# filters (FC-01 completion: previously only the one-shot pollLogs snapshot
+# was filtered, so the plugin dropdown was flooded by unfiltered live lines).
+# ===========================================================================
+
+
+def test_line_matches_filters_function_present(client):
+    """dashboard.html declares the lineMatchesFilters pure guard function."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "function lineMatchesFilters" in resp.text
+
+
+def test_live_log_listener_gates_append_through_line_matches_filters(client):
+    """The SSE 'log' listener calls appendLogLine only inside a lineMatchesFilters guard.
+
+    Without this guard every streamed line would append unconditionally,
+    bypassing the level/search/plugin filters during live tailing (the
+    dashboard's primary mode).
+    """
+    resp = client.get("/")
+    assert resp.status_code == 200
+    text = resp.text
+
+    log_listener_idx = text.find("addEventListener('log'")
+    assert log_listener_idx != -1, "SSE 'log' listener not found"
+    listener_end = text.find("});", log_listener_idx)
+    listener_body = text[log_listener_idx:listener_end]
+
+    guard_idx = listener_body.find("lineMatchesFilters(")
+    assert guard_idx != -1, (
+        "SSE 'log' listener must call lineMatchesFilters(...) to gate live lines"
+    )
+    append_idx = listener_body.find("appendLogLine(p.line)")
+    assert append_idx != -1, "appendLogLine(p.line) not found in the 'log' listener"
+    assert guard_idx < append_idx, (
+        "lineMatchesFilters(...) must be evaluated BEFORE appendLogLine(p.line) is "
+        "called, so a non-matching live line is skipped rather than appended"
+    )
