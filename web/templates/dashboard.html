@@ -148,6 +148,25 @@
       </table>
     </section>
 
+    <!-- Section: Analytics (Phase 34 FC-02) -->
+    <section class="card" id="section-analytics">
+      <h2>Analytics</h2>
+      <div class="health-grid" id="analytics-grid"></div>
+      <table id="analytics-table">
+        <thead>
+          <tr>
+            <th>Plugin</th>
+            <th>Orders</th>
+            <th>Success Rate</th>
+            <th>Avg Time-to-Checkout</th>
+          </tr>
+        </thead>
+        <tbody id="analytics-tbody">
+          <!-- populated by JS: empty-state row OR data rows -->
+        </tbody>
+      </table>
+    </section>
+
     <!-- Section 3: Credentials -->
     <section class="card" id="section-credentials">
       <h2>Credentials</h2>
@@ -418,6 +437,87 @@
       }
     }
 
+    // --- Analytics (Phase 34 FC-02): headline stat cards + per-plugin table ---
+    function formatSuccessRate(rate) {
+      if (rate === null || rate === undefined) return 'N/A';
+      return (rate * 100).toFixed(1) + '%';
+    }
+
+    function formatDurationSecs(secs) {
+      if (secs === null || secs === undefined) return 'N/A';
+      return secs.toFixed(1) + 's';
+    }
+
+    function makeStatCard(label, value) {
+      const card = document.createElement('div');
+      card.className = 'health-card';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'health-card-name';
+      nameSpan.textContent = label;
+
+      const stats = document.createElement('div');
+      stats.className = 'health-card-stats';
+      const valueSpan = document.createElement('span');
+      valueSpan.textContent = value;
+      stats.appendChild(valueSpan);
+
+      card.appendChild(nameSpan);
+      card.appendChild(stats);
+      return card;
+    }
+
+    // --- renderAnalytics: pure function; called from pollAnalytics ---
+    function renderAnalytics(data) {
+      const grid = document.getElementById('analytics-grid');
+      const tbody = document.getElementById('analytics-tbody');
+      grid.innerHTML = '';
+      tbody.innerHTML = '';
+
+      const overall = (data && data.overall) || {};
+      grid.appendChild(makeStatCard('Overall Success Rate', formatSuccessRate(overall.success_rate)));
+      grid.appendChild(makeStatCard('Avg Time-to-Checkout', formatDurationSecs(overall.avg_time_to_checkout_secs)));
+
+      const perPlugin = (data && data.per_plugin) || [];
+      if (perPlugin.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'text-secondary';
+        td.textContent = 'No per-plugin analytics yet.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+      perPlugin.forEach(function(row) {
+        const tr = document.createElement('tr');
+        tr.appendChild(makeCell(row.plugin));
+        tr.appendChild(makeCell(row.confirmed + '/' + row.attempted));
+        tr.appendChild(makeCell(formatSuccessRate(row.success_rate)));
+        tr.appendChild(makeCell(formatDurationSecs(row.avg_time_to_checkout_secs)));
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- pollAnalytics: fetch function; called once on page load (FC-02) ---
+    async function pollAnalytics() {
+      try {
+        const resp = await fetch('/api/analytics');
+        const data = await resp.json();
+        renderAnalytics(data);
+      } catch (e) {
+        const tbody = document.getElementById('analytics-tbody');
+        tbody.innerHTML = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'text-secondary';
+        td.textContent = 'Failed to load analytics. Check server logs.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+    }
+
     // --- shared link encoding + per-chart uPlot instance registry ---
     function linkB64(link) {
       // URL-safe base64 WITH '=' padding — the server's urlsafe_b64decode requires it.
@@ -610,6 +710,7 @@
     // One-shot backfill for initial paint (both paths)
     pollStatus();
     pollLogs();
+    pollAnalytics();
 
     // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
     if (typeof EventSource !== 'undefined') {
