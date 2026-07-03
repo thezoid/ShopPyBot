@@ -24,7 +24,7 @@ from pathlib import Path
 
 from core.captcha import CaptchaSolver
 from core.credentials import get_store
-from core.registry import PluginRegistry
+from core.registry import PluginRegistry, _plugin_tag
 from core.retry import RetryPolicy, compute_delay, with_retry
 from core.stealth import ProxyPool
 from logger import writeLog, set_log_plugin
@@ -109,7 +109,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     the marker itself (durable, in SQLite) is the source of truth for whether
     the item is still latched; alerted_links only dedupes the alert cadence.
     """
-    set_log_plugin(getattr(plugin, "platform_key", None) or plugin.__class__.__name__.lower())
+    set_log_plugin(_plugin_tag(plugin))
     checkout_cfg = getattr(cfg, "checkout", None)
     n_budget = getattr(checkout_cfg, "alert_on_errors", 3)
     policy = RetryPolicy(
@@ -606,7 +606,26 @@ async def _check_and_buy(
         await _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=health)
 
 
-async def _dispatch_write(loop, item) -> None:
+def _tag_write_for_link(registry, link) -> None:
+    """Resolve link -> owning-plugin tag and set it for this write's writeLog call.
+
+    WR-01: the write-queue-drain task is a single long-lived asyncio task whose
+    ContextVar persists ACROSS iterations -- so every dispatch must explicitly
+    (re)set the tag (never conditionally skip), or a later unresolvable-link write
+    would silently keep showing a PRIOR item's plugin tag. Falls back to "core"
+    when registry is None or resolution fails; never raises (reused hostname-match
+    logic lives in PluginRegistry.platform_of, shared with core/service.py FC-02).
+    """
+    tag = "core"
+    if registry is not None:
+        try:
+            tag = registry.platform_of(link)
+        except Exception:
+            tag = "core"
+    set_log_plugin(tag)
+
+
+async def _dispatch_write(loop, item, registry=None) -> None:
     """Execute a single typed write-queue item against the correct models function.
 
     Supported tuple tags:
@@ -614,9 +633,15 @@ async def _dispatch_write(loop, item) -> None:
       ("confirmed", link, order_id, ts)        -> update_item_confirmed_sync(link, order_id, ts)
       ("set_available", link, ts)              -> set_item_available_sync(link, ts)
       ("clear_available", link)                -> clear_item_available_sync(link)
+
+    registry (WR-01, optional): when provided, the write's log line is tagged with
+    the link's OWNING plugin (via registry.platform_of) instead of the permanent
+    [core] tag the write-queue-drain task would otherwise carry for its entire
+    lifetime -- see _tag_write_for_link.
     """
     if not isinstance(item, tuple):
         # Legacy bare-link support: treat as purchased
+        _tag_write_for_link(registry, item)
         await loop.run_in_executor(None, update_item_purchased_sync, item)
         writeLog(f"Marked purchased: {item}", "INFO")
         return
@@ -624,48 +649,57 @@ async def _dispatch_write(loop, item) -> None:
     tag = item[0]
     if tag == "purchased":
         link = item[1]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, update_item_purchased_sync, link)
         writeLog(f"Marked purchased: {link}", "INFO")
     elif tag == "confirmed":
         link, order_id, ts = item[1], item[2], item[3]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, update_item_confirmed_sync, link, order_id, ts)
         writeLog(f"Order confirmed: {link} order_id={order_id}", "INFO")
     elif tag == "set_available":
         link, ts = item[1], item[2]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, set_item_available_sync, link, ts)
         writeLog(f"Marked available: {link}", "DEBUG")
     elif tag == "clear_available":
         link = item[1]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, clear_item_available_sync, link)
         writeLog(f"Cleared available: {link}", "DEBUG")
     else:
         writeLog(f"Unknown write-queue tag '{tag}' -- skipped", "WARNING")
 
 
-async def _write_queue_drain(queue: asyncio.Queue) -> None:
-    """Serializes all DB writes. Runs until cancelled."""
+async def _write_queue_drain(queue: asyncio.Queue, registry=None) -> None:
+    """Serializes all DB writes. Runs until cancelled.
+
+    registry (WR-01, optional): threaded into every _dispatch_write call so the
+    long-lived drain task's log lines are tagged per-item with the owning plugin.
+    """
     loop = asyncio.get_running_loop()
     while True:
         item = await queue.get()
         try:
-            await _dispatch_write(loop, item)
+            await _dispatch_write(loop, item, registry)
         except Exception as exc:
             writeLog(f"DB write failed for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
             queue.task_done()
 
 
-async def _flush_write_queue(queue: asyncio.Queue, loop) -> None:
+async def _flush_write_queue(queue: asyncio.Queue, loop, registry=None) -> None:
     """Drain remaining items after TaskGroup exits (drain task was cancelled).
 
     The _write_queue_drain task may have an in-flight item with task_done() not yet
     called (queue.join() would hang). Manual get_nowait() + task_done() drains it.
     Errors are logged; task_done() is always called so join() does not deadlock (T-22-06).
+    registry (WR-01, optional): same per-item plugin tagging as _write_queue_drain.
     """
     while not queue.empty():
         item = queue.get_nowait()
         try:
-            await _dispatch_write(loop, item)
+            await _dispatch_write(loop, item, registry)
         except Exception as exc:
             writeLog(f"Write-queue flush error for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
@@ -797,7 +831,7 @@ async def async_main(cfg, cvv, health_registry=None) -> None:
 
     try:
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(_write_queue_drain(write_queue), name="write-queue-drain")
+            tg.create_task(_write_queue_drain(write_queue, registry), name="write-queue-drain")
             for plugin in registry._active_plugins:
                 tg.create_task(
                     supervise(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, registry=registry, health=health_registry),
@@ -806,7 +840,7 @@ async def async_main(cfg, cvv, health_registry=None) -> None:
     except* KeyboardInterrupt:
         pass
     finally:
-        await _flush_write_queue(write_queue, loop)
+        await _flush_write_queue(write_queue, loop, registry)
         try:
             await asyncio.wait_for(write_queue.join(), timeout=5)
         except asyncio.TimeoutError:
