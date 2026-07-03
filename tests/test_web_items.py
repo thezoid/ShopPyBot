@@ -149,6 +149,20 @@ def test_post_items_remove_form_empty_link_is_noop(mock_svc, client):
     mock_svc.remove_item.assert_not_called()
 
 
+def test_post_items_remove_form_file_link_no_crash(mock_svc, client):
+    """POST /items/remove with 'link' sent as a multipart file field does not
+    500 and does not call svc.remove_item (CR-01)."""
+    resp = client.post(
+        "/items/remove",
+        files={"link": ("x.txt", b"not-a-real-link", "text/plain")},
+        headers={"origin": "http://127.0.0.1:8000"},
+        follow_redirects=False,
+    )
+    assert resp.status_code != 500
+    assert resp.status_code in (303, 400)
+    mock_svc.remove_item.assert_not_called()
+
+
 def test_web_add_item_parity(tmp_data_dir):
     """Web add produces identical DB state to CLI add (SC2)."""
     from models import initialize_db
