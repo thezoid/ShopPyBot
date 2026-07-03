@@ -7,6 +7,8 @@ empty-dataset path.
 """
 
 from core.analytics import compute_analytics
+from core.analytics import _SENTINEL_PREFIX
+from core.confirmation import _CONFIRMED_SENTINEL_PREFIX
 
 
 def _row(link, order_id=None, confirmed_at=None, attempted_at=None):
@@ -91,6 +93,14 @@ def test_confirmed_row_missing_one_timestamp_excluded_from_duration_sample():
     assert out["overall"]["success_rate"] == 1.0
     assert out["overall"]["sample_size"] == 1
     assert out["overall"]["avg_time_to_checkout_secs"] == 30.0
+
+
+def test_sentinel_prefix_imported_from_confirmation_not_redefined():
+    """IN-01: core/analytics.py's sentinel prefix IS core/confirmation.py's
+    constant (same object), not an independently redefined literal that could
+    silently drift out of sync with the actual writer."""
+    assert _SENTINEL_PREFIX is _CONFIRMED_SENTINEL_PREFIX
+    assert _SENTINEL_PREFIX == "CONFIRMED-"
 
 
 def test_attempted_denominator_excludes_checkout_attempts():

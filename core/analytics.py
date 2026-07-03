@@ -1,6 +1,9 @@
 """core/analytics.py: PURE outcome-analytics computation (FC-02).
 
-No DB, no fastapi, no models/service imports -- stdlib datetime only. Purity
+No DB, no fastapi, no models/service imports -- only stdlib datetime plus the
+sentinel-prefix constant imported from core/confirmation.py (IN-01: shared,
+not redefined, so the two modules can never drift apart). core/confirmation.py
+is itself DB/fastapi-free, so this import does not compromise purity. Purity
 makes the fixture assertion exact and testable without a database.
 
 Metric definitions (RESEARCH.md "State of the Art"):
@@ -16,7 +19,7 @@ in test_mode (Pitfall 3) and would deflate the reported success rate.
 
 from datetime import datetime
 
-_SENTINEL_PREFIX = "CONFIRMED-"  # core/confirmation.py sentinel: URL matched, no real id
+from core.confirmation import _CONFIRMED_SENTINEL_PREFIX as _SENTINEL_PREFIX
 
 
 def _is_confirmed(order_id) -> bool:
