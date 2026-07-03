@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
-status: verifying
-last_updated: "2026-07-02T23:41:42.766Z"
+status: executing
+last_updated: "2026-07-03T00:39:21.010Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
-  percent: 67
+  total_plans: 17
+  completed_plans: 15
+  percent: 88
 ---
 
 # ShopPyBot — State
@@ -29,8 +29,8 @@ progress:
 ## Current Position
 
 Phase: 34
-Plan: Not started
-Status: Phase complete — ready for verification
+Plan: 1 of 3 in current phase
+Status: Ready to execute
 Last activity: 2026-07-02
 
 ## Phase Status
@@ -41,7 +41,7 @@ Last activity: 2026-07-02
 | 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Complete (3/3 plans) | RH-01, RH-04, RH-05 |
 | 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Complete (3/3 plans) | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Complete (2/2 plans) | CFG-01, CFG-02 |
-| 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Not started | FC-01, FC-02 |
+| 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | In Progress (1/3 plans) | FC-01, FC-02 |
 | 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Not started | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
 
 ---
@@ -141,6 +141,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 32 P03 | 5min | 2 tasks | 2 files |
 | Phase 33 P01 | 6min | 3 tasks | 5 files |
 | Phase 33 P02 | 12min | - tasks | - files |
+| Phase 34-feature-completion P01 | 3min | 2 tasks | 3 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -177,8 +178,10 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 ## Session Continuity
 
 **Last action**: Phase 33 Plan 02 complete (CFG-02: generic per-platform config declaration. `PlatformsConfig` gained `model_config = ConfigDict(extra="allow")` as its first class-body statement — an undeclared `platforms.<key>` section now passes through as a raw dict instead of being silently dropped (the literal bug CFG-02 fixes); the 7 declared platform fields keep full strict validation unchanged, proven by `test_known_platform_strict_validation_intact`. Added `RetailerPlugin.get_platform_config(model_cls)` to `core/plugin_base.py`: getattr-safe, four-case return logic (`model_cls()` defaults on missing config/key/section; the already-validated instance for a built-in platform; `model_cls(**raw)` for a new plugin's passthrough dict, raising `ValidationError` fail-loud on bad data; `model_cls()` fallback). `PLUGIN_API_VERSION` stays 2. Fixture-plugin test (`tests/test_platform_config_extension.py`) proves a brand-new `platforms.costco` section loads+validates via a test-module-scope `CostcoPlatformConfig` model (no `importlib.import_module` of the exec_module-loaded tmp plugin, per the plan's revised approach) with `core/config_schema.py` touched by nothing beyond the single `extra="allow"` line. TDD: RED->GREEN across 2 task commits; during GREEN verification, found the plan's proposed `AppConfig(**{"platforms": {...}})` fixture-construction snippet silently no-ops (`AppConfig.settings_customise_sources` excludes `init_settings` from its source tuple) — fixed by switching to the codebase's established `yaml_file=<Path>` injection pattern (Rule 1 auto-fix, test-only, no production-code change).) Full suite: 898 passed, 2 skipped (baseline 894 + 4 net-new tests), no regression. **Phase 33 (Config Refactor) is now fully complete: CFG-01 (33-01) and CFG-02 (33-02) both landed.** CFG-01 and CFG-02 marked complete in REQUIREMENTS.md. STATE.md/ROADMAP.md updated.
-**Next action**: Run `/gsd:plan-phase 34` to begin Phase 34 (Feature Completion) planning.
-**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 32 is fully complete (32-01 RH-02/RH-03 release-please seed + pyproject reconcile, 32-02 RH-06 README rewrite, 32-03 RH-07 security contact). Phase 33 is now fully complete (33-01 CFG-01 field harmonization + back-compat shim, 33-02 CFG-02 generic per-platform config extension point via extra="allow" + get_platform_config). CI-verification/operator debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03), release-please Actions-permissions allowlist gate (32-01 — third-party action blocked until operator widens selected-actions policy), and the PVR-enable repo Settings toggle (32-03) — all operator-gated GitHub Settings changes, not code gaps. New operator-UAT item from 33-01: live Amazon/BestBuy availability-poll cadence is now jittered 30-40s (was flat 30s) -- observable only against a live run, tracked in 33-VALIDATION.md. FC-01 carries a v4.1 research flag: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the plugin log filter. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
+**Next action**: Run `/gsd:execute-phase 34` (Plan 02: `/api/logs` plugin filter) to continue Phase 34 (Feature Completion).
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 32 is fully complete (32-01 RH-02/RH-03 release-please seed + pyproject reconcile, 32-02 RH-06 README rewrite, 32-03 RH-07 security contact). Phase 33 is now fully complete (33-01 CFG-01 field harmonization + back-compat shim, 33-02 CFG-02 generic per-platform config extension point via extra="allow" + get_platform_config). CI-verification/operator debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03), release-please Actions-permissions allowlist gate (32-01 — third-party action blocked until operator widens selected-actions policy), and the PVR-enable repo Settings toggle (32-03) — all operator-gated GitHub Settings changes, not code gaps. New operator-UAT item from 33-01: live Amazon/BestBuy availability-poll cadence is now jittered 30-40s (was flat 30s) -- observable only against a live run, tracked in 33-VALIDATION.md. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
+
+**Last action (34-01)**: Phase 34 Plan 01 complete (FC-01: `[plugin]` log tag guarantee. `logger.py` gained a module-level `_current_plugin: ContextVar[str]` (default `"core"`) and `set_log_plugin(platform_key)` that coerces falsy input to `"core"`. `writeLog()` now builds one `head = f"[{type.upper()}][{plugin}][{ts}]"` reused identically for both the colored `print()` and the file write — level bracket stays first, plugin is the second bracket, timestamp computed once (consolidating the pre-existing double `datetime.now()` call). `core/orchestrator.py:supervise()` calls `set_log_plugin(getattr(plugin, "platform_key", None) or plugin.__class__.__name__.lower())` as its first executable statement; `asyncio.TaskGroup`/`create_task` context-copy semantics give automatic per-plugin isolation with no locking. TDD: RED->GREEN across 2 task commits (5 new tests: tag injection, `[core]` sentinel, level-first-bracket format-compat, falsy-input coercion, level-gate regression). Manual verification confirmed the produced line format: `[INFO][amazon][2026July02@20:33:04] checking stock`. Full suite: 906 passed, 2 skipped (baseline 901 + 5 net-new tests), no regression. No deviations -- plan executed exactly as written.) FC-01 marked complete in REQUIREMENTS.md.
 
 ---
 
@@ -330,6 +333,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase ?]: [Phase 33-02]: extra="allow" added to PlatformsConfig (candidate a) -- undeclared platforms.<key> sections pass through as raw dicts; the 7 declared platform fields keep full strict validation unchanged
 - [Phase ?]: [Phase 33-02]: RetailerPlugin.get_platform_config(model_cls) is the sanctioned mechanism for a new community plugin to declare+validate its own per-platform config section with zero core/config_schema.py edits
 - [Phase ?]: [Phase 33-02]: Fixed the fixture test's AppConfig construction -- AppConfig(**kwargs) silently no-ops for platforms data since settings_customise_sources excludes init_settings from its source tuple; switched to yaml_file= injection matching the codebase's established test pattern
+- [Phase 34-01]: ContextVar set in supervise() (not run_plugin) so restart/backoff/park logs are tagged; head=[LEVEL][plugin][ts] computed once for both print and file write — RESEARCH.md recommendation: writeLog is a custom print+file-append function, not a stdlib Logger, so a logging.Filter would not intercept lines without a full rewrite
 
 ## Operator Next Steps
 

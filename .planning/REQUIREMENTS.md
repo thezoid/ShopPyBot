@@ -38,7 +38,7 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 
 ### Feature-Completion
 
-- [ ] **FC-01**: Log lines carry a `[plugin]` tag and `/api/logs` supports filtering by plugin (completes the deferred half of OBS-08)
+- [x] **FC-01**: Log lines carry a `[plugin]` tag and `/api/logs` supports filtering by plugin (completes the deferred half of OBS-08)
 - [ ] **FC-02**: Operator can view outcome analytics (success-rate, time-to-checkout) computed over existing BUY-04 verified-order records
 
 ### Doc-Hygiene
@@ -88,7 +88,7 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | RH-07 | Phase 32 | Complete |
 | CFG-01 | Phase 33 | Complete |
 | CFG-02 | Phase 33 | Complete |
-| FC-01 | Phase 34 | Pending |
+| FC-01 | Phase 34 | Complete |
 | FC-02 | Phase 34 | Pending |
 | AF-01 | Phase 35 | Pending |
 | AF-02 | Phase 35 | Pending |

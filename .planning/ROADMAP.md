@@ -189,7 +189,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
   2. An operator-facing analytics view/endpoint computes success-rate and time-to-checkout from existing confirmed-order (BUY-04) records, with correct output verified against a fixture set of orders (FC-02).
   3. New tests for both requirements are green.
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves) — 1/3 complete (34-01 FC-01 log tag ContextVar)
 **UI hint**: yes
 
 ### Phase 35: Audit-Fixes & Doc-Hygiene Cleanup
