@@ -109,6 +109,134 @@ def test_list_items_before_start_returns_rows(service, tmp_data_dir):
 
 
 # ---------------------------------------------------------------------------
+# WR-02 (34-REVIEW): list_plugins() platform_key fallback must match the
+# logger/analytics tag (core.registry._plugin_tag), never a raw None.
+# ---------------------------------------------------------------------------
+
+
+def test_list_plugins_platform_key_fallback_matches_logger_tag(service):
+    """A plugin without platform_key gets the SAME normalized class-name tag
+    the logger/analytics use -- not None (which the dashboard dropdown skips)."""
+    from core.plugin_base import RetailerPlugin
+
+    class UnkeyedPlugin(RetailerPlugin):
+        domain_patterns = ["unkeyed.example.com"]
+
+        async def check_availability(self, url):
+            return False
+
+        async def auto_buy(self, url):
+            return False
+
+    plugin = UnkeyedPlugin(config=None)
+    mock_registry = MagicMock()
+    mock_registry._all_plugins = [plugin]
+
+    with patch("core.registry.PluginRegistry", return_value=mock_registry):
+        rows = service.list_plugins()
+
+    assert len(rows) == 1
+    assert rows[0]["platform_key"] == "unkeyedplugin", (
+        f"Expected the lowercased class-name fallback tag, got {rows[0]['platform_key']!r}"
+    )
+
+
+def test_list_plugins_platform_key_uses_explicit_value_when_set(service):
+    """A plugin WITH platform_key still returns that exact value (regression guard)."""
+    from core.plugin_base import RetailerPlugin
+
+    class KeyedPlugin(RetailerPlugin):
+        domain_patterns = ["keyed.example.com"]
+        platform_key = "keyed"
+
+        async def check_availability(self, url):
+            return False
+
+        async def auto_buy(self, url):
+            return False
+
+    plugin = KeyedPlugin(config=None)
+    mock_registry = MagicMock()
+    mock_registry._all_plugins = [plugin]
+
+    with patch("core.registry.PluginRegistry", return_value=mock_registry):
+        rows = service.list_plugins()
+
+    assert rows[0]["platform_key"] == "keyed"
+
+
+# ---------------------------------------------------------------------------
+# WR-03 (34-REVIEW): BotService.get_analytics() end-to-end integration test.
+#
+# Exercises the REAL models.get_order_analytics_rows_sync() SQL column order,
+# the REAL core/service.py `columns` tuple zip, and the REAL PluginRegistry
+# hostname resolution against a real temp DB (via the models sync writers) --
+# not compute_analytics() called directly (tests/test_analytics.py) and not a
+# fully-mocked /api/analytics route (tests/test_api_observability.py). A
+# future column-order drift between get_order_analytics_rows_sync's SELECT
+# and this columns tuple would silently swap fields and fail this assertion.
+# ---------------------------------------------------------------------------
+
+
+def test_get_analytics_end_to_end_real_db_and_registry(service, tmp_data_dir):
+    """get_analytics() end-to-end: real DB rows -> real column zip -> real
+    registry platform resolution -> correct bucketing/success_rate/duration."""
+    from models import (
+        initialize_db,
+        add_items_sync,
+        mark_place_order_attempted_sync,
+        update_item_confirmed_sync,
+    )
+
+    initialize_db(delete=True)
+
+    amazon_link = "https://www.amazon.com/dp/TESTA1"
+    bestbuy_link = "https://www.bestbuy.com/site/testb1"
+    add_items_sync([
+        ("Amazon Widget", amazon_link, True, 1, False),
+        ("BestBuy Widget", bestbuy_link, True, 1, False),
+    ])
+    mark_place_order_attempted_sync(amazon_link, "2026-01-01T00:00:00+00:00")
+    mark_place_order_attempted_sync(bestbuy_link, "2026-01-01T00:00:00+00:00")
+    update_item_confirmed_sync(amazon_link, "111-2223334-5556667", "2026-01-01T00:00:40+00:00")
+    update_item_confirmed_sync(bestbuy_link, "BB-778899", "2026-01-01T00:01:00+00:00")
+
+    result = service.get_analytics()
+
+    assert result["overall"]["attempted"] == 2
+    assert result["overall"]["confirmed"] == 2
+    assert result["overall"]["success_rate"] == 1.0
+    assert result["overall"]["avg_time_to_checkout_secs"] == pytest.approx(50.0)
+    assert result["overall"]["sample_size"] == 2
+
+    per_plugin = {row["plugin"]: row for row in result["per_plugin"]}
+    assert "amazon" in per_plugin, f"Expected an 'amazon' bucket; got {list(per_plugin)}"
+    assert "bestbuy" in per_plugin, f"Expected a 'bestbuy' bucket; got {list(per_plugin)}"
+    assert per_plugin["amazon"]["confirmed"] == 1
+    assert per_plugin["amazon"]["avg_time_to_checkout_secs"] == pytest.approx(40.0)
+    assert per_plugin["bestbuy"]["confirmed"] == 1
+    assert per_plugin["bestbuy"]["avg_time_to_checkout_secs"] == pytest.approx(60.0)
+
+    # link must never leak into the analytics response (T-34-06)
+    import json
+    payload = json.dumps(result)
+    assert amazon_link not in payload
+    assert bestbuy_link not in payload
+
+
+def test_get_analytics_empty_db_returns_safe_defaults(service, tmp_data_dir):
+    """get_analytics() on a fresh empty DB returns valid zero-division-safe defaults."""
+    from models import initialize_db
+    initialize_db(delete=True)
+
+    result = service.get_analytics()
+
+    assert result["overall"]["attempted"] == 0
+    assert result["overall"]["success_rate"] is None
+    assert result["per_plugin"] == []
+
+
+# ---------------------------------------------------------------------------
 # add_item / remove_item delegation tests
 # ---------------------------------------------------------------------------
 
