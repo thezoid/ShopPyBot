@@ -26,6 +26,21 @@ def read_recent_logs(n: int = 50) -> list[str]:
     return _read_today_lines()[-n:]
 
 
+def _plugin_tag_matches(line: str, plugin: str) -> bool:
+    """Return True only if `plugin` is the SECOND bracket (`[LEVEL][plugin][ts] msg`).
+
+    IN-03: `tag in line` matched `[plugin]` as a free-floating substring anywhere
+    in the line -- including inside the free-text message body (e.g. an error
+    message that happens to echo another plugin's bracketed name). Anchoring to
+    the position immediately after the first `]` restricts the match to the
+    actual tag logger.py injects, never the message text.
+    """
+    first_close = line.find("]")
+    if first_close == -1:
+        return False
+    return line.startswith(f"[{plugin}]", first_close + 1)
+
+
 def read_logs_filtered(
     n: int = 50,
     level: str | None = None,
@@ -39,8 +54,10 @@ def read_logs_filtered(
     (a level/search query won't silently return fewer than n just because the
     matches sit earlier than the n-line tail).
     level: keep only lines starting with f"[{level.upper()}]".
-    plugin: keep only lines containing f"[{plugin}]" -- the guaranteed second-bracket
-        [plugin] tag injected by logger.py's ContextVar (FC-01, 34-01).
+    plugin: keep only lines whose SECOND bracket is exactly f"[{plugin}]" -- the
+        guaranteed [plugin] tag injected by logger.py's ContextVar (FC-01, 34-01),
+        anchored by position (IN-03) so a message body that happens to contain a
+        literal "[plugin]"-shaped substring can never false-positive match.
     search: keep only lines containing search (case-insensitive substring match).
     All filters are AND-combined when provided together.
     No filters returns the same result as read_recent_logs(n).
@@ -50,8 +67,7 @@ def read_logs_filtered(
         prefix = f"[{level.upper()}]"
         lines = [line for line in lines if line.startswith(prefix)]
     if plugin is not None:
-        tag = f"[{plugin}]"
-        lines = [line for line in lines if tag in line]
+        lines = [line for line in lines if _plugin_tag_matches(line, plugin)]
     if search is not None:
         needle = search.lower()
         lines = [line for line in lines if needle in line.lower()]

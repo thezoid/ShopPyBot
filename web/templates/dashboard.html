@@ -615,10 +615,17 @@
     // level/plugin/search match logic (web/log_reader.py). Used by the SSE 'log'
     // listener so live-tail lines respect the same active filters as the one-shot
     // pollLogs snapshot -- without this, every streamed line bypassed the filters
-    // (FC-01 completion: the plugin filter only worked on the initial snapshot). ---
+    // (FC-01 completion: the plugin filter only worked on the initial snapshot).
+    // IN-03: the plugin match is anchored to the SECOND-bracket tag position
+    // (mirrors web/log_reader.py's _plugin_tag_matches), not a free-floating
+    // substring -- a message body containing a literal "[plugin]"-shaped string
+    // must not false-positive match. ---
     function lineMatchesFilters(line, level, search, plugin) {
       if (level && !line.startsWith('[' + level.toUpperCase() + ']')) return false;
-      if (plugin && line.indexOf('[' + plugin + ']') === -1) return false;
+      if (plugin) {
+        var firstClose = line.indexOf(']');
+        if (firstClose === -1 || !line.startsWith('[' + plugin + ']', firstClose + 1)) return false;
+      }
       if (search && line.toLowerCase().indexOf(search.toLowerCase()) === -1) return false;
       return true;
     }

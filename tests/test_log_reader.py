@@ -117,6 +117,23 @@ def test_read_logs_filtered_plugin_composes_with_level_and_search(monkeypatch):
     )
 
 
+def test_read_logs_filtered_plugin_does_not_match_substring_in_message(monkeypatch):
+    """IN-03: the plugin filter is anchored to the SECOND-bracket tag position,
+    not a free-floating substring match -- a message body that happens to
+    contain a literal "[amazon]"-shaped string must not false-positive match."""
+    fake_lines = [
+        "[WARNING][bestbuy][ts] unexpected token seen: [amazon] fallback triggered",
+        "[INFO][amazon][ts] checking stock",
+    ]
+    monkeypatch.setattr("web.log_reader._read_today_lines", lambda: fake_lines)
+
+    result = read_logs_filtered(50, None, None, "amazon")
+
+    assert result == ["[INFO][amazon][ts] checking stock"], (
+        f"Expected only the genuinely [amazon]-tagged line, got: {result!r}"
+    )
+
+
 def test_read_logs_filtered_plugin_none_passthrough(monkeypatch):
     """plugin=None applies no plugin filtering -- existing callers unchanged."""
     fake_lines = [
