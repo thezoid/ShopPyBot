@@ -1,9 +1,9 @@
 ---
 phase: 35
 slug: audit-fixes-doc-hygiene-cleanup
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-02
 ---
 
