@@ -123,6 +123,32 @@ def test_post_item_omitted_quantity_defaults_to_1(mock_svc, client):
     mock_svc.add_item.assert_called_once_with("Widget", "https://ex.com/w", False, 1)
 
 
+def test_post_items_remove_form_calls_remove_item(mock_svc, client):
+    """POST /items/remove (form-encoded, no JS) calls svc.remove_item and redirects to / (AF-01)."""
+    resp = client.post(
+        "/items/remove",
+        data={"link": "https://ex.com/w"},
+        headers={"origin": "http://127.0.0.1:8000"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    mock_svc.remove_item.assert_called_once_with("https://ex.com/w")
+
+
+def test_post_items_remove_form_empty_link_is_noop(mock_svc, client):
+    """POST /items/remove with an empty/missing link does not call svc.remove_item (AF-01)."""
+    resp = client.post(
+        "/items/remove",
+        data={"link": ""},
+        headers={"origin": "http://127.0.0.1:8000"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    mock_svc.remove_item.assert_not_called()
+
+
 def test_web_add_item_parity(tmp_data_dir):
     """Web add produces identical DB state to CLI add (SC2)."""
     from models import initialize_db
