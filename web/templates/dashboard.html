@@ -91,8 +91,10 @@
               <td>{{ "Yes" if item[2] else "No" }}</td>
               <td>{{ item[3] }}</td>
               <td>
-                <button class="btn-remove btn-text-destructive" type="button"
-                        data-link="{{ item[1] }}">Remove Item</button>
+                <form method="post" action="/items/remove" class="inline-remove-form">
+                  <input type="hidden" name="link" value="{{ item[1] }}">
+                  <button class="btn-text-destructive" type="submit">Remove Item</button>
+                </form>
               </td>
             </tr>
             {% endfor %}

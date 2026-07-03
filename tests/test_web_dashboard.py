@@ -326,3 +326,28 @@ def test_dashboard_plugin_filter_change_wired_to_poll_logs(client):
     assert idx != -1
     snippet_end = html.index("});", idx)
     assert "pollLogs()" in html[idx:snippet_end]
+
+
+# ---------------------------------------------------------------------------
+# Phase 35 Plan 01 -- AF-01 SSR remove-button graceful degradation
+# ---------------------------------------------------------------------------
+
+
+def test_dashboard_ssr_remove_form_renders_independent_of_js(mock_svc):
+    """SSR items row renders a real <form> POST to /items/remove (AF-01).
+
+    Proves the remove control works even when the JS loadItems() render path
+    never runs (or its fetch() rejects): the server-rendered form carries the
+    item link as a hidden input and posts directly, no JS required.
+    """
+    from web import create_app
+
+    mock_svc.list_items.return_value = [
+        ("Widget", "https://ex.com/w", False, 1, False),
+    ]
+    resp = TestClient(create_app(mock_svc)).get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert '<form method="post" action="/items/remove"' in html
+    assert 'name="link" value="https://ex.com/w"' in html
+    assert 'class="btn-remove"' not in html
