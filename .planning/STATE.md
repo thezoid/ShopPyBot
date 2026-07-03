@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Release Readiness
 status: executing
-last_updated: "2026-07-03T02:55:53.837Z"
+last_updated: "2026-07-03T03:12:21.236Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 20
-  completed_plans: 19
-  percent: 83
+  completed_plans: 20
+  percent: 100
 ---
 
 # ShopPyBot — State
@@ -29,9 +29,9 @@ progress:
 ## Current Position
 
 Phase: 35
-Plan: 02 complete (1 of 3 plans remaining: 35-03)
-Status: Executing
-Last activity: 2026-07-02
+Plan: 3 of 3 complete (Phase 35 complete)
+Status: v4.2 milestone code-complete
+Last activity: 2026-07-03
 
 ## Phase Status
 
@@ -42,7 +42,7 @@ Last activity: 2026-07-02
 | 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Complete (3/3 plans) | RH-02, RH-03, RH-06, RH-07 |
 | 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Complete (2/2 plans) | CFG-01, CFG-02 |
 | 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Complete (3/3 plans) | FC-01, FC-02 |
-| 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | In Progress (2/3 plans) | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
+| 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Complete (3/3 plans) | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
 
 ---
 
@@ -97,7 +97,7 @@ Last activity: 2026-07-02
 
 ### Active Todos
 
-- Continue `/gsd:execute-phase 35` (Audit-Fixes & Doc-Hygiene Cleanup) — plans 35-01 (AF-01 + AF-03) and 35-02 (AF-02) complete; 35-03 (DH-01/02/03 frontmatter reconciliation) remains.
+- Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete: 35-01 (AF-01 + AF-03), 35-02 (AF-02), 35-03 (DH-01/02/03) all landed. **v4.2 Release Readiness milestone is now code-complete — all 20 requirements landed.** Next step: `/gsd:complete-milestone` or equivalent milestone-close workflow.
 - Operator: complete the v4.0 + v4.1 live-UAT checklists (STATE.md Deferred Items) before first production live-buy — unchanged, out of scope for v4.2.
 
 ### Blockers
@@ -146,6 +146,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 34 P02 | 4min | 2 tasks | 9 files |
 | Phase 35 P01 | 5min | 3 tasks | 5 files |
 | Phase 35 P02 | 8min | 2 tasks | 8 files |
+| Phase 35 P03 | 5min | 2 tasks | 20 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -194,6 +195,8 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 **Last action (35-01)**: Phase 35 Plan 01 complete (AF-01 SSR remove-button graceful degradation + AF-03 dead escHtml() removal. `web/routes/pages.py` gained `POST /items/remove` on the unprefixed pages router: form-encoded, `Depends(check_origin)` CSRF-guarded (identical to every other mutating route), no-ops on an empty/missing `link` (never reaches `svc.remove_item`), calls `request.app.state.svc.remove_item(link)` for a non-empty link, and 303-redirects to `/` (POST/Redirect/GET). `web/templates/dashboard.html`'s dead SSR `.btn-remove` button (no JS listener existed anywhere) was replaced with a real `<form method="post" action="/items/remove">` + hidden `link` input + submit button reusing the existing `.btn-text-destructive` class -- the remove control now functions the instant the page loads or whenever `loadItems()`'s `fetch()` rejects, since `loadItems()` itself was left byte-for-byte unchanged (out of scope per RESEARCH.md Pitfall 1). AF-03: deleted the dead `escHtml()` helper (872-876) + its comment, confirmed 0 call sites via grep across `web/`. TDD: RED (`b9454d7`, 3 failing tests: functional remove+redirect, empty-link no-op, cross-origin 403) -> GREEN (`8f704ff`) for Task 1; Task 2 (`9794a10`) wired the SSR form + added an SSR-form-assertion test; Task 3 (`5e94f68`) deleted escHtml() + added a permanent grep-0 regression test. Full suite: 937 passed, 2 skipped (baseline 932 + 5 net-new tests), no regression. No deviations -- plan executed exactly as written.) AF-01 and AF-03 marked complete in REQUIREMENTS.md. Phase 35 is now 1/3 plans complete -- 35-02 (AF-02 last_heartbeat leak) and 35-03 (DH-01/02/03 frontmatter reconciliation) remain.
 
 **Last action (35-02)**: Phase 35 Plan 02 complete (AF-02: raw `last_heartbeat` monotonic float scrubbed from the single shaping boundary, `HealthRegistry.get_snapshot()` (`core/health.py`) -- the public-dict comprehension now also excludes `last_heartbeat` while the existing `heartbeat_age_secs` derivation is unchanged. Since both `BotService.get_status()` (passthrough) and the SSE `"status"` frame (`web/sse_hub.py` broadcasts `get_status()` verbatim) consume this one shaped dict, the single fix closed both public surfaces atomically. Critical lockstep consumer `core/cli/status.py` was updated in the SAME task/commit to read `heartbeat_age_secs` instead of computing `now - rec['last_heartbeat']`, avoiding the CLI silently regressing to always showing "never"; the now-orphaned `now = time.monotonic()` and `import time` were removed. TDD: RED confirmed (3 failures at the exact expected fix sites: `test_snapshot_public_keys_exact`, `test_snapshot_excludes_last_heartbeat`, `test_status_table`) before the GREEN production fix landed (`585484c`). Task 2 (`2143edc`) fanned the change across the 5 last_heartbeat-touching test files plus a new SSE-frame absence test (`tests/test_sse.py::test_sse_status_frame_excludes_last_heartbeat`, mirroring the existing `test_sse_no_credential_patterns` credential-pattern pattern) proving both the REST and SSE surfaces are clean; `grep -rn "last_heartbeat" tests/` confirms every remaining reference is an absence-assertion, none assert presence on a public surface. Full suite: 939 passed, 2 skipped (baseline 937 + 2 net-new tests), no regression. No deviations -- plan executed exactly as written.) AF-02 marked complete in REQUIREMENTS.md. **Phase 35 is now 2/3 plans complete -- 35-03 (DH-01/02/03 frontmatter reconciliation) is the only plan left before Phase 35 (and the v4.2 milestone) closes.**
+
+**Last action (35-03)**: Phase 35 Plan 03 complete (DH-01/02/03: v4.0/v4.1 planning-artifact frontmatter reconciliation, frontmatter-only, zero body edits. DH-01: v4.1 `25/26/27-VALIDATION.md` flipped `status: planned -> validated` + `wave_0_complete: false -> true` (backed by 763/776/785 full-suite tests passed per each phase's own SUMMARY/VERIFICATION; `nyquist_compliant: true` already correct, left untouched). DH-03: v4.0 `18..24-VALIDATION.md` (7 files) flipped ONLY `nyquist_compliant: false -> true`, per v4.0-MILESTONE-AUDIT.md's own explicit recommendation (755 full-suite tests passed); `status: draft` + `wave_0_complete: false` deliberately left untouched, narrower scope than DH-01 (RESEARCH.md Pitfall 5). DH-02: added `requirements:` frontmatter to Phase 28 `28-01..04-SUMMARY.md` (union = exactly OBS-01/02/03/04/06/09, verified via Python set-union check, the required fix per 28-VERIFICATION.md's Requirements Coverage table) plus Phase 27 `27-01..03-SUMMARY.md` (`[SSE-02]`) and Phase 29 `29-01..03-SUMMARY.md` (`[SSE-01]`) mirroring their own PLAN.md requirement IDs (discretionary polish per RESEARCH.md Open Question 1, low-cost so included). All 10 pre-edit frontmatter values grep-confirmed against the plan's `<current_frontmatter>` map before any edit; all 20 post-edit values grep-confirmed after. No `gsd` milestone-audit cross-reference tool exists in the SDK (`requirements` verb only exposes `mark-complete`), so verification relied on direct grep + set-union confirmation per the plan's documented fallback. Two atomic commits: `0b81b04` (Task 1, 10 VALIDATION.md files), `66bf260` (Task 2, 10 SUMMARY.md files). Full suite: 939 passed, 2 skipped (unchanged from 35-02 baseline -- frontmatter-only edits touch zero Python code). No deviations -- plan executed exactly as written.) DH-01, DH-02, DH-03 marked complete in REQUIREMENTS.md. **Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete: 35-01, 35-02, 35-03 all landed. The v4.2 Release Readiness milestone is now code-complete -- all 20 requirements (RH-01..07, AF-01..03, BF-01..03, CFG-01..02, FC-01..02, DH-01..03) landed.** STATE.md/ROADMAP.md updated.
 
 ---
 
@@ -355,7 +358,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Operator da
 - [Phase 35]: 35-01: 303 See Other used for the remove redirect (POST/Redirect/GET), guaranteeing a GET on redirect
 - [Phase 35]: 35-02: core/cli/status.py lockstep fix landed in the same task/commit as the health.py get_snapshot() filter, avoiding a silent CLI 'always never' regression
 - [Phase 35]: 35-02: single shaping boundary (HealthRegistry.get_snapshot) filters last_heartbeat once; both get_status() REST and the SSE status frame inherit the fix atomically since SSE broadcasts get_status() verbatim
+- [Phase ?]: 35-03: DH-03 kept strictly narrower than DH-01 -- only nyquist_compliant flipped on v4.0 phases 18-24 VALIDATION.md; status/wave_0_complete deliberately untouched (RESEARCH Pitfall 5)
+- [Phase ?]: 35-03: DH-02 scope resolved as Phase 28's 4 SUMMARY files (required, union = exactly OBS-01/02/03/04/06/09) plus Phase 27/29 SUMMARY files mirroring their own PLAN.md requirement IDs (discretionary polish, low-cost)
 
 ## Operator Next Steps
 
-- Continue `/gsd:execute-phase 35` (Audit-Fixes & Doc-Hygiene Cleanup) -- the milestone's final phase; plans 35-01 (AF-01 + AF-03) and 35-02 (AF-02) complete, 35-03 remains
+- Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete -- all 3 plans (35-01, 35-02, 35-03) landed. **The v4.2 Release Readiness milestone is now code-complete: all 20 requirements landed, full suite green (939 passed, 2 skipped).** Next: run `/gsd:complete-milestone` (or equivalent milestone-close workflow); live-environment UAT remains tracked operator debt per the milestone's "done = code-complete and CI-green" definition.

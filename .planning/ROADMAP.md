@@ -100,7 +100,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 - [x] **Phase 32: Release Automation & Community Readiness** — release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact (completed 2026-07-02)
 - [x] **Phase 33: Config Refactor** — Delay-field name harmonization with back-compat, generic per-platform config declaration (completed 2026-07-02)
 - [x] **Phase 34: Feature Completion** — `[plugin]` log tags + `/api/logs` filter, outcome analytics over verified-order records (completed 2026-07-03)
-- [ ] **Phase 35: Audit-Fixes & Doc-Hygiene Cleanup** — SSR remove-button fix, `last_heartbeat` leak fix, dead `escHtml()` removal, v4.0/v4.1 frontmatter reconciliation
+- [x] **Phase 35: Audit-Fixes & Doc-Hygiene Cleanup** — SSR remove-button fix, `last_heartbeat` leak fix, dead `escHtml()` removal, v4.0/v4.1 frontmatter reconciliation (completed 2026-07-03)
 
 ---
 
@@ -209,7 +209,7 @@ Audit: `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (status: tech_debt — 2 l
 
 - [x] 35-01-PLAN.md — AF-01 SSR remove-button graceful degradation (zero-JS POST /items/remove) + AF-03 dead escHtml() removal
 - [x] 35-02-PLAN.md — AF-02 raw last_heartbeat scrub from get_status() + SSE frame, with core/cli/status.py lockstep
-- [ ] 35-03-PLAN.md — DH-01/02/03 v4.0/v4.1 frontmatter reconciliation (validated / nyquist_compliant / requirements:)
+- [x] 35-03-PLAN.md — DH-01/02/03 v4.0/v4.1 frontmatter reconciliation (validated / nyquist_compliant / requirements:)
 
 **UI hint**: yes
 

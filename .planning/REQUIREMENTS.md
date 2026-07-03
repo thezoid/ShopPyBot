@@ -43,9 +43,9 @@ Each is code-actionable to a stable, CI-verifiable state without live retail tes
 
 ### Doc-Hygiene
 
-- [ ] **DH-01**: Lagging v4.1 VALIDATION.md status/wave frontmatter (phases 25/26/27) is reconciled to reflect the passing suites (`status: validated`, `wave_0_complete: true`)
-- [ ] **DH-02**: v4.1 SUMMARY.md `requirements:` frontmatter is added (phases 27/28/29) so the audit 3-source cross-reference reports OBS-01/02/03/04/06/09 as VERIFIED
-- [ ] **DH-03**: v4.0 phase VALIDATION.md `nyquist_compliant` flags are set true (phases 18-24) to match their passing suites
+- [x] **DH-01**: Lagging v4.1 VALIDATION.md status/wave frontmatter (phases 25/26/27) is reconciled to reflect the passing suites (`status: validated`, `wave_0_complete: true`)
+- [x] **DH-02**: v4.1 SUMMARY.md `requirements:` frontmatter is added (phases 27/28/29) so the audit 3-source cross-reference reports OBS-01/02/03/04/06/09 as VERIFIED
+- [x] **DH-03**: v4.0 phase VALIDATION.md `nyquist_compliant` flags are set true (phases 18-24) to match their passing suites
 
 ## Future Requirements
 
@@ -93,9 +93,9 @@ Explicitly excluded from v4.2. "Done" is defined as stable-pending-testing, so a
 | AF-01 | Phase 35 | Complete |
 | AF-02 | Phase 35 | Complete |
 | AF-03 | Phase 35 | Complete |
-| DH-01 | Phase 35 | Pending |
-| DH-02 | Phase 35 | Pending |
-| DH-03 | Phase 35 | Pending |
+| DH-01 | Phase 35 | Complete |
+| DH-02 | Phase 35 | Complete |
+| DH-03 | Phase 35 | Complete |
 
 **Coverage:**
 
