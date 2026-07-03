@@ -870,13 +870,6 @@
       loadItems();
     }
 
-    // --- escHtml helper (for unavoidable SVG string interpolation; unused in Phase 25) ---
-    function escHtml(str) {
-      const d = document.createElement('div');
-      d.textContent = str;
-      return d.innerHTML;
-    }
-
     // --- Load items ---
     function makeCell(text) {
       const td = document.createElement('td');

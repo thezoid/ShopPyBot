@@ -351,3 +351,11 @@ def test_dashboard_ssr_remove_form_renders_independent_of_js(mock_svc):
     assert '<form method="post" action="/items/remove"' in html
     assert 'name="link" value="https://ex.com/w"' in html
     assert 'class="btn-remove"' not in html
+
+
+def test_no_dead_eschtml_helper():
+    """AF-03 regression guard: escHtml() must never reappear in dashboard.html."""
+    import pathlib
+
+    html = (pathlib.Path(__file__).parent.parent / "web" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+    assert "escHtml" not in html
