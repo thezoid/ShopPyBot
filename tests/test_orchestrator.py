@@ -868,6 +868,121 @@ async def test_dispatch_confirmed_tag(tmp_data_dir):
     assert row[2] == ts, f"confirmed_at mismatch: {row[2]!r}"
 
 
+# ---------------------------------------------------------------------------
+# WR-01 (34-REVIEW): _dispatch_write must tag write-queue log lines with the
+# OWNING plugin (resolved via registry.platform_of(link)), not the permanent
+# [core] tag the long-lived write-queue-drain task would otherwise carry.
+# ---------------------------------------------------------------------------
+
+
+def _make_tagged_amazon_plugin():
+    """Build a plugin whose platform_key is the real dashboard/log tag 'amazon'."""
+    from core.plugin_base import RetailerPlugin
+
+    class AmazonPlugin(RetailerPlugin):
+        domain_patterns = ["amazon.com"]
+        platform_key = "amazon"
+
+        async def check_availability(self, url: str) -> bool:
+            return True
+
+        async def auto_buy(self, url: str) -> bool:
+            return True
+
+    return AmazonPlugin(config=None)
+
+
+async def test_dispatch_confirmed_tags_owning_plugin_not_core(tmp_data_dir):
+    """WR-01: ("confirmed", link, ...) must call set_log_plugin("amazon") -- the
+    link's owning plugin -- before writeLog, never leaving the permanent [core]
+    tag the write-queue-drain task's ContextVar defaults to."""
+    import models
+    from core.orchestrator import _dispatch_write
+    from core.registry import PluginRegistry
+
+    models.initialize_db(delete=True)
+    link = "https://amazon.com/item"
+    models.add_items_sync([("Widget", link, True, 1, False)])
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    tagged: list[str] = []
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.set_log_plugin", side_effect=tagged.append),
+    ):
+        await _dispatch_write(loop=asyncio.get_running_loop(), item=("confirmed", link, "111-2223334-5556667", "2026-07-02T00:00:40+00:00"), registry=registry)
+
+    assert "amazon" in tagged, (
+        f"Expected set_log_plugin('amazon') to resolve the write's owning plugin; got {tagged}"
+    )
+    assert "core" not in tagged, (
+        f"Must not fall back to the [core] sentinel when the link resolves to a real plugin; got {tagged}"
+    )
+
+
+async def test_dispatch_purchased_unresolvable_link_falls_back_to_core(tmp_data_dir):
+    """WR-01 fallback: a link matching no registered plugin resolves to 'core',
+    and an absent registry (registry=None) also resolves to 'core' -- never raises."""
+    import models
+    from core.orchestrator import _dispatch_write
+    from core.registry import PluginRegistry
+
+    models.initialize_db(delete=True)
+    link = "https://unknown-retailer.example/item"
+    models.add_items_sync([("Widget", link, True, 1, False)])
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    tagged: list[str] = []
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.set_log_plugin", side_effect=tagged.append),
+    ):
+        await _dispatch_write(asyncio.get_running_loop(), ("purchased", link), registry)
+        await _dispatch_write(asyncio.get_running_loop(), ("purchased", link), None)
+
+    assert tagged == ["core", "core"], f"Expected both dispatches to tag 'core', got {tagged}"
+
+
+async def test_write_queue_drain_threads_registry_into_dispatch(tmp_data_dir):
+    """_write_queue_drain accepts an optional registry and threads it into every
+    _dispatch_write call so plugin tagging works for the real long-lived drain task."""
+    from core.orchestrator import _write_queue_drain
+    from core.registry import PluginRegistry
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://amazon.com/item2"
+    await queue.put(("clear_available", link))
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    received_registries: list = []
+
+    async def fake_dispatch(loop, item, registry=None):
+        received_registries.append(registry)
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._dispatch_write", side_effect=fake_dispatch),
+    ):
+        drain_task = asyncio.create_task(_write_queue_drain(queue, registry))
+        await queue.join()
+        drain_task.cancel()
+        try:
+            await drain_task
+        except asyncio.CancelledError:
+            pass
+
+    assert received_registries == [registry], (
+        f"Expected _dispatch_write to receive the same registry instance; got {received_registries}"
+    )
+
+
 async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     """WR-02: auto_buy True + detect_order_confirmation raises -> legacy ("purchased", link)
     enqueued exactly once. Never zero enqueues (which would leave item available and
