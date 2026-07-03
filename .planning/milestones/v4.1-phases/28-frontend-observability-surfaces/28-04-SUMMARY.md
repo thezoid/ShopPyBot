@@ -1,6 +1,7 @@
 ---
 phase: 28-frontend-observability-surfaces
 plan: "04"
+requirements: [OBS-04, OBS-06]
 subsystem: frontend/dashboard
 tags: [observability, uplot, log-viewer, confirmed-buys, price-charts, xss-safe]
 dependency_graph:

@@ -1,6 +1,7 @@
 ---
 phase: 27-sse-infrastructure
 plan: "03"
+requirements: [SSE-02]
 subsystem: web
 tags: [sse, lifespan, fastapi, asyncio, streaming, test-compat]
 dependency_graph:

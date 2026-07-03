@@ -1,6 +1,7 @@
 ---
 phase: 28-frontend-observability-surfaces
 plan: "01"
+requirements: [OBS-01, OBS-03]
 subsystem: tests
 tags: [tdd, red-scaffold, health, observability, wave-0]
 dependency_graph:

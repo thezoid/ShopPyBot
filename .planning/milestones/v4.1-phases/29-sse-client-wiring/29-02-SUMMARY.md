@@ -1,6 +1,7 @@
 ---
 phase: 29-sse-client-wiring
 plan: "02"
+requirements: [SSE-01]
 subsystem: dashboard-js
 tags: [refactor, sse, observability]
 dependency_graph:

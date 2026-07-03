@@ -1,6 +1,7 @@
 ---
 phase: 29-sse-client-wiring
 plan: "03"
+requirements: [SSE-01]
 subsystem: web/templates
 tags: [sse, eventsource, dashboard, client-wiring, observability]
 dependency_graph:

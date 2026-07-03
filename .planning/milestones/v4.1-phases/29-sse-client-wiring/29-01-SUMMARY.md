@@ -1,6 +1,7 @@
 ---
 phase: 29-sse-client-wiring
 plan: "01"
+requirements: [SSE-01]
 subsystem: test
 tags: [sse, tdd, red-scaffold, dashboard]
 dependency_graph:

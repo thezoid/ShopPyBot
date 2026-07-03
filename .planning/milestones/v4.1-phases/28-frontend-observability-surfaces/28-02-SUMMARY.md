@@ -1,6 +1,7 @@
 ---
 phase: 28-frontend-observability-surfaces
 plan: "02"
+requirements: [OBS-01, OBS-02, OBS-06]
 subsystem: health-backend + css-design-system
 tags: [health, css, observability, tokens, tdd]
 dependency_graph:

@@ -1,6 +1,7 @@
 ---
 phase: 27-sse-infrastructure
 plan: "01"
+requirements: [SSE-02]
 subsystem: tests
 tags: [sse, tdd, red-spike, log-reader, wave-0]
 dependency_graph:

@@ -1,6 +1,7 @@
 ---
 phase: 28-frontend-observability-surfaces
 plan: "03"
+requirements: [OBS-01, OBS-02, OBS-03, OBS-09]
 subsystem: dashboard-html-observability-surfaces
 tags: [health-cards, uptime, log-viewer, observability, safe-dom, tdd]
 dependency_graph:

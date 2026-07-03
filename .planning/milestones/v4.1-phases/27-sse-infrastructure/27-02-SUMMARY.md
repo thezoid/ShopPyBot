@@ -1,6 +1,7 @@
 ---
 phase: 27-sse-infrastructure
 plan: "02"
+requirements: [SSE-02]
 subsystem: web
 tags: [sse, log-reader, asyncio, pub-sub, bridge-core]
 dependency_graph:
