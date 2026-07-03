@@ -67,7 +67,7 @@ def test_status_endpoint_richer_shape(mock_svc, client):
         "plugins": {
             "AmazonPlugin": {
                 "status": "running",
-                "last_heartbeat": 100.0,
+                "heartbeat_age_secs": 5.3,
                 "consecutive_errors": 0,
                 "items_checked": 5,
                 "orders_confirmed": 1,

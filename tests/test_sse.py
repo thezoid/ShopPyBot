@@ -214,6 +214,47 @@ def test_sse_no_credential_patterns():
 
 
 # ---------------------------------------------------------------------------
+# AF-02 — raw last_heartbeat must never reach the SSE "status" frame
+# ---------------------------------------------------------------------------
+
+
+def test_sse_status_frame_excludes_last_heartbeat():
+    """A get_snapshot()-shaped status broadcast never leaks the raw last_heartbeat float."""
+    from web.routes.sse import _event_generator
+    from web.sse_hub import SseHub
+
+    hub = SseHub()
+
+    async def run():
+        gen = _event_generator(_FakeRequest(), hub, keepalive_secs=5.0, max_frames=2)
+        await gen.__anext__()  # retry; subscribe
+        hub.broadcast(
+            "status",
+            {
+                "running": True,
+                "uptime_secs": 12.0,
+                "plugins": {
+                    "Amazon": {
+                        "status": "running",
+                        "consecutive_errors": 0,
+                        "items_checked": 3,
+                        "orders_confirmed": 0,
+                        "last_error": None,
+                        "heartbeat_age_secs": 5.3,
+                    }
+                },
+            },
+        )
+        frame = await gen.__anext__()
+        await gen.aclose()
+        return frame
+
+    frame = asyncio.run(run())
+    assert "last_heartbeat" not in frame, f"raw last_heartbeat leaked into SSE frame: {frame!r}"
+    assert "heartbeat_age_secs" in frame, f"heartbeat_age_secs missing from SSE frame: {frame!r}"
+
+
+# ---------------------------------------------------------------------------
 # Lifespan + route registration (TestClient, NO streaming)
 # ---------------------------------------------------------------------------
 

@@ -1292,7 +1292,7 @@ async def test_run_plugin_heartbeat_and_items_checked(fake_plugin):
     snap = health.get_snapshot()
     plugin_name = plugin.__class__.__name__
     assert plugin_name in snap, f"Plugin not registered in health snapshot; snap={snap}"
-    assert snap[plugin_name]["last_heartbeat"] > 0.0, "last_heartbeat must be set after one cycle"
+    assert snap[plugin_name]["heartbeat_age_secs"] is not None, "heartbeat_age_secs must be set after one cycle"
     assert snap[plugin_name]["items_checked"] >= 1, "items_checked must be >= 1 after one matching item"
 
 

@@ -81,13 +81,14 @@ def test_get_status_shape_before_start(service):
 
 
 def test_get_status_shape_with_registry(service):
-    """After a heartbeat, get_status()['plugins'] contains the plugin with the five public keys."""
+    """After a heartbeat, get_status()['plugins'] contains the plugin with the public keys."""
     service._health_registry.heartbeat("FakePlugin")
     status = service.get_status()
     assert "FakePlugin" in status["plugins"]
     plugin_rec = status["plugins"]["FakePlugin"]
-    for key in ("status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed"):
+    for key in ("status", "heartbeat_age_secs", "consecutive_errors", "items_checked", "orders_confirmed"):
         assert key in plugin_rec, f"Missing key: {key}"
+    assert "last_heartbeat" not in plugin_rec, "AF-02: raw last_heartbeat must not reach get_status()"
 
 
 def test_get_status_is_json_serializable(service):
