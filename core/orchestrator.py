@@ -27,7 +27,7 @@ from core.credentials import get_store
 from core.registry import PluginRegistry
 from core.retry import RetryPolicy, compute_delay, with_retry
 from core.stealth import ProxyPool
-from logger import writeLog
+from logger import writeLog, set_log_plugin
 from models import (
     get_items_sync,
     update_item_purchased_sync,
@@ -109,6 +109,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     the marker itself (durable, in SQLite) is the source of truth for whether
     the item is still latched; alerted_links only dedupes the alert cadence.
     """
+    set_log_plugin(getattr(plugin, "platform_key", None) or plugin.__class__.__name__.lower())
     checkout_cfg = getattr(cfg, "checkout", None)
     n_budget = getattr(checkout_cfg, "alert_on_errors", 3)
     policy = RetryPolicy(
