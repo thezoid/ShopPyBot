@@ -10,7 +10,7 @@ Midnight rollover: if after_line > total (new file has fewer lines than cursor),
 tail_log_lines must reset by returning all lines of the new file and cursor=total.
 """
 import pytest
-from web.log_reader import tail_log_lines
+from web.log_reader import tail_log_lines, read_logs_filtered
 
 
 # ---------------------------------------------------------------------------
@@ -75,4 +75,58 @@ def test_tail_rollover_resets_cursor(monkeypatch):
     )
     assert new_cursor == 2, (
         f"Expected cursor=2 (new total, not stale cursor 10) but got: {new_cursor!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plugin filter tests (Phase 34 Plan 02 / FC-01: read_logs_filtered plugin param)
+# ---------------------------------------------------------------------------
+
+
+def test_read_logs_filtered_plugin_only(monkeypatch):
+    """plugin filter keeps only lines containing the guaranteed [plugin] tag."""
+    fake_lines = [
+        "[INFO][amazon][ts] checking stock",
+        "[INFO][bestbuy][ts] checking stock",
+        "[ERROR][amazon][ts] captcha detected",
+    ]
+    monkeypatch.setattr("web.log_reader._read_today_lines", lambda: fake_lines)
+
+    result = read_logs_filtered(50, None, None, "amazon")
+
+    assert result == [
+        "[INFO][amazon][ts] checking stock",
+        "[ERROR][amazon][ts] captcha detected",
+    ], f"Expected only [amazon]-tagged lines but got: {result!r}"
+
+
+def test_read_logs_filtered_plugin_composes_with_level_and_search(monkeypatch):
+    """plugin AND-composes with level+search: all three filters must match."""
+    fake_lines = [
+        "[ERROR][amazon][ts] captcha detected",
+        "[ERROR][amazon][ts] timeout waiting",
+        "[ERROR][bestbuy][ts] captcha detected",
+        "[INFO][amazon][ts] captcha mentioned in passing",
+    ]
+    monkeypatch.setattr("web.log_reader._read_today_lines", lambda: fake_lines)
+
+    result = read_logs_filtered(50, "ERROR", "captcha", "amazon")
+
+    assert result == ["[ERROR][amazon][ts] captcha detected"], (
+        f"Expected only the single line matching ERROR+captcha+amazon but got: {result!r}"
+    )
+
+
+def test_read_logs_filtered_plugin_none_passthrough(monkeypatch):
+    """plugin=None applies no plugin filtering -- existing callers unchanged."""
+    fake_lines = [
+        "[INFO][amazon][ts] checking stock",
+        "[INFO][bestbuy][ts] checking stock",
+    ]
+    monkeypatch.setattr("web.log_reader._read_today_lines", lambda: fake_lines)
+
+    result = read_logs_filtered(50, None, None, None)
+
+    assert result == fake_lines, (
+        f"Expected byte-identical passthrough with plugin=None but got: {result!r}"
     )

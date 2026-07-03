@@ -192,17 +192,41 @@ def test_logs_filtered_level_and_search(client):
         resp = client.get("/api/logs?level=ERROR&search=captcha&n=50")
     assert resp.status_code == 200
     assert resp.json() == {"logs": fake_logs}
-    mock_fn.assert_called_once_with(50, "ERROR", "captcha")
+    mock_fn.assert_called_once_with(50, "ERROR", "captcha", None)
 
 
 def test_logs_no_params_default_behavior(client):
-    """GET /api/logs with no params calls read_logs_filtered(50, None, None)."""
+    """GET /api/logs with no params calls read_logs_filtered(50, None, None, None)."""
     fake_logs = ["[INFO][2026-01-01@00:00:00] loop started"]
     with patch("web.routes.api.read_logs_filtered", return_value=fake_logs) as mock_fn:
         resp = client.get("/api/logs")
     assert resp.status_code == 200
     assert resp.json() == {"logs": fake_logs}
-    mock_fn.assert_called_once_with(50, None, None)
+    mock_fn.assert_called_once_with(50, None, None, None)
+
+
+def test_logs_plugin_filter_param(client):
+    """GET /api/logs?plugin=amazon calls read_logs_filtered(50, None, None, "amazon") (FC-01)."""
+    fake_logs = ["[INFO][amazon][2026-01-01@00:00:00] checking stock"]
+    with patch("web.routes.api.read_logs_filtered", return_value=fake_logs) as mock_fn:
+        resp = client.get("/api/logs?plugin=amazon")
+    assert resp.status_code == 200
+    assert resp.json() == {"logs": fake_logs}
+    mock_fn.assert_called_once_with(50, None, None, "amazon")
+
+
+def test_logs_invalid_plugin_param_dropped_to_none(client):
+    """GET /api/logs?plugin=<invalid> is dropped to None before calling read_logs_filtered.
+
+    Defense-in-depth whitelist (V5): the internal [plugin] tag is always
+    lowercase-alphanumeric; anything else is not a real platform_key and is
+    dropped rather than passed through to the filter (T-34-03/T-34-04).
+    """
+    fake_logs = []
+    with patch("web.routes.api.read_logs_filtered", return_value=fake_logs) as mock_fn:
+        resp = client.get("/api/logs?plugin=Bad%21Value")
+    assert resp.status_code == 200
+    mock_fn.assert_called_once_with(50, None, None, None)
 
 
 # ---------------------------------------------------------------------------
