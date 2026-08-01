@@ -380,6 +380,88 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 - [Phase ?]: 35-03: DH-03 kept strictly narrower than DH-01 -- only nyquist_compliant flipped on v4.0 phases 18-24 VALIDATION.md; status/wave_0_complete deliberately untouched (RESEARCH Pitfall 5)
 - [Phase ?]: 35-03: DH-02 scope resolved as Phase 28's 4 SUMMARY files (required, union = exactly OBS-01/02/03/04/06/09) plus Phase 27/29 SUMMARY files mirroring their own PLAN.md requirement IDs (discretionary polish, low-cost)
 
+## UAT Audit Session — 2026-08-01 (post-v4.2, pre-next-milestone)
+
+Cross-phase UAT audit over the archived milestone artifacts, plus a live browser UAT
+session against the dashboard and live GitHub API checks. Verdicts are recorded in each
+phase's own VERIFICATION/HUMAN-UAT/VALIDATION file.
+
+**Tooling caveat worth remembering:** `gsd-sdk query audit-uat` scans `.planning/phases/`,
+which is empty once milestones are archived. It reported `total_items: 0` while 80
+outstanding items sat in `.planning/milestones/*-phases/`. Do not trust that all-clear
+after an archive.
+
+### Results
+
+| Bucket | Count |
+|--------|-------|
+| PASS | 13 |
+| FAIL | 1 |
+| BLOCKED | 5 |
+| PARTIAL | 2 |
+| Closed by operator action | 6 (A1/A2/A4/A6/A7 + REG-01) |
+
+### Defects found (none previously caught by tests or milestone review)
+
+1. **Dashboard "Start Bot" never worked.** `core/orchestrator.py:_register_signals` calls
+   `signal.signal()` off the main thread; `BotService.start()` runs `async_main` in a daemon
+   thread, so it raised `ValueError` at `async_main`'s fifth statement and the bot loop died
+   before plugin setup, while `POST /api/bot/start` still returned 200. The CLI path
+   (`shoppybot run`) masked it by running on the main thread. Fixed in PR #12
+   (`fix/signal-handler-main-thread`). Caught by 29-HV-2; 27-HV-2 and 28-HV-1 are downstream.
+2. **CI never compiled.** `ci.yml` referenced `${{ runner.temp }}` in job-level `env:`, where
+   the `runner` context does not exist. 81 runs, 81 failures, zero jobs scheduled, no logs.
+   Introduced by `0e0e43f` (2026-06-04), the only commit that ever touched the file.
+3. **CI never installed dependencies.** The install step ran only `pip install -e .[web]`,
+   but `pyproject` declares just `platformdirs`; pytest and every runtime dep live in
+   `requirements.txt`, which CI never installed. Also added the undeclared `httpx==0.28.1`
+   that `fastapi`'s TestClient requires. Both fixed in PR #13 (`fix/ci-runner-context`).
+
+**Consequence for the audit trail:** milestones v2.0 through v4.2 were archived under a
+definition of done that included "CI-green." That was never true. The suite had only ever
+run on one Windows machine. It now passes identically on both platforms
+(755 passed / 2 skipped on ubuntu-latest and windows-latest), so no code defect follows,
+but the claim was unearned.
+
+### Operator actions completed 2026-08-01
+
+- Private Vulnerability Reporting enabled (32-HV-2)
+- Actions allowlist widened for `gitleaks/gitleaks-action@*` and
+  `googleapis/release-please-action@*` (32-HV-3) — unblocked gitleaks (31-HV-1) and
+  CodeQL (31-HV-2), both of which then ran green for the first time ever
+- CodeQL workflow re-enabled from `disabled_inactivity`
+- Wiki "Plugin Registry" page created, headers-only by deliberate decision (REG-01)
+- RH-07 signed off: GitHub PVR is the final, sole reporting channel (32-HV-1)
+- `master` branch protection corrected to require contexts that workflows actually emit
+  (`test (ubuntu-latest)`, `test (windows-latest)`, `CodeQL`); the previous five
+  (`Analyze (python)`, `build-linux`, `build-mac`, `build-windows`) matched nothing
+
+### Still outstanding
+
+- **31-HV-3** — 7 Dependabot alerts (#6-#12) still open. Two blockers: the remediating bumps
+  live on `chore/v4.0-milestone-close`, and Dependabot is repo-level PAUSED
+  (`GET /repos/thezoid/ShopPyBot/automated-security-fixes` -> `{"enabled":true,"paused":true}`)
+- **10-HV-3 / MC-4** — needs a `shoppybot web --host 0.0.0.0` restart; confirmed on loopback
+  that `.banner-warning` is correctly absent from the DOM
+- **29-HV-5** — needs a DevTools source breakpoint; the doc's stated recipe cannot work
+- **27-HV-2, 28-HV-1, 28-HV-2 (running half)** — blocked until PR #12 lands, then re-test
+- **MC-1, MC-2** — Windows TTY checks, still the only two items runnable with no prerequisites
+- Ubuntu-dependent items unchanged (no host available)
+- No LICENSE file; secret scanning and push protection still disabled
+
+### Documentation drift recorded
+
+Stale "four dashboard sections" (now eight); `python main.py` named as the dashboard
+launcher (it starts no HTTP server — use `shoppybot web`); the
+`window.EventSource = undefined` + reload recipe (cannot work, reload restores it);
+hardcoded banner hex `#fee2e2`/`#dc2626` (now themed tokens, dark renders
+`#450a0a`/`#ef4444`); and cold-load theme default is dark via `prefers-color-scheme`,
+not light.
+
 ## Operator Next Steps
 
-- Start the next milestone with /gsd:new-milestone
+- Merge PR #13 (CI fix), then PR #12 (Start Bot fix) after a rebase
+- Decide on PR #11 (264 commits) — merging it drains the Dependabot queue and lands
+  release-please, gitleaks, and the modernized CodeQL on `master`
+- Unpause Dependabot once PR #11 is in
+- Start the next milestone with /gsd:new-milestone (SEED-003 will surface)
