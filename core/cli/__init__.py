@@ -194,7 +194,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--port",
         type=int,
         default=8000,
-        help="Bind port (default 8000).",
+        help="Bind port (default 8000; if busy, the next free port is used).",
+    )
+    web_p.add_argument(
+        "--open",
+        dest="open_browser",
+        action="store_true",
+        help="Open the dashboard in the default browser once the server starts.",
     )
     web_p.set_defaults(func=handle_web)
 
