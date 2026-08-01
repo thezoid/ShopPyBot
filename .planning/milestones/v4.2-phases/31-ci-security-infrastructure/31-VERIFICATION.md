@@ -1,19 +1,26 @@
 ---
 phase: 31-ci-security-infrastructure
 verified: 2026-07-02T20:22:56Z
+uat_verified: 2026-08-01
 status: human_needed
-score: 11/14 must-haves verified locally (3 are legitimate CI-verification debt, not code gaps)
+score: 11/14 must-haves verified locally (3 were CI-verification debt; 2 of the 3 now PASS as of the 2026-08-01 live UAT, 1 remains BLOCKED)
 overrides_applied: 0
 human_verification:
-  - test: "Confirm the gitleaks Actions run reports zero findings on the pushed branch"
+  - id: 31-HV-1
+    test: "Confirm the gitleaks Actions run reports zero findings on the pushed branch"
     expected: "gh run list --workflow=gitleaks.yml (or the Actions tab) shows the latest run on the pushed branch as success, with 0 leaks found"
     why_human: "Requires a GitHub-hosted runner to execute the full-history scan; the workflow file (.github/workflows/gitleaks.yml) does not exist on origin's default branch yet (gh api returns 404) because this branch (chore/v4.0-milestone-close, 9 commits ahead) has not been pushed. No local gitleaks binary is installed in this dev environment to substitute."
-  - test: "Confirm the CodeQL Actions run completes with conclusion=success on the pushed branch"
+    result: "[PASS - gitleaks workflow ran green for the first time ever on PR #11 (conclusion: success); all 15 prior runs concluded startup_failure because the repo Actions allowlist was set to 'selected' with an EMPTY pattern list, blocking the third-party gitleaks/gitleaks-action, which the operator unblocked today by widening the allowlist (see 32-HV-3). Verified 2026-08-01 via live browser UAT session.]"
+  - id: 31-HV-2
+    test: "Confirm the CodeQL Actions run completes with conclusion=success on the pushed branch"
     expected: "gh run list --workflow=codeql-analysis.yml --json databaseId,status,conclusion shows a run with conclusion=success"
     why_human: "gh run list --workflow=codeql-analysis.yml --json ... returns an empty array right now -- zero runs are registered for this workflow name on GitHub, because commit 39ccd8e (the fix) is not yet on origin/master (git log origin/master..HEAD confirms it). Only observable after push."
-  - test: "Confirm the Dependabot open-alert queue drains to 0 after the branch merges and GitHub rescans the manifests"
+    result: "[PASS - CodeQL now succeeds: run 30718344809 on chore/v4.0-milestone-close and run 30718559908 on fix/signal-handler-main-thread. Before today CodeQL had ZERO runs ever and was in state disabled_inactivity; the operator re-enabled it today. Verified 2026-08-01 via live browser UAT session.]"
+  - id: 31-HV-3
+    test: "Confirm the Dependabot open-alert queue drains to 0 after the branch merges and GitHub rescans the manifests"
     expected: "gh api repos/thezoid/ShopPyBot/dependabot/alerts?state=open --paginate returns an empty array"
     why_human: "Independently re-queried during this verification: all 7 alerts (#6, #7, #8, #9, #10, #11, #12) still report state=open on the remote right now. Cross-checked each alert's vulnerable_version_range against the new local pins -- all 7 ranges are satisfied by the bumped versions (cryptography 49.0.0 clears <48.0.1 / <46.0.6 / <=46.0.4; pydantic-settings 2.14.2 clears <2.14.2; jinja2 3.1.6 clears <=3.1.4 / <=3.1.5) -- but GitHub only recomputes alert state after it rescans the merged/pushed manifests, so the queue cannot show 0 until after push+merge."
+    result: "[BLOCKED - exactly 7 alerts remain open (#6, #7, #11 cryptography; #8, #9, #10 jinja2; #12 pydantic-settings), all with manifest_path requirements.txt, because of TWO blockers: (a) the remediating package bumps live on chore/v4.0-milestone-close, not master, so they must merge first, and (b) Dependabot is PAUSED at the repo level (GET /repos/thezoid/ShopPyBot/automated-security-fixes returns {\"enabled\":true,\"paused\":true}), so GitHub opens no new PRs regardless; both must be resolved. No alert was dismissed. Verified 2026-08-01 via live browser UAT session.]"
 ---
 
 # Phase 31: CI & Security Infrastructure Verification Report
@@ -103,23 +110,26 @@ None. Scanned all phase-modified files (`tests/test_captcha.py`, `tests/test_no_
 
 ## Human Verification Required
 
-### 1. Gitleaks Actions run reports zero findings
+### 1. Gitleaks Actions run reports zero findings (31-HV-1)
 
 **Test:** After pushing this branch (or merging to `master`/`dev`), run `gh run list --workflow=gitleaks.yml` and inspect the latest run.
 **Expected:** Latest run shows `success`, and the job log reports `leaks found: 0`.
 **Why human:** The workflow file does not exist on GitHub's default branch yet (confirmed via `404` from the Actions API) because the branch carrying it (`chore/v4.0-milestone-close`) is 9 commits ahead of its remote tracking branch and unpushed. No local `gitleaks` binary is available in this dev environment as a substitute.
+**Result:** **[PASS]** — the gitleaks workflow ran green for the FIRST time ever on PR #11 (`conclusion: success`). Prior to today all 15 runs concluded `startup_failure`; the cause was the repo Actions allowlist being set to `selected` with an EMPTY pattern list, which blocked the third-party `gitleaks/gitleaks-action`. The operator widened the allowlist today (item 32-HV-3), which unblocked it. *Verified 2026-08-01 via live browser UAT session.*
 
-### 2. CodeQL Actions run completes green
+### 2. CodeQL Actions run completes green (31-HV-2)
 
 **Test:** After push, run `gh run list --workflow=codeql-analysis.yml --json databaseId,status,conclusion` and confirm the latest entry.
 **Expected:** `conclusion: "success"`.
 **Why human:** Zero runs are currently registered for this workflow name on GitHub (`gh run list` returns `[]`) because the fix commit (`39ccd8e`) is not yet on `origin/master` — confirmed via `git log origin/master..HEAD -- .github/workflows/codeql-analysis.yml`.
+**Result:** **[PASS]** — CodeQL now succeeds: runs `30718344809` (on `chore/v4.0-milestone-close`) and `30718559908` (on `fix/signal-handler-main-thread`). Before today it had ZERO runs ever and was in state `disabled_inactivity`; the operator re-enabled it today. *Verified 2026-08-01 via live browser UAT session.*
 
-### 3. Dependabot open-alert queue drains to 0
+### 3. Dependabot open-alert queue drains to 0 (31-HV-3)
 
 **Test:** After push/merge, run `gh api repos/thezoid/ShopPyBot/dependabot/alerts?state=open --paginate`.
 **Expected:** Empty array (or only alerts unrelated to the 3 bumped packages).
 **Why human:** Independently re-queried during this verification — all 7 alerts (#6-#12) still report `state: open` on the remote right now. Each alert's `vulnerable_version_range` was cross-checked against the new local pins and all 7 are satisfied by the bumps already applied (`cryptography==49.0.0` clears `<48.0.1`/`<46.0.6`/`<=46.0.4`; `pydantic-settings==2.14.2` clears `<2.14.2`; `jinja2==3.1.6` clears `<=3.1.4`/`<=3.1.5`), but GitHub's Dependabot service only recomputes alert state after rescanning the merged/pushed manifests on the default branch.
+**Result:** **[BLOCKED]** — exactly 7 alerts remain open (#6, #7, #11 cryptography; #8, #9, #10 jinja2; #12 pydantic-settings), all with `manifest_path: requirements.txt`, due to TWO blockers rather than one: (a) the remediating package bumps live on `chore/v4.0-milestone-close`, not `master`, so they must merge first; and (b) Dependabot is PAUSED at the repo level (`GET /repos/thezoid/ShopPyBot/automated-security-fixes` returns `{"enabled":true,"paused":true}`), so GitHub opens no new PRs regardless. Both must be resolved. No alert was dismissed. *Verified 2026-08-01 via live browser UAT session.*
 
 ## Gaps Summary
 
@@ -127,7 +137,28 @@ No code gaps found. All 12 PLAN-frontmatter must-have truths across the 3 plans 
 
 The only unmet items are the three CI-execution outcomes that are structurally impossible to verify before the branch is pushed: the gitleaks Actions run, the CodeQL Actions run, and the Dependabot alert-queue recomputation. This matches the phase's own documented verification boundary in `31-CONTEXT.md` ("Live-GitHub-verifiable only after push... recorded as CI-verification debt, not code gaps") and `31-VALIDATION.md`'s "Manual-Only / CI-Only Verifications" table. This is legitimate CI-verification debt, not a code gap — the code changes that should cause these three checks to pass are all in place and independently confirmed correct (action versions, YAML validity, dependency version-range clearance). Per CLAUDE.md's git approval gate, this session performed no `git push`, so these three items remain for the operator to confirm after pushing.
 
+## Live UAT Results (2026-08-01)
+
+Verified 2026-08-01 via live browser UAT session (human operator + browser agent, against the live dashboard and the live GitHub API). Transcribed results only — no checks were re-run during transcription.
+
+| Item | Verdict | Evidence |
+|------|---------|----------|
+| 31-HV-1 — gitleaks Actions run reports zero findings | **PASS** | gitleaks workflow ran green for the FIRST time ever on PR #11 (`conclusion: success`). All 15 prior runs concluded `startup_failure`, caused by the repo Actions allowlist being set to `selected` with an EMPTY pattern list, which blocked the third-party `gitleaks/gitleaks-action`. The operator widened the allowlist today (item 32-HV-3), unblocking it. |
+| 31-HV-2 — CodeQL Actions run completes green | **PASS** | Runs `30718344809` (`chore/v4.0-milestone-close`) and `30718559908` (`fix/signal-handler-main-thread`) both succeed. Before today CodeQL had ZERO runs ever and sat in state `disabled_inactivity`; the operator re-enabled it today. |
+| 31-HV-3 — Dependabot open-alert queue drains to 0 | **BLOCKED** | Exactly 7 alerts remain open (#6, #7, #11 cryptography; #8, #9, #10 jinja2; #12 pydantic-settings), all `manifest_path: requirements.txt`. Two blockers: (a) the remediating bumps live on `chore/v4.0-milestone-close`, not `master`, so they must merge first; (b) Dependabot is PAUSED at the repo level (`GET /repos/thezoid/ShopPyBot/automated-security-fixes` → `{"enabled":true,"paused":true}`), so GitHub opens no new PRs regardless. Both must be resolved. No alert was dismissed. |
+
+### Related discovery affecting this phase's premise
+
+Repo CI has NEVER passed: 81 runs, 81 failures, since 2026-06-05. The cause is a workflow compile error, not test failures — `ci.yml` referenced `${{ runner.temp }}` in a job-level `env:` block, where the `runner` context does not exist. Fixed in PR #13.
+
+This materially qualifies the "Behavioral Spot-Checks" and "Requirements Coverage" rows above, which assumed CI itself was a working baseline. Local pytest results in this report remain valid (they were run directly in the dev environment, not through CI).
+
+### Status disposition
+
+`status` remains `human_needed`: 2 of the 3 CI-verification-debt items (31-HV-1, 31-HV-2) now PASS, but 31-HV-3 is still BLOCKED on the two blockers above, so RH-05's queue-drain half is unmet.
+
 ---
 
 *Verified: 2026-07-02T20:22:56Z*
 *Verifier: Claude (gsd-verifier)*
+*Live UAT results transcribed: 2026-08-01*

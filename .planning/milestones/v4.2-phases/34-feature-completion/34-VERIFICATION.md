@@ -1,23 +1,26 @@
 ---
 phase: 34-feature-completion
 verified: 2026-07-03T01:28:30Z
-status: human_needed
+human_verified: 2026-08-01
+status: verified
 score: 16/16 must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "Open the dashboard, use the Plugin filter dropdown in the Log Viewer panel to filter by a platform_key (e.g. amazon), and confirm only that plugin's log lines display, in both light and dark themes"
     expected: "Dropdown lists platform_key values (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart); selecting one filters the visible log lines to only that plugin's tagged lines; styling matches the existing level/search controls in both themes"
     why_human: "Visual rendering and theme fidelity are browser-observable; grep/code inspection confirms the dropdown markup, JS wiring, and filter-guard logic exist and are correct, but cannot confirm actual pixel/theme rendering"
+    result: "PASS - Verified 2026-08-01 via live browser UAT session. Dropdown lists exactly the 7 platform_key values (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart) plus an 'All plugins' default, and correctly omits the 'core' sentinel. Selecting amazon narrowed the buffer to 212 lines, every visible line carrying the [amazon] tag and zero non-amazon lines. Filtering is immediate (no debounce), matching the level dropdown. Styling matches the existing level/search controls."
   - test: "Open the dashboard and view the new Analytics section: confirm the two headline stat cards (Overall Success Rate, Avg Time-to-Checkout) and the per-plugin table render correctly in both light and dark themes, including the N/A state when no order data exists"
     expected: "Cards and table render using the existing .health-card/.health-grid/table styling with no visual regressions in either theme; null metrics show 'N/A' not 'null'/'NaN'"
     why_human: "Visual rendering and theme fidelity are browser-observable; grep/code inspection confirms the markup, pollAnalytics()/renderAnalytics() JS, and N/A formatting exist and are correct, but cannot confirm actual pixel/theme rendering"
+    result: "PASS - Verified 2026-08-01 via live browser UAT session. Both headline cards render (Overall Success Rate 100.0%, Avg Time-to-Checkout 42.0s) using the existing .health-card/.health-grid styling, with the one-decimal and %/s formats correct. Per-plugin table headers are exactly 'Plugin | Orders | Success Rate | Avg Time-to-Checkout' and the seeded amazon row renders 1/1, 100.0%, 42.0s. No null or NaN anywhere. Caveat: the 'N/A' empty state was NOT directly observed, since it requires a database with no order data and the test database was seeded; that formatting code path was reviewed but not exercised."
 ---
 
 # Phase 34: Feature Completion Verification Report
 
 **Phase Goal:** An operator can filter dashboard/API logs by plugin (FC-01, completes OBS-08) and see success-rate + time-to-checkout analytics from confirmed-order records (FC-02).
 **Verified:** 2026-07-03T01:28:30Z
-**Status:** human_needed
+**Status:** verified (human UAT completed 2026-08-01, both items PASS)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -41,7 +44,7 @@ human_verification:
 | 13 | An empty dataset returns valid JSON with `success_rate`/`avg_time_to_checkout`=None and no `ZeroDivisionError` | VERIFIED | `core/analytics.py:38-39` guards every division (`if attempted else None`, `if durations else None`); `tests/test_analytics.py::test_empty_dataset_no_divide_by_zero` and `tests/test_api_observability.py::test_get_analytics_empty_dataset` pass |
 | 14 | `GET /api/analytics` returns overall + per-plugin aggregates as JSON | VERIFIED | `web/routes/api.py:170-179`; `core/service.py:120-157` `get_analytics()` resolves `link → platform_key` via registry `domain_patterns`, delegates to `compute_analytics` |
 | 15 | The analytics response contains no `link`, URL, or credential fields — aggregate numbers + `platform_key` only | VERIFIED | `core/analytics.py` never includes `link` in any returned dict; `core/service.py:126-127` comment + code confirm `link` is read only inside the `platform_of` closure; `tests/test_api_observability.py::test_get_analytics_aggregate_only_no_link_leak` recursively asserts no `"link"` key anywhere in the response AND `not CRED_PATTERN.search(resp.text)` |
-| 16 | The dashboard shows headline stat cards (overall success-rate, avg time-to-checkout) + a per-plugin analytics table | VERIFIED (code) | `dashboard.html:151-168` `#section-analytics` with `.health-grid#analytics-grid` + `<table id="analytics-table">`; `renderAnalytics()`/`pollAnalytics()` (dashboard.html:480-528) build cards/rows via `createElement`/`textContent` only, format N/A for null metrics (dashboard.html:450-458); `pollAnalytics()` called once in the initial backfill block (dashboard.html:739). **Live-browser visual rendering (both themes) is UAT — see Human Verification.** |
+| 16 | The dashboard shows headline stat cards (overall success-rate, avg time-to-checkout) + a per-plugin analytics table | VERIFIED (code + UAT 2026-08-01) | `dashboard.html:151-168` `#section-analytics` with `.health-grid#analytics-grid` + `<table id="analytics-table">`; `renderAnalytics()`/`pollAnalytics()` (dashboard.html:480-528) build cards/rows via `createElement`/`textContent` only, format N/A for null metrics (dashboard.html:450-458); `pollAnalytics()` called once in the initial backfill block (dashboard.html:739). **Live-browser visual rendering (both themes) is UAT — see Human Verification.** |
 
 **Score:** 16/16 truths verified at the code/test level. 2 items (dropdown + analytics-card visual rendering, both themes) require human browser verification per the milestone's established UAT convention — see below.
 
@@ -114,23 +117,31 @@ None. Scanned all 9 modified/created files (`logger.py`, `core/orchestrator.py`,
 
 ### Human Verification Required
 
+**UAT status: COMPLETE. Both items PASS. Verified 2026-08-01 via live browser UAT session (human operator + browser agent, live dashboard).**
+
 ### 1. Plugin log filter dropdown — live browser check
 
 **Test:** Open the dashboard, use the Plugin filter dropdown in the Log Viewer panel to filter by a platform_key (e.g. `amazon`), and confirm only that plugin's log lines display, in both light and dark themes.
 **Expected:** Dropdown lists platform_key values (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart); selecting one filters the visible log lines to only that plugin's tagged lines; styling matches the existing level/search controls in both themes.
 **Why human:** Visual rendering and theme fidelity are browser-observable. Code inspection confirms the dropdown markup, JS wiring (`pollLogs`, `lineMatchesFilters`), and server-side filter logic are correct, but cannot confirm actual pixel/theme rendering.
+**Result:** PASS. Verified 2026-08-01 via live browser UAT session. The dropdown lists exactly the 7 `platform_key` values (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart) plus an "All plugins" default, and correctly OMITS the `core` sentinel. Selecting `amazon` narrowed the buffer to 212 lines, with every visible line carrying the `[amazon]` tag and zero non-amazon lines. Filtering is immediate (no debounce), matching the level dropdown. Styling matches the existing level/search controls.
 
 ### 2. Analytics stat cards + per-plugin table — live browser check
 
 **Test:** Open the dashboard and view the new Analytics section: confirm the two headline stat cards (Overall Success Rate, Avg Time-to-Checkout) and the per-plugin table render correctly in both light and dark themes, including the N/A state when no order data exists.
 **Expected:** Cards and table render using the existing `.health-card`/`.health-grid`/table styling with no visual regressions in either theme; null metrics show "N/A" not "null"/"NaN".
 **Why human:** Visual rendering and theme fidelity are browser-observable. Code inspection confirms the markup, `pollAnalytics()`/`renderAnalytics()` JS, and N/A formatting are correct, but cannot confirm actual pixel/theme rendering.
+**Result:** PASS. Verified 2026-08-01 via live browser UAT session. Both headline cards render ("Overall Success Rate" 100.0%, "Avg Time-to-Checkout" 42.0s) using the existing `.health-card`/`.health-grid` styling, with the one-decimal and `%`/`s` formats correct. The per-plugin table headers are exactly `Plugin | Orders | Success Rate | Avg Time-to-Checkout`, and the seeded `amazon` row renders 1/1, 100.0%, 42.0s. No null or NaN anywhere.
+**Caveat:** the "N/A" empty state was NOT directly observed, since it requires a database with no order data and the test database was seeded. The formatting code path for it was reviewed but not exercised.
 
 ### Gaps Summary
 
 No code-level gaps found. All 16 derived observable truths (3 roadmap Success Criteria + 13 plan-level must-haves) are verified against the actual codebase: the `[plugin]` ContextVar tag mechanism, the `/api/logs` plugin filter (including the live-tail SSE gate that was explicitly called out as a completion item beyond the base plan), and the pure fixture-exact `compute_analytics` function backing a leak-free `GET /api/analytics` endpoint and dashboard view. The full test suite is green at 923 passed, 2 skipped — exactly matching the SUMMARY-claimed baseline, with all 3 phase SUMMARY.md commit sets (10 commits total) confirmed present in git history. The only unresolved items are the two live-browser visual checks (plugin dropdown + analytics cards, both themes), which are inherently outside static verification and are tracked as UAT debt per the milestone convention.
 
+**UAT update (2026-08-01):** both live-browser checks were executed and PASSED, closing that UAT debt. Sole residual note: the analytics "N/A" empty state was not directly exercised (seeded test database); code path reviewed only.
+
 ---
 
 _Verified: 2026-07-03T01:28:30Z_
 _Verifier: Claude (gsd-verifier)_
+_Human UAT recorded: 2026-08-01 (live browser UAT session, 34-HV-1 PASS, 34-HV-2 PASS)_

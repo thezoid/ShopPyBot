@@ -8,18 +8,23 @@ human_verification:
   - test: "Open dashboard with one active plugin running. Observe #health-grid."
     expected: "A health card appears with status badge, colored heartbeat staleness (green <30s / amber 30-60s / red >=60s), error count, items-checked count, and orders-confirmed count."
     why_human: "renderHealthCards() builds DOM via createElement at runtime. Static test confirms scaffold and JS code presence but cannot exercise live API data flow in a headless run."
+    result: "[BLOCKED - 28-HV-1] #health-grid stays empty showing exactly 'No plugins registered.' because the bot never starts; root cause is a _register_signals ValueError off the main thread (fixed in PR #12), so no health card could be observed. Verified 2026-08-01 via live browser UAT session."
   - test: "Wait 60+ seconds without restarting the bot; observe the heartbeat age band on a plugin card."
     expected: "Color transitions from green to amber (30-60s) then red (>=60s or when null). Header shows 'Up Nh Mm' or 'Up Mm' while running and blank when stopped."
     why_human: "Temporal color-band cycling and uptime humanization require a live running process with real monotonic time advancing."
+    result: "[PARTIAL - 28-HV-2] Stopped-state half PASSES: #header-uptime is exactly an empty string, not '0m'. The running format ('Up 0h 2m') and the 60s heartbeat colour-band transition are unobservable until PR #12 lands. Verified 2026-08-01 via live browser UAT session."
   - test: "Trigger a confirmed buy in test_mode. Open the Confirmed Orders section."
     expected: "A data row appears with item name, order ID, confirmed_at ISO string, and checkout attempt count. If no orders exist, 'No confirmed orders yet.' row appears."
     why_human: "loadConfirmedBuys() fetches /api/history at runtime. Cannot populate a real purchase record headlessly."
+    result: "[PASS - 28-HV-3] Headers exactly 'Item | Order ID | Confirmed At | Checkout Attempts'; seeded row rendered correctly as 'Seed Amazon Item' / '112-3456789-0000001' / ISO timestamp / 1. Limitation found: /api/history is fetched exactly ONCE per page load, never on a timer or SSE event, so the table goes stale for the whole session. Verified 2026-08-01 via live browser UAT session."
   - test: "Add an Amazon item. Observe the price chart area below the items table."
     expected: "A uPlot line chart renders with a time-based x-axis and the --color-accent stroke color. For a non-Amazon item, 'No price history available for this plugin.' message appears instead."
     why_human: "loadPriceChart() creates a uPlot canvas at runtime. ISO->Unix conversion and chart rendering are visual and require a browser with a real DOM and item price data in the DB."
+    result: "[PASS - 28-HV-4] Amazon item renders a uPlot canvas of exactly 120px height with a time-based x-axis; the BestBuy item (deliberately seeded with zero price rows) renders .chart-empty with role='status' and the exact text 'No price history available for this plugin.' No JS error on either path. Verified 2026-08-01 via live browser UAT session."
   - test: "Open the Log Viewer section. Let logs accumulate past 500 lines."
     expected: "Lines are color-coded by level (red ERROR, amber WARNING, default INFO, muted DEBUG/TRACE). Level filter and search narrow the visible lines. Follow button auto-scrolls; scrolling up pauses follow. Buffer never exceeds 500 DOM children."
     why_human: "Log streaming, filter interaction, scroll-follow behavior, and DOM cap enforcement all require live browser interaction and real log events."
+    result: "[PASS - 28-HV-5] Comprehensive. Level colours exact in dark mode (error rgb(239,68,68), warn rgb(245,158,11), info rgb(241,245,249), debug and trace rgb(148,163,184)); level and plugin filters apply immediately; search debounces ~300ms (still unfiltered at 120ms, filtered by 420ms); buffer caps at exactly 500 DOM children after seeding 612 lines; Follow releases on scroll-up (aria-pressed=false, accent class dropped) and resumes on click (re-accented, scrolled to bottom); empty-filter string confirmed exactly 'No log lines match the current filter.' Verified 2026-08-01 via live browser UAT session."
 ---
 
 # Phase 28: Frontend Observability Surfaces Verification Report
@@ -128,36 +133,55 @@ No `TBD`, `FIXME`, or `XXX` markers found in Phase 28 modified files. No `return
 **Test:** Open the dashboard with at least one active plugin running.
 **Expected:** A health card appears per plugin showing: status badge with colored dot, heartbeat staleness text colored green (<30s) / amber (30-60s) / red (>=60s or never), consecutive error count, items-checked count, orders-confirmed count. When bot is stopped, cards show "Heartbeat: never" in red.
 **Why human:** `renderHealthCards()` executes at runtime against live `/api/status` data. Static scaffold tests confirm the code is present and wired but cannot exercise DOM rendering.
+**Result:** [BLOCKED - 28-HV-1] `#health-grid` stays empty showing exactly "No plugins registered." because the bot never starts; root cause is a `_register_signals` ValueError off the main thread (fixed in PR #12), so no health card could be observed. Verified 2026-08-01 via live browser UAT session.
 
 #### 2. Bot Uptime in Header (OBS-09)
 
 **Test:** Start the bot and observe the header area.
 **Expected:** Text like "Up 0h 2m" appears in the header next to the title. When stopped, the slot is blank.
 **Why human:** `renderUptime()` produces text from `data.uptime_secs` at runtime. Requires a live process.
+**Result:** [PARTIAL - 28-HV-2] Stopped-state half PASSES: `#header-uptime` is exactly an empty string, not "0m". The running format ("Up 0h 2m") is unobservable until PR #12 lands, and the 60s heartbeat colour-band transition is likewise unobservable. Verified 2026-08-01 via live browser UAT session.
 
 #### 3. Confirmed Orders Table (OBS-04)
 
 **Test:** Trigger a test-mode purchase. Open the Confirmed Orders section.
 **Expected:** A table row appears with item name, order ID, ISO timestamp, and attempt count. If no orders, "No confirmed orders yet." appears in a single spanning cell.
 **Why human:** `loadConfirmedBuys()` fetches `/api/history` which reads the SQLite `purchased` records. Requires a real record to validate data rows.
+**Result:** [PASS - 28-HV-3] Headers exactly "Item | Order ID | Confirmed At | Checkout Attempts", and a seeded row rendered correctly: "Seed Amazon Item" / "112-3456789-0000001" / ISO timestamp / 1. Limitation found during the check: `/api/history` is fetched exactly ONCE per page load, never on a timer or SSE event, so this table goes stale for the whole session. Verified 2026-08-01 via live browser UAT session.
 
 #### 4. Per-Item Price History Chart (OBS-05)
 
 **Test:** Add an Amazon item with price history in the DB. Add a non-Amazon item. Observe below the items table.
 **Expected:** Amazon item shows a uPlot line chart with a time-based x-axis (correct Unix-second conversion) and accent color stroke. Non-Amazon item shows "No price history available for this plugin." with no JS error.
 **Why human:** uPlot canvas rendering and ISO->Unix conversion correctness require a live browser. The chart `id` strip of `=` padding (via `chartId()`) must resolve correctly to the DOM element.
+**Result:** [PASS - 28-HV-4] The Amazon item renders a uPlot canvas of exactly 120px height with a time-based x-axis; the BestBuy item (deliberately seeded with zero price rows) renders `.chart-empty` with `role="status"` and the exact text "No price history available for this plugin." No JS error on either path. Verified 2026-08-01 via live browser UAT session.
 
 #### 5. Log Viewer Behavior (OBS-06, OBS-07, OBS-08)
 
 **Test:** Generate logs spanning multiple levels. Use the level dropdown and search field. Scroll up in the log buffer; then click Follow.
 **Expected:** ERROR lines are red, WARNING amber, INFO default text, DEBUG/TRACE muted. Level filter narrows visible lines immediately. Search debounces ~300ms then narrows. Scrolling up pauses follow (Follow button loses accent style, aria-pressed=false). Clicking Follow resumes auto-scroll and button re-accents. Buffer stays at or below 500 DOM children when many lines accumulate.
 **Why human:** All behaviors require live browser interaction, real log generation, and visual inspection of CSS class application and scroll behavior.
+**Result:** [PASS - 28-HV-5] Comprehensively verified. Level colours exact in dark mode (error `rgb(239,68,68)`, warn `rgb(245,158,11)`, info `rgb(241,245,249)`, debug and trace `rgb(148,163,184)`); level and plugin filters apply IMMEDIATELY; search debounces ~300ms (measured: still unfiltered at 120ms, filtered by 420ms); the buffer caps at EXACTLY 500 DOM children after seeding 612 lines; Follow releases on scroll-up (`aria-pressed=false`, accent class dropped) and resumes on click (re-accented, scrolled to bottom). Empty-filter string confirmed exactly: "No log lines match the current filter." Verified 2026-08-01 via live browser UAT session.
 
 ### Gaps Summary
 
 No automated gaps. All nine must-have truths are VERIFIED by direct code inspection and passing tests. The five human verification items above are the only outstanding items — they are inherently un-automatable visual/interactive behaviors that require a live browser session.
 
 The pre-existing nodriver/Python 3.14 `SyntaxError` that caused `test_dashboard_renders_health_section` to ERROR in the 28-03 SUMMARY is resolved in the full test suite (34/34 pass in targeted run, 793 pass in full run). That was an environment ordering artifact, not a code defect.
+
+### Live UAT Results (recorded 2026-08-01)
+
+Verified 2026-08-01 via live browser UAT session (human operator + browser agent, live dashboard and live GitHub API). Transcribed results only; no re-run performed during transcription.
+
+| Item | Surface | Verdict | Notes |
+|------|---------|---------|-------|
+| 28-HV-1 | Per-plugin health cards | BLOCKED | `#health-grid` stays empty showing exactly "No plugins registered." because the bot never starts; root cause is a `_register_signals` ValueError off the main thread, fixed in PR #12. No health card could be observed. |
+| 28-HV-2 | Bot uptime in header | PARTIAL | Stopped-state half PASSES (`#header-uptime` is exactly an empty string, not "0m"). Running format ("Up 0h 2m") and the 60s heartbeat colour-band transition are unobservable until PR #12 lands. |
+| 28-HV-3 | Confirmed Orders table | PASS | Headers exactly "Item \| Order ID \| Confirmed At \| Checkout Attempts"; seeded row rendered as "Seed Amazon Item" / "112-3456789-0000001" / ISO timestamp / 1. Limitation: `/api/history` is fetched exactly ONCE per page load, never on a timer or SSE event, so the table goes stale for the whole session. |
+| 28-HV-4 | Per-item uPlot price chart | PASS | Amazon item renders a uPlot canvas of exactly 120px height with a time-based x-axis; BestBuy item (seeded with zero price rows) renders `.chart-empty` with `role="status"` and the exact text "No price history available for this plugin." No JS error on either path. |
+| 28-HV-5 | Log viewer behaviour | PASS | Level colours exact in dark mode (error `rgb(239,68,68)`, warn `rgb(245,158,11)`, info `rgb(241,245,249)`, debug/trace `rgb(148,163,184)`); level and plugin filters apply immediately; search debounces ~300ms (unfiltered at 120ms, filtered by 420ms); buffer caps at exactly 500 DOM children after seeding 612 lines; Follow releases on scroll-up (`aria-pressed=false`, accent dropped) and resumes on click (re-accented, scrolled to bottom); empty-filter string exactly "No log lines match the current filter." |
+
+**Outstanding after this session:** 28-HV-1 (blocked on PR #12) and the running-state half of 28-HV-2 both require re-verification once PR #12 lands. New finding from 28-HV-3: one-shot `/api/history` fetch means the Confirmed Orders table never refreshes within a session.
 
 ---
 

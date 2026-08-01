@@ -63,12 +63,12 @@ created: 2026-06-25
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| No visible flash of wrong theme on reload | UI-02 | Visual/timing artifact not reliably assertable headless | Load dashboard with dark stored, hard-reload, confirm no light flash |
-| Theme toggle visual correctness in both modes | UI-01/UI-02 | Pixel-level appearance | Toggle light/dark, confirm tokens apply across all four cards |
+| Behavior | Requirement | Why Manual | Test Instructions | Result |
+|----------|-------------|------------|-------------------|--------|
+| No visible flash of wrong theme on reload | UI-02 | Visual/timing artifact not reliably assertable headless | Load dashboard with dark stored, hard-reload, confirm no light flash | [PASS - 2026-08-01, 25-MAN-1] |
+| Theme toggle visual correctness in both modes | UI-01/UI-02 | Pixel-level appearance | Toggle light/dark, confirm tokens apply across all four cards | [PASS - 2026-08-01, 25-MAN-2; scope corrected to 8 sections] |
 
-*Automated tests cover token presence, script position, and XSS safety; the two above are operator visual checks (deferred to UAT debt per the autonomous-run policy).*
+*Automated tests cover token presence, script position, and XSS safety; the two above are operator visual checks (both executed 2026-08-01: see Manual UAT Results below).*
 
 ---
 
@@ -82,3 +82,20 @@ created: 2026-06-25
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** planned
+
+---
+
+## Manual UAT Results
+
+Verified 2026-08-01 via live browser UAT session (human operator + browser agent against the live dashboard).
+
+| ID | Behavior | Verdict | Evidence |
+|----|----------|---------|----------|
+| 25-MAN-1 | No visible flash of wrong theme on reload | ✅ PASS | `localStorage` theme set to `dark`, hard reload with cache disabled: no light flash. FOUC guard confirmed as the first inline `<script>` child of `<head>`, ahead of every stylesheet link. |
+| 25-MAN-2 | Theme toggle visual correctness in both modes | ✅ PASS (scope corrected) | All eight sections verified in both themes. Token values read via computed style matched exactly in both themes: `--color-bg`, `--color-surface`, `--color-text`, `--color-text-muted`, `--color-border`, `--color-accent`. |
+
+Notes:
+
+- **Scope correction (25-MAN-2):** the "all four cards" scope stated in the Manual-Only Verifications table is stale — the dashboard has **eight** sections, and all eight were verified in both themes.
+- **Not a defect:** `--color-accent-fg` and `--color-destructive-fg` are `#ffffff` in **both** themes by design. Correct behavior, not a token bug.
+- **Drift discovered:** with no stored theme in `localStorage`, a cold load resolves to **dark** (via `prefers-color-scheme`), not light. Any documentation describing an "implicit light, no `data-theme` attribute" default describes a state the app does not reach on this machine.

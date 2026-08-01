@@ -8,15 +8,19 @@ human_verification:
   - test: "Open http://127.0.0.1:8000 in a real browser after running `shoppybot web`"
     expected: "All four sections render (Controls/Status, Items, Credentials, Config); CSS loads correctly; no browser JS console errors"
     why_human: "TestClient verifies HTTP/HTML structure but not live browser rendering, CSS paint, or JS execution context"
+    result: "[PASS - verified 2026-08-01 via live browser UAT session] All sections render, CSS loads, zero page-level JS console errors (only two unrelated browser-extension messages). Credentials panel renders JS-populated with 'Not set' for all entries; no credential values entered. DRIFT: expectation says four sections; the dashboard now has EIGHT (section-controls, section-health, section-items, section-buys, section-analytics, section-credentials, section-config, section-log-viewer) and all eight were verified."
   - test: "Click Start Bot in the dashboard; observe status and log panel behavior"
     expected: "Status dot flips to green Running label; Start button disables; Recent Logs panel updates within ~2s without a page refresh"
     why_human: "Live JS polling behavior and BotService state transitions cannot be asserted headlessly via TestClient"
+    result: "[BLOCKED/FAIL - verified 2026-08-01 via live browser UAT session] Start Bot is broken: POST /api/bot/start returns 200 but the bot never runs, because _register_signals raised ValueError off the main thread (BotService.start runs async_main in a daemon thread). Root cause found and fixed in PR #12; blocked pending PR #12."
   - test: "Run `shoppybot web --host 0.0.0.0` and visit in a browser"
     expected: "Red warning banner renders at the top of the page with the exact text from UI-SPEC; security warning already printed to stderr before serving"
     why_human: "In-page CSS rendering of the banner (color, layout, prominence) cannot be verified without a real browser"
+    result: "[BLOCKED - partially verified 2026-08-01 via live browser UAT session] On loopback, .banner-warning is ABSENT from the DOM entirely (not hidden), which is the correct current-state behavior; the full check needs a server restart with --host 0.0.0.0, not yet done. DRIFT: the hardcoded '#fee2e2 background with #dc2626 text' expectation is light-mode only; those values are now CSS tokens (--color-destructive-subtle / --color-destructive) and render #450a0a / #ef4444 in dark mode."
   - test: "Verify on Ubuntu (desktop and headless)"
     expected: "pip install .[web] succeeds; shoppybot web binds and serves; all four dashboard sections render in browser; credential management works"
     why_human: "Cross-platform verification is deferred to Phase 11; current environment is Windows only"
+    result: "[BLOCKED - 2026-08-01] Still blocked: no Ubuntu host available. DRIFT: the same four-sections expectation applies here; the dashboard now has eight sections."
 ---
 
 # Phase 10: Optional Web UI Verification Report
@@ -123,24 +127,28 @@ human_verification:
 **Test:** Run `pip install .[web]` then `shoppybot web`. Open http://127.0.0.1:8000 in a real browser.
 **Expected:** All four sections render (Controls/Status, Items, Credentials, Config); CSS loads (cards, accent blue buttons, spacing match UI-SPEC); no JS console errors.
 **Why human:** TestClient verifies HTTP and HTML structure but not live browser rendering, CSS paint, or JS execution in a real browser context.
+**Result:** [PASS - verified 2026-08-01 via live browser UAT session] All sections render, CSS loads, and there were zero page-level JS console errors (only two unrelated browser-extension messages). The Credentials panel renders JS-populated with "Not set" for all entries; no credential values were entered. DRIFT: the expectation above says "all four sections"; the dashboard now has EIGHT sections (section-controls, section-health, section-items, section-buys, section-analytics, section-credentials, section-config, section-log-viewer). All eight were verified.
 
 #### 2. Live Start/Stop + Log Polling
 
 **Test:** With the dashboard open in a browser, click "Start Bot"; observe the status indicator and log panel.
 **Expected:** Status dot flips to green "Running"; Start button disables; Stop button enables; Recent Logs panel updates within approximately 2 seconds without a page refresh. Click "Stop Bot" and confirm status returns to "Stopped".
 **Why human:** JS polling behavior and live BotService state transitions cannot be verified headlessly via TestClient — setInterval is present in the template but actual DOM updates require a real browser runtime.
+**Result:** [BLOCKED/FAIL - verified 2026-08-01 via live browser UAT session] Start Bot is broken: POST /api/bot/start returns 200 but the bot never runs, because `_register_signals` raised ValueError off the main thread (BotService.start runs `async_main` in a daemon thread). Root cause found and fixed in PR #12; recorded as blocked pending PR #12.
 
 #### 3. Non-Localhost In-Page Banner Visual Check
 
 **Test:** Run `shoppybot web --host 0.0.0.0`. Confirm stderr warning prints before the server starts. Open the dashboard in a browser.
 **Expected:** The red warning banner renders prominently at the top of the page with the exact UI-SPEC copy: "Warning: this dashboard is reachable beyond localhost. Credential management is exposed on a non-local interface. Use only on a trusted private network." Background #fee2e2 with #dc2626 text is visually prominent.
 **Why human:** CSS rendering (color, layout prominence) cannot be verified without a real browser.
+**Result:** [BLOCKED - partially verified 2026-08-01 via live browser UAT session] Confirmed on loopback that `.banner-warning` is ABSENT from the DOM entirely (not merely hidden), which is the correct current-state behavior. The full check is blocked because it needs a server restart with `--host 0.0.0.0`, which has not yet been done. DRIFT: the hardcoded expectation of "#fee2e2 background with #dc2626 text" is light-mode only; those values are now CSS tokens (`--color-destructive-subtle` / `--color-destructive`) and render #450a0a / #ef4444 in dark mode.
 
 #### 4. Ubuntu Verification (Deferred to Phase 11)
 
 **Test:** On Ubuntu (desktop and headless), run `pip install .[web]`, then `shoppybot web`. Open dashboard.
 **Expected:** Server binds, dashboard renders, all four sections work, credentials section shows Set/Not set status.
 **Why human:** Current environment is Windows only. Phase 11 is the designated cross-platform verification phase.
+**Result:** [BLOCKED - 2026-08-01] Still blocked: no Ubuntu host is available. DRIFT: the same "four sections" expectation applies here; the dashboard now has eight sections.
 
 ### Warnings Summary
 
@@ -156,3 +164,19 @@ This is a WARNING, not a BLOCKER, because:
 
 _Verified: 2026-06-04T22:30:00Z_
 _Verifier: Claude (gsd-verifier)_
+
+## Human Verification Results (2026-08-01)
+
+Verified 2026-08-01 via live browser UAT session (human operator plus browser agent, against the live dashboard and the live GitHub API). Transcribed results only; no checks were re-run during transcription.
+
+| Item | Test | Verdict | Notes |
+|------|------|---------|-------|
+| 10-HV-1 | Live dashboard browser render | PASS | All sections render, CSS loads, zero page-level JS console errors (only two unrelated browser-extension messages). Credentials panel renders JS-populated with "Not set" for all entries; no credential values entered. |
+| 10-HV-2 | Live Start/Stop bot control + log polling | BLOCKED / FAIL | Start Bot is broken: POST /api/bot/start returns 200 but the bot never runs, because `_register_signals` raised ValueError off the main thread (BotService.start runs `async_main` in a daemon thread). Fixed in PR #12; blocked pending PR #12. |
+| 10-HV-3 | Non-localhost banner visual fidelity | BLOCKED (partially verified) | Confirmed on loopback that `.banner-warning` is absent from the DOM entirely (not hidden), the correct current-state behavior; the full check is blocked because it needs a server restart with `--host 0.0.0.0`, not yet done. |
+| 10-HV-4 | Ubuntu web-extra install | BLOCKED | Still blocked: no Ubuntu host available. |
+
+### Expectation Drift Recorded
+
+- **Section count (affects 10-HV-1 and 10-HV-4):** the original expectation of "all four sections" is stale. The dashboard now has EIGHT sections: section-controls, section-health, section-items, section-buys, section-analytics, section-credentials, section-config, section-log-viewer. All eight were verified during 10-HV-1.
+- **Banner colors (affects 10-HV-3):** the hardcoded expectation of "#fee2e2 background with #dc2626 text" is light-mode only. Those values are now CSS tokens (`--color-destructive-subtle` / `--color-destructive`) and render #450a0a / #ef4444 in dark mode.

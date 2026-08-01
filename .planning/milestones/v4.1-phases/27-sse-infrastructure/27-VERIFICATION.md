@@ -8,12 +8,15 @@ human_verification:
   - test: "Run `curl -N http://localhost:8000/api/events` against a live server and observe the stream"
     expected: "First bytes contain 'retry: 3000'; a data: frame arrives within ~1s; ': keep-alive' appears on idle after ~15s; stream remains open indefinitely"
     why_human: "TestClient uses an in-process transport that cannot exercise a real socket; live-socket keepalive interval and production frame rate require a running uvicorn process"
+    result: "[PARTIAL PASS - 27-HV-1 - Verified 2026-08-01 via live browser UAT session. Directly observed on a live stream: the FIRST frame is literally 'retry: 3000', followed by 'event: status' frames at ~1s cadence (measured intervals 980ms, 1002ms, 1004ms, 1004ms). NOT confirmed: the 15s idle keep-alive comment half, because the stream was not held idle long enough. Test-command correction: the stated launcher 'python main.py' starts NO HTTP server at all (it runs the headless bot loop); the correct launcher is 'shoppybot web'.]"
   - test: "Start the bot daemon, confirm `running: false` in the SSE stream, then call the start endpoint and observe the stream again"
     expected: "Within 1-2 seconds, a status frame with '\"running\": true' appears in the stream without any server restart"
     why_human: "Real bot daemon start/stop crosses the thread boundary; TestClient test drives _poll_loop directly with a mock, not the real bot thread"
+    result: "[BLOCKED/FAIL - 27-HV-2 - Verified 2026-08-01 via live browser UAT session. Status frames stay {'running': false, 'plugins': {}} permanently because _register_signals raised ValueError off the main thread, killing async_main at its fifth statement (BotService.start runs it in a daemon thread). Fixed in PR #12; re-test once that lands.]"
   - test: "Kill the curl client mid-stream (Ctrl+C) and check the server log for the socket disconnect"
     expected: "Server logs no queue leak; a follow-up GET to /api/events works cleanly; real-socket disconnect path exercises the finally:unsubscribe via uvicorn's transport (not the in-process TestClient path)"
     why_human: "Real TCP-level disconnect cannot be exercised by TestClient; the test covers the hub._queues==0 assertion via _FakeRequest only"
+    result: "[BLOCKED - 27-HV-3 - Verified 2026-08-01 via live browser UAT session. The client-side half is observable, but server-side queue-leak inspection is not reachable from a browser agent, so the item remains unverified.]"
 ---
 
 # Phase 27: SSE Infrastructure Verification Report
@@ -126,22 +129,33 @@ Grep of entire `web/` for `http.response.debug` and `_TEST_MAX_FRAMES` returns z
 **Test:** Start the app with `python main.py --web` (or uvicorn directly), then run `curl -N http://localhost:8000/api/events` for at least 30 seconds.
 **Expected:** `data:` frames arrive approximately every 1 second; `: keep-alive` comment lines appear approximately every 15 seconds during periods with no log writes.
 **Why human:** TestClient uses an in-process transport that does not exercise real TCP keepalive timing. The production `_KEEPALIVE_SECS = 15.0` constant is correct but the actual 15s interval can only be confirmed against a running uvicorn process.
+**Result (27-HV-1):** [PARTIAL PASS - Verified 2026-08-01 via live browser UAT session.] Directly observed on a live stream: the FIRST frame is literally `retry: 3000`, followed by `event: status` frames at ~1s cadence (measured intervals 980ms, 1002ms, 1004ms, 1004ms). The 15s idle keep-alive comment half was NOT confirmed — the stream was not held idle long enough. **Test-command correction:** the command above starts the app with `python main.py`, which starts NO HTTP server at all (it runs the headless bot loop); the correct launcher is `shoppybot web`.
 
 #### 2. Real bot daemon running-flip in the live stream
 
 **Test:** With `curl -N http://localhost:8000/api/events` running, start and then stop the bot daemon via the web UI or CLI.
 **Expected:** Within 1-2 seconds, a status frame with `"running": true` appears in the curl output when the bot starts; a frame with `"running": false` appears when it stops. The SSE stream stays open across both transitions.
 **Why human:** The automated test (`test_poll_loop_reflects_bot_running_flip`) drives `_poll_loop` directly with a mock BotService, not the real bot daemon thread. The cross-thread bridge (bot thread writes HealthRegistry; `_poll_loop` on uvicorn's loop reads `svc.get_status()` via `asyncio.to_thread`) can only be validated end-to-end with a real running process.
+**Result (27-HV-2):** [BLOCKED / FAIL - Verified 2026-08-01 via live browser UAT session.] Status frames stay `{"running": false, "plugins": {}}` permanently. Root cause found: `_register_signals` raised `ValueError` off the main thread, killing `async_main` at its fifth statement, because `BotService.start` runs it in a daemon thread. Fixed in PR #12 — re-test once that lands.
 
 #### 3. Real TCP disconnect cleanup
 
 **Test:** Run `curl -N http://localhost:8000/api/events` for 5+ seconds, then kill it with Ctrl+C. Inspect the server log immediately after.
 **Expected:** Server does not log queue growth errors; a subsequent `curl -N http://localhost:8000/api/events` connects cleanly. No "SSE poll error" log lines from a stale queue reference.
 **Why human:** The automated `test_sse_disconnect_cleans_hub` test uses `_FakeRequest(disconnect_after=1)` — a simulated disconnect signal, not a real TCP FIN/RST. The `finally: hub.unsubscribe(queue)` path is verified by test, but the full uvicorn ASGI teardown path on real socket close requires a live server.
+**Result (27-HV-3):** [BLOCKED - Verified 2026-08-01 via live browser UAT session.] The client-side half is observable, but server-side queue-leak inspection is not reachable from a browser agent, so this item remains unverified.
 
 ### Gaps Summary
 
 No gaps blocking goal achievement. All four ROADMAP success criteria are verified by passing automated tests. Three human UAT items remain for live-socket behavior (timing, real bot thread, real TCP disconnect) — these are architectural limitations of the TestClient transport, not implementation defects.
+
+### Human UAT Results — Verified 2026-08-01 via live browser UAT session
+
+| Item | Verdict | Notes |
+|------|---------|-------|
+| 27-HV-1 (Live-socket keepalive and frame timing) | PARTIAL PASS | Live stream's FIRST frame is literally `retry: 3000`, then `event: status` frames at ~1s cadence (measured 980ms, 1002ms, 1004ms, 1004ms). The 15s idle keep-alive comment half was not held long enough to confirm. Stated test command is wrong: `python main.py` starts no HTTP server (headless bot loop); correct launcher is `shoppybot web`. |
+| 27-HV-2 (Real bot daemon running-flip in the live stream) | BLOCKED / FAIL | Status frames stay `{"running": false, "plugins": {}}` permanently because `_register_signals` raised `ValueError` off the main thread, killing `async_main` at its fifth statement (`BotService.start` runs it in a daemon thread). Fixed in PR #12; re-test once that lands. |
+| 27-HV-3 (Real TCP disconnect cleanup) | BLOCKED | Client-side half is observable, but server-side queue-leak inspection is not reachable from a browser agent; unverified. |
 
 ---
 
