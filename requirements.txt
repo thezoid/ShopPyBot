@@ -1,6 +1,7 @@
 # python_requires >= 3.11
 colorama==0.4.6
 cryptography==44.0.2
+httpx==0.28.1
 keyring==25.7.0
 nodriver==0.50.3
 platformdirs==4.10.0
