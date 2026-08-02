@@ -151,6 +151,8 @@ Acknowledged, deferred, not in this roadmap.
 
 - **REL-01**: Event-loop stall watchdog. `asyncio.timeout` cannot preempt a blocking plugin, and the exposure exists today with the 7 bundled plugins. Scope during roadmapping; do not let it silently expand EXT.
 
+**Roadmap disposition (2026-08-02):** REL-01 stays in v2. Research `SUMMARY.md` Gap 5 asked whether the stall watchdog belongs to H, to G, or to a deferred reliability item; it is a reliability control rather than a distribution control, the exposure is identical with the 7 bundled plugins, and folding it into H would silently expand that workstream. Recorded as a decision, not an omission.
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -168,25 +170,121 @@ Acknowledged, deferred, not in this roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
+Populated during roadmap creation, 2026-08-02. Every v1 requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MAIN-01..07 | TBD | Pending |
-| PKG-01..06 | TBD | Pending |
-| PUB-01..09 | TBD | Pending |
-| FIX-01..11 | TBD | Pending |
-| SCAN-01..11 | TBD | Pending |
-| QUAL-01..09 | TBD | Pending |
-| PAR-01..06 | TBD | Pending |
-| EXT-01..17 | TBD | Pending |
-| OPS-01..02 | TBD | Pending |
-| UAT-01..06 | TBD | Pending |
+| MAIN-01 | Phase 36 | Pending |
+| MAIN-02 | Phase 36 | Pending |
+| MAIN-03 | Phase 36 | Pending |
+| MAIN-04 | Phase 36 | Pending |
+| MAIN-05 | Phase 36 | Pending |
+| MAIN-06 | Phase 36 | Pending |
+| MAIN-07 | Phase 36 | Pending |
+| PKG-01 | Phase 37 | Pending |
+| PKG-02 | Phase 37 | Pending |
+| PKG-03 | Phase 37 | Pending |
+| PKG-04 | Phase 37 | Pending |
+| PKG-05 | Phase 37 | Pending |
+| PKG-06 | Phase 37 | Pending |
+| PUB-01 | Phase 40 | Pending |
+| PUB-02 | Phase 40 | Pending |
+| PUB-03 | Phase 40 | Pending |
+| PUB-04 | Phase 40 | Pending |
+| PUB-05 | Phase 40 | Pending |
+| PUB-06 | Phase 40 | Pending |
+| PUB-07 | Phase 40 | Pending |
+| PUB-08 | Phase 40 | Pending |
+| PUB-09 | Phase 40 | Pending |
+| FIX-01 | Phase 41 | Pending |
+| FIX-02 | Phase 41 | Pending |
+| FIX-03 | Phase 41 | Pending |
+| FIX-04 | Phase 41 | Pending |
+| FIX-05 | Phase 41 | Pending |
+| FIX-06 | Phase 41 | Pending |
+| FIX-07 | Phase 41 | Pending |
+| FIX-08 | Phase 41 | Pending |
+| FIX-09 | Phase 41 | Pending |
+| FIX-10 | Phase 41 | Pending |
+| FIX-11 | Phase 41 | Pending |
+| SCAN-01 | Phase 38 | Pending |
+| SCAN-02 | Phase 38 | Pending |
+| SCAN-03 | Phase 38 | Pending |
+| SCAN-04 | Phase 38 | Pending |
+| SCAN-05 | Phase 38 | Pending |
+| SCAN-06 | Phase 38 | Pending |
+| SCAN-07 | Phase 38 | Pending |
+| SCAN-08 | Phase 38 | Pending |
+| SCAN-09 | Phase 38 | Pending |
+| SCAN-10 | Phase 38 | Pending |
+| SCAN-11 | Phase 38 | Pending |
+| QUAL-01 | Phase 39 | Pending |
+| QUAL-02 | Phase 39 | Pending |
+| QUAL-03 | Phase 39 | Pending |
+| QUAL-04 | Phase 39 | Pending |
+| QUAL-05 | Phase 39 | Pending |
+| QUAL-06 | Phase 39 | Pending |
+| QUAL-07 | Phase 39 | Pending |
+| QUAL-08 | Phase 39 | Pending |
+| QUAL-09 | Phase 39 | Pending |
+| PAR-01 | Phase 45 | Pending |
+| PAR-02 | Phase 45 | Pending |
+| PAR-03 | Phase 45 | Pending |
+| PAR-04 | Phase 45 | Pending |
+| PAR-05 | Phase 45 | Pending |
+| PAR-06 | Phase 45 | Pending |
+| EXT-01 | Phase 42 | Pending |
+| EXT-02 | Phase 42 | Pending |
+| EXT-03 | Phase 43 | Pending |
+| EXT-04 | Phase 43 | Pending |
+| EXT-05 | Phase 43 | Pending |
+| EXT-06 | Phase 44 | Pending |
+| EXT-07 | Phase 44 | Pending |
+| EXT-08 | Phase 44 | Pending |
+| EXT-09 | Phase 46 | Pending |
+| EXT-10 | Phase 46 | Pending |
+| EXT-11 | Phase 47 | Pending |
+| EXT-12 | Phase 47 | Pending |
+| EXT-13 | Phase 47 | Pending |
+| EXT-14 | Phase 48 | Pending |
+| EXT-15 | Phase 49 | Pending |
+| EXT-16 | Phase 49 | Pending |
+| EXT-17 | Phase 49 | Pending |
+| OPS-01 | Phase 50 | Pending |
+| OPS-02 | Phase 50 | Pending |
+| UAT-01 | Phase 50 | Pending |
+| UAT-02 | Phase 50 | Pending |
+| UAT-03 | Phase 50 | Pending |
+| UAT-04 | Phase 50 | Pending |
+| UAT-05 | Phase 50 | Pending |
+| UAT-06 | Phase 50 | Pending |
 
 **Coverage:**
 - v1 requirements: 84 total
-- Mapped to phases: 0
-- Unmapped: 84 (roadmap not yet created)
+- Mapped to phases: 84
+- Unmapped: 0
+- Duplicated across phases: 0
+
+**Per-phase requirement counts:**
+
+| Phase | Name | Requirements | Count |
+|-------|------|--------------|-------|
+| 36 | Mainline Reconciliation | MAIN-01..07 | 7 |
+| 37 | Distributable Artifact | PKG-01..06 | 6 |
+| 38 | Scanning to Zero | SCAN-01..11 | 11 |
+| 39 | Quality Floor | QUAL-01..09 | 9 |
+| 40 | Public-Repo Readiness | PUB-01..09 | 9 |
+| 41 | Live Defect Closure | FIX-01..11 | 11 |
+| 42 | Plugin Registry Hardening | EXT-01, EXT-02 | 2 |
+| 43 | Plugin Roots, Precedence & API Version Gate | EXT-03, EXT-04, EXT-05 | 3 |
+| 44 | Provenance, Load-Boundary Integrity & Run Lock | EXT-06, EXT-07, EXT-08 | 3 |
+| 45 | Community Plugin Parity + Pre-Transfer Arming Gate | PAR-01..06 | 6 |
+| 46 | Trust Tiers & Capability Reduction | EXT-09, EXT-10 | 2 |
+| 47 | Fetch, Pre-Flight, Install & Consent | EXT-11, EXT-12, EXT-13 | 3 |
+| 48 | Plugin Lifecycle — update, remove, verify, outdated | EXT-14 | 1 |
+| 49 | Trust Documentation, Registry & Vocabulary Guard | EXT-15, EXT-16, EXT-17 | 3 |
+| 50 | Ops Hardening & UAT Consolidation | OPS-01..02, UAT-01..06 | 8 |
+| | **Total** | | **84** |
 
 ## Sequencing Constraints
 
@@ -200,6 +298,18 @@ Hard dependencies the roadmap must respect:
 6. **PAR-03 and EXT-09 are one mechanism.** Both build a pre-transfer gate at the same orchestrator site.
 7. **EXT-15 gates milestone completion**, not phase ordering. The disclaimer is the precondition that makes the plugin manager defensible.
 
+**Roadmap satisfaction (2026-08-02):**
+
+| # | Satisfied by |
+|---|--------------|
+| 1 | Phase 36 → Phase 38 |
+| 2 | Phase 37 precedes any release cut |
+| 3 | Phase 37 (PKG-06) → Phase 43 (EXT-03) |
+| 4 | Phase 42 is the first EXT phase |
+| 5 | Phase 46 (EXT-09) → Phase 47 (EXT-11) |
+| 6 | Phase 45 builds the pre-transfer arming gate for the community plugins; adjacent Phase 46 extends the same gate with the third-party disarm default. One mechanism, built once |
+| 7 | Phase 49 carries EXT-15 as a milestone gate; Phase 50 may follow it without violating the constraint |
+
 ## Review Criteria
 
 Per RETROSPECTIVE.md lesson 4, workstreams G and H both warrant a post-verification REVIEW.md deep pass: G touches a safety-critical guard, H adds a new unauthenticated input surface. That review carries two non-negotiable criteria:
@@ -207,5 +317,10 @@ Per RETROSPECTIVE.md lesson 4, workstreams G and H both warrant a post-verificat
 - For every shipped control, one sentence naming what it does not stop.
 - No shipped artifact describes third-party plugins as sandboxed, isolated, curated, verified, or safe. EXT-17 makes this mechanical.
 
+**Assigned phases (2026-08-02):**
+
+- **Phase 45** (Community Plugin Parity + Pre-Transfer Arming Gate) — the safety-critical guard.
+- **Phase 47** (Fetch, Pre-Flight, Install & Consent) — the new unauthenticated input surface. Phase 48 extends the same surface and re-runs both criteria against `update` and `remove` before closing, under the Phase 47 review's scope.
+
 *Requirements defined: 2026-08-02*
-*Last updated: 2026-08-02 after initial definition*
+*Last updated: 2026-08-02 — traceability populated during roadmap creation; 84/84 mapped across Phases 36-50*

@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-08-02T05:16:43.486Z"
 last_activity: 2026-08-02
 progress:
-  total_phases: 0
+  total_phases: 15
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,42 +20,94 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v4.2 Release Readiness (Phases 30-35)
-**Total Phases**: 6 (Phases 30-35)
-**Total Requirements**: 20 (RH-01..07, AF-01..03, BF-01..03, CFG-01..02, FC-01..02, DH-01..03)
+**Milestone**: v5.0 Real Release & Plugin Ecosystem (Phases 36-50)
+**Total Phases**: 15 (Phases 36-50)
+**Total Requirements**: 84 (MAIN-01..07, PKG-01..06, PUB-01..09, FIX-01..11, SCAN-01..11, QUAL-01..09, PAR-01..06, EXT-01..17, OPS-01..02, UAT-01..06)
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 36 — Mainline Reconciliation (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-02 — Milestone v5.0 started
+Status: Roadmap created, awaiting phase planning
+Last activity: 2026-08-02 — v5.0 roadmap created (Phases 36-50, 84/84 requirements mapped)
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 30 — Breakfix Hardening | Place-order double-buy latch (HIGH), Amazon WAF auto-solve wiring, post-login DOM/URL verification | In Progress (5/6 plans) | BF-01, BF-02, BF-03 |
-| 31 — CI & Security Infrastructure | Non-destructive secret-scan audit, CodeQL workflow fix, dependabot + vuln remediation | Complete (3/3 plans) | RH-01, RH-04, RH-05 |
-| 32 — Release Automation & Community Readiness | release-please seeded at v2.0.0 + pyproject version reconcile, README refresh, real security contact | Complete (3/3 plans) | RH-02, RH-03, RH-06, RH-07 |
-| 33 — Config Refactor | Delay-field name harmonization with back-compat, generic per-platform config declaration | Complete (2/2 plans) | CFG-01, CFG-02 |
-| 34 — Feature Completion | [plugin] log tags + /api/logs filter, outcome analytics over BUY-04 records | Complete (3/3 plans) | FC-01, FC-02 |
-| 35 — Audit-Fixes & Doc-Hygiene Cleanup | SSR remove-button graceful degradation, last_heartbeat leak fix, dead escHtml() removal, v4.0/v4.1 frontmatter reconciliation | Complete (3/3 plans) | AF-01, AF-02, AF-03, DH-01, DH-02, DH-03 |
+| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | Not started | MAIN-01..07 |
+| 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | Not started | PKG-01..06 |
+| 38 — Scanning to Zero | Dependabot/CodeQL/secret-scanning queues to zero real findings; required checks + branch protection | Not started | SCAN-01..11 |
+| 39 — Quality Floor | Lint, format, typecheck, coverage enforced in CI before the milestone's new code lands | Not started | QUAL-01..09 |
+| 40 — Public-Repo Readiness | LICENSE, nodriver README, honest sample config, CODEOWNERS, drift corrected, SEED-001 retired | Not started | PUB-01..09 |
+| 41 — Live Defect Closure | Control commands report the truth; unattended alerts arrive; dashboard data is current | Not started | FIX-01..11 |
+| 42 — Plugin Registry Hardening (H1) | A malformed plugin cannot take down start, the dashboard, `plugins list`, or `run_plugin` | Not started | EXT-01, EXT-02 |
+| 43 — Plugin Roots, Precedence & API Version Gate (H2) | User-writable second root, bundled-wins collisions, API version enforced at load | Not started | EXT-03, EXT-04, EXT-05 |
+| 44 — Provenance, Load-Boundary Integrity & Run Lock (H3) | Managed plugins carry provenance; drifted files do not execute; lifecycle commands tell the truth | Not started | EXT-06, EXT-07, EXT-08 |
+| 45 — Community Plugin Parity + Pre-Transfer Arming Gate (G) | 5 community plugins reach the Amazon/BestBuy safety floor; the shared checkout gate is built once | Not started | PAR-01..06 |
+| 46 — Trust Tiers & Capability Reduction (H4) | Third-party plugins disarmed for checkout by default; per-platform credential scoping; never the CVV | Not started | EXT-09, EXT-10 |
+| 47 — Fetch, Pre-Flight, Install & Consent (H5) | `plugins install` pinned by commit SHA, statically screened, gated by typed consent | Not started | EXT-11, EXT-12, EXT-13 |
+| 48 — Plugin Lifecycle (H6) | `update`/`remove`/`verify`/`outdated`; re-consent on change; removal prints a rotation checklist | Not started | EXT-14 |
+| 49 — Trust Documentation, Registry & Vocabulary Guard (H7) | Nothing shipped calls third-party plugins safe; machine-readable registry retires the wiki table | Not started | EXT-15, EXT-16, EXT-17 |
+| 50 — Ops Hardening & UAT Consolidation | Bounded, indexed price history; one honest operator verification checklist | Not started | OPS-01..02, UAT-01..06 |
 
 ---
 
 ## Performance Metrics
 
 **Plans completed**: 0 of TBD
-**Requirements completed**: 0 of 20
-**Phases completed**: 0 of 6
+**Requirements completed**: 0 of 84
+**Phases completed**: 0 of 15
 **Blockers resolved**: 0
 
 ---
 
 ## Accumulated Context
+
+### Sequencing Invariants (v5.0 — carry into planning)
+
+The seven hard constraints from REQUIREMENTS.md, mapped onto phase numbers. Reordering
+phases without re-checking these breaks the milestone.
+
+- **Phase 36 before Phase 38.** Several SCAN requirements target workflows that do not exist on `master` until PR #11 lands.
+- **Phase 37 before any release cut.** release-please exists to publish an artifact that currently cannot start.
+- **Phase 37 (PKG-06) before Phase 43 (EXT-03).** If `bundled_plugins_dir()` does not survive a wheel install, the `importlib.resources` fix is Phase 37 work, not workstream H's.
+- **Phase 42 (EXT-01) is the first EXT phase.** Every later EXT step multiplies the number of non-conforming plugins reaching paths that currently raise.
+- **Phase 46 (EXT-09) before Phase 47 (EXT-11).** The disarm default must already be true when install ships, so no released state has a stranger's freshly installed plugin able to buy by default.
+- **Phase 45 (PAR-03) and Phase 46 (EXT-09) are one mechanism.** Both are a pre-transfer gate at `core/orchestrator.py:571`. Phase 45 builds it for the community plugins; adjacent Phase 46 extends it with the third-party disarm default. Two gates that can diverge is the failure mode.
+- **EXT-15 (Phase 49) gates milestone completion, not phase ordering.** Phase 50 may follow it.
+
+Deliberate, non-constraint orderings:
+
+- Phase 39 (Quality Floor) precedes Phases 41-50 so the milestone's new code is written under an enforced standard rather than retrofitted to one.
+- Phase 41's FIX-08 (escape + length-cap the plugin name) precedes Phase 47, which is what makes that value attacker-controlled.
+- Phase 40's LICENSE precedes Phase 49's liability language, which lands beside it.
+- Phases 42/43/44/46/47/48/49 are H1-H7 from `research/SUMMARY.md` in its reconciled order. That order is researched, not re-derived — do not reshuffle it during planning.
+
+### Research Flags (v5.0 — carry into planning)
+
+- **Phase 36:** highest-risk phase in the milestone. Small in requirement count, large in blast radius: a 263-commit merge whose CI has never executed, so the first green run is also the first evidence the merge is correct. Budget verification room, not just merge mechanics.
+- **Phase 43:** blocked on PKG-06's factual answer (does the bundled plugin root resolve from an installed wheel?). `plugins*` is in `packages.find` and the plugin files are `.py` modules rather than data files, so discovery probably works — but verify against an actual built wheel before this phase plans.
+- **Phase 47:** the consent prompt copy is an acceptance criterion, not an implementation detail. Re-read the consent-fatigue evidence (Böhme and Köpsell CHI 2010; Chrome SSL interstitial clickthrough) before writing it. Type the plugin name back, not `y`; four to six lines of facts, not prose; no bare `--yes`.
+- **Phase 47:** two open decisions to make here rather than guess — whether `GITHUB_TOKEN` joins `SECRET_KEYS` or stays environment-only, and whether the install-time import smoke test ships at all (if it does, it must run strictly after consent is granted, never before).
+- **Phase 46 or 47:** whether a `sys.addaudithook` detection layer ships, and at what scope. Needs a measurement, not a design opinion. Whatever ships is labelled detection and forensics, never prevention.
+- **Phase 49:** where the third-party disclaimer text lives (SECURITY.md section, a new `docs/PLUGIN_TRUST.md`, or both) and whether a first-run acknowledgement exists. The install-time half is Phase 47; the first-run half is an unresolved product call. Liability wording carries a MEDIUM confidence flag and is not legal advice.
+- **All EXT phases:** the dominant risk is overclaiming, not a missing feature. Import is execution and nothing in v5.0 changes that. Attach to every shipped control one sentence naming what it does not stop.
+
+### REVIEW.md Deep-Pass Assignments (v5.0)
+
+Per RETROSPECTIVE.md lesson 4, two phases carry a post-verification REVIEW.md deep pass:
+
+- **Phase 45** (Community Plugin Parity + Pre-Transfer Arming Gate) — safety-critical guard.
+- **Phase 47** (Fetch, Pre-Flight, Install & Consent) — the milestone's new unauthenticated input surface. Phase 48 extends the same surface; re-run both criteria against `update`/`remove` before closing it.
+
+Both reviews carry the same two non-negotiable criteria: (a) for every shipped control, one sentence naming what it does not stop; (b) confirmation that no shipped artifact describes third-party plugins as sandboxed, isolated, curated, verified, or safe. EXT-17 makes (b) mechanical.
+
+### Scope Decision Recorded at Roadmap Time (v5.0)
+
+- **REL-01 (event-loop stall watchdog) stays in v2.** Research `SUMMARY.md` Gap 5 asked whether it belongs to H, to G, or to a deferred reliability item. It is a reliability control rather than a distribution control, `asyncio.timeout` cannot preempt a blocking plugin regardless of where that plugin came from, and the exposure exists today with the 7 bundled plugins. Folding it into H would silently expand that workstream. Recorded as a decision, not an omission.
 
 ### Key Decisions Logged (v4.1)
 
@@ -97,8 +149,10 @@ Last activity: 2026-08-02 — Milestone v5.0 started
 
 ### Active Todos
 
-- Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete: 35-01 (AF-01 + AF-03), 35-02 (AF-02), 35-03 (DH-01/02/03) all landed. **v4.2 Release Readiness milestone is now code-complete — all 20 requirements landed.** Next step: `/gsd:complete-milestone` or equivalent milestone-close workflow.
-- Operator: complete the v4.0 + v4.1 live-UAT checklists (STATE.md Deferred Items) before first production live-buy — unchanged, out of scope for v4.2.
+- **v5.0 roadmap is created.** Phases 36-50, 84/84 requirements mapped, no orphans. Next step: `/gsd:plan-phase 36`.
+- Phase 36 is the gate on everything else. Until PR #11 and #12 land and CI compiles on `master`, no other phase's work is durable and the v4.1/v4.2 "shipped" claims stay branch-only.
+- Operator: the deferred live-UAT checklists below are consolidated by Phase 50 (UAT-04) into one file with a stated acceptance bar. Running them stays operator work.
+- Operator (still open from the 2026-08-01 audit): Dependabot is repo-level PAUSED — unpause once PR #11 is in (Phase 36 → Phase 38 SCAN-01).
 
 ### Blockers
 
@@ -200,6 +254,14 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 | Phase 29-sse-client-wiring P02 | 240 | 2 tasks | 2 files |
 
 ## Session Continuity
+
+**Last action (v5.0 roadmap)**: Milestone v5.0 Real Release & Plugin Ecosystem roadmapped. 84 requirements across 10 workstreams (A-J) mapped to 15 phases (36-50), continuing the phase numbering from v4.2's Phase 35 — no reset. Coverage 84/84, zero orphans, zero duplicates. Structure: Phase 36 MAIN (highest-risk, the 263-commit merge whose CI has never run), 37 PKG, 38 SCAN, 39 QUAL, 40 PUB, 41 FIX, then workstream H's researched H1-H7 order as Phases 42/43/44/46/47/48/49 with Phase 45 (PAR) inserted between H3 and H4 so PAR-03 and EXT-09 build one pre-transfer arming gate in adjacent phases, and Phase 50 closing on OPS + UAT. All 7 hard sequencing constraints verified satisfied and recorded in both ROADMAP.md and REQUIREMENTS.md. REVIEW.md deep passes assigned to Phases 45 and 47. UI hints on Phases 41 and 43. Files written: `.planning/ROADMAP.md` (v5.0 section added, all six shipped-milestone `<details>` blocks preserved untouched), `.planning/REQUIREMENTS.md` (Traceability populated per-requirement, placeholder ranges replaced), `.planning/STATE.md` (this file).
+
+**Next action (v5.0)**: `/gsd:plan-phase 36` — Mainline Reconciliation. Verify PKG-06's wheel question early since it gates Phase 43, and do not reshuffle the H1-H7 order during planning.
+
+**Context to carry (v5.0)**: The milestone premise is that four shipped milestones' claims are ahead of reality — `master` is 263 commits behind, PR #11's `ci.yml` fails to compile so the v4.1+v4.2 suite has never run in CI, the built wheel contains no data files so `shoppybot web` cannot start from an install, and the public repo has no LICENSE. The workstream H trust model is consent plus SHA and content pinning plus honest provenance, explicitly **not** a sandbox; the dominant risk across every EXT phase is overclaiming, not a missing feature. Import is execution and nothing in v5.0 changes that.
+
+---
 
 **Last action**: Phase 33 Plan 02 complete (CFG-02: generic per-platform config declaration. `PlatformsConfig` gained `model_config = ConfigDict(extra="allow")` as its first class-body statement — an undeclared `platforms.<key>` section now passes through as a raw dict instead of being silently dropped (the literal bug CFG-02 fixes); the 7 declared platform fields keep full strict validation unchanged, proven by `test_known_platform_strict_validation_intact`. Added `RetailerPlugin.get_platform_config(model_cls)` to `core/plugin_base.py`: getattr-safe, four-case return logic (`model_cls()` defaults on missing config/key/section; the already-validated instance for a built-in platform; `model_cls(**raw)` for a new plugin's passthrough dict, raising `ValidationError` fail-loud on bad data; `model_cls()` fallback). `PLUGIN_API_VERSION` stays 2. Fixture-plugin test (`tests/test_platform_config_extension.py`) proves a brand-new `platforms.costco` section loads+validates via a test-module-scope `CostcoPlatformConfig` model (no `importlib.import_module` of the exec_module-loaded tmp plugin, per the plan's revised approach) with `core/config_schema.py` touched by nothing beyond the single `extra="allow"` line. TDD: RED->GREEN across 2 task commits; during GREEN verification, found the plan's proposed `AppConfig(**{"platforms": {...}})` fixture-construction snippet silently no-ops (`AppConfig.settings_customise_sources` excludes `init_settings` from its source tuple) — fixed by switching to the codebase's established `yaml_file=<Path>` injection pattern (Rule 1 auto-fix, test-only, no production-code change).) Full suite: 898 passed, 2 skipped (baseline 894 + 4 net-new tests), no regression. **Phase 33 (Config Refactor) is now fully complete: CFG-01 (33-01) and CFG-02 (33-02) both landed.** CFG-01 and CFG-02 marked complete in REQUIREMENTS.md. STATE.md/ROADMAP.md updated.
 **Next action**: Continue `/gsd:execute-phase 35` -- run plan 35-03 (DH-01/02/03 frontmatter reconciliation), the phase's final plan. Phase 35 Plans 01 (AF-01 + AF-03) and 02 (AF-02) are now complete.
@@ -312,7 +374,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 
 ---
 
-*Last updated: 2026-07-02 — v4.2 roadmap created (Phases 30-35, 20 requirements mapped)*
+*Last updated: 2026-08-02 — v5.0 roadmap created (Phases 36-50, 84 requirements mapped, 100% coverage)*
 
 ## Decisions
 
