@@ -7,7 +7,7 @@ wave_0_complete: true
 created: 2026-08-02
 ---
 
-# Phase 36 — Validation Strategy
+# Phase 36: Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
 
@@ -74,16 +74,38 @@ command, so each row below names the task that owns the assertion, not just the 
 | MAIN-04 | 36-03 task 2, re-asserted 36-05 task 2 | `git ls-tree origin/master -- .github/workflows/gitleaks.yml .github/workflows/release-please.yml` returns 2 lines |
 | MAIN-05 | 36-01 task 2 | `gh pr view 12 --json state` outputs MERGED and PR #12's head OID is an ancestor of origin/master |
 | MAIN-06 | 36-01 task 3 | `gh pr view 8 --json state` outputs CLOSED with null `mergedAt`, and the issue comments contain one matching both `urllib3==2.7.0` and `superseded` |
-| MAIN-07 | 36-04 tasks 1 to 3 (pip set), 36-05 task 1 (actions set), 36-05 task 2 (the nine-PR diff) | `gh pr list --state open --json number` intersected against 8, 11, 12, 15, 16, 17, 18, 19, 20 has length 0, and every close carries a superseded comment |
+| MAIN-07 | 36-04 tasks 1 to 3 (pip set), 36-05 task 1 (actions set), 36-05 task 2 (the nine-PR diff; PRs opened during the phase, including 36-05 task 3's docs PR, are out of MAIN-07 scope and are merged before phase end anyway) | `gh pr list --state open --json number` intersected against 8, 11, 12, 15, 16, 17, 18, 19, 20 has length 0, and every close carries a superseded comment |
 
 **Full-suite gates.** 36-02 task 3 runs the mandatory pre-push gate on the merged tree.
 36-05 task 2 runs the second mandatory gate against the final merged master tip via a
 clean-tree-guarded detached checkout. Both require exit 0, 0 failed, 0 errors, and 900 or more
 collected (master alone collects 757).
 
-**Fix-forward cap.** Defined in 36-03 task 3 and shared phase-wide across plans 03, 04, and 05.
-Three attempts total, counter persisted in `36-CI-EVIDENCE.md` so it survives a context reset.
-A fourth attempt is prohibited; the phase stops and escalates instead.
+**Fix-forward cap.** A single `<fix_forward_protocol>` block, byte-identical in plans 03, 04 and
+05, is the only sanctioned response to a red `master`. Three attempts total for the whole phase,
+not three per plan. Because plans 03, 04 and 05 run as separate executor invocations with no
+shared memory, the counter lives in `36-CI-EVIDENCE.md` and STEP F0 makes re-reading it mandatory
+before every increment:
+
+`sed -n 's/.*Fix-forward attempts used: \([0-9][0-9]*\).*/\1/p' .planning/phases/36-mainline-reconciliation/36-CI-EVIDENCE.md | tail -1`
+
+POSIX BRE only, verified working in Git Bash on this machine at planning time; `grep -oP` is not
+available here. A PowerShell `Select-String` equivalent is given inline for the case where bash
+is unavailable. STEP F1 persists the increment BEFORE acting, so a mid-fix context loss cannot
+hand an attempt back. Revert, force-push and `--admin` are prohibited in this state; a fourth
+attempt is prohibited outright and the phase stops and escalates instead.
+
+**Red-master recovery is wired in every plan that can produce one.** 36-03 task 3, all three
+tasks of 36-04 (via the shared procedure's STEP 7), and 36-05 tasks 1 and 3 each name the
+protocol explicitly, so no red-master state falls through to the executor's generic deviation
+loop, which would not respect CONTEXT.md's locked never-revert policy or the shared cap.
+
+**Evidence durability.** 36-05 task 3 lands the phase directory and the roadmap update on
+`master` through a docs-only PR (path-scoped to `.planning/`, merged with `gh pr merge`, no
+direct push to master). Without it every artifact after the PR #11 merge would exist only as a
+local commit and Phase 38 would inherit nothing from a fresh clone. The one file that cannot make
+that PR, `36-05-SUMMARY.md`, is named in both the PR body and `36-CI-EVIDENCE.md` rather than
+left as a silent gap.
 
 **Bounded waits.** Every poll in every plan has an interval, an iteration cap or `timeout`
 wrapper, and a written action on timeout. There are no unbounded waits and no watch-mode flags in
