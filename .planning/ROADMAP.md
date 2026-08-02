@@ -147,7 +147,7 @@ Audit: `.planning/milestones/v4.2-MILESTONE-AUDIT.md` (status: tech_debt — 20/
 Plans:
 
 - [x] 36-01-PLAN.md: rollback tag `pre-v5-mainline`, merge PR #12, close PR #8 with a recorded reason (MAIN-05, MAIN-06)
-- [ ] 36-02-PLAN.md: absorb PR #11 head divergence without force-push, record MAIN-03 per SHA, union-resolve the two conflicts, full local suite gate (MAIN-02, MAIN-03)
+- [x] 36-02-PLAN.md: absorb PR #11 head divergence without force-push, record MAIN-03 per SHA, union-resolve the two conflicts, full local suite gate (MAIN-02, MAIN-03)
 - [ ] 36-03-PLAN.md: plain-push, merge PR #11 as a merge commit, verify the union pins, workflow artifacts, SHA ancestry and a real CI run on master (MAIN-01..04)
 - [ ] 36-04-PLAN.md: resolve the pip Dependabot set #16, #17, #15 with a direction check before each merge (MAIN-07)
 - [ ] 36-05-PLAN.md: serialize the ci.yml set #18, #19, #20, then the phase gate and Phase 38 handoff (MAIN-01, MAIN-07)
@@ -398,7 +398,7 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17) + 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 36. Mainline Reconciliation | 1/5 | In Progress|  |
+| 36. Mainline Reconciliation | 2/5 | In Progress|  |
 | 37. Distributable Artifact | 0/TBD | Not started | - |
 | 38. Scanning to Zero | 0/TBD | Not started | - |
 | 39. Quality Floor | 0/TBD | Not started | - |

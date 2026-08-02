@@ -29,15 +29,23 @@ progress:
 ## Current Position
 
 Phase: 36 (Mainline Reconciliation) — EXECUTING
-Plan: 2 of 5
-Status: Ready to execute 36-02 (PR #11 conflict resolution)
-Last activity: 2026-08-02 -- Phase 36 Plan 01 complete (rollback tag, PR #12 merged, PR #8 closed)
+Plan: 3 of 5
+Status: Ready to execute 36-03 (push PR #11 head, merge PR #11, verify CI on master)
+Last activity: 2026-08-02 -- Phase 36 Plan 02 complete (divergence absorbed by merge, both conflicts union-resolved, merged tree green at 961 passed / 0 failed across 963 collected; nothing pushed)
+
+**Carry into 36-03:**
+- Local `chore/v4.0-milestone-close` tip is unpushed and ready for a **plain, fast-forward-safe push**. `origin/chore/v4.0-milestone-close` at `e2f2695` is a proven ancestor of local HEAD, so no force is needed and none is permitted.
+- Conflict-resolution merge commit: `635c1d3be8ba015a9da58b2242e69038a5859016` (parents `7875a01` branch, `36f75c7` master).
+- **Use `/mingw64/bin/git`, not bare `git`.** The rtk shell hook was confirmed live to drop merge commits from `git log <range>` output. Plan 36-03 task 2's per-SHA ancestry proof reads from a range query and is directly exposed.
+- `36-COMMIT-DISPOSITION.md` holds the 21-SHA MAIN-03 record and ends with `Post-merge ancestry verification: pending (plan 03 task 2)`. Plan 36-03 task 2 owns flipping that line.
+- `required_status_checks.strict: true` on master. If master moves before the PR #11 merge, an `update-branch` is required first.
+- Expected non-blocker: the Actions allowlist is not widened for `gitleaks-action` and `release-please-action`, so those two workflows arrive on master with PR #11 and are expected to fail at action-resolution time. Phase 38 scope; record it, do not treat it as a merge defect or a fix-forward trigger.
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | In Progress (1/5 plans; MAIN-05, MAIN-06 done) | MAIN-01..07 |
+| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | In Progress (2/5 plans; MAIN-05, MAIN-06 done; MAIN-02, MAIN-03 resolved locally, pending proof on master) | MAIN-01..07 |
 | 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | Not started | PKG-01..06 |
 | 38 — Scanning to Zero | Dependabot/CodeQL/secret-scanning queues to zero real findings; required checks + branch protection | Not started | SCAN-01..11 |
 | 39 — Quality Floor | Lint, format, typecheck, coverage enforced in CI before the milestone's new code lands | Not started | QUAL-01..09 |
@@ -57,10 +65,15 @@ Last activity: 2026-08-02 -- Phase 36 Plan 01 complete (rollback tag, PR #12 mer
 
 ## Performance Metrics
 
-**Plans completed**: 0 of TBD
-**Requirements completed**: 0 of 84
+**Plans completed**: 2 of TBD
+**Requirements completed**: 2 of 84 (MAIN-05, MAIN-06; MAIN-02 and MAIN-03 resolved locally, counted once proven on `master` in 36-03)
 **Phases completed**: 0 of 15
 **Blockers resolved**: 0
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 36 | 01 | 13min | 3 | 2 |
+| 36 | 02 | 16min | 3 | 7 |
 
 ---
 
