@@ -350,6 +350,13 @@ defect or a fix-forward trigger.
 | Nothing pushed | `git ls-remote` | still `e2f2695` |
 | Suite green | `pytest` exit code | 0 |
 
+Re-verified after the summary and state commits landed: all 5 claimed files exist on disk; all 7
+claimed commits (`c208af7`, `a6bf2b6`, `7875a01`, `635c1d3`, `10a0da1`, `c544dc0`, `232d195`)
+resolve to real commit objects; `origin/chore/v4.0-milestone-close` is an ancestor of local HEAD,
+so plan 36-03's push is fast-forward-safe; the reflog for this session contains no `reset`,
+`clean`, `rebase`, `stash` or `filter` entry; and `origin/chore/v4.0-milestone-close` still points
+at `e2f269530a9bee2d4bdd6df9effb40302bed14f4`, confirming nothing reached origin.
+
 *Phase: 36-mainline-reconciliation*
 *Plan: 02*
 *Completed: 2026-08-02*
