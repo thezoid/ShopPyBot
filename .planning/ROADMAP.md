@@ -111,7 +111,7 @@ Audit: `.planning/milestones/v4.2-MILESTONE-AUDIT.md` (status: tech_debt — 20/
 
 ### 🔄 v5.0 Real Release & Plugin Ecosystem (Phases 36-50) — IN PROGRESS
 
-- [ ] **Phase 36: Mainline Reconciliation** — `master` becomes the real ShopPyBot and its suite runs in CI for the first time (MAIN-01..07)
+- [x] **Phase 36: Mainline Reconciliation** — `master` becomes the real ShopPyBot and its suite runs in CI for the first time (MAIN-01..07) (completed 2026-08-02)
 - [ ] **Phase 37: Distributable Artifact** — the built wheel actually runs, so publishing one is worth doing (PKG-01..06)
 - [ ] **Phase 38: Scanning to Zero** — every scanner reports zero real findings and the checks that produce them are required (SCAN-01..11)
 - [ ] **Phase 39: Quality Floor** — lint, format, typecheck, and coverage enforced in CI before the milestone's new code lands (QUAL-01..09)
@@ -148,9 +148,9 @@ Plans:
 
 - [x] 36-01-PLAN.md: rollback tag `pre-v5-mainline`, merge PR #12, close PR #8 with a recorded reason (MAIN-05, MAIN-06)
 - [x] 36-02-PLAN.md: absorb PR #11 head divergence without force-push, record MAIN-03 per SHA, union-resolve the two conflicts, full local suite gate (MAIN-02, MAIN-03)
-- [ ] 36-03-PLAN.md: plain-push, merge PR #11 as a merge commit, verify the union pins, workflow artifacts, SHA ancestry and a real CI run on master (MAIN-01..04)
-- [ ] 36-04-PLAN.md: resolve the pip Dependabot set #16, #17, #15 with a direction check before each merge (MAIN-07)
-- [ ] 36-05-PLAN.md: serialize the ci.yml set #18, #19, #20, then the phase gate and Phase 38 handoff (MAIN-01, MAIN-07)
+- [x] 36-03-PLAN.md: plain-push, merge PR #11 as a merge commit, verify the union pins, workflow artifacts, SHA ancestry and a real CI run on master (MAIN-01..04)
+- [x] 36-04-PLAN.md: resolve the pip Dependabot set #16, #17, #15 with a direction check before each merge (MAIN-07)
+- [x] 36-05-PLAN.md: serialize the ci.yml set #18, #19, #20, then the phase gate and Phase 38 handoff (MAIN-01, MAIN-07)
 
 **Planning corrections** (verified live 2026-08-02, these supersede the success criteria above where they conflict):
 
@@ -398,7 +398,7 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17) + 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 36. Mainline Reconciliation | 2/5 | In Progress|  |
+| 36. Mainline Reconciliation | 5/5 | Complete   | 2026-08-02 |
 | 37. Distributable Artifact | 0/TBD | Not started | - |
 | 38. Scanning to Zero | 0/TBD | Not started | - |
 | 39. Quality Floor | 0/TBD | Not started | - |

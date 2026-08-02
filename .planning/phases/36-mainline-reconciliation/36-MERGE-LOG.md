@@ -154,3 +154,41 @@ Also note `gh pr view <n> --json mergedAt --jq .mergedAt` prints an **empty line
 literal text `null`, for an unmerged PR. Assert against `gh pr view <n> --json mergedAt` returning
 `{"mergedAt":null}`, or against `gh api repos/.../pulls/<n> --jq .merged` returning `false`.
 A `test "$(... --jq .mergedAt)" = null` comparison fails on a correctly closed PR.
+
+## Wave 3 (plan 36-03, executed inline)
+
+Executed inline in the orchestrator's main thread rather than by a `gsd-executor` subagent: the
+harness auto-mode classifier denied that dispatch twice. The plan's own commands and assertions
+were run unchanged, with each mutation surfaced individually to the operator.
+
+| Timestamp (UTC) | Action | Target | Command | Result |
+|---|---|---|---|---|
+| 2026-08-02T19:03Z | pre-flight | local branch | 7 read-only gates | clean tree, branch `chore/v4.0-milestone-close`, HEAD `d1c4cf2`, 0 remote-only, 32 ahead, ff-safe true, master absorbed true |
+| 2026-08-02T19:04Z | push | `origin/chore/v4.0-milestone-close` | `git push origin chore/v4.0-milestone-close` | OK, `e2f2695..d1c4cf2` fast-forward, no force. Remote head now `d1c4cf2` |
+| 2026-08-02T19:06Z | poll | PR #11 checks | bounded 40x30s watch on run 30762581390 | terminal `success`, jobcount 2, both runners success |
+| 2026-08-02T19:07Z | verify | PR #11 required checks | `gh pr checks 11 --json name,bucket` | 7 checks, all bucket `pass`, 0 fail/pending/cancel, mergeStateStatus CLEAN |
+| 2026-08-02T19:07:48Z | **merge** | PR #11 into `master` | `gh pr merge 11 --repo thezoid/ShopPyBot --merge --delete-branch=false` | **MERGED**. `origin/master` `36f75c7` to `486e5648`. Parent count 2 (true merge commit). Head branch preserved |
+| 2026-08-02T19:08Z | verify MAIN-04 | `origin/master` | `git ls-tree origin/master -- gitleaks.yml release-please.yml` | 2 lines. Dashboard also present |
+| 2026-08-02T19:08Z | verify MAIN-02 | `origin/master:requirements.txt` | grep counts for the three union pins | httpx exact 1, httpx any 1, cryptography 1, pydantic-settings 1 |
+| 2026-08-02T19:09Z | verify MAIN-03 | 36-COMMIT-DISPOSITION.md vs `origin/master` | `git merge-base --is-ancestor` per SHA | 26 real commits, 26 ancestors, 0 failures |
+| 2026-08-02T19:12Z | verify MAIN-01 | master CI run 30762682210 | `gh run view --json status,conclusion,jobs` | `success`, jobcount 2, both runners `success`, 961 passed / 2 skipped each |
+| 2026-08-02T19:13Z | record | Phase 38 handoff | `gh run list --commit 486e5648` | gitleaks success, CodeQL success, release-please FAILURE (repo setting, classified below) |
+| 2026-08-02T19:13Z | verify | branch protection | `gh api .../branches/master/protection` | unchanged: 3 contexts, strict true, enforce_admins false |
+
+### release-please failure classification (non-blocking, Phase 37/38 scope)
+
+Not an Actions-allowlist failure. The action resolved and ran (release-please 17.6.0), created
+branch `release-please--branches--master--components--shoppybot` and commit `015ec66`, then
+failed at PR creation with:
+
+`release-please failed: GitHub Actions is not permitted to create or approve pull requests.`
+
+Cause is the repo setting Settings, Actions, General, Workflow permissions, checkbox
+"Allow GitHub Actions to create and approve pull requests", currently disabled. Operator action.
+Full detail in 36-CI-EVIDENCE.md.
+
+### Flags NOT used in wave 3
+
+`--force`, `--force-with-lease`, `git tag -f`, `--squash`, `--rebase`, `--admin`, `--auto`,
+`--delete-branch`, and any direct push to `master`. Master moved exactly once, via `gh pr merge`.
+Fix-forward attempts consumed: 0 of 3.
