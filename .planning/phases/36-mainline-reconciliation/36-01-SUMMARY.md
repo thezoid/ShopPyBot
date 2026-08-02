@@ -217,6 +217,20 @@ subsystems, so this is strong evidence, not proof.
 **Merge order intact.** #12 landed before #11 exactly as the locked order requires, so PR #11's
 conflict resolution will absorb the signal-handler fix in the same merge.
 
+**MAIN-03's commit count has grown from 8 to 18, and plan 36-02 must re-derive it.**
+36-CONTEXT.md records the include-all decision against **8** local commits and explicitly warns
+that ROADMAP.md's older "4 local commits" was already stale. As of this plan's completion,
+`git rev-list --count origin/chore/v4.0-milestone-close..HEAD` returns **18**: the original 8,
+plus 5 phase-36 planning commits (`bb8eace`, `9529dd1`, `2317476`, `28280ec`, `0e648de`), plus
+this plan's own 5 (`969b322`, `d04c5ca`, `c321509`, `c618989`, `c07fd3b`). The arithmetic is
+consistent and nothing is missing; the number simply moves every time a planning or execution
+commit lands on this branch, and it will move again before 36-02 pushes. 36-VALIDATION.md's
+MAIN-03 row already mandates re-deriving the SHA list fresh with raw `git log`, so the mechanism
+is correct as designed. The point to carry: **do not record the MAIN-03 decision against the
+literal number 8 from CONTEXT.md.** Re-derive, then record one include row per actual SHA.
+
+Only one of the 18 is code: `0cebc9e` (`feat(cli)`, port auto-select). The other 17 are docs.
+
 **One concern for plan 36-03's MAIN-01 verification.** PR #12's CI ran green on both runners in
 about 32 seconds, but that is master's ~757-test suite, not the merged tree's ~939. It confirms
 `ci.yml` compiles and schedules jobs on master today; it is not evidence the v4.1+v4.2 suite
