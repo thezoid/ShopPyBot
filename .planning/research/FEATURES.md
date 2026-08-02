@@ -1,326 +1,435 @@
 # Feature Research
 
-**Domain:** Single-operator localhost ops dashboard — observability surfaces for ShopPyBot v4.1
-**Researched:** 2026-06-25
-**Confidence:** HIGH (existing data shapes confirmed from source; UX patterns from multiple sources)
+**Domain:** Third-party plugin distribution for a Python retail-automation bot (ShopPyBot v5.0 workstream H / SEED-003)
+**Researched:** 2026-08-02
+**Confidence:** MEDIUM-HIGH (mechanism claims verified against official docs for 7 of 8 systems; exact UI copy for VS Code's trust dialog could not be sourced verbatim — flagged inline)
 
----
+> **Supersedes** a prior version of this file scoped to the v4.1 observability dashboard
+> (health cards, price charts, log viewer). That research is retired — v4.1 shipped.
+> This file is scoped entirely to v5.0 workstream H / SEED-003.
 
-## Scope Reminder
+## Framing
 
-This is a **single-operator, localhost-bound, no-Node** tool. The operator is also the developer.
-Every "anti-feature" below is real scope that gets proposed for tools like this and should be
-actively rejected. The 4 surfaces in scope are:
+This app already has the hard part of an extension framework built: `core/registry.py`
+auto-discovers `shopbot_plugin_*.py` files with per-plugin import-failure isolation,
+`core/plugin_base.py`'s `RetailerPlugin` ABC has only two required methods plus a
+`PLUGIN_API_VERSION` import-time compatibility gate, and `difficulty` /
+`requires_proxy` / `requires_captcha` are already first-class metadata attributes
+surfaced by `shoppybot plugins list`. What does not exist is a *distribution* story:
+a way to get a plugin from a third-party repo into that directory, and a trust
+story for having done so. That is the entire scope of this research — not "how do
+plugin systems work" in general, but "how do comparable systems solve the
+install/trust/update problem specifically," so v5.0 workstream H can be scoped as
+the small, mostly-additive piece SEED-003 says it should be.
 
-1. Live per-plugin health cards
-2. Run history + confirmed buys
-3. Price-history charts
-4. Better log viewer
+## Ecosystem Survey: How 8 Real Systems Actually Do This
 
-Plus: SSE push (replaces 2s polling) and a vendored design-system redesign.
+Each entry: install UX, where code lands, trust model, update semantics, how
+arbitrary-code-execution is handled. Confidence noted per system.
 
----
+### pipx / pip VCS install — HIGH confidence
 
-## Surface 1: Per-Plugin Health Cards
+- **Install UX:** `pipx install git+https://github.com/owner/repo.git[@ref]` or
+  `pip install git+https://git.example.com/MyProject.git@ref`. `ref` can be a
+  branch, tag, or full commit SHA — pinning to an exact commit is ordinary syntax,
+  not a special mode: `pipx install git+https://github.com/psf/black.git@ce14fa8b...`.
+- **Where code lands:** pipx creates one isolated venv per package
+  (`~/.local/pipx/venvs/<name>` or platform equivalent) and exposes the entry point
+  on `PATH`. pip installs into whatever environment is active.
+- **Trust model:** none. No signature check, no publisher verification, no listing
+  or curation of any kind. Isolation here means dependency isolation — the installed
+  code still runs with full user privileges the moment its entry point is invoked.
+- **Update semantics:** `pipx upgrade <name>` re-resolves the same source spec.
+  Pinned to a branch, upgrade silently picks up new commits; pinned to a SHA,
+  upgrade is a no-op until the user edits the pin.
+- **Arbitrary-code handling:** zero machinery. This is the ecosystem's floor —
+  useful as the "what happens if we build nothing" baseline.
+- Sources: [pip VCS Support](https://pip.pypa.io/en/stable/topics/vcs-support/), [pipx GitHub](https://github.com/pypa/pipx)
 
-Existing data source: `BotService.get_status()` returns:
-```json
-{
-  "running": true,
-  "uptime_secs": 3742.1,
-  "plugins": {
-    "amazon": {
-      "status": "checking",
-      "last_heartbeat": 1234567.8,
-      "consecutive_errors": 0,
-      "items_checked": 47,
-      "orders_confirmed": 1
-    }
-  }
-}
-```
-`last_heartbeat` is a `time.monotonic()` float (seconds since process start, not wall-clock epoch).
-Staleness must be computed as `now_monotonic - last_heartbeat`.
+### Obsidian community plugins — HIGH confidence
 
-### Table Stakes
+- **Install UX:** Settings → Community plugins → in-app catalog → Install, then a
+  separate explicit Enable toggle per plugin (two steps, not one).
+- **Where code lands:** `.obsidian/plugins/<plugin-id>/` inside the vault
+  (`main.js`, `manifest.json`) — same "import is execution" shape as this project's
+  Python files, just JS.
+- **Trust model:** the enforcement point is not a per-install dialog, it's a
+  persistent app-level posture. Official docs: **"By default, Obsidian runs in
+  Restricted Mode to prevent third-party code execution. Only disable Restricted
+  mode if you trust the authors of the plugins that you install."** and, plainly:
+  **"Community plugins run third-party code on your behalf that could potentially
+  do harm."** While Restricted Mode is on, nothing installed runs at all — it's a
+  hard gate, not advisory copy. Separately, plugins submitted to the official
+  directory get an initial human review before first listing; updates to
+  already-listed plugins are not re-reviewed line by line.
+- **Update semantics:** in-app "Check for updates," one-click per plugin, no forced
+  auto-update.
+- **Arbitrary-code handling:** the *toggle-and-stay-off-by-default* pattern is the
+  most concretely reusable idea here — trust is captured as an ambient state the
+  user must deliberately exit, not a one-time click-through they can blow past.
+- Sources: [Obsidian: Community plugins](https://obsidian.md/help/community-plugins), [Plugin security](https://github.com/obsidianmd/obsidian-help/blob/master/en/Extending%20Obsidian/Plugin%20security.md)
+
+### VS Code extensions / Marketplace — HIGH confidence on mechanism, LOW on exact copy
+
+- **Install UX:** in-editor Marketplace panel, or `code --install-extension <id>`.
+- **Where code lands:** `~/.vscode/extensions/<publisher>.<name>-<version>/`.
+- **Trust model, two independent layers:**
+  1. Publish-time integrity signing — the Marketplace signs every extension; VS
+     Code verifies the signature on install (catches tampering in transit, says
+     nothing about intent). A blue "Verified Publisher" check mark only proves
+     domain-name ownership, not code safety.
+  2. As of VS Code 1.97, a runtime dialog on **first install from a publisher the
+     user hasn't trusted before**, asking for confirmation; Microsoft and GitHub
+     publishers are pre-trusted. The exact dialog copy could not be sourced
+     verbatim from official docs or GitHub issue threads despite direct fetches —
+     flagged LOW confidence on wording, HIGH confidence the mechanism exists.
+  3. Separately, **Workspace Trust** gates whether workspace-provided code/tasks
+     can auto-run, and defaults to a passive Restricted Mode *banner* rather than
+     an upfront modal (`security.workspace.trust.startupPrompt` defaults to
+     `never`) — friction the user opts into, not friction forced on them.
+- **Update semantics:** auto-update by default, silent, background; can be
+  disabled by the user.
+- **Arbitrary-code handling:** signature verification stops tampering, not
+  malice. Actual safety net is publisher reputation and reviews — same as
+  everywhere else, just with a nicer badge.
+- Sources: [Extension Marketplace](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace), [Extension runtime security](https://code.visualstudio.com/docs/configure/extensions/extension-runtime-security), [Workspace Trust](https://code.visualstudio.com/docs/editing/workspaces/workspace-trust)
+
+### Home Assistant HACS — MEDIUM confidence (closest analogue; also the weakest trust model surveyed)
+
+HACS is the closest structural analogue to what SEED-003 proposes: a community
+plugin store bolted onto a first-party app that was not originally designed for
+one.
+
+- **Install UX:** HACS itself is installed once as a "custom integration" (a
+  bootstrap step outside HA's normal integration flow). After that, its own UI
+  offers a semi-curated "default store" plus an "add custom repository" flow
+  where the user pastes any GitHub URL directly.
+- **Where code lands:** `custom_components/<domain>/` (integrations) or
+  `www/community/<name>/` (frontend cards), inside the live Home Assistant config
+  directory, loaded by HA's own component loader exactly like first-party code.
+  **No isolation whatsoever** — this is a materially weaker posture than any
+  Python-import-based plugin loader that at least confines plugins to their own file.
+- **Trust model:** default-store inclusion requires *structural* metadata — a
+  `hacs.json` manifest, GitHub topics, a README, and published GitHub releases —
+  checked by an automated CI action. That is validation of shape, not of intent;
+  it is not a code-safety review. Custom repositories (arbitrary URL) skip even
+  that structural gate entirely. Direct fetches of the HACS README and hacs.xyz
+  docs turned up **no disclaimer or "not officially supported" language at the
+  point of adding a custom repository** — this absence is itself the key finding,
+  not a gap in this research. HACS, despite being the best-resourced project in
+  this survey, ships less consent machinery around third-party code than Obsidian,
+  gh CLI, or VS Code.
+- **Update semantics:** available updates surface in HACS's own UI; per-item
+  manual "Update" by default, with an optional per-repo auto-update setting a
+  user can opt into.
+- **Arbitrary-code handling:** effectively none in-product. This is the strongest
+  evidence in the whole survey that "closest analogue" does not mean "best
+  precedent to copy" — it is a cautionary data point, not a template.
+- Sources: [hacs.xyz](https://www.hacs.xyz/), [hacs/integration](https://github.com/hacs/integration), [HACS: Publish requirements](https://www.hacs.xyz/docs/publish/start/)
+
+### Neovim plugin managers — lazy.nvim / packer.nvim — MEDIUM-HIGH confidence
+
+- **Install UX:** declarative — a plugin spec (`owner/repo` short-name) lives in
+  the user's own Lua config; the manager clones it on next start. There is no
+  separate "install command" moment — the friction is entirely pre-install, in
+  the user's own authored config.
+- **Where code lands:** `~/.local/share/nvim/lazy/<repo>/` — a plain git clone,
+  no isolation.
+- **Trust model:** none beyond "you wrote this line yourself" — closest in shape
+  to pip/pipx.
+- **Update semantics — the standout idea in this survey:** lazy.nvim
+  auto-generates `lazy-lock.json`, mapping every installed plugin to the exact
+  commit SHA currently in use. Running an update advances the lock; the file is
+  meant to be committed to the user's own dotfiles so a fresh machine reproduces
+  byte-identical plugin state instead of "whatever HEAD is today." Individual
+  plugins can also be hard-pinned to a commit/tag/branch/semver range directly in
+  the spec.
+- **Lifecycle note:** packer.nvim (the predecessor) used a compiled Lua "snapshot"
+  file and an explicit `PackerCompile`/`PackerSync` step; it is now unmaintained,
+  and Neovim 0.12 shipped a built-in `vim.pack` manager. Even a well-adopted
+  community plugin-manager project gets superseded — an argument against
+  over-building bespoke manager UI for a hobbyist tool.
+- **Arbitrary-code handling:** none — the reusable idea here is the
+  lockfile-as-reproducibility mechanism, not any trust feature.
+- Sources: [lazy.nvim](https://github.com/folke/lazy.nvim), [lazy.nvim lockfile docs](https://lazy.folke.io/usage/lockfile)
+
+### Sublime Package Control — MEDIUM confidence
+
+- **Install UX:** Command Palette → "Package Control: Install Package" → fuzzy
+  search over a channel file (the default channel is Package Control's own
+  curated JSON index) plus any custom repositories added in settings.
+- **Where code lands:** `Packages/<name>/`, loaded directly by the editor — no
+  isolation.
+- **Trust model:** default-channel packages go through a real, if lightweight,
+  human-reviewed submission process (a PR against the channel's package list,
+  increasingly assisted by automated linting tooling). Custom repositories added
+  by raw URL bypass that process entirely and are visually indistinguishable from
+  default-channel packages once added — no "unofficial" badge found in current
+  docs.
+- **Update semantics:** per-package "Upgrade Package," or "Upgrade All" — the
+  docs explicitly warn this **upgrades every installed package including ones not
+  installed via Package Control**, a real footgun for anyone who manually vendors
+  a package alongside managed ones.
+- **Arbitrary-code handling:** review gate exists only for the curated channel;
+  nothing stops a custom-repo package from doing anything.
+- Sources: [Package Control: Usage](https://packagecontrol.io/docs/usage), [Package Control GitHub](https://github.com/wbond/package_control)
+
+### oh-my-zsh plugins — LOW-MEDIUM confidence (community-sourced, not official-doc-quoted)
+
+- **Install UX:** bundled plugins need no install step at all — add a name to
+  `plugins=(...)` in `.zshrc`. Third-party plugins require the user to manually
+  `git clone` into `~/.oh-my-zsh/custom/plugins/<name>/` (or layer a separate
+  manager like zinit/antidote on top), then reference the same name.
+- **Where code lands:** sourced directly into the running shell process — the
+  most permissive system surveyed. A malicious `.plugin.zsh` runs the instant the
+  shell starts, with full access to every environment variable and the ability to
+  silently alias or override any command.
+- **Trust model:** none, and not enforced anywhere in the framework itself.
+  Community best-practice pages advise reviewing third-party plugin source before
+  adding it; curated link-lists like `awesome-zsh-plugins` carry the general
+  understanding that entries aren't vetted for malicious code, but this is
+  community norm, not project-enforced language.
+- **Update semantics:** `omz update` updates the framework and its own bundled
+  plugins only; separately cloned third-party plugins are the user's own `git
+  pull`, unless a layered manager handles it.
+- **Arbitrary-code handling:** none. Useful as the low-water mark: "just a
+  directory convention, no consent, no metadata" is exactly the shape ShopPyBot's
+  *current* in-tree `plugins/` directory already has for bundled plugins — the
+  ecosystem's own answer to that gap has been third-party managers built
+  precisely because oh-my-zsh never built one in.
+- Sources: [ohmyzsh/ohmyzsh](https://github.com/ohmyzsh/ohmyzsh), [ohmyzsh wiki: Plugins](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins)
+
+### `gh extension install` (GitHub CLI) — HIGH confidence — closest shape to SEED-003's ask
+
+This is the most directly analogous system surveyed: a first-party CLI with a
+subcommand group (`gh extension`) that fetches and executes third-party code from
+arbitrary repos, closely mirroring a `shoppybot plugins install <repo>` shape
+sitting next to the already-shipped `shoppybot plugins list`.
+
+- **Install UX:** `gh extension install owner/repo` (repo must be named
+  `gh-<name>` by convention, mirroring this project's `shopbot_plugin_<name>.py`
+  convention); accepts a full URL for GitHub Enterprise hosts; `gh extension
+  install .` installs a locally-cloned copy for development as a symlink.
+- **Where code lands:** a user-scoped local directory
+  (`~/.local/share/gh/extensions/<name>/` on Linux), becoming a new top-level `gh
+  <name>` subcommand.
+- **Trust model — documentation-only disclaimer, explicit and specific:**
+  > "Extensions outside of GitHub and GitHub CLI are not certified by GitHub and
+  > are governed by separate terms of service, privacy policy, and support
+  > documentation."
+
+  > "To mitigate risk when using third-party extensions, audit the source code of
+  > the extension before installing or updating the extension."
+
+  No in-CLI interactive consent prompt, no typed confirmation, no isolation —
+  the entire trust posture is this paragraph in the manual.
+- **Update semantics:** `gh extension upgrade <name>` or `--all`; `--force`
+  bypasses the already-up-to-date short-circuit. Critically, **`--pin
+  <tag-or-commit>`** locks an extension to an exact release tag or commit SHA as
+  an ordinary, documented, first-class flag — not a workaround or advanced mode.
+- **Arbitrary-code handling:** disclaimer-only in the trust dimension, but the
+  `--pin` flag is the single most directly reusable piece of prior art here: it
+  proves a CLI plugin-install command can offer commit-level pinning as a plain
+  flag without needing a lockfile or any heavier machinery.
+- Sources: [Using GitHub CLI extensions](https://docs.github.com/en/github-cli/github-cli/using-github-cli-extensions), [gh extension install manual](https://cli.github.com/manual/gh_extension_install)
+
+## Disclaimer & Consent Language Precedents
+
+Direct answer to "how do comparable OSS projects word this, and where do they
+capture it in the flow." None of the 8 systems surveyed require a **typed**
+confirmation (typing a phrase, the plugin name, "yes", etc.) before installing a
+plugin. That is a real, verified finding, not an omission in this research — the
+strongest precedent found is Obsidian's structural Restricted-Mode toggle (a
+persistent state flip) and VS Code's per-publisher click-through dialog (a click,
+not a typed string).
+
+| System | Capture point | Type | Quoted text | Confidence |
+|---|---|---|---|---|
+| Obsidian | Persistent app-level Restricted Mode + per-plugin enable switch | Active (toggle), not typed | "By default, Obsidian runs in Restricted Mode to prevent third-party code execution. Only disable Restricted mode if you trust the authors of the plugins that you install." / "Community plugins run third-party code on your behalf that could potentially do harm." | HIGH — official docs, direct fetch |
+| gh CLI extensions | Documentation only, no runtime prompt | Passive notice | "Extensions outside of GitHub and GitHub CLI are not certified by GitHub and are governed by separate terms of service, privacy policy, and support documentation." / "To mitigate risk when using third-party extensions, audit the source code of the extension before installing or updating the extension." | HIGH — official docs, direct fetch |
+| VS Code | Runtime dialog, first install per untrusted publisher | Active (click), not typed | Mechanism confirmed; exact dialog copy not found in official docs or issue threads | HIGH (mechanism) / LOW (exact copy) |
+| Sublime Package Control | None found at custom-repo add time | — | No disclaimer text found in official docs | MEDIUM (searched, absence noted) |
+| HACS | None found at custom-repo add time | — | No disclaimer text found in README or hacs.xyz docs | MEDIUM (searched, absence noted) |
+| oh-my-zsh | Community norm only, not project-enforced | Passive, informal | General "review before you add it" advice on wikis/curated lists | LOW-MEDIUM — community-sourced, not an official quote |
+| pipx / pip | None | — | No disclaimer — dependency-isolation framing only, not a safety claim | HIGH |
+| ShopPyBot (existing, in this repo) | Already-written contributor doc + security policy | Passive notice, documentation-only, pre-dates any install flow | `plugins/PLUGIN_DEV.md:212-217`: "Loading a plugin file is equivalent to executing it. Only install plugin files from sources you trust... The full community plugin policy will be documented in CONTRIBUTING.md and SECURITY.md (planned for a later phase)." `SECURITY.md`'s existing "Legal Scope and Disclaimer": "ShopPyBot is provided for personal, non-commercial use only, on an 'as is' basis, without warranty of any kind, express or implied... The developer(s) accept no liability for any consequences arising from use of this software or any derivative." | HIGH — read directly from repo |
+
+**Reading on the existing ShopPyBot text:** `SECURITY.md`'s current disclaimer
+covers general software liability ("as is," no warranty) but does not yet say
+anything about third-party plugin sources specifically — it does not state that
+the maintainer neither reviews nor endorses what a third-party plugin does. That
+is the precise, still-open gap SEED-003 thread 2 names. The new language should
+extend this existing section (same file, same tone, same "does not expand,
+limit, or supersede the full Disclaimer in README.md" cross-reference pattern
+already established) rather than invent a new disclaimer surface.
+
+## Feature Landscape
+
+### Table Stakes (Users Expect These)
+
+A plugin manager isn't credible without these — every credible precedent above
+has some form of each.
 
 | Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| One card per plugin, named | Operator cannot tell plugins apart without it | LOW | Derived from `plugins` dict keys |
-| Status badge (idle / checking / error / degraded) | Primary at-a-glance signal | LOW | Map `status` field to color token |
-| Last-heartbeat staleness ("3s ago", "stale") | Time-since-check is the most actionable number | LOW | `now - last_heartbeat`; no wall-clock; show "stale" when > 60s |
-| Consecutive-errors counter | Shows whether degraded is transient or sustained | LOW | `consecutive_errors` field direct |
-| items_checked lifetime counter | Confirms the plugin is actually running | LOW | `items_checked` field direct |
-| Degraded visual state | `health_degraded` alert fires when `consecutive_errors >= threshold`; card must look alarming | LOW | Use `status == "degraded"` or `consecutive_errors > 0` as secondary signal |
-| Cards update via SSE (not polling) | Eliminates 2s latency on degraded detection | MEDIUM | Part of SSE stream; same event type as status update |
+|---|---|---|---|
+| Install from a source spec (`shoppybot plugins install <repo>[@ref]`) | Every surveyed system's core verb; matches existing `shoppybot plugins` CLI group | LOW-MEDIUM | Mechanically a git-clone into `plugins/` plus filename-convention validation — `_discover_plugins` already does the load/isolate step |
+| List with provenance (extend existing `plugins list`) | `plugins list` already exists and shows difficulty/requires_proxy/requires_captcha; users will expect to see *where a plugin came from*, same as `gh extension list` | LOW | Add source URL + installed ref/commit columns to the existing command; no new command needed |
+| Remove/uninstall (`plugins remove <name>`) | Every system surveyed has this as a first-class op | LOW | Delete the single file; `_discover_plugins`'s per-file isolation makes this mechanically trivial |
+| Version/compatibility pinning at install | Universal except HACS's default store; ShopPyBot already has the enforcement half (`PLUGIN_API_VERSION` import-time gate) | LOW-MEDIUM | Real precedent in Obsidian's `manifest.json` minAppVersion, VS Code's `engines.vscode`, Sublime's `sublime_text` build field, `gh extension install --pin`, pip/pipx git refs |
+| Source visibility before/at install | Weakest in most surveyed systems (pip, HACS, oh-my-zsh give none); doing even "echo the resolved URL + commit SHA before writing the file" clears the bar | LOW | No system surveyed shows a pre-execution diff — none is expected to; showing the resolved ref is achievable and already exceeds most precedents |
+| Install-time consent gate (any form, even passive) | Every system surveyed except HACS/oh-my-zsh has *something*; shipping nothing here contradicts SEED-003 thread 2's own mandate | LOW | Minimum viable version: a confirmation prompt naming the source and requiring y/N before the file is written |
+| `update <name>` | Direct precedent: `gh extension upgrade`, `pipx upgrade`, Obsidian's in-app update, HACS's per-item update | LOW-MEDIUM | Re-fetch at the pinned ref, or advance a tracked branch; must build on provenance tracking (see dependencies) |
 
-### Differentiators
+### Differentiators (What Would Genuinely Help This App)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| orders_confirmed on card | Operator sees acquisition success at a glance without opening history | LOW | `orders_confirmed` field on each plugin record |
-| Uptime display on global status bar | Reassurance for multi-hour unattended runs | LOW | `uptime_secs` from get_status(); format as H:MM:SS |
-| Staleness color gradient (fresh / aging / stale) | Communicates "about to go stale" vs already stale without binary flip | MEDIUM | Three threshold bands: <30s green, 30-60s amber, >60s red |
-
-### Anti-Features (do NOT build)
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Alerting rules engine (configure thresholds in UI) | "What if I want 90s stale threshold?" | Single operator; thresholds are config.yml knobs; a UI rules engine is an admin product | Hard-code reasonable defaults (60s stale, 3 consecutive errors = degraded); let YAML drive them if needed |
-| Plugin enable/disable toggle from UI | Convenient-seeming control | Plugin lifecycle is managed by the orchestrator + config; toggling mid-run is a footgun with no safe teardown path | Document that restarting the bot with modified config is the correct approach |
-| Historical health trend chart (uptime %) | Looks professional | HealthRegistry is in-memory and resets on restart; there is no persistence for trend data; implementing it requires a new append table | Not in scope; the run history surface covers bot-level events |
-| Per-plugin restart button | Recovery shortcut | The supervisor already handles restarts; a UI-triggered restart races with it and can leave a plugin in double-start state | Trust the supervisor; surface `consecutive_errors` so operator knows when to manually stop/start the whole bot |
-
----
-
-## Surface 2: Run History + Confirmed Buys
-
-Existing data source: `items` table columns per-row:
-- `name`, `link`, `purchased` (bool), `order_id` (text, nullable), `confirmed_at` (text ISO-8601, nullable), `checkout_attempts` (int)
-
-There is no separate orders table. Each item row is either purchased or not.
-The history surface therefore reads all items with `purchased=1` and displays them as a list.
-
-### Table Stakes
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Confirmed-buys table (name, order_id, confirmed_at) | Core output of the bot; operator needs proof of purchase at a glance | LOW | `SELECT name, link, order_id, confirmed_at FROM items WHERE purchased=1 ORDER BY confirmed_at DESC` |
-| checkout_attempts displayed per item | Distinguishes "got it on first try" from "retried 5 times" | LOW | Direct column |
-| Empty-state messaging | Operator who has never bought anything needs guidance that this is normal | LOW | "No confirmed orders yet" placeholder |
-| Recent-activity timestamp formatting | Raw ISO-8601 is unfriendly; "2 hours ago" or locale date is the minimum | LOW | Format in JS; no library needed |
-
-### Differentiators
+None of the 8 surveyed systems manage anything with purchase authority or a
+credential store this sensitive — this is where ShopPyBot's actual domain shape
+should drive design, not general plugin-manager convention.
 
 | Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Link to retailer order page (if URL derivable) | Operator can jump to the real order in one click | MEDIUM | `order_id` format is retailer-specific; treat as MEDIUM confidence for correctness; link to the order list page as a safe fallback |
-| All-items table showing purchased flag inline | Items section already exists; adding a purchased column shows full funnel | LOW | Already in `/api/items`; just add a column to existing table |
-| Items sorted: unpurchased first, purchased last | Operator cares about what is still being monitored | LOW | Sort in existing items query |
+|---|---|---|---|
+| Safety metadata surfaced **at install time**, not just after in `plugins list` | `difficulty`/`requires_proxy`/`requires_captcha` already exist as ABC class attrs (`core/plugin_base.py:78-80`) — showing them in the install confirmation, before the file is written, is a UX reorder, not new data | LOW | No comparable system surveyed has retailer-specific risk metadata to show; this is domain-unique to ShopPyBot already |
+| Typed install-time confirmation naming the source repo | Directly named in SEED-003 as the cheapest option on its own list; genuinely exceeds every precedent surveyed (none require typing, only clicking or toggling) | LOW | e.g., prompt requires typing the plugin name or repo slug back to proceed |
+| Commit-SHA pinning as the **default** install mode, not opt-in | Same mechanism as `gh extension install --pin`, flipped to default-on; directly answers SEED-003's own stated worry ("pinning by commit SHA rather than branch, so an install cannot silently change later") | LOW | Prevents a plugin the user reviewed once from being silently swapped on next `update` if tracking a branch |
+| "This plugin can spend money" warning tier | Genuinely unique to this domain — no surveyed system manages financial transaction authority; distinguishing "checks availability" from "can complete a purchase with saved payment" is a meaningfully different risk statement than any generic plugin warning | MEDIUM | Detection is trivial (`auto_buy` is already a required abstract method on every plugin); the design work is the tiering and whether/how it interacts with the existing `monitor_only` run-mode guard |
+| Machine-readable registry replacing the hand-maintained wiki table (REG-01) | `docs/PLUGIN_REGISTRY.md`'s 9-column spec already defines the schema; converting it to a fetchable JSON file lets `plugins install` show maintainer/last-verified/risk-tier even for non-bundled plugins, purely informational | MEDIUM | Structurally what Obsidian's community-plugins list and Sublime's channel JSON already are — a consumable index, explicitly *not* a code-review gate |
 
-### Anti-Features (do NOT build)
+### Anti-Features (Deliberately Not Building)
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Separate Orders page / route | "Cleaner navigation" | For a single operator with <=20 items, a dedicated page adds a nav hop for no real gain; all confirmed buys fit in a small table on the main dashboard | Collapsible section or a tab within the existing single-page layout |
-| Order filtering / search | "What if I have hundreds of orders?" | This bot auto-stops items on purchase (`purchased=1`); there will never be hundreds of rows; the maximum is bounded by the item list size | None needed; if list exceeds ~20 rows the operator should be cleaning up items |
-| Outcome analytics (success rate, time-to-checkout) | Sounds useful | Requires a separate append-only events table; v4.0 explicitly deferred this to post-v4.1; `checkout_attempts` gives a proxy already | Flag as post-v4.1 future direction |
-| Pagination | Standard table affordance | Data volume never warrants it; single-operator item lists are small | Simple full-list render |
-| Export to CSV | "I want my records" | One operator; order_id is already visible; screenshot or browser copy works | Not worth the route |
-
----
-
-## Surface 3: Price-History Charts
-
-Existing data source: `price_history` table:
-- `item_link` (FK to items.link), `price_cents` (int), `currency` (text), `scraped_at` (text ISO-8601)
-
-Current data: Amazon plugin only (PRICE-02). Other plugins have no price scraping.
-Data is sparse and irregular: one row per check cycle per item (cycle interval is configurable).
-A typical item may have 5-50 data points in an active monitoring window, not thousands.
-
-Chart library constraint: no CDN, no npm, vendored only. Must be a single droppable file.
-
-**Recommendation: uPlot** (~50KB minified IIFE, zero dependencies, Canvas 2D, vendorable as `web/static/uplot.iife.min.js`). For the data volumes here (5-200 points), hand-rolled SVG polyline is also viable and adds zero weight. uPlot is preferred if interactive tooltips are wanted; hand-rolled SVG is preferred for zero-weight simplicity. Use uPlot unless the design system phase determines the SVG approach is cleaner to maintain.
-
-### Table Stakes
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Line chart per item (price over time) | The price_history table exists specifically to be visualized | MEDIUM | `/api/price-history/<item_link_b64>` endpoint needed; chart rendered per item |
-| Price in readable currency (dollars, not cents) | price_cents must be divided by 100 | LOW | Pure JS transform before render |
-| Time axis in human-readable form | ISO-8601 scraped_at strings need parsing | LOW | `new Date(scraped_at)` in JS |
-| Target price reference line | item.target_price column exists; drawing a horizontal rule at that value adds immediate context | LOW | Horizontal SVG line or uPlot annotation; target_price is nullable so conditional |
-| "No data yet" placeholder for non-Amazon items | BestBuy, Walmart, etc. have zero rows; showing a blank chart is confusing | LOW | API returns empty array; render "Price history not available for this plugin" text |
-| Chart only shown when data exists | Rendering 7 empty charts wastes space | LOW | Conditional render |
-
-### Differentiators
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Most-recent price prominently labeled | Operator's first question is "what is it priced at now" not "draw me a chart" | LOW | Text above chart: "Current: $59.99 (Amazon, 5 min ago)" |
-| Price delta since first observation | "Down $20 since I started watching" is motivating context | LOW | `last_price - first_price` from the history array |
-| Chart collapsible per item (collapsed by default if no price drop) | Keeps the page scannable when monitoring many items | LOW | `<details>` element; no JS needed for basic collapse |
-
-### Anti-Features (do NOT build)
+Each argued against a real alternative, not just flagged.
 
 | Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Cross-item price comparison chart | "Interesting to compare" | Items are on different retailers with different base prices; a single Y-axis is meaningless; volume is too low to reveal patterns | Per-item charts only |
-| Candlestick / OHLC chart | "More financial-looking" | Data is one-scrape-per-cycle, not tick-level OHLC; there is no open/high/low/close structure | Line chart is correct for this data shape |
-| Chart zoom / pan | Standard chart interaction | With 5-50 sparse points the chart fits in a 300px card; zoom is unnecessary complexity | Static chart with tooltip on hover only |
-| Persistent chart settings (zoom level, time range) | "Save my view" | Single operator; page load always starts fresh | No state persistence needed |
-| Price alert configuration in the chart UI | "Click the chart to set my target" | Price targets live in config.yml / database; a click-to-set interaction requires a write path through the chart | Keep config.yml / existing items form as the price config path |
-| Server-side chart rendering (Matplotlib, Plotly server) | Avoids JS | Adds a Python image dependency; PNG charts are not interactive; SSE updates can't refresh PNGs without full reload | Client-side chart with vendored lib |
-| Real-time price chart updates via SSE | "Show price ticking live" | Price scrapes are slow (one per poll cycle, 30-120s); the chart is not a live ticker; polling on demand is sufficient | REST endpoint on page load / manual refresh |
-
----
-
-## Surface 4: Log Viewer
-
-Existing implementation: `/api/logs` returns last 50 lines of today's log file as plain strings.
-The 2s polling loop dumps them into a `<pre>`. No structure, no filtering.
-
-Log format (from `logger.py`): `writeLog(message, type)` with colorama colors to file.
-The file format is plain text lines with timestamp + level + optional plugin prefix + message.
-
-### Table Stakes
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Color-coded log levels in UI | Errors must visually jump out; INFO/DEBUG should recede | LOW | CSS class per level; parse level token from line string with a regex |
-| Level filter (ALL / ERROR / WARN / INFO / DEBUG / TRACE) | Operator watching for errors does not want 500 DEBUG lines | LOW | Client-side filter on rendered lines; no server round-trip needed |
-| Tail / follow mode (auto-scroll to bottom on new lines) | Standard expectation for any log viewer | LOW | `el.scrollTop = el.scrollHeight` on SSE message; pause when user scrolls up |
-| Pause tail when user scrolls up, resume on scroll-to-bottom | Without pause, auto-scroll fights the user who is reading history | LOW | Track `isUserScrolledUp` boolean; resume on scroll-to-bottom |
-| SSE push (replaces 2s poll) | New logs appear immediately, not after up to 2s lag | MEDIUM | FastAPI `StreamingResponse` with event-stream; backend reads log file tail and pushes new lines |
-| Reasonable line cap in memory (last 500 lines) | Unbounded append causes memory growth in a long-running tab | LOW | Rotate DOM lines: keep a circular buffer of 500, drop oldest |
-
-### Differentiators
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Plugin filter (dropdown: ALL / amazon / bestbuy / etc.) | Multi-plugin runs generate interleaved logs; isolating one plugin is the primary debugging workflow | MEDIUM | Parse plugin name from log prefix; populate dropdown from HealthRegistry plugin names or known list; client-side filter |
-| Substring search / highlight | "Where did the error happen in the flow?" | MEDIUM | Client-side: filter lines containing query string OR highlight matching spans; not a server search |
-| Log level count badges | "How many errors since last clear?" | LOW | Count by level as lines accumulate; reset on page load or manual clear |
-| Clear log view button | Operator wants a fresh visual starting point without restarting anything | LOW | Clear the in-memory DOM buffer only; does not touch the log file |
-
-### Anti-Features (do NOT build)
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Log file management (rotate, delete, archive) | "Clean up old logs" | Log rotation is an OS/process concern; doing it from the UI introduces race conditions with the logger and is a destructive operation from a web endpoint | Document that logs are in `logs/YYYYMONTHDD.log` and the operator deletes them manually |
-| Regex filter | "Power-user search" | Substring search covers 95% of single-operator use; regex in a real-time filter on a 500-line DOM buffer is overkill and requires error handling for invalid patterns | Substring search; operator can open the log file in a real editor for regex |
-| Multi-day log browsing (date picker) | "See yesterday's run" | Past log files are static; the dashboard's purpose is live ops, not historical audit; the CLI `shoppybot status` and log files themselves serve the historical use case | Direct file access; no UI date picker |
-| Log persistence to database | "Store structured logs in SQLite" | Requires a schema migration, an insert on every log line, and a retention policy; the file-based logger already provides persistence | File log is the persistence layer |
-| Remote log shipping (Loki, Elasticsearch, Datadog) | "Ship to central log aggregator" | Single-operator personal tool; adding an external dependency violates the no-CDN/self-contained posture | Not in scope |
-| Export logs as file from UI | "Download for sharing" | Single operator; the log file is at a known path on disk | Document path; open file explorer |
-| Virtual scrolling | "Performance for huge logs" | The 500-line cap makes this unnecessary; DOM with 500 `<div>` elements is fast | Simple DOM append with cap |
-
----
+|---|---|---|---|
+| Hosted marketplace / central discovery website | Obvious ask once a manager exists — "how do I find plugins" | Requires hosting infra, a submission pipeline, and ongoing moderation a single maintainer cannot staff; even HACS — better-resourced than this project — only validates *structure* via CI, not quality, and its issue tracker shows steady maintenance drag from exactly this surface | The machine-readable registry (differentiator above) gives discoverability with zero hosting: a JSON file in-repo, and `plugins install` works against any user-supplied URL with no central index required |
+| Auto-update (silent, unattended) | "Always current" feels safer; VS Code does this by default | For this app specifically, auto-update is a silent supply-chain channel straight onto a machine holding an encrypted credential store, live retail sessions, and a checkout path that clicks Place Order — exactly the risk SEED-003's own security section names ("a malicious plugin does not need an exploit; import is execution"). None of the surveyed systems that touch anything sensitive (gh CLI, pipx) auto-update; the ones that do (VS Code, oh-my-zsh's own bundled plugins) aren't managing financial transaction authority | Explicit, always user-invoked `plugins update <name>` per SEED-003 thread 1 |
+| Plugin ratings / stars / telemetry-driven trust signals | Feels like a cheap trust proxy; several surveyed systems lean on it (VS Code reviews, Package Control listing metadata) | Requires either a hosted backend (see above) or scraping GitHub stars (weak, gameable), and computing install counts means adding a telemetry surface this project has deliberately avoided everywhere else — every prior milestone's constraint has been "observability is read-only... no new secrets," with no existing telemetry pipeline to extend | The registry's existing fields (last-verified date, maintainer, difficulty) are a more honest, much cheaper trust signal than a star count at this project's scale |
+| Maintainer-staffed curation/review gate on install (an allowlist model) | It's the obvious way to make trust real, and it's exactly what already happens for in-tree plugins today (SECURITY.md's per-platform risk-assessment gate on merge) | The entire point of SEED-003 thread 1 is letting a plugin be installed *without* ever being merged or seen by the maintainer — a review gate on install reintroduces the PR bottleneck the seed exists to bypass, for a single-maintainer project that per the v5.0 milestone context is already behind on reviewing its own in-tree backlog | Shift the trust decision to the installing user via safety metadata, typed consent, and commit pinning, rather than gatekeeping who can publish |
+| Process isolation / sandboxing for plugin execution | The only option on SEED-003's own list that actually *stops* a malicious plugin from reading the credential store, rather than disclosing the risk | SEED-003 itself ranks it "the real fix and also by far the most expensive"; PROJECT.md's Future Candidate Directions already lists it as deferred, separate from v5.0. Conflating it with workstream H risks turning a "small-to-medium, mostly verification" scope into an open-ended architecture rewrite (subprocess boundary, IPC for browser/DB/credential access, a much smaller plugin surface than "any Python file") | Ship consent + capability-lite (the differentiators above) now; keep isolation on the roadmap as the eventual answer once the ecosystem justifies the cost |
 
 ## Feature Dependencies
 
 ```
-SSE endpoint (FastAPI StreamingResponse)
-    required by: Live health cards (SSE event: "status")
-    required by: Log viewer SSE tail (SSE event: "log")
-    NOT required by: Price charts (REST on demand is sufficient)
+Install (git-clone into plugins/, naming-convention check)
+    └──requires──> PLUGIN_API_VERSION enforcement at import (already shipped, core/plugin_base.py:15,82)
+                       └──requires──> RetailerPlugin ABC __init_subclass__ validation (already shipped)
 
-/api/price-history/<link_b64> endpoint (new REST)
-    required by: Price-history chart render
+Install-time consent gate
+    └──requires──> Safety metadata read before write (difficulty/requires_proxy/requires_captcha already exist,
+                    core/plugin_base.py:78-80 — just need to be read pre-import instead of post-import)
 
-Vendored design system (CSS tokens + components)
-    required by: All 4 surfaces (cards, tables, charts, log panel)
-    required by: Light/dark mode (CSS custom properties)
+Typed confirmation
+    └──enhances──> Install-time consent gate (raises the bar past every precedent surveyed)
 
-HealthRegistry.get_snapshot() [already exists in core/health.py]
-    feeds: Health cards
-    feeds: SSE status event payload
+Commit-SHA pinning (default-on)
+    └──requires──> Provenance tracking (source URL + installed ref must be recorded — a small per-plugin
+                    manifest or a central installed-plugins.json; nothing today records this)
 
-items table (order_id, confirmed_at, checkout_attempts columns -- all shipped in v4.0)
-    feeds: Run history / confirmed buys table
+plugins update <name>
+    └──requires──> Provenance tracking (must know what ref/branch to re-resolve against)
 
-price_history table [already exists]
-    feeds: Price-history charts
+"can spend money" warning tier
+    └──requires──> auto_buy method presence detection (trivial — ABC already forces every plugin to implement it)
+    └──enhances──> Install-time consent gate
+
+Machine-readable registry
+    └──replaces──> docs/PLUGIN_REGISTRY.md wiki-table workflow (REG-01, currently manual/human-curated)
+    └──enhances──> Install-time consent gate (can show maintainer/last-verified even for non-bundled plugins)
+
+Hosted marketplace ──conflicts──> single-maintainer staffing reality (anti-feature)
+Auto-update ──conflicts──> credential-store / checkout threat model (anti-feature)
+Maintainer review gate on install ──conflicts──> SEED-003 thread 1's entire premise (no-merge-required distribution)
 ```
 
 ### Dependency Notes
 
-- SSE must come before live health cards and live log tail. Both surfaces degrade gracefully to polling if SSE is not yet wired (the 2s poll already exists).
-- The design system redesign is a prerequisite for all surface work because it establishes the card/token/color system that health cards, charts, and the log panel all use.
-- Price charts do NOT require SSE; a REST endpoint on demand is sufficient given sparse data.
-- The confirmed-buys surface requires no new DB columns; all needed fields shipped in v4.0 (BUY-04).
+- **Provenance tracking is the one genuinely new piece of state.** Nothing in the
+  existing surface records where an installed plugin file came from or what ref
+  it's pinned to — `plugins list`, `update`, and default-commit-pinning all sit
+  downstream of this. Scope it early; it's the load-bearing addition, not a
+  side detail.
+- **Everything else in Table Stakes and most of Differentiators sits on top of
+  already-shipped ABC surface** (`PLUGIN_API_VERSION`, `difficulty` /
+  `requires_proxy` / `requires_captcha`, the two-method-only ABC). This is why
+  SEED-003 estimates thread 3 (framework) as "likely small, mostly verification"
+  — confirmed by this survey: the missing piece really is distribution +
+  provenance + consent, not a framework rebuild.
+- **The registry (differentiator) and the wiki table it replaces (REG-01) are the
+  same schema, not a redesign** — `docs/PLUGIN_REGISTRY.md`'s 9 columns are
+  already the target shape.
 
----
+## MVP Definition (v5.0 Workstream H Scope)
 
-## MVP Definition for v4.1
+### Launch With (workstream H, this milestone)
 
-### Phase order implied by dependencies
+- [ ] `plugins install <repo>[@ref]` — clone into `plugins/`, validate naming
+      convention and `PLUGIN_API_VERSION`, default-pin to the resolved commit SHA
+      (not the branch) — table stakes + top differentiator, same mechanism
+- [ ] `plugins list` extended with provenance (source URL, installed ref) —
+      table stakes, additive to existing command
+- [ ] `plugins remove <name>` — table stakes, mechanically trivial given
+      per-file isolation
+- [ ] `plugins update <name>` — table stakes, depends on provenance tracking
+- [ ] Install-time consent gate showing safety metadata (difficulty,
+      requires_proxy, requires_captcha, and whether `auto_buy` is a real
+      purchase path) and requiring a typed confirmation naming the source repo —
+      table stakes + two differentiators combined into one prompt
+- [ ] SECURITY.md extended (not replaced) with third-party-plugin-specific
+      disclaimer language, following the existing "Legal Scope and Disclaimer"
+      section's tone and cross-reference pattern
 
-Phase A (design system + SSE foundation) must precede Phase B (surfaces).
+### Add After Validation (post-workstream-H, still v5.0-adjacent or early v5.x)
 
-### Launch With (all 4 surfaces, minimum viable form)
+- [ ] Machine-readable registry file replacing the REG-01 wiki-table workflow,
+      consumed optionally by `plugins install` to show maintainer/last-verified
+      data even for non-bundled plugins — worth doing once the install/consent
+      flow itself is proven, not before
 
-- [ ] Vendored design system: CSS tokens, card component, light/dark -- required by everything else
-- [ ] SSE endpoint streaming `status` + `log` event types -- required for live health cards + log tail
-- [ ] Health cards: name, status badge, staleness, consecutive_errors, items_checked -- reads from SSE "status" event
-- [ ] Confirmed-buys table: name, order_id, confirmed_at, checkout_attempts -- REST, reads items table
-- [ ] Price-history chart: per-item line chart via uPlot or hand-rolled SVG -- REST `/api/price-history/<b64>`, empty-state for non-Amazon items
-- [ ] Log viewer: level color-coding, level filter, tail/follow, pause-on-scroll, SSE push, 500-line cap
+### Future Consideration (explicitly deferred, on the record)
 
-### Add After Core Works (within v4.1 if scope permits)
-
-- [ ] Plugin filter on log viewer -- depends on log format consistency; add after verifying level parse works
-- [ ] Log substring search/highlight -- polish, not blocking
-- [ ] Uptime display in global status bar -- low effort; add if a spare slot exists in the design system phase
-- [ ] Staleness color gradient (three bands) -- polish tier; binary stale/fresh is good enough for launch
-- [ ] orders_confirmed counter on health card -- data is available; add if card layout has room
-
-### Defer to Post-v4.1
-
-- [ ] Outcome analytics (success rate, time-to-checkout) -- requires new append-only events table; explicitly deferred in PROJECT.md
-- [ ] Amazon/BestBuy order deep-link -- order_id URL formats need validation against live retailer pages; medium confidence risk
-- [ ] Log level count badges -- nice-to-have polish
-- [ ] Multi-day log browsing -- out of scope for this milestone
-
----
+- [ ] Process isolation / sandboxing for plugin execution — already listed in
+      PROJECT.md's Future Candidate Directions as the real fix, deliberately
+      out of scope for v5.0's cost/scope profile
+- [ ] Any hosted marketplace, ratings, or telemetry surface — anti-features,
+      not partially-deferred features; do not resurrect without a staffing
+      change to the project's single-maintainer posture
 
 ## Feature Prioritization Matrix
 
-| Feature | Operator Value | Implementation Cost | Priority |
-|---------|----------------|---------------------|----------|
-| Vendored design system (CSS tokens, card, dark mode) | HIGH | MEDIUM | P1 |
-| SSE endpoint (status + log streams) | HIGH | MEDIUM | P1 |
-| Health cards (status, staleness, errors) | HIGH | LOW | P1 |
-| Log viewer: level filter + tail + SSE push | HIGH | MEDIUM | P1 |
-| Confirmed-buys table | HIGH | LOW | P1 |
-| Price-history chart (uPlot or SVG) + REST endpoint | HIGH | MEDIUM | P1 |
-| Uptime display on status bar | MEDIUM | LOW | P2 |
-| Plugin filter on log viewer | MEDIUM | MEDIUM | P2 |
-| Log substring search | MEDIUM | MEDIUM | P2 |
-| Staleness gradient (3 bands) | MEDIUM | LOW | P2 |
-| orders_confirmed on health card | LOW | LOW | P2 |
-| Log level count badges | LOW | LOW | P3 |
-| Amazon/BestBuy order deep-link | LOW | MEDIUM | P3 |
+| Feature | User Value | Implementation Cost | Priority |
+|---|---|---|---|
+| `plugins install <repo>[@ref]` with default commit pinning | HIGH | MEDIUM | P1 |
+| Install-time consent gate (safety metadata + typed confirm) | HIGH | LOW | P1 |
+| `plugins list` provenance columns | MEDIUM | LOW | P1 |
+| `plugins remove <name>` | MEDIUM | LOW | P1 |
+| `plugins update <name>` | MEDIUM | LOW-MEDIUM | P1 |
+| SECURITY.md third-party-plugin disclaimer extension | HIGH | LOW | P1 |
+| "Can spend money" warning tier | MEDIUM-HIGH | MEDIUM | P2 |
+| Machine-readable registry (replaces REG-01) | MEDIUM | MEDIUM | P2 |
+| Process isolation / sandboxing | HIGH (if ever built) | HIGH | P3 (deferred, tracked) |
+| Hosted marketplace / ratings / telemetry | LOW (for this project's scale) | HIGH | Rejected, not deferred |
 
 **Priority key:**
-- P1: Must have for v4.1 launch
-- P2: Add within v4.1 phases if cost permits
-- P3: Nice-to-have; defer
-
----
-
-## Single-Operator Scope: Global Anti-Features
-
-These cross-cutting concerns should be rejected at any point during v4.1 planning.
-
-| Anti-Feature | Category | Why Rejected |
-|--------------|----------|-------------|
-| Multi-tenant / user roles | Auth | Single operator; localhost-bound; no multi-user need |
-| Auth roles / permissions UI | Auth | Same reason; the localhost bind IS the auth boundary |
-| Retention policy UI (auto-delete logs/history after N days) | Ops admin | One operator; manual file deletion is fine |
-| Alerting rules engine in UI | Observability over-engineering | Thresholds are config.yml or code constants; a rules UI is a product in itself |
-| Dashboard sharing / embeds | Multi-user | Not in scope; tool is personal-use |
-| WebSocket (vs SSE) | Transport over-engineering | SSE is unidirectional server-push; that is all we need; WebSocket adds handshake complexity for zero benefit |
-| i18n / localization | Enterprise feature | Single operator; English only |
-| Node.js build pipeline / bundler | Constraint violation | Explicit project constraint: zero Node; vendored CSS + JS only |
-| External fonts (Google Fonts, etc.) | Constraint violation | Explicit project constraint: no CDN; system font stack only |
-
----
+- P1: In scope for v5.0 workstream H
+- P2: Natural next step once H ships and is validated
+- P3: On the roadmap as a future milestone candidate, not this one
 
 ## Sources
 
-- HealthRegistry and get_status() payload: `core/health.py`, `core/service.py` (direct read, HIGH confidence)
-- price_history and items table schema: `models.py` (direct read, HIGH confidence)
-- uPlot library: https://github.com/leeoniya/uPlot -- ~50KB IIFE, zero dependencies, Canvas 2D (MEDIUM confidence on exact file size; HIGH confidence on dependency-free status)
-- SSE UX patterns for log viewers: https://dev.to/polliog/building-a-real-time-log-viewer-with-server-sent-events-and-svelte-5-13dd
-- Live log tail with SSE: https://logdy.dev/blog/post/live-log-tail-with-logdy-stream-logs-from-anywhere-to-web-browser
-- Real-time dashboard UX (staleness patterns): https://smashingmagazine.com/2025/09/ux-strategies-real-time-dashboards/ (MEDIUM confidence; general design guidance)
-- Admin dashboard operator UX task-oriented design: https://www.glitchlabs.app/insights/admin-dashboard-ux-patterns (MEDIUM confidence)
-- Carbon Design System status indicator pattern: https://carbondesignsystem.com/patterns/status-indicator-pattern/ (MEDIUM confidence)
-- FastAPI SSE official docs: https://fastapi.tiangolo.com/tutorial/server-sent-events/ (HIGH confidence)
+- [pip: VCS Support](https://pip.pypa.io/en/stable/topics/vcs-support/)
+- [pipx (GitHub)](https://github.com/pypa/pipx)
+- [Obsidian: Community plugins](https://obsidian.md/help/community-plugins)
+- [Obsidian: Plugin security](https://github.com/obsidianmd/obsidian-help/blob/master/en/Extending%20Obsidian/Plugin%20security.md)
+- [VS Code: Extension Marketplace](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace)
+- [VS Code: Extension runtime security](https://code.visualstudio.com/docs/configure/extensions/extension-runtime-security)
+- [VS Code: Workspace Trust](https://code.visualstudio.com/docs/editing/workspaces/workspace-trust)
+- [HACS](https://www.hacs.xyz/) / [hacs/integration (GitHub)](https://github.com/hacs/integration) / [HACS: Publish requirements](https://www.hacs.xyz/docs/publish/start/)
+- [lazy.nvim (GitHub)](https://github.com/folke/lazy.nvim) / [lazy.nvim lockfile docs](https://lazy.folke.io/usage/lockfile)
+- [Package Control: Usage](https://packagecontrol.io/docs/usage) / [Package Control (GitHub)](https://github.com/wbond/package_control)
+- [ohmyzsh/ohmyzsh (GitHub)](https://github.com/ohmyzsh/ohmyzsh) / [ohmyzsh wiki: Plugins](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins)
+- [GitHub CLI: Using GitHub CLI extensions](https://docs.github.com/en/github-cli/github-cli/using-github-cli-extensions)
+- [GitHub CLI: gh extension install manual](https://cli.github.com/manual/gh_extension_install)
+- ShopPyBot repo (already read): `.planning/PROJECT.md`, `.planning/seeds/SEED-003-remote-plugin-manager-and-extensibility-framework.md`, `docs/PLUGIN_REGISTRY.md`, `plugins/PLUGIN_DEV.md`, `SECURITY.md`, `CONTRIBUTING.md`
 
 ---
-
-*Feature research for: ShopPyBot v4.1 Dashboard & Observability*
-*Researched: 2026-06-25*
+*Feature research for: ShopPyBot v5.0 workstream H — remote plugin manager and third-party liability disclaimer (SEED-003)*
+*Researched: 2026-08-02*
