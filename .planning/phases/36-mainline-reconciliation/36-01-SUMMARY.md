@@ -222,6 +222,28 @@ about 32 seconds, but that is master's ~757-test suite, not the merged tree's ~9
 `ci.yml` compiles and schedules jobs on master today; it is not evidence the v4.1+v4.2 suite
 passes. MAIN-01's real proof still lands in plan 36-03, against master's post-#11 HEAD.
 
+## Self-Check: PASSED
+
+Every artifact and commit claimed above was verified to exist on disk and in git history.
+
+| Claim | Check | Result |
+|-------|-------|--------|
+| `36-MERGE-LOG.md` created | `test -f` | FOUND |
+| `36-01-SUMMARY.md` created | `test -f` | FOUND |
+| Task 1 commit `969b322` | `git log --oneline --all` | FOUND |
+| Task 2 commit `d04c5ca` | `git log --oneline --all` | FOUND |
+| Task 3 commit `c321509` | `git log --oneline --all` | FOUND |
+| Summary commit `c618989` | `git log --oneline --all` | FOUND |
+| Audit log names the tag | `grep -c pre-v5-mainline` | 2 |
+| Summary records BASE_SHA | `grep -c e98ec83ff9e4...` | 2 |
+| Summary records post-#12 master | `grep -c 36f75c7643e5...` | 3 |
+| Summary records PR #12 head OID | `grep -c 3f27a2dff279...` | 1 |
+
+Live GitHub state re-verified after all three tasks: `pre-v5-mainline` returns exactly 1 line from
+`git ls-remote` and is an ancestor of `origin/master`; PR #12 is `MERGED`; PR #8 is `CLOSED` with
+`merged=false`; branch protection on `master` is unchanged; `36-MERGE-LOG.md` carries 5 mutation
+rows against a required minimum of 3.
+
 *Phase: 36-mainline-reconciliation*
 *Plan: 01*
 *Completed: 2026-08-02*

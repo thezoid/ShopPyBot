@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v5.0
-milestone_name: Real Release and Plugin Ecosystem
-status: planning
-last_updated: "2026-08-02T05:16:43.486Z"
+milestone_name: Real Release & Plugin Ecosystem
+status: executing
+last_updated: "2026-08-02T18:19:06.904Z"
 last_activity: 2026-08-02
 progress:
   total_phases: 15
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -28,16 +28,16 @@ progress:
 
 ## Current Position
 
-Phase: 36 — Mainline Reconciliation (not started)
-Plan: —
-Status: Roadmap created, awaiting phase planning
-Last activity: 2026-08-02 — v5.0 roadmap created (Phases 36-50, 84/84 requirements mapped)
+Phase: 36 (Mainline Reconciliation) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute 36-02 (PR #11 conflict resolution)
+Last activity: 2026-08-02 -- Phase 36 Plan 01 complete (rollback tag, PR #12 merged, PR #8 closed)
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | Not started | MAIN-01..07 |
+| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | In Progress (1/5 plans; MAIN-05, MAIN-06 done) | MAIN-01..07 |
 | 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | Not started | PKG-01..06 |
 | 38 — Scanning to Zero | Dependabot/CodeQL/secret-scanning queues to zero real findings; required checks + branch protection | Not started | SCAN-01..11 |
 | 39 — Quality Floor | Lint, format, typecheck, coverage enforced in CI before the milestone's new code lands | Not started | QUAL-01..09 |
@@ -152,7 +152,7 @@ Both reviews carry the same two non-negotiable criteria: (a) for every shipped c
 - **v5.0 roadmap is created.** Phases 36-50, 84/84 requirements mapped, no orphans. Next step: `/gsd:plan-phase 36`.
 - Phase 36 is the gate on everything else. Until PR #11 and #12 land and CI compiles on `master`, no other phase's work is durable and the v4.1/v4.2 "shipped" claims stay branch-only.
 - Operator: the deferred live-UAT checklists below are consolidated by Phase 50 (UAT-04) into one file with a stated acceptance bar. Running them stays operator work.
-- Operator (still open from the 2026-08-01 audit): Dependabot is repo-level PAUSED — unpause once PR #11 is in (Phase 36 → Phase 38 SCAN-01).
+- Operator (still open from the 2026-08-01 audit): Dependabot is repo-level PAUSED — unpause once PR #11 is in (Phase 36 → Phase 38 SCAN-01). **Update 2026-08-02 (36-01):** `dependabot[bot]` deleted PR #8's head branch 8 seconds after that PR was closed, so Dependabot is demonstrably reacting to events on this repo right now. That is the Pitfall 5 interaction expected to lift the 90-day-inactivity version-update pause. Treat a stalled `@dependabot rebase` in plans 36-04/05 as a real anomaly, not an assumed pause. Caveat: branch cleanup and version-update rebasing are separate subsystems, so this narrows the question rather than closing it.
 
 ### Blockers
 
@@ -201,6 +201,7 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 35 P01 | 5min | 3 tasks | 5 files |
 | Phase 35 P02 | 8min | 2 tasks | 8 files |
 | Phase 35 P03 | 5min | 2 tasks | 20 files |
+| Phase 36 P01 | 13min | 3 tasks | 2 files |
 
 ### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
 
@@ -257,7 +258,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 
 **Last action (v5.0 roadmap)**: Milestone v5.0 Real Release & Plugin Ecosystem roadmapped. 84 requirements across 10 workstreams (A-J) mapped to 15 phases (36-50), continuing the phase numbering from v4.2's Phase 35 — no reset. Coverage 84/84, zero orphans, zero duplicates. Structure: Phase 36 MAIN (highest-risk, the 263-commit merge whose CI has never run), 37 PKG, 38 SCAN, 39 QUAL, 40 PUB, 41 FIX, then workstream H's researched H1-H7 order as Phases 42/43/44/46/47/48/49 with Phase 45 (PAR) inserted between H3 and H4 so PAR-03 and EXT-09 build one pre-transfer arming gate in adjacent phases, and Phase 50 closing on OPS + UAT. All 7 hard sequencing constraints verified satisfied and recorded in both ROADMAP.md and REQUIREMENTS.md. REVIEW.md deep passes assigned to Phases 45 and 47. UI hints on Phases 41 and 43. Files written: `.planning/ROADMAP.md` (v5.0 section added, all six shipped-milestone `<details>` blocks preserved untouched), `.planning/REQUIREMENTS.md` (Traceability populated per-requirement, placeholder ranges replaced), `.planning/STATE.md` (this file).
 
-**Next action (v5.0)**: `/gsd:plan-phase 36` — Mainline Reconciliation. Verify PKG-06's wheel question early since it gates Phase 43, and do not reshuffle the H1-H7 order during planning.
+**Last action (36-01)**: Phase 36 Plan 01 complete, the first irreversible plan of v5.0 and its first live writes to the public GitHub repo. Three mutations, all audited in the new `.planning/phases/36-mainline-reconciliation/36-MERGE-LOG.md`: (1) annotated tag `pre-v5-mainline` (tag object `7edffb33`) pushed to origin peeling to `e98ec83ff9e47459902c3c0615fd428f5dd27caf`, the phase rollback point, created only after `git ls-remote --tags origin refs/tags/pre-v5-mainline` returned empty; (2) **MAIN-05** PR #12 (signal handlers off the main thread) merged as merge commit `36f75c7643e5a72b72ac95a6d521edd8ffbb2971`, so `origin/master` advanced `e98ec83` to `36f75c7`. Because `required_status_checks.strict: true`, `gh pr update-branch 12` ran first and moved the head `3f27a2dff279852ced3f8712b56f582173946a3b` to `b1d7b8f5aef3b8767236eb5ba02b60ec97894695`; both are ancestors of `origin/master`, and both are recorded since 36-VALIDATION.md's MAIN-05 row names the pre-update SHA. `mergeStateStatus` reached `CLEAN` on poll iteration 4 of a 30-iteration budget with all six checks in bucket `pass` (no `skipping`, so Pitfall 4's allowance was never needed); (3) **MAIN-06** PR #8 (urllib3 1.26.5 to 1.26.18, open since 2023) closed unmerged with a superseded comment, after proving the premise from `origin/master` (`requirements.txt` pins exactly one `urllib3==2.7.0`, ahead of the PR's target, so merging would be a downgrade). Comment `https://github.com/thezoid/ShopPyBot/pull/8#issuecomment-5159680032` satisfies the MAIN-06 grep for both `urllib3==2.7.0` and `superseded`. Safety posture held throughout: no force operation of any kind, no direct push to `master` (the only ref pushed directly was the tag), no `--admin`/`--squash`/`--rebase`/`--auto`, and branch protection read identically before and after (`strict: true`, contexts `CodeQL` + `test (windows-latest)` + `test (ubuntu-latest)`, `enforce_admins: false`, force pushes disabled). None of the plan's four STOP conditions fired. Three observations recorded rather than papered over: PR #12 actually touched 2 files (`core/orchestrator.py` plus a new `tests/test_signal_registration_thread.py`) where the plan's `<verified_state>` named 1; `dependabot[bot]` self-deleted PR #8's head branch 8 seconds after the close (timeline-confirmed actor, NOT this executor, whose `--delete-branch=false` was honoured as proven by PR #12's head branch surviving the same flag); and two acceptance-criteria commands are brittle as written (a jq `\\.` escape loses a backslash layer through this harness on Windows, and `gh pr view --json mergedAt --jq .mergedAt` prints an empty line rather than the literal `null`), with robust replacements recorded in 36-MERGE-LOG.md's Tooling Note. Commits: `969b322` (audit log opened), `d04c5ca` (PR #12 row), `c321509` (PR #8 row), `c618989` (summary). MAIN-05 and MAIN-06 marked complete in REQUIREMENTS.md.
+
+**Next action (v5.0)**: `/gsd:execute-phase 36` — run plan 36-02 (PR #11 conflict resolution). **Its base is `origin/master` at `36f75c7`, not the `e98ec83` recorded at planning time**, so `git merge-tree` must be re-derived rather than assumed; PR #12 touched only `core/orchestrator.py` and a new test file, so neither conflict file (`.github/dependabot.yml`, `requirements.txt`) should be disturbed, but confirm rather than assume. Good news for plans 36-04/05: Dependabot reacted to the PR #8 close within 8 seconds, which is exactly the 36-RESEARCH.md Pitfall 5 interaction expected to lift the 90-day-inactivity version-update pause, so a stalled `@dependabot rebase` should be treated as a real anomaly rather than an assumed pause (caveat: branch cleanup and version-update rebasing are different Dependabot subsystems, so this is strong evidence, not proof). Note also that PR #12's ~32-second green CI run is master's ~757-test suite, **not** the merged tree's ~939 — MAIN-01's real proof still belongs to plan 36-03 against master's post-#11 HEAD.
 
 **Context to carry (v5.0)**: The milestone premise is that four shipped milestones' claims are ahead of reality — `master` is 263 commits behind, PR #11's `ci.yml` fails to compile so the v4.1+v4.2 suite has never run in CI, the built wheel contains no data files so `shoppybot web` cannot start from an install, and the public repo has no LICENSE. The workstream H trust model is consent plus SHA and content pinning plus honest provenance, explicitly **not** a sandbox; the dominant risk across every EXT phase is overclaiming, not a missing feature. Import is execution and nothing in v5.0 changes that.
 
@@ -441,6 +444,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 - [Phase 35]: 35-02: single shaping boundary (HealthRegistry.get_snapshot) filters last_heartbeat once; both get_status() REST and the SSE status frame inherit the fix atomically since SSE broadcasts get_status() verbatim
 - [Phase ?]: 35-03: DH-03 kept strictly narrower than DH-01 -- only nyquist_compliant flipped on v4.0 phases 18-24 VALIDATION.md; status/wave_0_complete deliberately untouched (RESEARCH Pitfall 5)
 - [Phase ?]: 35-03: DH-02 scope resolved as Phase 28's 4 SUMMARY files (required, union = exactly OBS-01/02/03/04/06/09) plus Phase 27/29 SUMMARY files mirroring their own PLAN.md requirement IDs (discretionary polish, low-cost)
+- [Phase ?]: Phase 36-01: recorded BOTH PR #12 head OIDs (pre-update 3f27a2d, post-update b1d7b8f) because strict-mode update-branch moves the head while MAIN-05's assertion names the pre-update SHA
+- [Phase ?]: Phase 36-01: Dependabot self-deleted PR #8's head branch 8s after close (timeline actor dependabot[bot], not this executor) -- live evidence Dependabot is responsive, so plans 36-04/05 should treat a stalled rebase as a real anomaly, not an assumed 90-day pause
+- [Phase ?]: Phase 36-01: pre-v5-mainline annotated tag pushed at e98ec83 as the phase rollback point; PR #12 merged via merge commit 36f75c7 with no --admin and no force op; branch protection left untouched for Phase 38
 
 ## UAT Audit Session — 2026-08-01 (post-v4.2, pre-next-milestone)
 
