@@ -20,8 +20,6 @@ jobs:
       SDL_VIDEODRIVER: dummy
       # Prevents keyring from probing D-Bus / SecretService on headless Ubuntu
       PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring
-      # Redirect all path resolution to a writable temp dir (avoids writing to runner home)
-      SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot
 
     steps:
       - uses: actions/checkout@v6
@@ -29,6 +27,19 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install
-        run: pip install -e .[web]
+        # requirements.txt carries every runtime dep plus pytest and pytest-asyncio.
+        # pyproject's [project.dependencies] declares only platformdirs, so installing
+        # the package alone leaves pytest (and pydantic, nodriver, keyring, ...) absent
+        # and the Test step dies with "pytest: command not found".
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e ".[web]"
       - name: Test
+        env:
+          # Redirect all path resolution to a writable temp dir (avoids writing to
+          # runner home). MUST stay at step level: the `runner` context does not
+          # exist in job-level `env:`, and referencing it there makes the entire
+          # workflow fail to compile -- instant failure, zero jobs scheduled.
+          SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot
         run: pytest --tb=short
