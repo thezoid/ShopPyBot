@@ -99,7 +99,27 @@ a dropped commit.
 
 ## Verification Status
 
-Post-merge ancestry verification: pending (plan 03 task 2)
+Post-merge ancestry verification: COMPLETE (plan 03 task 2, run inline 2026-08-02)
+
+| Field | Value |
+|-------|-------|
+| Verified at | 2026-08-02, immediately after the PR #11 merge |
+| Post-merge `origin/master` | `486e5648d3daece9603b84b0ae65a43a6c544aeb` |
+| Hex candidates scanned in this file | 27 |
+| Resolving to real commit objects | 26 (one candidate is not a commit) |
+| Ancestors of `origin/master` | **26** |
+| NOT ancestors | **0** |
+
+Method: every hex string of 7 to 40 characters in this file was extracted, filtered to those
+resolving as real commit objects with `git cat-file -e <sha>^{commit}`, then each was tested with
+`git merge-base --is-ancestor <sha> origin/master` requiring exit 0. Raw `git` was used
+throughout, never `rtk git`, because `rtk git log <range>` drops merge commits and several of the
+recorded commits are merges.
+
+Result: every commit recorded as `include` in the table above is genuinely reachable from
+`origin/master`. The recorded decision and `git log master` agree. The standing rule and the
+post-merge scope exclusion stated above remain in force for commits created after this
+verification, which includes the plan 03 through 05 artifacts themselves.
 
 Plan 36-03 task 2 closes this by running `git merge-base --is-ancestor <sha> origin/master` for
 every SHA in the table above and recording the result. Until then this record states an intended

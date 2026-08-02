@@ -11,13 +11,13 @@
 
 `master` is 263 commits behind. Every v4.1 and v4.2 artifact exists only on `chore/v4.0-milestone-close`. Nothing else in this milestone is durable until the default branch is real.
 
-- [ ] **MAIN-01**: The branch's `ci.yml` compiles, so the v4.1+v4.2 test suite runs in CI for the first time (`SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot` currently sits in job-level `env:` where the `runner` context does not exist, producing 0-job failures)
-- [ ] **MAIN-02**: PR #11's two conflicts (`.github/dependabot.yml` add/add, `requirements.txt` content) are resolved without dropping `httpx==0.28.1`
-- [ ] **MAIN-03**: The 4 local commits present on the working branch but absent from PR #11's head are triaged and deliberately included or excluded, not swept in as a side effect of conflict resolution
-- [ ] **MAIN-04**: PR #11 is merged, so `gitleaks.yml`, `release-please.yml`, and every v4.1/v4.2 artifact exist on the default branch
+- [x] **MAIN-01**: The branch's `ci.yml` compiles, so the v4.1+v4.2 test suite runs in CI for the first time (`SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot` currently sits in job-level `env:` where the `runner` context does not exist, producing 0-job failures)
+- [x] **MAIN-02**: PR #11's two conflicts (`.github/dependabot.yml` add/add, `requirements.txt` content) are resolved without dropping `httpx==0.28.1`
+- [x] **MAIN-03**: The 4 local commits present on the working branch but absent from PR #11's head are triaged and deliberately included or excluded, not swept in as a side effect of conflict resolution
+- [x] **MAIN-04**: PR #11 is merged, so `gitleaks.yml`, `release-please.yml`, and every v4.1/v4.2 artifact exist on the default branch
 - [x] **MAIN-05**: PR #12 (signal handlers registered off the main thread) is merged
 - [x] **MAIN-06**: Stale PR #8 is closed rather than merged (open since 2023, conflicting, superseded because master already carries urllib3 2.7.0)
-- [ ] **MAIN-07**: Dependabot PRs #15 through #20 are merged in a conflict-safe order, accounting for #19 and #20 colliding in `ci.yml`
+- [x] **MAIN-07**: Dependabot PRs #15 through #20 are merged in a conflict-safe order, accounting for #19 and #20 colliding in `ci.yml`
 
 ### B. Distributable Artifact (PKG)
 
@@ -174,13 +174,13 @@ Populated during roadmap creation, 2026-08-02. Every v1 requirement maps to exac
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MAIN-01 | Phase 36 | Pending |
-| MAIN-02 | Phase 36 | Pending |
-| MAIN-03 | Phase 36 | Pending |
-| MAIN-04 | Phase 36 | Pending |
+| MAIN-01 | Phase 36 | Complete |
+| MAIN-02 | Phase 36 | Complete |
+| MAIN-03 | Phase 36 | Complete |
+| MAIN-04 | Phase 36 | Complete |
 | MAIN-05 | Phase 36 | Complete |
 | MAIN-06 | Phase 36 | Complete |
-| MAIN-07 | Phase 36 | Pending |
+| MAIN-07 | Phase 36 | Complete |
 | PKG-01 | Phase 37 | Pending |
 | PKG-02 | Phase 37 | Pending |
 | PKG-03 | Phase 37 | Pending |
