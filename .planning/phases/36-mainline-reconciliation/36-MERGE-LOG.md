@@ -29,6 +29,45 @@ this phase must not change it, Phase 38 owns it):
 
 | 2026-08-02T18:11:19Z | close-unmerged + comment | PR #8 `dependabot/pip/urllib3-1.26.18` (Bump urllib3 from 1.26.5 to 1.26.18) | `gh pr close 8 --repo thezoid/ShopPyBot --delete-branch=false --comment "Superseded and closed unmerged ... urllib3==2.7.0 ..."` | OK. State `CLOSED`, `mergedAt` `null` (raw JSON `{"mergedAt":null}`), `merged: false`, `closed_at` `2026-08-02T18:11:19Z`. Premise proven BEFORE the close: `git show origin/master:requirements.txt` yields exactly one `urllib3==` line and it is `urllib3==2.7.0`, which is ahead of this PR's 1.26.18 target, so merging would be a downgrade. Closing comment `https://github.com/thezoid/ShopPyBot/pull/8#issuecomment-5159680032` matches both required substrings; the GitHub comments API returns 1 comment satisfying `urllib3==2[.]7[.]0` AND `superseded` (case-insensitive). MAIN-06 satisfied. |
 
+| 2026-08-02T18:29Z | commit (local, plan 36-02 pre-task hygiene) | `.planning/.continue-here.md`, `.planning/HANDOFF.json` | `git add` + `git commit` | OK. Working tree was NOT clean at plan 36-02 start: both files were left modified and uncommitted by the 2026-08-01 UAT session. Both paths are tracked on `origin/master` (`git cat-file -e origin/master:<path>` succeeds for each), so they sit on the PR #11 merge surface, and 36-02-PLAN.md task 1 requires an empty `git status --porcelain` at task end. Committed as-is, content unchanged, as commit `c208af70fcc1a337106b05ff3ae9d0f472c23bfe`. Deviation Rule 3 (blocking issue), fully reversible, no force operation. |
+| 2026-08-02T18:30Z | merge (local, no-op) | `origin/chore/v4.0-milestone-close` at `e2f269530a9bee2d4bdd6df9effb40302bed14f4` into local `HEAD` | `git merge origin/chore/v4.0-milestone-close -m "chore(36): absorb remote-only merge commits from PR #11 head"` | OK, "Merge made by the 'ort' strategy", zero conflicts. **Content-empty no-op PROVEN, not assumed:** pre-merge `git rev-parse HEAD^{tree}` = `00437c79c28df71b83f98e54282a71531d617a69`; post-merge `git rev-parse HEAD^{tree}` = `00437c79c28df71b83f98e54282a71531d617a69`. IDENTICAL. A `git merge-tree --write-tree HEAD origin/chore/v4.0-milestone-close` dry run at the same HEAD returned the same hash beforehand. Merge commit `a6bf2b662f2d68480bf6ef04eb400782f77f1b3d`. Divergence before: 20 local-only / 2 remote-only (`e2f2695`, `d9ad585`). After: `git log --oneline HEAD..origin/chore/v4.0-milestone-close` is EMPTY and `git merge-base --is-ancestor origin/chore/v4.0-milestone-close HEAD` exits 0. No `--force`, no `--force-with-lease`, no push. |
+| 2026-08-02T18:30:40Z | derive + write (local) | `36-COMMIT-DISPOSITION.md` (MAIN-03) | `git log --oneline origin/chore/v4.0-milestone-close..HEAD` (absolute-path git) | **Derived count: 21** merge-inclusive, 20 non-merge. NOT the 8 in 36-CONTEXT.md nor the 18 in 36-01-SUMMARY.md; re-derived fresh after the no-op merge, per the MAIN-03 assertion row. All 21 decisions are `include`, zero exclusions. Every SHA confirmed a real object (`git cat-file -t` returns `commit` for all 21). Composition: 20 docs/audit commits plus 1 code commit (`0cebc9e`, port auto-select), of which 1 is the content-empty no-op merge. Record carries the standing rule (covers commits created after derivation) and the post-merge scope exclusion (plans 03 to 05 summaries are out of scope). |
+
+### Plan 36-02 re-derivation of the conflict premise against the NEW master (`36f75c7`)
+
+36-01-SUMMARY.md required this to be re-run rather than assumed, because the two conflicts were
+originally computed against `e98ec83`, before PR #12 landed. Re-run at 2026-08-02T18:28Z:
+
+`git merge-tree --write-tree origin/master HEAD` reports **exactly two conflicted paths**, the
+same two as at planning time:
+
+| Path | Conflict type |
+|------|---------------|
+| `.github/dependabot.yml` | add/add |
+| `requirements.txt` | content |
+
+`.github/workflows/ci.yml` and `core/orchestrator.py` both report `Auto-merging` with no conflict.
+`core/orchestrator.py` appears only because PR #12 touched it, and it merges clean. The premise
+holds against the new master; no third conflicted path appeared, so no STOP condition fired.
+
+### Tooling hazard CONFIRMED LIVE during plan 36-02 (upgrade from the note below)
+
+The 36-VALIDATION.md tooling constraint was not merely precautionary. Reproduced directly:
+
+| Invocation | `git log --oneline HEAD..origin/chore/v4.0-milestone-close` output |
+|------------|---------------------------------------------------------------------|
+| bare `git` (hook-rewritten to `rtk git`) | **EMPTY** (wrong) |
+| `/mingw64/bin/git` (absolute path, hook bypassed) | `e2f2695`, `d9ad585` (correct) |
+
+A shell hook on this machine rewrites bare `git` into `rtk git`, and `rtk git log <range>` drops
+merge commits from range output. Both remote-only commits here ARE merge commits, so the filtered
+view reported a clean, non-diverged branch that was in fact 2 commits behind. `git rev-list
+--left-right --count` was correct under both invocations, which is what exposed the contradiction.
+
+**Every git command in plan 36-02 used `/mingw64/bin/git`.** Plans 36-03 through 36-05 must do the
+same for any ancestry, range, rev-list or log query. The MAIN-03 ancestry proof in plan 36-03
+task 2 is directly exposed to this hazard.
+
 ### Observed master `urllib3` pin (recorded either way, per task 3)
 
 `git show origin/master:requirements.txt | grep -E "^urllib3=="` returned `urllib3==2.7.0`, and
