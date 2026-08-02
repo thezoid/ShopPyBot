@@ -33,6 +33,27 @@ this phase must not change it, Phase 38 owns it):
 | 2026-08-02T18:30Z | merge (local, no-op) | `origin/chore/v4.0-milestone-close` at `e2f269530a9bee2d4bdd6df9effb40302bed14f4` into local `HEAD` | `git merge origin/chore/v4.0-milestone-close -m "chore(36): absorb remote-only merge commits from PR #11 head"` | OK, "Merge made by the 'ort' strategy", zero conflicts. **Content-empty no-op PROVEN, not assumed:** pre-merge `git rev-parse HEAD^{tree}` = `00437c79c28df71b83f98e54282a71531d617a69`; post-merge `git rev-parse HEAD^{tree}` = `00437c79c28df71b83f98e54282a71531d617a69`. IDENTICAL. A `git merge-tree --write-tree HEAD origin/chore/v4.0-milestone-close` dry run at the same HEAD returned the same hash beforehand. Merge commit `a6bf2b662f2d68480bf6ef04eb400782f77f1b3d`. Divergence before: 20 local-only / 2 remote-only (`e2f2695`, `d9ad585`). After: `git log --oneline HEAD..origin/chore/v4.0-milestone-close` is EMPTY and `git merge-base --is-ancestor origin/chore/v4.0-milestone-close HEAD` exits 0. No `--force`, no `--force-with-lease`, no push. |
 | 2026-08-02T18:30:40Z | derive + write (local) | `36-COMMIT-DISPOSITION.md` (MAIN-03) | `git log --oneline origin/chore/v4.0-milestone-close..HEAD` (absolute-path git) | **Derived count: 21** merge-inclusive, 20 non-merge. NOT the 8 in 36-CONTEXT.md nor the 18 in 36-01-SUMMARY.md; re-derived fresh after the no-op merge, per the MAIN-03 assertion row. All 21 decisions are `include`, zero exclusions. Every SHA confirmed a real object (`git cat-file -t` returns `commit` for all 21). Composition: 20 docs/audit commits plus 1 code commit (`0cebc9e`, port auto-select), of which 1 is the content-empty no-op merge. Record carries the standing rule (covers commits created after derivation) and the post-merge scope exclusion (plans 03 to 05 summaries are out of scope). |
 
+| 2026-08-02T18:35Z | merge + conflict resolution (local) | `origin/master` at `36f75c7643e5a72b72ac95a6d521edd8ffbb2971` into `chore/v4.0-milestone-close` | `git merge origin/master --no-commit`, resolve, `git add requirements.txt .github/dependabot.yml`, `git commit` | OK. Merge commit `635c1d3be8ba015a9da58b2242e69038a5859016`, two parents: `7875a01` (branch) and `36f75c7` (master). Conflict set was EXACTLY the two predicted paths, no third path, so no STOP fired. `git merge-base --is-ancestor origin/master HEAD` exits 0. **Resolved pins verified by reading the file, not by trusting the merge:** `^httpx==0.28.1$` count 1 AND `^httpx==` count 1 (no drop, no duplicate), `^cryptography==49.0.0$` count 1, `^pydantic-settings\[yaml\]==2.14.2$` count 1. Zero conflict markers. `pip install --dry-run -r requirements.txt` exit 0. dependabot.yml parses and asserts: 2 ecosystems, `groups.minor-and-patch.update-types == ["minor","patch"]` on BOTH, `schedule.day == "monday"` on both, pip limit 10, github-actions limit 5, labels intact. NOT pushed. |
+| 2026-08-02T18:40Z | full local pytest gate (read-only) | merged tree at `635c1d3be8ba015a9da58b2242e69038a5859016` | `.venv/Scripts/python.exe -m pip install -r requirements.txt`, then `-m pip install -e ".[web]"`, then `-m pytest` | **GREEN.** `963 collected, 961 passed, 2 skipped, 0 failed, 0 errors, 14 warnings, 32.07s`, exit 0. Collected count 963 is far above master's 757, confirming the v4.1 and v4.2 test surface actually merged across rather than the merge quietly taking master's smaller suite. Union pins importable in the gate environment: httpx 0.28.1, cryptography 49.0.0, pydantic-settings 2.14.2. pip dry-run from the previous row: exit 0. Working tree clean after both installs, no untracked artifacts, `git stash list` empty. |
+
+### ci.yml and orchestrator auto-merge verified, not assumed (T-36-02-02)
+
+`.github/workflows/ci.yml` and `core/orchestrator.py` were not in the conflict set, but both were
+asserted rather than trusted, since a clean auto-merge can still take the wrong side.
+
+| Assertion | Result |
+|-----------|--------|
+| Requirements install line survives, comment-filtered (`grep -v '^[[:space:]]*#' \| grep -c 'pip install -r requirements.txt'`) | `1` |
+| No job declares `SHOPBOT_DATA_DIR` at job-level `env` (YAML-parsed, Pitfall 1) | exit 0, PASS |
+| `SHOPBOT_DATA_DIR` still present in the file (fix not simply deleted) | `1` occurrence, at step level under `Test` |
+| PR #12's main-thread guard present in the merged `core/orchestrator.py` | `if threading.current_thread() is not threading.main_thread():` at line 794 |
+| `tests/test_signal_registration_thread.py` present, blob identical to master | `bbec219b83c1baec81b11975df29b955a2cbe291` on both |
+
+The merged `ci.yml` blob (`9752377a`) differs from BOTH master (`fde4b377`) and the branch
+(`63b9551b`), which is correct: it is a real three-way merge taking master's `Install` step and
+step-scoped env fix while retaining the branch's newer `actions/checkout@v6` and
+`actions/setup-python@v6` pins. That is the outcome 36-RESEARCH.md "State of the Art" predicted.
+
 ### Plan 36-02 re-derivation of the conflict premise against the NEW master (`36f75c7`)
 
 36-01-SUMMARY.md required this to be re-run rather than assumed, because the two conflicts were
