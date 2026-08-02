@@ -140,7 +140,17 @@ Audit: `.planning/milestones/v4.2-MILESTONE-AUDIT.md` (status: tech_debt — 20/
   2. `gitleaks.yml`, `release-please.yml`, the dashboard, and `httpx==0.28.1` are all present on `master` at HEAD.
   3. `gh pr list` shows #8, #11, #12 and #15 through #20 all resolved: #11, #12 and the Dependabot set merged in an order that did not require re-resolving the `ci.yml` collision between #19 and #20; #8 closed unmerged with a recorded reason.
   4. Each of the 4 local commits absent from PR #11's head carries a recorded include-or-exclude decision, and `git log master` matches that decision rather than reflecting a conflict-resolution side effect.
-**Plans**: TBD
+**Plans**: 5 plans (strictly sequential, waves 1 through 5; `strict: true` branch protection makes parallel merges impossible)
+Plans:
+- [ ] 36-01-PLAN.md: rollback tag `pre-v5-mainline`, merge PR #12, close PR #8 with a recorded reason (MAIN-05, MAIN-06)
+- [ ] 36-02-PLAN.md: absorb PR #11 head divergence without force-push, record MAIN-03 per SHA, union-resolve the two conflicts, full local suite gate (MAIN-02, MAIN-03)
+- [ ] 36-03-PLAN.md: plain-push, merge PR #11 as a merge commit, verify the union pins, workflow artifacts, SHA ancestry and a real CI run on master (MAIN-01..04)
+- [ ] 36-04-PLAN.md: resolve the pip Dependabot set #16, #17, #15 with a direction check before each merge (MAIN-07)
+- [ ] 36-05-PLAN.md: serialize the ci.yml set #18, #19, #20, then the phase gate and Phase 38 handoff (MAIN-01, MAIN-07)
+**Planning corrections** (verified live 2026-08-02, these supersede the success criteria above where they conflict):
+  - Criterion 1's "81 consecutive zero-job runs" premise is STALE. Master's CI is already green today on `e98ec83` and `4123059`, 755 passed / 2 skipped on both runners. MAIN-01's real remaining question is whether the LARGER merged suite (roughly 939 tests) stays green under a ci.yml already proven correct on the smaller input.
+  - Criterion 4's "4 local commits" count is STALE. It was 8 at discuss time, 9 at research time, and 11 at planning time. The plans re-derive the list fresh at execution time and never hardcode a count.
+  - `master` ALREADY has branch protection (`CodeQL`, `test (windows-latest)`, `test (ubuntu-latest)`, `strict: true`, `enforce_admins: false`), which CONTEXT.md did not anticipate. The plans work within it and change nothing; Phase 38 still owns protection changes.
 **Risk**: Highest-risk phase in the milestone. Small in requirement count, large in blast radius — a 263-commit merge whose CI has never executed, so the first green run is also the first signal that the merge is correct. Plan for verification room, not just merge mechanics.
 
 ### Phase 37: Distributable Artifact

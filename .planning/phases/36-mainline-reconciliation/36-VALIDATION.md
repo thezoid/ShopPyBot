@@ -1,9 +1,9 @@
 ---
 phase: 36
 slug: mainline-reconciliation
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: planned
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-02
 ---
 
@@ -46,8 +46,8 @@ so a filtered log is a correctness hazard, not a formatting difference.
 
 ## Per-Requirement Verification Map
 
-Task-level rows are filled in by the planner once PLAN.md files exist. The requirement rows
-below are the phase's binding assertions and do not depend on task decomposition.
+The requirement rows below are the phase's binding assertions. The plan-level map that follows
+them was filled in by the planner on 2026-08-02, once the five PLAN.md files existed.
 
 | Req ID | Behavior | Type | Automated Command | Status |
 |--------|----------|------|-------------------|--------|
@@ -60,6 +60,34 @@ below are the phase's binding assertions and do not depend on task decomposition
 | MAIN-07 | #8, #11, #12, #15-#20 all reach a non-open state, actions PRs serialized | infra | `gh pr list --state open --json number` returns none of 8, 11, 12, 15, 16, 17, 18, 19, 20 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+## Plan-Level Assertion Map
+
+Every task in every plan carries an `<acceptance_criteria>` block and an `<automated>` verify
+command, so each row below names the task that owns the assertion, not just the plan.
+
+| Req ID | Owning plan and task | Assertion asserted there |
+|--------|---------------------|--------------------------|
+| MAIN-01 | 36-03 task 3 (first proof), 36-05 task 1 (per ci.yml merge), 36-05 task 2 (final tip) | `gh run view <id> --json jobs` reports `.jobs | length` of 2 or greater with zero non-success conclusions, and both named runner jobs present |
+| MAIN-02 | 36-02 task 2 (local resolution), 36-03 task 2 (on master), 36-04 task 3 and 36-05 task 2 (no later regression) | exactly one `^httpx==` line and it is `httpx==0.28.1`; one line each for `cryptography==49.0.0` and `pydantic-settings[yaml]==2.14.2` |
+| MAIN-03 | 36-02 task 1 (record), 36-03 task 2 (ancestry proof), 36-05 task 2 (re-assert on the final tip) | SHA list re-derived with raw `git log`, one `include` row per SHA, then `git merge-base --is-ancestor <sha> origin/master` exits 0 for every row |
+| MAIN-04 | 36-03 task 2, re-asserted 36-05 task 2 | `git ls-tree origin/master -- .github/workflows/gitleaks.yml .github/workflows/release-please.yml` returns 2 lines |
+| MAIN-05 | 36-01 task 2 | `gh pr view 12 --json state` outputs MERGED and PR #12's head OID is an ancestor of origin/master |
+| MAIN-06 | 36-01 task 3 | `gh pr view 8 --json state` outputs CLOSED with null `mergedAt`, and the issue comments contain one matching both `urllib3==2.7.0` and `superseded` |
+| MAIN-07 | 36-04 tasks 1 to 3 (pip set), 36-05 task 1 (actions set), 36-05 task 2 (the nine-PR diff) | `gh pr list --state open --json number` intersected against 8, 11, 12, 15, 16, 17, 18, 19, 20 has length 0, and every close carries a superseded comment |
+
+**Full-suite gates.** 36-02 task 3 runs the mandatory pre-push gate on the merged tree.
+36-05 task 2 runs the second mandatory gate against the final merged master tip via a
+clean-tree-guarded detached checkout. Both require exit 0, 0 failed, 0 errors, and 900 or more
+collected (master alone collects 757).
+
+**Fix-forward cap.** Defined in 36-03 task 3 and shared phase-wide across plans 03, 04, and 05.
+Three attempts total, counter persisted in `36-CI-EVIDENCE.md` so it survives a context reset.
+A fourth attempt is prohibited; the phase stops and escalates instead.
+
+**Bounded waits.** Every poll in every plan has an interval, an iteration cap or `timeout`
+wrapper, and a written action on timeout. There are no unbounded waits and no watch-mode flags in
+any `<automated>` command.
 
 ## Wave 0 Requirements
 
@@ -94,9 +122,9 @@ distinguish them.
 
 - [ ] Every MAIN requirement row above has a recorded command result, not an assertion of intent
 - [ ] Sampling continuity: an assertion runs after each merge, not only at phase end
-- [ ] Wave 0 covers all MISSING references (N/A, no Wave 0 gaps)
-- [ ] No watch-mode flags
+- [x] Wave 0 covers all MISSING references (N/A, no Wave 0 gaps)
+- [x] No watch-mode flags (verified across all five PLAN.md files at planning time)
 - [ ] Full local suite green before the PR #11 push, and again on the final merged tip
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** plan-level map complete 2026-08-02. Requirement rows stay ⬜ pending until execution records a command result.
