@@ -57,6 +57,19 @@ def _discover_plugins(plugins_dir: Path) -> list[type[RetailerPlugin]]:
     return found
 
 
+def _plugin_tag(plugin) -> str:
+    """Return the log-tag / analytics-bucket key for a plugin instance.
+
+    Falls back to the lowercased class name when platform_key is unset (e.g. a
+    plugin scaffolded from plugins/example_plugin.py with no platform_key declared).
+    This is the SAME fallback core/orchestrator.py:supervise() uses to seed the
+    per-task log tag and core/service.py uses for the analytics bucket key -- kept
+    in exactly one place so the log tag, the analytics bucket, and the dashboard
+    dropdown option can never drift apart (WR-02).
+    """
+    return getattr(plugin, "platform_key", None) or type(plugin).__name__.lower()
+
+
 class PluginRegistry:
     """Discovers, routes, and manages the lifecycle of retailer plugins.
 
@@ -110,6 +123,27 @@ class PluginRegistry:
             if any(p in host for p in plugin.domain_patterns):
                 return plugin
         return None
+
+    def platform_of(self, link: str) -> str:
+        """Resolve a link to its owning plugin's tag ("core" if no plugin matches).
+
+        Scans _all_plugins (not just _active_plugins) via the SAME hostname
+        substring match as route()/_route_all(): a plugin's domain_patterns
+        against urlparse(link).hostname. Shared by core/service.py:get_analytics
+        (FC-02) and core/orchestrator.py's write-queue drain (WR-01) so this
+        hostname-matching logic lives in exactly one place. Never raises --
+        a malformed or empty link simply resolves to "core".
+        """
+        host = urlparse(link or "").hostname or ""
+        for plugin in self._all_plugins:
+            patterns = (
+                [plugin.domain_patterns]
+                if isinstance(plugin.domain_patterns, str)
+                else list(getattr(plugin, "domain_patterns", []))
+            )
+            if any(pattern in host for pattern in patterns):
+                return _plugin_tag(plugin)
+        return "core"
 
     def _route_all(self, url: str) -> RetailerPlugin | None:
         """Like route() but searches _all_plugins (used during setup before active list exists)."""

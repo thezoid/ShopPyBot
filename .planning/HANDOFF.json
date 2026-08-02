@@ -1,42 +1,54 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-07T08:13:27.961Z",
-  "context": "research",
-  "milestone": "v3.0",
-  "milestone_name": "Resilience + Ecosystem",
-  "workflow": "new-milestone",
-  "stage": "research-synthesis-incomplete",
+  "timestamp": "2026-08-01T23:44:34.447Z",
+  "context": "default",
+  "milestone": "v4.2",
+  "milestone_name": "Release Readiness (closed) — post-milestone UAT audit session",
+  "workflow": "gsd-audit-uat",
+  "stage": "uat-audit-complete-pending-merges",
   "status": "paused",
   "completed_steps": [
-    {"step": "gather goals + version", "detail": "v3.0, all four areas FULL (anti-detection hardening, plugin ecosystem, price monitoring, stability/polish)"},
-    {"step": "PROJECT.md updated", "detail": "Current Milestone v3.0 section + Active reqs + footer", "commit": "e159f24"},
-    {"step": "STATE.md switched", "detail": "state.milestone-switch v3.0; status=planning", "commit": "e159f24"},
-    {"step": "research spawned", "detail": "4 gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls) completed; files written but UNCOMMITTED until this WIP commit"}
+    {"step": "Cross-phase UAT audit", "detail": "80 outstanding items across 66 files in the archived milestone dirs; SDK had falsely reported zero"},
+    {"step": "Live browser UAT sweep", "detail": "13 PASS / 1 FAIL / 5 BLOCKED / 2 PARTIAL, driven via Claude-in-Chrome against a seeded local dashboard"},
+    {"step": "SEED-003 planted", "detail": "remote plugin manager + third-party liability disclaimer + extensibility framework", "commit": "d485710"},
+    {"step": "Port auto-select for `shoppybot web`", "detail": "probe/increment/report + opt-in --open; 18 tests", "commit": "0cebc9e"},
+    {"step": "UAT verdicts recorded", "detail": "11 phase artifacts, +246/-40, all frontmatter validated", "commit": "70f31c5"},
+    {"step": "STATE.md session record", "detail": "verdict counts, 3 defects, operator actions, outstanding items, doc drift", "commit": "f883f13"},
+    {"step": "PR #13 CI fix MERGED", "detail": "runner-context compile fix + requirements.txt install + httpx; CI green for the first time ever", "commit": "4123059"},
+    {"step": "PR #12 signal-handler fix", "detail": "rebased onto master, all 4 checks green, CLEAN and awaiting operator merge", "commit": "3f27a2d"},
+    {"step": "Operator actions", "detail": "PVR enabled, Actions allowlist widened, CodeQL re-enabled, wiki registry published, RH-07 signed off, branch protection corrected"}
   ],
   "remaining_steps": [
-    {"step": "synthesize SUMMARY.md", "status": "not_done", "detail": "gsd-research-synthesizer errored (tool result missing) then was stopped. .planning/research/SUMMARY.md on disk is STALE v1 content (Selenium->nodriver) — must regenerate for v3.0."},
-    {"step": "define requirements", "status": "not_started", "detail": "scope per area via AskUserQuestion multiselect; new REQ-IDs continuing existing (ANTI-04+, new PRICE-/ECO-/STAB- categories); write .planning/REQUIREMENTS.md (does not exist yet)"},
-    {"step": "create roadmap", "status": "not_started", "detail": "spawn gsd-roadmapper, START PHASE NUMBERING AT 12 (continue from 11). Researchers converged on build order: 12 anti-detect infra -> 13 price (parallelizable) -> 14 ecosystem/metadata -> 15 BotService+front-ends -> 16 stability"},
-    {"step": "link pending todos", "status": "not_started"}
+    {"step": "Merge PR #12", "detail": "operator command; the classifier blocks agent-initiated merges"},
+    {"step": "Push 4 local commits on chore/v4.0-milestone-close", "detail": "d485710, 0cebc9e, 70f31c5, f883f13"},
+    {"step": "Decide on PR #11", "detail": "264 commits; unblocks the Dependabot drain, release-please, gitleaks and modern CodeQL on master"},
+    {"step": "Re-test 27-HV-2 / 28-HV-1 / 28-HV-2 running-half", "detail": "all three were blocked by the Start Bot defect; re-run once PR #12 lands"},
+    {"step": "10-HV-3 / MC-4", "detail": "needs a `shoppybot web --host 0.0.0.0` restart to verify the banner in both themes"},
+    {"step": "29-HV-5", "detail": "needs a DevTools source breakpoint; the doc's stated recipe cannot work"},
+    {"step": "MC-1 / MC-2", "detail": "Windows TTY keyring survival + masked prompt; the only two items with no prerequisites"},
+    {"step": "Repair 12 drifted UAT docs", "detail": "three of them produce FALSE PASSES as written; see the drift list in STATE.md"},
+    {"step": "Fix docs/PLUGIN_REGISTRY.md example row", "detail": "says difficulty 'hard'; AmazonPlugin inherits 'medium' from core/plugin_base.py:78-80"}
   ],
   "blockers": [
-    {"description": "v3.0 research SUMMARY.md was never generated; the file on disk is the OLD v1 summary. Do NOT consume it as v3.0 research.", "type": "technical", "workaround": "Re-spawn gsd-research-synthesizer (sonnet) reading the 4 fresh v3.0 files to overwrite SUMMARY.md."}
+    {"description": "Agent cannot merge PRs or write branch protection", "type": "external", "workaround": "Operator runs it with the `!` prefix; worked cleanly for branch protection and PR #13"},
+    {"description": "31-HV-3 Dependabot queue will not drain", "type": "external", "workaround": "Two causes: remediating bumps live on chore/v4.0-milestone-close (needs PR #11), AND Dependabot is repo-level PAUSED"},
+    {"description": "PR #11 mergeStateStatus reads UNKNOWN", "type": "technical", "workaround": "Re-query after PR #12 lands; it read BLOCKED before branch protection was corrected"}
   ],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "gh pr merge 12 --repo thezoid/ShopPyBot --squash --delete-branch", "context": "PR #12 is CLEAN with all 4 checks green; closes the only real product defect the audit found", "blocking": true},
+    {"action": "Decide whether to merge PR #11", "context": "264 commits; drains the 7 Dependabot alerts and lands release-please + gitleaks + modern CodeQL on master", "blocking": false},
+    {"action": "Unpause Dependabot", "context": "GET /repos/thezoid/ShopPyBot/automated-security-fixes returns {\"enabled\":true,\"paused\":true}; no new PRs open until unpaused", "blocking": false},
+    {"action": "Add a LICENSE file if open-sourcing", "context": "still none; repo is already public", "blocking": false},
+    {"action": "Consider enabling secret scanning + push protection", "context": "both disabled; free on public repos and would partly cover for gitleaks", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "v3.0 = all four areas, FULL scope (major release)", "rationale": "user selected all four + full framing", "phase": "v3.0"},
-    {"decision": "research-first before requirements", "rationale": "new domains (proxy/CAPTCHA/fingerprint) move fast", "phase": "v3.0"},
-    {"decision": "Only one new dep: 2captcha-python 2.0.7 (AsyncTwoCaptcha, MIT)", "rationale": "STACK research; proxy/fingerprint/price/wiki need zero new deps", "phase": "v3.0"},
-    {"decision": "Walmart/Target use behavioral managers (HUMAN/Akamai) NOT CAPTCHA-solvable -- keep manual-pause", "rationale": "FEATURES+PITFALLS research", "phase": "v3.0"},
-    {"decision": "core/browser_factory.py is the shared hook for proxy/fingerprint/CAPTCHA; ABC setup() default calls it; per-plugin migration, zero forced rewrites of the 7 existing plugins", "rationale": "ARCHITECTURE research", "phase": "v3.0"},
-    {"decision": "CAPTCHA/proxy secrets via CredentialStore SECRET_KEYS (TWOCAPTCHA_API_KEY, CAPSOLVER_API_KEY, PROXY_USERNAME, PROXY_PASSWORD); CAPTCHA opt-in default false like SMS gate; price-drop dedup uses SEPARATE columns from stock dedup", "rationale": "ARCHITECTURE+PITFALLS research", "phase": "v3.0"}
+    {"decision": "Wiki Plugin Registry published headers-only, zero rows", "rationale": "last-verified means confirmed against a live retail site; no plugin has ever been live-verified (19-UAT-1), so any date would be fabricated", "phase": "15"},
+    {"decision": "PVR is the final sole security-report channel; no maintainer email", "rationale": "operator sign-off on 32-HV-1, converting an autonomous default into a real decision", "phase": "32"},
+    {"decision": "_register_signals fixed with a main-thread guard, not a widened except", "rationale": "signal disposition is process-level and main-thread-only on both platforms; the threaded path already has BotService.stop() for cooperative cancellation", "phase": "n/a"},
+    {"decision": "Branch protection requires test (ubuntu-latest), test (windows-latest), CodeQL", "rationale": "the old five matched nothing any workflow emits. Kept the stable `CodeQL` aggregate over `Analyze (python)`, which PR #11 renames to `Analyze (python, none)` via build-mode", "phase": "n/a"},
+    {"decision": "httpx==0.28.1 added to requirements.txt rather than a new extra", "rationale": "pytest already lives there; keeps one install path and fixes the undeclared-dep papercut", "phase": "n/a"}
   ],
-  "uncommitted_files": [
-    ".planning/research/STACK.md",
-    ".planning/research/FEATURES.md",
-    ".planning/research/ARCHITECTURE.md",
-    ".planning/research/PITFALLS.md"
-  ],
-  "next_action": "Re-spawn gsd-research-synthesizer (model sonnet) to OVERWRITE .planning/research/SUMMARY.md from the 4 v3.0 research files, then resume new-milestone.md at step 9 (Define Requirements) -> step 10 (roadmap, start phase 12).",
-  "context_notes": "Mid /gsd:new-milestone for v3.0. Phases dir empty (cleared at switch). REQUIREMENTS.md does not exist yet (removed at v2.0 close; new-milestone recreates it). 4 research files are solid and converge on a clean build order. ONLY broken thing = SUMMARY synthesis. Resume = synthesize -> requirements -> roadmap(start 12). Bash tool is bash. Commit via gsd-sdk query commit. No Claude co-author trailer per user CLAUDE.md."
+  "uncommitted_files": [],
+  "next_action": "Ask the operator to run `gh pr merge 12 --repo thezoid/ShopPyBot --squash --delete-branch`, then offer to push the 4 local commits and pull PR #11 merge-readiness.",
+  "context_notes": "Session began as a routine UAT status check and became a real audit. `gsd-sdk query audit-uat` reported total_items: 0 — a FALSE all-clear, because it scans .planning/phases/ which is empty once milestones are archived; 80 real items sat in .planning/milestones/*-phases/. Three defects fell out, none previously caught by any test or milestone review: (1) dashboard Start Bot never worked, _register_signals raising ValueError off the main thread; (2) CI never compiled, ${{ runner.temp }} in job-level env:, 81 runs 81 failures zero jobs; (3) CI never installed dependencies, pyproject declares only platformdirs. CI is now green for the first time in project history: 755 passed / 2 skipped, identical on Ubuntu and Windows. Carry forward: v2.0 through v4.2 were all archived claiming 'CI-green', which was never true. Environment notes that still hold: use .venv/Scripts/python.exe -m pytest, NOT rtk pytest; STATE.md uses a custom prose-field schema the gsd-sdk state verbs cannot parse (hand-edit); a background dashboard server may still be running on 127.0.0.1:8001 (port 8000 belongs to an unrelated MMFManager backend); the session scratchpad directory was wiped mid-run once, so never leave uncommitted work in a worktree placed there."
 }

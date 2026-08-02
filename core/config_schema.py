@@ -8,7 +8,7 @@ from typing import Optional
 
 from urllib.parse import urlparse as _urlparse
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -34,6 +34,56 @@ DEFAULT_USER_AGENTS: list[str] = [
 _LEGACY_KEYS = {
     "app": ["amz_email", "amz_pwd", "bb_email", "bb_password", "bb_cvv"]
 }
+
+
+def _shim_legacy_delay_fields(data: dict) -> dict:
+    """Map legacy min_delay/max_delay -> canonical delay_seconds/delay_jitter (CFG-01).
+
+    Only triggers when at least one legacy key is present AND neither canonical key
+    is already present -- an explicit delay_seconds/delay_jitter value is NEVER
+    clobbered by legacy keys, even if both are present in the same construction.
+
+    Behavior-preserving: delay_seconds := min_delay, delay_jitter := max_delay - min_delay.
+    Consumed as delay_seconds + random.uniform(0, delay_jitter), this is algebraically
+    identical to the legacy random.uniform(min_delay, max_delay).
+
+    NOTE (WR-01/IN-02): unlike the legacy random.uniform(min_delay, max_delay) call --
+    which tolerated min_delay > max_delay and simply returned a value in the resulting
+    range -- an inverted legacy range is now rejected with a ValueError naming
+    min_delay/max_delay. This is a deliberate tightening, not a preserved behavior: the
+    derived delay_jitter would otherwise be negative and fail the canonical field's own
+    Field(ge=0.0) constraint with a confusing message about a field the user never set.
+    """
+    if not isinstance(data, dict):
+        return data
+    has_legacy = "min_delay" in data or "max_delay" in data
+    has_canonical = "delay_seconds" in data or "delay_jitter" in data
+    if has_legacy and not has_canonical:
+        warnings.warn(
+            "config.yml: 'min_delay'/'max_delay' are deprecated; use "
+            "'delay_seconds'/'delay_jitter' instead. See sample.config.yml.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        data = dict(data)
+        # WR-03: these fallbacks are implicitly coupled to the 5 community models'
+        # delay_seconds=8.0/delay_jitter=7.0 Field defaults (8.0 + 7.0 = 15.0). If a
+        # future tuning pass changes those model defaults, update these two literals
+        # to match -- see test_shim_legacy_fallback_defaults_match_community_model_defaults.
+        min_d = float(data.pop("min_delay", 8.0))
+        max_d = float(data.pop("max_delay", 15.0))
+        if max_d < min_d:
+            # WR-01: fail loudly and name the legacy fields the user actually set,
+            # rather than letting this flow into delay_jitter's Field(ge=0.0) and
+            # raise a ValidationError about a field the user never touched.
+            raise ValueError(
+                f"config.yml: legacy min_delay ({min_d}) must be <= max_delay "
+                f"({max_d}): inverted delay range, fix your config so "
+                "max_delay >= min_delay"
+            )
+        data["delay_seconds"] = min_d
+        data["delay_jitter"] = max_d - min_d
+    return data
 
 # Thread-local storage for yaml path injection: eliminates race on mutable class
 # attribute when two AppConfig() constructions run concurrently (CR-03).
@@ -65,11 +115,12 @@ class DebugConfig(BaseModel):
 
 
 class AmazonPlatformConfig(BaseModel):
-    # NOTE: Amazon/BestBuy use delay_seconds/delay_jitter (legacy field names).
-    # The five Phase-6 platforms use min_delay/max_delay instead.
-    # This naming difference is intentional -- harmonization is deferred (out of Phase-6 scope).
-    delay_seconds: float = 30.0
-    delay_jitter: float = 10.0
+    # CFG-01: canonical delay field scheme for all 7 platforms (delay_seconds/delay_jitter).
+    # Amazon/BestBuy already used these names; the five community platforms below were
+    # renamed from min_delay/max_delay to match, with a back-compat shim (see
+    # _shim_legacy_delay_fields) so legacy-named configs still load unchanged.
+    delay_seconds: float = Field(default=30.0, ge=0.0)
+    delay_jitter: float = Field(default=10.0, ge=0.0)
     # SC3: declared field so extra="ignore" does not silently drop it from YAML.
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
@@ -78,8 +129,8 @@ class AmazonPlatformConfig(BaseModel):
 
 class BestBuyPlatformConfig(BaseModel):
     # NOTE: see AmazonPlatformConfig comment above on delay field naming.
-    delay_seconds: float = 30.0
-    delay_jitter: float = 10.0
+    delay_seconds: float = Field(default=30.0, ge=0.0)
+    delay_jitter: float = Field(default=10.0, ge=0.0)
     # SC3: declared field so extra="ignore" does not silently drop it from YAML.
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
@@ -87,59 +138,109 @@ class BestBuyPlatformConfig(BaseModel):
 
 
 class WalmartPlatformConfig(BaseModel):
-    """Per-platform anti-detection config for Walmart (ANTI-01/02/03)."""
+    """Per-platform anti-detection config for Walmart (ANTI-01/02/03).
 
-    min_delay: float = Field(default=8.0, ge=0.0)   # ANTI-01: jitter lower bound
-    max_delay: float = Field(default=15.0, ge=0.0)  # ANTI-01: jitter upper bound
+    CFG-01: canonical delay_seconds/delay_jitter. Legacy min_delay/max_delay configs
+    still load via _shim_legacy_delay_fields (deprecated, back-compat).
+    """
+
+    delay_seconds: float = Field(default=8.0, ge=0.0)  # ANTI-01: base delay
+    delay_jitter: float = Field(default=7.0, ge=0.0)   # ANTI-01: jitter width
     headless: bool = True                            # ANTI-03: per-platform headless toggle
     user_agents: list[str] = Field(default_factory=list)  # ANTI-02: empty = global default pool
     session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_delay_shim(cls, data):
+        return _shim_legacy_delay_fields(data)
+
 
 class TargetPlatformConfig(BaseModel):
-    """Per-platform anti-detection config for Target (ANTI-01/02/03)."""
+    """Per-platform anti-detection config for Target (ANTI-01/02/03).
 
-    min_delay: float = Field(default=8.0, ge=0.0)
-    max_delay: float = Field(default=15.0, ge=0.0)
+    CFG-01: canonical delay_seconds/delay_jitter. Legacy min_delay/max_delay configs
+    still load via _shim_legacy_delay_fields (deprecated, back-compat).
+    """
+
+    delay_seconds: float = Field(default=8.0, ge=0.0)
+    delay_jitter: float = Field(default=7.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
     session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_delay_shim(cls, data):
+        return _shim_legacy_delay_fields(data)
 
 
 class GameStopPlatformConfig(BaseModel):
-    """Per-platform anti-detection config for GameStop (ANTI-01/02/03)."""
+    """Per-platform anti-detection config for GameStop (ANTI-01/02/03).
 
-    min_delay: float = Field(default=8.0, ge=0.0)
-    max_delay: float = Field(default=15.0, ge=0.0)
+    CFG-01: canonical delay_seconds/delay_jitter. Legacy min_delay/max_delay configs
+    still load via _shim_legacy_delay_fields (deprecated, back-compat).
+    """
+
+    delay_seconds: float = Field(default=8.0, ge=0.0)
+    delay_jitter: float = Field(default=7.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
     session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_delay_shim(cls, data):
+        return _shim_legacy_delay_fields(data)
 
 
 class SquareEnixPlatformConfig(BaseModel):
     """Per-platform anti-detection config for Square Enix (ANTI-01/02/03).
 
     Config key: platforms.squareenix (no underscore) -- matches plugin platform_key="squareenix".
+    CFG-01: canonical delay_seconds/delay_jitter. Legacy min_delay/max_delay configs
+    still load via _shim_legacy_delay_fields (deprecated, back-compat).
     """
 
-    min_delay: float = Field(default=8.0, ge=0.0)
-    max_delay: float = Field(default=15.0, ge=0.0)
+    delay_seconds: float = Field(default=8.0, ge=0.0)
+    delay_jitter: float = Field(default=7.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
     session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_delay_shim(cls, data):
+        return _shim_legacy_delay_fields(data)
 
 
 class NeweggPlatformConfig(BaseModel):
-    """Per-platform anti-detection config for NewEgg (ANTI-01/02/03)."""
+    """Per-platform anti-detection config for NewEgg (ANTI-01/02/03).
 
-    min_delay: float = Field(default=8.0, ge=0.0)
-    max_delay: float = Field(default=15.0, ge=0.0)
+    CFG-01: canonical delay_seconds/delay_jitter. Legacy min_delay/max_delay configs
+    still load via _shim_legacy_delay_fields (deprecated, back-compat).
+    """
+
+    delay_seconds: float = Field(default=8.0, ge=0.0)
+    delay_jitter: float = Field(default=7.0, ge=0.0)
     headless: bool = True
     user_agents: list[str] = Field(default_factory=list)
     session_persistence: bool = False  # REL-04: opt-in encrypted cookie persistence (default off)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_delay_shim(cls, data):
+        return _shim_legacy_delay_fields(data)
+
 
 class PlatformsConfig(BaseModel):
+    # CFG-02: unknown platform keys pass through as raw dicts instead of being
+    # silently dropped (the default extra="ignore" behavior). A new plugin's
+    # own model validates its section via RetailerPlugin.get_platform_config().
+    # The 7 declared platform fields below keep full strict validation --
+    # extra="allow" governs ONLY undeclared keys.
+    model_config = ConfigDict(extra="allow")
+
     amazon: AmazonPlatformConfig = AmazonPlatformConfig()
     bestbuy: BestBuyPlatformConfig = BestBuyPlatformConfig()
     walmart: WalmartPlatformConfig = WalmartPlatformConfig()

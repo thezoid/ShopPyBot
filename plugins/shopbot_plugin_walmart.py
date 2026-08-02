@@ -115,8 +115,13 @@ class WalmartPlugin(RetailerPlugin):
             writeLog(f"Error checking Walmart item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to Walmart using WALMART_EMAIL / WALMART_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to Walmart using WALMART_EMAIL / WALMART_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, an exception, or an unconfirmed
+        signal all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("WALMART_EMAIL") or ""
@@ -124,7 +129,7 @@ class WalmartPlugin(RetailerPlugin):
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("WALMART_EMAIL or WALMART_PASSWORD not set -- skipping login", "ERROR")
-            return
+            return False
 
         try:
             tab = await self.driver.get("https://www.walmart.com/account/login")
@@ -142,8 +147,14 @@ class WalmartPlugin(RetailerPlugin):
                 await sign_in_btn.click()
 
             writeLog("Signed in to Walmart", "INFO")
+            verified = await self._verify_login_generic(tab, "/account/login", "#email")
+            if not verified:
+                writeLog("Walmart login verification failed", "WARNING")
+                return False
+            return True
         except Exception as exc:
             writeLog(f"Error during Walmart sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -183,7 +194,11 @@ class WalmartPlugin(RetailerPlugin):
             await checkout_btn.click()
             writeLog("Proceeded to checkout on Walmart", "INFO")
 
-            await self.login()
+            self._checkout_stage = "login"
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog("Walmart login failed during auto_buy -- aborting checkout", "ERROR")
+                return False
 
             # TODO: verify place order selector against live walmart.com
             place_order = await tab.select('[data-testid="place-order-button"]', timeout=10)

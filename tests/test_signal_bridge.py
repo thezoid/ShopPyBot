@@ -99,7 +99,7 @@ async def test_write_queue_flush_before_teardown():
 
     dispatched: list = []
 
-    async def fake_dispatch(lp, item):
+    async def fake_dispatch(lp, item, registry=None):
         dispatched.append(item)
 
     # Two normal items
@@ -134,7 +134,7 @@ async def test_write_queue_flush_error_still_calls_task_done():
     bad_item = ("clear_available", "https://bad.example.com")
     await queue.put(bad_item)
 
-    async def raising_dispatch(lp, item):
+    async def raising_dispatch(lp, item, registry=None):
         raise RuntimeError("simulated write error")
 
     with (

@@ -16,24 +16,81 @@ Target user: technically capable individuals who want automated stock monitoring
 
 ## Current State
 
-**Shipped v4.0 Win-the-Drop — Acquisition Core + Reliability (2026-06-25).** Built on the v3.0 resilience/ecosystem layer and the v2.0 modular core (`BotService` API behind a CLI-default front-end plus an optional FastAPI web UI; runtime-selected `CredentialStore` with no plaintext on disk). v4.0 makes the bot complete *verified* orders on limited-release drops and survive multi-hour unattended runs: a central monitor-only gate + `place_order_guarded()` ABC closing the 6-of-7 `test_mode` hole; order-confirmation detection (`purchased` only on a real order number); checkout profile + BestBuy/Amazon form-fill with CVV-at-runtime; one unified `RetryPolicy` with per-step timeouts and idempotent cart-retry; per-coroutine supervisor with browser relaunch, DB read isolation, per-item timeout, and a SIGTERM/SIGINT teardown bridge; Fernet-encrypted session persistence; and a per-plugin health surface (`get_status`, `health_degraded` alert, `shoppybot status`) plus a headless pygame import-crash guard.
+**Shipped v4.2 Release Readiness (2026-07-03).** A debt-closure + release-hardening milestone: an unattended run can no longer double-buy on a place-order-stage timeout (write-ahead DB marker + `_PossiblyPlaced` guard, Amazon + BestBuy), Amazon WAF challenges are attempted via the existing 2captcha solver before falling back to manual pause, and all 7 plugins now verify login via real post-login DOM/URL signals instead of assuming success from a click. CI runs a real gitleaks secret scan and a repaired CodeQL workflow, `.github/dependabot.yml` is in place with all 7 open vulnerability alerts remediated, `pyproject.toml` is reconciled to `2.0.0`, and release-please is seeded and wired for conventional-commit changelog/tagging. README is rewritten for the current 7-platform architecture and SECURITY.md/CODE_OF_CONDUCT.md route through GitHub Private Vulnerability Reporting. Platform delay-config fields are harmonized (`delay_seconds`/`delay_jitter`) with a back-compat shim, and a plugin can now self-declare its own config section with zero core schema edits. The dashboard gained a per-plugin log filter and outcome analytics (success-rate, time-to-checkout). Three outstanding v4.1 audit warnings (SSR remove-button, `last_heartbeat` leak, dead `escHtml()`) and stale v4.0/v4.1 doc frontmatter are resolved.
 
-v4.0: 7 phases (18-24) / 29 plans, all complete. Full suite: 755 passed, 2 skipped. Audit status `tech_debt` (no blockers; pre-accepted live-UAT debt).
+v4.2: 6 phases (30-35) / 20 plans / 45 tasks, all complete. Full suite: 940 passed, 2 skipped. Audit status `tech_debt` (no blockers): one code-level gap (BF-02 marker not yet propagated to the 5 community plugins) plus a set of operator-gated GitHub Settings actions outstanding — enable Private Vulnerability Reporting, widen the Actions allowlist for `gitleaks`/`release-please`, merge release-please PR #11 to master, and add a LICENSE file if open-sourcing.
 
-**Deferred (carried):** all live-environment UAT (monitor-only/confirmation/form-fill/relaunch/SIGTERM/session/headless) tracked in STATE.md → Deferred Items as the operator's pre-production live-buy checklist; Amazon WAF CAPTCHA auto-solve (manual-pause fallback); public-release hardening — git-history scrub/squash (SEED-001) + release-please tagging (SEED-002).
+**Built on v4.1 Dashboard & Observability (2026-06-30):** zero-Node vendored dashboard redesign (3-file CSS split, light/dark, FOUC-safe) surfacing live operational observability over a single `/api/events` SSE stream (health cards, confirmed-buys table, price-history charts, filterable log viewer, uptime bar), backed by read-only REST endpoints with credential-leak CI guards — over the v4.0 Win-the-Drop acquisition/reliability core and the v2.0 modular `BotService`.
 
-**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default.
+**Deferred (carried):** all live-environment UAT (v4.0 acquisition checks, v4.1 dashboard live-browser/socket checks, v4.2 WAF/double-buy/CI-Actions live checks) tracked in STATE.md → Deferred Items as the operator's pre-production + release checklist; the 5-community-plugin BF-02 marker propagation gap; the destructive half of SEED-001 (public-repo history scrub/squash) stays operator-gated.
 
-## Next Milestone
+**Correction recorded 2026-08-02:** everything described above as "shipped" for v4.1 and v4.2 is shipped *on a branch*, not on `master`. A full-repo sweep found the default branch 263 commits behind, PR #11 hard-blocked because its `ci.yml` fails to compile (so the v4.1+v4.2 suite has never run in CI), the built wheel missing every data file (`shoppybot web` cannot start from an installed wheel), and no LICENSE on a public repo. Milestone v5.0 exists to make the mainline and the published artifact match these claims.
 
-**No active milestone.** v4.0 Win-the-Drop shipped 2026-06-25. Start the next cycle with `/gsd:new-milestone` (questioning → research → requirements → roadmap). Phase numbering continues from 24.
+**Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default; zero-Node (no package.json/CDN/external fonts — vendored CSS/JS only); observability is read-only over `get_status()` + DB with no new secrets.
 
-Candidate directions from the v4.0 deferral list:
-- **Public-release hardening** — git-history scrub/squash (SEED-001) + release-please version tagging (SEED-002); a dedicated release milestone.
-- **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon).
+<details>
+<summary>Shipped: v4.2 Release Readiness — 2026-07-03</summary>
+
+**Goal:** Close every outstanding code-actionable item — seeds, breakfixes, audit warnings, deferred sub-features, and release-hardening gaps — so the public repo reaches a stable, release-ready state.
+
+**Delivered features:**
+- Breakfix hardening (P30): place-order-timeout double-buy latch (HIGH), Amazon WAF auto-solve via 2captcha with manual-pause fallback preserved, real post-login DOM/URL verification (`_verify_login_generic`) across all 7 plugins.
+- CI & security infrastructure (P31): gitleaks secret-scan CI job + local guard test, repaired CodeQL workflow (checkout@v6/codeql-action@v4), `.github/dependabot.yml` + all 7 open vulnerability alerts remediated.
+- Release automation & community readiness (P32): `pyproject.toml` reconciled to 2.0.0, release-please seeded (manifest-mode, python release-type), README rewritten, SECURITY.md/CODE_OF_CONDUCT.md routed through GitHub Private Vulnerability Reporting.
+- Config refactor (P33): canonical `delay_seconds`/`delay_jitter` fields with legacy back-compat shim; generic per-platform config extension point (`PlatformsConfig(extra="allow")` + `RetailerPlugin.get_platform_config()`).
+- Feature completion (P34): `[plugin]` log tag on every log line + `/api/logs` plugin filter (completes OBS-08); outcome analytics (success-rate, time-to-checkout) over confirmed-order records.
+- Audit-fixes & doc-hygiene (P35): SSR remove-button graceful degradation, `last_heartbeat` leak scrubbed from `get_status()`/SSE, dead `escHtml()` removed, v4.0/v4.1 planning-artifact frontmatter reconciled.
+
+**Constraints held:** CLI default; web optional + localhost bind + CSRF + non-local warning; zero-Node; observability read-only over `BotService.get_status()` + DB, no new secrets; no plaintext secrets, no full card/CVV persistence.
+
+</details>
+
+<details>
+<summary>Shipped: v4.1 Dashboard & Observability — 2026-06-30</summary>
+
+**Goal:** Redesign the optional FastAPI web dashboard with a polished zero-dependency design system and surface rich live operational observability over SSE, without breaking the CLI-default, localhost-bound, no-Node posture.
+
+**Delivered features:**
+- Vendored zero-Node design system (3-file CSS split: tokens/components/dashboard; light/dark with FOUC-safe inline theming; uPlot 1.6.32 vendored, no CDN/fonts; `loadItems()`/`loadCredentials()` XSS vector fixed).
+- Read-only observability REST endpoints (`/api/history`, `/api/price-history/{link_b64}`, filtered `/api/logs`), all `asyncio.to_thread`-wrapped; `last_error` scrubbed; credential-leak CI guard.
+- SSE infrastructure: single `/api/events` stream, uvicorn `_poll_loop` sole-producer cross-thread bridge, keepalive, clean disconnect, cursor log tail.
+- Four observability surfaces: per-plugin health cards, confirmed-buys table, per-item price-history charts (empty-state), filterable color-coded log viewer (follow + 500-line cap), uptime bar.
+- SSE client wiring: `EventSource('/api/events')` replaces the 2s poll, named listeners, polling fallback, Live/Reconnecting indicator; inserted 29.1 cleanup closed 3 audit warnings (uPlot load order, log-dedup, SSE stall watchdog + REST fallback).
+
+**Constraints held:** CLI default; web optional + localhost bind + CSRF + non-local warning; zero-Node (no package.json/CDN/external fonts); observability read-only over `BotService.get_status()` + DB, no new secrets.
+
+</details>
+
+## Current Milestone: v5.0 Real Release & Plugin Ecosystem
+
+**Goal:** Make the default branch, the published artifact, and the public repo actually be what four shipped milestones already claim, then open the plugin framework to third parties with a trust model that survives the fact that importing a plugin is executing it.
+
+**Premise (established by the 2026-08-02 sweep, 221 evidenced findings):** `master` is 263 commits behind. Every v4.1 and v4.2 artifact — the dashboard, gitleaks, release-please — exists only on the unmerged `chore/v4.0-milestone-close` branch. The default branch is still v4.0, PR #11's test suite has never run in CI (its branch `ci.yml` references `${{ runner.temp }}` in a job-level `env:` and fails to compile), and the built wheel contains zero data files, so `shoppybot web` cannot start on any non-editable install. The claims are ahead of the reality; this milestone closes that gap.
+
+**Target features:**
+- **A. Mainline reconciliation** — fix the branch `ci.yml` compile bug, resolve PR #11 without dropping `httpx`, triage the 4 local commits absent from the PR, land #11 → #12 → Dependabot PRs in dependency order, close the stale #8.
+- **B. Distributable artifact** — package-data and a truthful dependency declaration in `pyproject.toml`; installing the wheel must launch `shoppybot web` and play sounds.
+- **C. Public-repo readiness** — LICENSE, delete `_deprecated/`, README rewritten for nodriver (not Selenium), `sample.config.yml` rebuilt to include `monitor_only` and every current section, CODEOWNERS, documentation drift.
+- **D. Live defect closure** — `/api/bot/start` fire-and-forget reporting, stdin listener EOF spin / None-stdin / executor occupancy, `/api/config` applying to the running process, Discord empty-`url` embeds on `plugin_parked` + `health_degraded`, browser preflight diagnosis, `/api/history` one-shot staleness.
+- **E. Scanning to zero** — 7 open Dependabot alerts, 5 real CodeQL alerts, `ci.yml` permissions block, remove the disabled CodeQL workflow, gitleaks as a required check, branch-protection hardening.
+- **F. Quality floor** — linter, formatter, and typechecker adopted and wired into CI (none exist today, so CLAUDE.md's own standards are unenforced), coverage measurement, bare-except sites, dead code.
+- **G. Community plugin parity** — BF-02 place-order marker on the 5 community plugins, per-step timeouts, `monitor_only` entry guard, confirmation-tab capture.
+- **H. Plugin ecosystem (SEED-003)** — user-writable plugin directory, install provenance, machine-readable registry, `PLUGIN_API_VERSION` enforcement, install-time consent gate, capability limits, third-party liability disclaimer, and `install`/`update`/`remove` CLI.
+- **I. Ops hardening** — `price_history` index and retention policy.
+- **J. UAT repair and triage** — fix the 2 physically impossible test recipes, re-run the 8 items PR #11/#12 unblock, and triage the 61 live-environment items against a stated acceptance bar.
+
+**Seeds in scope:** SEED-002 (release-please has never executed — register it on master and cut a real release), SEED-001 (retire the destructive history rewrite as a recorded decision: gitleaks across 964 commits found only a test-fixture false positive; keep the LICENSE and public-launch half), SEED-003 (full plugin ecosystem, 16 verified gaps).
+
+**Sequencing constraints:** A gates E. B gates SEED-002 being worth running. H is the only workstream needing a genuine design pass. Per RETROSPECTIVE.md lesson 4, G and H both warrant a post-verification REVIEW.md deep-review pass — G touches a safety-critical guard, H adds a new unauthenticated input surface.
+
+## Future Candidate Directions
+
+Candidates for milestones after v5.0:
+- **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon; v5.0 workstream G brings them to safety parity, not checkout parity).
+- **Order-confirmation detection for the 5 community plugins** — currently Amazon/BestBuy only; every community plugin falls through the detector.
 - **Request/API-mode (hybrid) checkout** — faster than DOM but per-site reverse-engineering and an arms race.
-- **Outcome analytics** (success rate, time-to-checkout) built on the BUY-04 order records.
-- **Richer health/observability on the web dashboard** (beyond the CLI/status payload).
+- **Live-environment UAT execution** — v5.0 workstream J triages and repairs the checklist; actually running the ~61 live-retail/live-host items remains operator work gated on a funded 2captcha balance, an Ubuntu host, and a real drop.
+- **Process isolation for third-party plugins** — the real fix for the SEED-003 blast-radius problem, and by far the most expensive; v5.0 ships consent plus capability limits instead.
 
 <details>
 <summary>Shipped: v4.0 Win-the-Drop (Acquisition Core + Reliability) — 2026-06-25</summary>
@@ -103,17 +160,46 @@ Candidate directions from the v4.0 deferral list:
 - ✓ Reliability: unified RetryPolicy (one backoff source) — v4.0 (Phase 21)
 - ✓ Server-safety: headless pygame import-crash guard + SIGTERM/SIGINT teardown bridge — v4.0 (Phases 24, 22)
 
-### Active (next milestone)
+### Validated (shipped v4.1 Dashboard & Observability)
 
-_None yet — run `/gsd:new-milestone` to scope the next cycle. See "Next Milestone" above for candidate directions._
+- ✓ Redesigned dashboard on a vendored zero-Node design system (tokens/components, light/dark, FOUC-safe) — v4.1 (Phase 25)
+- ✓ Read-only observability REST endpoints (history, price-history, filtered logs), to_thread-wrapped + credential-scrubbed — v4.1 (Phase 26)
+- ✓ SSE infrastructure: single /api/events stream, uvicorn sole-producer bridge, keepalive, disconnect cleanup — v4.1 (Phase 27)
+- ✓ Live observability surfaces: per-plugin health cards, confirmed-buys table, price-history charts, filterable log viewer, uptime bar — v4.1 (Phase 28)
+- ✓ SSE client wiring: EventSource replaces polling, fallback, Live/Reconnecting indicator — v4.1 (Phases 29, 29.1)
+
+### Validated (shipped v4.2 Release Readiness)
+
+- ✓ Place-order-timeout double-buy idempotency guard (write-ahead DB marker + `_PossiblyPlaced` sentinel), Amazon + BestBuy — v4.2 (Phase 30, BF-02, HIGH)
+- ✓ Amazon WAF auto-solve wired to the existing 2captcha solver, manual-pause fallback preserved — v4.2 (Phase 30, BF-01)
+- ✓ Plugin login verified via real post-login DOM/URL signals across all 7 plugins — v4.2 (Phase 30, BF-03)
+- ✓ Non-destructive secret-scan audit (gitleaks CI job + local guard) — v4.2 (Phase 31, RH-01)
+- ✓ CodeQL workflow repaired (retired Node16 actions bumped) — v4.2 (Phase 31, RH-04)
+- ✓ `.github/dependabot.yml` + all open dependency vulnerability alerts remediated — v4.2 (Phase 31, RH-05)
+- ✓ `pyproject.toml` version reconciled to `2.0.0` + release-please seeded (python release-type) — v4.2 (Phase 32, RH-02, RH-03)
+- ✓ README rewritten for the current 7-platform architecture, install, and badges — v4.2 (Phase 32, RH-06)
+- ✓ Real maintainer security contact via GitHub Private Vulnerability Reporting, placeholder removed — v4.2 (Phase 32, RH-07)
+- ✓ Platform delay-config fields harmonized (`delay_seconds`/`delay_jitter`) with legacy back-compat shim — v4.2 (Phase 33, CFG-01)
+- ✓ Generic per-platform config extension point (`extra="allow"` + `get_platform_config()`), zero core schema edits — v4.2 (Phase 33, CFG-02)
+- ✓ `[plugin]` log tag on every line + `/api/logs` plugin filter (completes OBS-08) — v4.2 (Phase 34, FC-01)
+- ✓ Outcome analytics (success-rate, time-to-checkout) over confirmed-order records — v4.2 (Phase 34, FC-02)
+- ✓ SSR items-table remove button works without JS — v4.2 (Phase 35, AF-01)
+- ✓ Raw `last_heartbeat` scrubbed from `get_status()`/SSE — v4.2 (Phase 35, AF-02)
+- ✓ Dead `escHtml()` helper removed — v4.2 (Phase 35, AF-03)
+- ✓ v4.0/v4.1 planning-artifact frontmatter reconciled to match passing validation status — v4.2 (Phase 35, DH-01/02/03)
+
+### Active
+
+Milestone v5.0 Real Release & Plugin Ecosystem — workstreams A-J (see Current Milestone above). REQ-IDs assigned in `.planning/REQUIREMENTS.md`.
 
 ### Deferred
 
 - Request/API-mode (hybrid) checkout (XL arms-race) — follow-on after v4.0
 - Virtual-waiting-room / queue survival: Queue-it, PerimeterX, Akamai, DataDome (XL) — follow-on
 - Multi-account / multi-profile parallel attempts (XL, most ToS-hostile) — follow-on, opt-in if ever
-- Amazon WAF CAPTCHA auto-solve — re-deferred (todo: `waf-auto-solve-followup`)
-- Public-release hardening: git-history scrub/squash (SEED-001) + release-please tagging (SEED-002) — when a release milestone is scoped
+- Amazon WAF CAPTCHA live-challenge acceptance — code wiring shipped v4.2 (BF-01); live-challenge proof against a real AWS-WAF challenge stays operator debt
+- BF-02 marker propagation to the 5 community plugins (Walmart, Target, GameStop, NewEgg, SquareEnix) — mechanical follow-up, closes the residual double-buy exposure
+- Destructive public-repo history scrub/squash (SEED-001 remainder) — operator-gated one-time action, when ready to make the repo public. Non-destructive audit shipped v4.2 (RH-01); SEED-002 release-please tagging is code-complete (v4.2), pending first live Actions run
 
 ### Out of Scope
 
@@ -141,6 +227,18 @@ _None yet — run `/gsd:new-milestone` to scope the next cycle. See "Next Milest
 | (v4.0) One unified `RetryPolicy` | Supervisor-restart and cart-retry share one backoff module so the two retry concepts cannot diverge or compound into a runaway loop | ✓ Good |
 | (v4.0) Retailer-saved payment + CVV-at-runtime | Never persist full card/PAN (PCI scope); CVV via `getpass`, never logged; AST CI assertion guards against leaks | ✓ Good |
 | (v4.0) Live-environment UAT deferred as tracked debt | Live retail checkout is ToS/legal risk in CI; confirmation/form-fill selectors verified by manual UAT, tracked in STATE.md Deferred Items | — Pending (operator live-buy checklist) |
+| (v4.1) uPlot vendored, no CDN/Node | Zero-Node is a hard constraint; uPlot is MIT, ~52KB, Canvas, dependency-free — vendored under web/static | ✓ Good |
+| (v4.1) 3-file CSS split (tokens/components/dashboard) | Token-only component rules keep theming maintainable and FOUC-safe; each file under 200 lines | ✓ Good |
+| (v4.1) uvicorn _poll_loop is the SOLE SSE producer | Bot daemon thread never touches asyncio.Queue; avoids the cross-loop race that is the highest-risk SSE pitfall | ✓ Good |
+| (v4.1) No new Python deps for SSE | Raw starlette StreamingResponse(text/event-stream) covers all needs; no sse-starlette, no FastAPI upgrade | ✓ Good |
+| (v4.1) Live-browser/socket UAT deferred as tracked debt | SSE/EventSource and visual rendering need a real browser/live socket; all automated assertions GREEN, live checks tracked in STATE.md | — Pending (operator dashboard checklist) |
+| (v4.2) BF-02 write-ahead DB marker + `_PossiblyPlaced` sentinel | Makes the place-order stage non-retryable once clicked, reusing the existing orchestrator alert pattern instead of a new state machine | ✓ Good |
+| (v4.2) `_verify_login_generic` shared login-verification mechanism | One verification mechanism for all 7 plugins avoids per-plugin duplication; honest URL/DOM-absence signal even without live-verified selectors | ✓ Good |
+| (v4.2) Amazon WAF auto-solve reuses the existing 2captcha solver path | No new CAPTCHA integration; fails safe to the pre-existing manual-pause fallback on any non-success path | ✓ Good |
+| (v4.2) `PlatformsConfig(extra="allow")` + `get_platform_config()` extension point | Lets any plugin self-declare its own config section with zero core `config_schema.py` edits; the 7 built-in platforms keep full strict validation | ✓ Good |
+| (v4.2) Canonical `delay_seconds`/`delay_jitter` with legacy back-compat shim | Unifies platform delay-config naming without breaking existing configs; activated Amazon/BestBuy poll jitter for the first time | ✓ Good |
+| (v4.2) RH-07 resolved to GitHub Private Vulnerability Reporting only, no published email | PVR is GitHub-native and audit-logged; avoids publishing a personal maintainer address | — Pending (operator sign-off; decision made autonomously in operator's absence) |
+| (v4.2) BF-02 marker propagation scoped to Amazon + BestBuy only this milestone | The 5 community plugins are independently EXPERIMENTAL/selector-unverified, lowering real-world exposure; deliberate scope cut, not a miss | ⚠️ Revisit (residual double-buy risk identical in mechanism to the closed bug) |
 
 ## Evolution
 
@@ -160,4 +258,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-25 — after v4.0 Win-the-Drop milestone (shipped)*
+*Last updated: 2026-08-02 — milestone v5.0 Real Release & Plugin Ecosystem scoped from a 221-finding full-repo sweep (PRs, security/quality scans, outstanding UAT, seed gaps, defect re-verification) plus an adversarial completeness pass*

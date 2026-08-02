@@ -125,6 +125,7 @@ async def test_retries_up_to_max_then_stops(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
         patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
         patch("asyncio.sleep", new=AsyncMock()),
@@ -145,6 +146,7 @@ async def test_max_cart_retries_zero_single_attempt(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
         patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
         patch("asyncio.sleep", new=AsyncMock()),
@@ -177,6 +179,7 @@ async def test_checkout_attempts_increments_before_each_attempt(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync", side_effect=record_inc),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -203,6 +206,7 @@ async def test_single_enqueue_on_success_confirmed(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -228,6 +232,7 @@ async def test_single_enqueue_on_success_legacy(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -258,6 +263,7 @@ async def test_backoff_sleep_called_between_failed_attempts(tmp_data_dir):
     order_id = "ORD-BACKOFF"
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -290,6 +296,7 @@ async def test_second_attempt_sees_confirmed_order_from_first(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", side_effect=order_state_side_effect),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -322,6 +329,7 @@ async def test_no_retry_on_success_with_no_order_id(tmp_data_dir):
 
     with (
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -357,6 +365,121 @@ async def test_legacy_purchased_item_zero_auto_buy_calls(tmp_data_dir):
     plugin.auto_buy.assert_not_awaited()
     assert mock_inc.call_count == 0
     assert write_queue.empty()
+
+@pytest.mark.asyncio
+async def test_possibly_placed_aborts_retry(tmp_data_dir):
+    """BF-02: marker set + order_id None -> _PossiblyPlaced aborts retry (no re-click)."""
+    plugin, _ = _make_plugin([False, False, False])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    plugin.auto_buy.assert_not_awaited()
+    assert mock_inc.call_count == 0
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_possibly_placed_precedence_confirmed_order_wins(tmp_data_dir):
+    """Pitfall 6: an existing non-null order_id short-circuits via _AlreadyConfirmed
+    BEFORE the marker check is ever reached (sentinel != needs-manual-review)."""
+    plugin, _ = _make_plugin([True])
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(True, "ORD-EXISTING")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ) as mock_marker,
+        patch("core.orchestrator.increment_checkout_attempts_sync") as mock_inc,
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    plugin.auto_buy.assert_not_awaited()
+    mock_marker.assert_not_called()
+    assert mock_inc.call_count == 0
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_login_failure_short_circuits_retry_and_alerts_once(fake_notifier):
+    """BF-03/D-15: a login-stage (False, None) result is non-retryable INSIDE with_retry
+    (login/auto_buy invoked exactly once, not max_attempts) and fires exactly one
+    login_failed alert -- proves loop suppression, not merely a post-hoc alert."""
+    from notifications.dispatcher import NotificationDispatcher
+
+    call_counter = {"n": 0}
+
+    plugin = MagicMock()
+    plugin.__class__.__name__ = "FakePlugin"
+    plugin._checkout_stage = "login"
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=3, backoff_jitter=0.0)
+
+    async def fake_auto_buy(url):
+        call_counter["n"] += 1
+        plugin._checkout_stage = "login"
+        return False
+
+    plugin.auto_buy = AsyncMock(side_effect=fake_auto_buy)
+
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, dispatcher)
+
+    assert call_counter["n"] == 1, (
+        f"login/auto_buy must be invoked exactly once on a login-stage failure "
+        f"(max_attempts=4 configured); got {call_counter['n']} -- loop suppression failed"
+    )
+    login_failed_events = [e for e in notifier.events if e.action == "login_failed"]
+    assert len(login_failed_events) == 1, (
+        f"Expected exactly 1 login_failed alert, got {len(login_failed_events)}"
+    )
+    assert write_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_non_login_stage_failure_still_retries(tmp_data_dir):
+    """Regression: a (False, None) result at a non-login stage must still retry
+    (should_retry only suppresses on stage=='login'; every other stage is unchanged)."""
+    plugin, _ = _make_plugin([False, False, False])
+    plugin.config.checkout = _make_checkout_config(max_cart_retries=2, backoff_jitter=0.0)
+    write_queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+        patch("core.confirmation.detect_order_confirmation", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://fake.com/item", write_queue, None)
+
+    # _make_plugin defaults _checkout_stage to "place-order" (not "login")
+    assert plugin.auto_buy.await_count == 3, "Non-login-stage failures must still retry to max_attempts"
+
 
 @pytest.mark.asyncio
 async def test_no_retry_loop_in_orchestrator():

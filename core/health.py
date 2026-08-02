@@ -24,6 +24,7 @@ class HealthRegistry:
                 "consecutive_errors": 0,
                 "items_checked": 0,
                 "orders_confirmed": 0,
+                "last_error": None,
                 "_degraded_armed": False,
             }
 
@@ -38,6 +39,12 @@ class HealthRegistry:
     def record_error(self, name: str) -> None:
         self._ensure(name)
         self._plugins[name]["consecutive_errors"] += 1
+
+    def record_last_error(self, name: str, exc: BaseException) -> None:
+        # SSE-03: store the exception CLASS NAME only. Never str(exc) — it can
+        # carry proxy credentials / API keys into the browser-facing snapshot.
+        self._ensure(name)
+        self._plugins[name]["last_error"] = exc.__class__.__name__
 
     def reset_errors(self, name: str) -> None:
         self._ensure(name)
@@ -69,8 +76,25 @@ class HealthRegistry:
         return self._plugins[name]["consecutive_errors"]
 
     def get_snapshot(self) -> dict[str, dict]:
-        """Return a deep copy of per-plugin records with private keys stripped."""
-        return {
-            name: {k: v for k, v in rec.items() if not k.startswith("_")}
-            for name, rec in self._plugins.items()
-        }
+        """Return a deep copy of per-plugin records with private keys stripped.
+
+        Adds a derived ``heartbeat_age_secs`` key: ``None`` when the plugin has
+        never heartbeated (``last_heartbeat == 0.0``); otherwise the elapsed
+        seconds since the last heartbeat, rounded to one decimal place.  The
+        monotonic clock is process-local so this value must be computed here
+        rather than at the API route boundary (Phase 29 SSE poll reads
+        get_snapshot() directly).
+        """
+        now = time.monotonic()
+        result = {}
+        for name, rec in self._plugins.items():
+            public = {
+                k: v for k, v in rec.items()
+                if not k.startswith("_") and k != "last_heartbeat"
+            }
+            lhb = rec["last_heartbeat"]
+            public["heartbeat_age_secs"] = (
+                None if lhb == 0.0 else round(now - lhb, 1)
+            )
+            result[name] = public
+        return result

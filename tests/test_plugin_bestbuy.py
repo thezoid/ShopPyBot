@@ -10,7 +10,7 @@ update_item_purchased must be called once with the item url after a successful b
 import asyncio
 import importlib.util
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -173,7 +173,7 @@ async def test_autobuy_returns_true_without_direct_db_write(fake_browser):
         "BestBuyPlugin module must not import update_item_purchased (ASYNC-05)"
     )
 
-    with patch.object(plugin, "login", new=AsyncMock(return_value=None)), \
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
          patch.dict("os.environ", {"BB_EMAIL": "test@test.com", "BB_PASSWORD": "pw"}):
 
         result = await plugin.auto_buy(item_url)
@@ -391,3 +391,202 @@ def test_bestbuy_checkout_stage_default_is_empty_string():
     assert plugin._checkout_stage == "", (
         f"_checkout_stage must default to '' on BestBuyPlugin, got {plugin._checkout_stage!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# BF-02 (ISOLATED/DROPPABLE parity): durable place-order marker written
+# before the click (Plan 30-04, Task 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_auto_buy_passes_order_marker_link(fake_browser):
+    """CR-01 parity (mirrors Amazon's fix, Task 1): auto_buy must delegate the
+    durable marker write to place_order_guarded by passing order_marker_link=url --
+    NOT write the marker itself unconditionally before the guard runs."""
+    item_url = "https://www.bestbuy.com/site/test/1234.p"
+
+    plugin = BestBuyPlugin(config=_make_config(test_mode=False, monitor_only=False))
+    plugin.driver = fake_browser
+    plugin._cvv = "123"
+
+    from core.checkout_profile import CheckoutProfile
+    plugin._checkout_profile = CheckoutProfile(
+        first_name="Jane", last_name="Doe",
+        address_line1="123 Main St", city="Springfield",
+        state="IL", zip_code="62701", country="US", phone="5551234567",
+    )
+
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
+         patch.dict("os.environ", {"BB_EMAIL": "test@test.com", "BB_PASSWORD": "pw"}):
+        result = await plugin.auto_buy(item_url)
+
+    assert result is True
+    plugin.place_order_guarded.assert_awaited_once()
+    _, kwargs = plugin.place_order_guarded.call_args
+    assert kwargs.get("order_marker_link") == item_url
+
+
+@pytest.mark.asyncio
+async def test_bestbuy_auto_buy_test_mode_writes_no_marker(fake_browser):
+    """CR-01 parity: reaching place-order with test_mode=True must NOT write the
+    durable marker -- the click is suppressed inside place_order_guarded."""
+    item_url = "https://www.bestbuy.com/site/test/1234.p"
+
+    plugin = BestBuyPlugin(config=_make_config(test_mode=True, monitor_only=False))
+    plugin.driver = fake_browser
+    plugin._cvv = "123"
+
+    from core.checkout_profile import CheckoutProfile
+    plugin._checkout_profile = CheckoutProfile(
+        first_name="Jane", last_name="Doe",
+        address_line1="123 Main St", city="Springfield",
+        state="IL", zip_code="62701", country="US", phone="5551234567",
+    )
+
+    with patch.object(plugin, "login", new=AsyncMock(return_value=True)), \
+         patch("models.mark_place_order_attempted_sync") as mock_marker, \
+         patch.dict("os.environ", {"BB_EMAIL": "test@test.com", "BB_PASSWORD": "pw"}):
+        result = await plugin.auto_buy(item_url)
+
+    assert result is False
+    mock_marker.assert_not_called()
+
+
+def test_bestbuy_place_order_marker_not_via_write_queue():
+    """CR-01/BF-02: the marker write must not be routed through write_queue (D-01
+    durability); auto_buy delegates the write to place_order_guarded via
+    order_marker_link rather than calling mark_place_order_attempted_sync itself.
+
+    Checks non-comment lines only -- explanatory comments about *why* the marker
+    avoids write_queue are fine; actual code referencing write_queue is not.
+    """
+    source_lines = _PLUGIN_PATH.read_text(encoding="utf-8").splitlines()
+    assert any("order_marker_link=url" in line for line in source_lines), (
+        "BestBuy plugin must pass order_marker_link=url to place_order_guarded"
+    )
+    violations = [
+        (i + 1, line)
+        for i, line in enumerate(source_lines)
+        if "write_queue" in line and not line.lstrip().startswith("#")
+    ]
+    assert not violations, (
+        "BestBuy plugin must not reference write_queue in code for the place-order "
+        f"marker (D-01): {violations}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BF-03: login() -> bool via _verify_login_generic (D-11/D-12/D-13/D-14/D-15)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_missing_credentials(monkeypatch, fake_browser):
+    """login() returns False when BB_EMAIL/BB_PASSWORD are unset (D-14)."""
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.return_value = None
+    monkeypatch.setattr(_bestbuy_module, "get_store", lambda: fake_store)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_on_exception(monkeypatch, fake_browser):
+    """login() returns False (never raises) on any exception during sign-in (D-13)."""
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_bestbuy_module, "get_store", lambda: fake_store)
+    fake_browser.get = AsyncMock(side_effect=RuntimeError("network error"))
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_returns_true_when_verified(monkeypatch, fake_browser):
+    """login() returns True only after _verify_login_generic confirms a redirect
+    off /identity/signin (D-12)."""
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_bestbuy_module, "get_store", lambda: fake_store)
+    plugin._verify_login_generic = AsyncMock(return_value=True)
+    result = await plugin.login()
+    assert result is True
+    plugin._verify_login_generic.assert_awaited_once_with(ANY, "/identity/signin", "#fld-e")
+
+
+@pytest.mark.asyncio
+async def test_login_returns_false_when_verification_fails(monkeypatch, fake_browser):
+    """login() returns False when _verify_login_generic cannot confirm success (D-13)."""
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_bestbuy_module, "get_store", lambda: fake_store)
+    plugin._verify_login_generic = AsyncMock(return_value=False)
+    result = await plugin.login()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_login_save_session_called_only_after_verification(monkeypatch, fake_browser):
+    """save_session() must be called only after _verify_login_generic confirms success."""
+    plugin = BestBuyPlugin(config=_make_config())
+    plugin.driver = fake_browser
+    fake_store = MagicMock()
+    fake_store.get.side_effect = lambda key: "creds" if "EMAIL" in key or "PASSWORD" in key else None
+    monkeypatch.setattr(_bestbuy_module, "get_store", lambda: fake_store)
+    plugin._verify_login_generic = AsyncMock(return_value=False)
+    plugin.save_session = AsyncMock()
+    result = await plugin.login()
+    assert result is False
+    plugin.save_session.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_sets_checkout_stage_login_before_login_call(fake_browser):
+    """auto_buy sets _checkout_stage='login' immediately before calling login()
+    (BestBuy: login runs mid-flow, after add-to-cart/checkout-proceed, Pitfall 3)."""
+    item_url = "https://www.bestbuy.com/site/test/1234.p"
+    plugin = BestBuyPlugin(config=_make_config(test_mode=False, monitor_only=False))
+    plugin.driver = fake_browser
+    stage_at_login_call = {}
+
+    async def _fake_login():
+        stage_at_login_call["stage"] = plugin._checkout_stage
+        return False  # abort immediately after capturing the stage
+
+    plugin.login = _fake_login
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+
+    result = await plugin.auto_buy(item_url)
+
+    assert stage_at_login_call.get("stage") == "login"
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_auto_buy_aborts_on_failed_login(fake_browser):
+    """auto_buy returns False and never reaches place-order when login() returns False (D-15).
+
+    D-15 uniform behavior: abort ALL remaining stages (not "no add-to-cart occurred"
+    -- BestBuy's login() runs after add-to-cart/checkout-proceed already fired).
+    """
+    item_url = "https://www.bestbuy.com/site/test/1234.p"
+    plugin = BestBuyPlugin(config=_make_config(test_mode=False, monitor_only=False))
+    plugin.driver = fake_browser
+    plugin.login = AsyncMock(return_value=False)
+    plugin.place_order_guarded = AsyncMock(return_value=True)
+
+    result = await plugin.auto_buy(item_url)
+
+    assert result is False
+    plugin.place_order_guarded.assert_not_awaited()

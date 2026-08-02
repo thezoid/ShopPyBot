@@ -1,0 +1,30 @@
+# NOTE: requires gitleaks/gitleaks-action to be allowlisted under
+# Settings -> Actions -> General -> Actions permissions (repo currently
+# restricts to selected/GitHub-owned actions only, or "Allow all actions").
+# Otherwise the run ends in startup_failure with zero jobs.
+name: gitleaks
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

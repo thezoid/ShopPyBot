@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Win-the-Drop
-status: Awaiting next milestone
-last_updated: "2026-06-25T01:32:12.122Z"
-last_activity: 2026-06-25 — Milestone v4.0 completed and archived
+milestone: v5.0
+milestone_name: Real Release & Plugin Ecosystem
+status: executing
+last_updated: "2026-08-02T18:19:06.904Z"
+last_activity: 2026-08-02
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 29
-  completed_plans: 29
-  percent: 100
+  total_phases: 15
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 1
+  percent: 0
 ---
 
 # ShopPyBot — State
@@ -20,81 +20,152 @@ progress:
 **Core Value**: Drop-in plugin framework — community adds retail platform integrations via a single Python file in `plugins/`; no core changes required.
 
 **Project**: ShopPyBot
-**Milestone**: v4.0 Win-the-Drop (Acquisition Core + Reliability)
-**Total Phases**: 7 (Phases 18-24)
-**Total Requirements**: 17
+**Milestone**: v5.0 Real Release & Plugin Ecosystem (Phases 36-50)
+**Total Phases**: 15 (Phases 36-50)
+**Total Requirements**: 84 (MAIN-01..07, PKG-01..06, PUB-01..09, FIX-01..11, SCAN-01..11, QUAL-01..09, PAR-01..06, EXT-01..17, OPS-01..02, UAT-01..06)
 
 ---
 
 ## Current Position
 
-Phase: Milestone v4.0 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-25 — Milestone v4.0 completed and archived
+Phase: 36 (Mainline Reconciliation) — EXECUTING
+Plan: 3 of 5
+Status: Ready to execute 36-03 (push PR #11 head, merge PR #11, verify CI on master)
+Last activity: 2026-08-02 -- Phase 36 Plan 02 complete (divergence absorbed by merge, both conflicts union-resolved, merged tree green at 961 passed / 0 failed across 963 collected; nothing pushed)
+
+**Carry into 36-03:**
+- Local `chore/v4.0-milestone-close` tip is unpushed and ready for a **plain, fast-forward-safe push**. `origin/chore/v4.0-milestone-close` at `e2f2695` is a proven ancestor of local HEAD, so no force is needed and none is permitted.
+- Conflict-resolution merge commit: `635c1d3be8ba015a9da58b2242e69038a5859016` (parents `7875a01` branch, `36f75c7` master).
+- **Use `/mingw64/bin/git`, not bare `git`.** The rtk shell hook was confirmed live to drop merge commits from `git log <range>` output. Plan 36-03 task 2's per-SHA ancestry proof reads from a range query and is directly exposed.
+- `36-COMMIT-DISPOSITION.md` holds the 21-SHA MAIN-03 record and ends with `Post-merge ancestry verification: pending (plan 03 task 2)`. Plan 36-03 task 2 owns flipping that line.
+- `required_status_checks.strict: true` on master. If master moves before the PR #11 merge, an `update-branch` is required first.
+- Expected non-blocker: the Actions allowlist is not widened for `gitleaks-action` and `release-please-action`, so those two workflows arrive on master with PR #11 and are expected to fail at action-resolution time. Phase 38 scope; record it, do not treat it as a merge defect or a fix-forward trigger.
 
 ## Phase Status
 
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
-| 18 — Safety Gate + Config Foundation | monitor-only mode + place_order_guarded() ABC + CheckoutConfig schema | Complete | BUY-01, BUY-02 |
-| 19 — DB Schema + Confirmation Detection | order_id/confirmed_at columns + core/confirmation.py; purchased only on real order | Complete | BUY-03, BUY-04 |
-| 20 — Checkout Profile + Form-Fill | 9-key CredentialStore profile; BestBuy + Amazon form-fill; CVV getpass-only | Complete | BUY-07 |
-| 21 — Per-Step Timeouts + Unified Retry + Cart-Retry | core/retry.py RetryPolicy; per-step asyncio.timeout; idempotent cart-retry | Complete | BUY-05, BUY-06, REL-08 |
-| 22 — Supervisor + Browser Relaunch + Server Safety | per-coroutine supervision; failure budget; full relaunch sequence; DB read isolation; SIGTERM bridge | Complete | REL-01, REL-02, REL-03, REL-05, REL-06, SRV-02 |
-| 23 — Encrypted Session Persistence | core/session_store.py Fernet cookies; CDP restore path; replaces Phase 22 stub | Complete | REL-04 |
-| 24 — Health Surface + Server Safety | core/health.py HealthRegistry; get_status() expansion; health_degraded alert; pygame headless guard | Complete | REL-07, SRV-01 |
+| 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | In Progress (2/5 plans; MAIN-05, MAIN-06 done; MAIN-02, MAIN-03 resolved locally, pending proof on master) | MAIN-01..07 |
+| 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | Not started | PKG-01..06 |
+| 38 — Scanning to Zero | Dependabot/CodeQL/secret-scanning queues to zero real findings; required checks + branch protection | Not started | SCAN-01..11 |
+| 39 — Quality Floor | Lint, format, typecheck, coverage enforced in CI before the milestone's new code lands | Not started | QUAL-01..09 |
+| 40 — Public-Repo Readiness | LICENSE, nodriver README, honest sample config, CODEOWNERS, drift corrected, SEED-001 retired | Not started | PUB-01..09 |
+| 41 — Live Defect Closure | Control commands report the truth; unattended alerts arrive; dashboard data is current | Not started | FIX-01..11 |
+| 42 — Plugin Registry Hardening (H1) | A malformed plugin cannot take down start, the dashboard, `plugins list`, or `run_plugin` | Not started | EXT-01, EXT-02 |
+| 43 — Plugin Roots, Precedence & API Version Gate (H2) | User-writable second root, bundled-wins collisions, API version enforced at load | Not started | EXT-03, EXT-04, EXT-05 |
+| 44 — Provenance, Load-Boundary Integrity & Run Lock (H3) | Managed plugins carry provenance; drifted files do not execute; lifecycle commands tell the truth | Not started | EXT-06, EXT-07, EXT-08 |
+| 45 — Community Plugin Parity + Pre-Transfer Arming Gate (G) | 5 community plugins reach the Amazon/BestBuy safety floor; the shared checkout gate is built once | Not started | PAR-01..06 |
+| 46 — Trust Tiers & Capability Reduction (H4) | Third-party plugins disarmed for checkout by default; per-platform credential scoping; never the CVV | Not started | EXT-09, EXT-10 |
+| 47 — Fetch, Pre-Flight, Install & Consent (H5) | `plugins install` pinned by commit SHA, statically screened, gated by typed consent | Not started | EXT-11, EXT-12, EXT-13 |
+| 48 — Plugin Lifecycle (H6) | `update`/`remove`/`verify`/`outdated`; re-consent on change; removal prints a rotation checklist | Not started | EXT-14 |
+| 49 — Trust Documentation, Registry & Vocabulary Guard (H7) | Nothing shipped calls third-party plugins safe; machine-readable registry retires the wiki table | Not started | EXT-15, EXT-16, EXT-17 |
+| 50 — Ops Hardening & UAT Consolidation | Bounded, indexed price history; one honest operator verification checklist | Not started | OPS-01..02, UAT-01..06 |
 
 ---
 
 ## Performance Metrics
 
-**Plans completed**: 29 of 29
-**Requirements completed**: 17 of 17 (BUY-01..07, REL-01..08, SRV-01, SRV-02)
-**Phases completed**: 7 of 7
+**Plans completed**: 2 of TBD
+**Requirements completed**: 2 of 84 (MAIN-05, MAIN-06; MAIN-02 and MAIN-03 resolved locally, counted once proven on `master` in 36-03)
+**Phases completed**: 0 of 15
 **Blockers resolved**: 0
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 36 | 01 | 13min | 3 | 2 |
+| 36 | 02 | 16min | 3 | 7 |
 
 ---
 
 ## Accumulated Context
 
-### Key Decisions Logged
+### Sequencing Invariants (v5.0 — carry into planning)
+
+The seven hard constraints from REQUIREMENTS.md, mapped onto phase numbers. Reordering
+phases without re-checking these breaks the milestone.
+
+- **Phase 36 before Phase 38.** Several SCAN requirements target workflows that do not exist on `master` until PR #11 lands.
+- **Phase 37 before any release cut.** release-please exists to publish an artifact that currently cannot start.
+- **Phase 37 (PKG-06) before Phase 43 (EXT-03).** If `bundled_plugins_dir()` does not survive a wheel install, the `importlib.resources` fix is Phase 37 work, not workstream H's.
+- **Phase 42 (EXT-01) is the first EXT phase.** Every later EXT step multiplies the number of non-conforming plugins reaching paths that currently raise.
+- **Phase 46 (EXT-09) before Phase 47 (EXT-11).** The disarm default must already be true when install ships, so no released state has a stranger's freshly installed plugin able to buy by default.
+- **Phase 45 (PAR-03) and Phase 46 (EXT-09) are one mechanism.** Both are a pre-transfer gate at `core/orchestrator.py:571`. Phase 45 builds it for the community plugins; adjacent Phase 46 extends it with the third-party disarm default. Two gates that can diverge is the failure mode.
+- **EXT-15 (Phase 49) gates milestone completion, not phase ordering.** Phase 50 may follow it.
+
+Deliberate, non-constraint orderings:
+
+- Phase 39 (Quality Floor) precedes Phases 41-50 so the milestone's new code is written under an enforced standard rather than retrofitted to one.
+- Phase 41's FIX-08 (escape + length-cap the plugin name) precedes Phase 47, which is what makes that value attacker-controlled.
+- Phase 40's LICENSE precedes Phase 49's liability language, which lands beside it.
+- Phases 42/43/44/46/47/48/49 are H1-H7 from `research/SUMMARY.md` in its reconciled order. That order is researched, not re-derived — do not reshuffle it during planning.
+
+### Research Flags (v5.0 — carry into planning)
+
+- **Phase 36:** highest-risk phase in the milestone. Small in requirement count, large in blast radius: a 263-commit merge whose CI has never executed, so the first green run is also the first evidence the merge is correct. Budget verification room, not just merge mechanics.
+- **Phase 43:** blocked on PKG-06's factual answer (does the bundled plugin root resolve from an installed wheel?). `plugins*` is in `packages.find` and the plugin files are `.py` modules rather than data files, so discovery probably works — but verify against an actual built wheel before this phase plans.
+- **Phase 47:** the consent prompt copy is an acceptance criterion, not an implementation detail. Re-read the consent-fatigue evidence (Böhme and Köpsell CHI 2010; Chrome SSL interstitial clickthrough) before writing it. Type the plugin name back, not `y`; four to six lines of facts, not prose; no bare `--yes`.
+- **Phase 47:** two open decisions to make here rather than guess — whether `GITHUB_TOKEN` joins `SECRET_KEYS` or stays environment-only, and whether the install-time import smoke test ships at all (if it does, it must run strictly after consent is granted, never before).
+- **Phase 46 or 47:** whether a `sys.addaudithook` detection layer ships, and at what scope. Needs a measurement, not a design opinion. Whatever ships is labelled detection and forensics, never prevention.
+- **Phase 49:** where the third-party disclaimer text lives (SECURITY.md section, a new `docs/PLUGIN_TRUST.md`, or both) and whether a first-run acknowledgement exists. The install-time half is Phase 47; the first-run half is an unresolved product call. Liability wording carries a MEDIUM confidence flag and is not legal advice.
+- **All EXT phases:** the dominant risk is overclaiming, not a missing feature. Import is execution and nothing in v5.0 changes that. Attach to every shipped control one sentence naming what it does not stop.
+
+### REVIEW.md Deep-Pass Assignments (v5.0)
+
+Per RETROSPECTIVE.md lesson 4, two phases carry a post-verification REVIEW.md deep pass:
+
+- **Phase 45** (Community Plugin Parity + Pre-Transfer Arming Gate) — safety-critical guard.
+- **Phase 47** (Fetch, Pre-Flight, Install & Consent) — the milestone's new unauthenticated input surface. Phase 48 extends the same surface; re-run both criteria against `update`/`remove` before closing it.
+
+Both reviews carry the same two non-negotiable criteria: (a) for every shipped control, one sentence naming what it does not stop; (b) confirmation that no shipped artifact describes third-party plugins as sandboxed, isolated, curated, verified, or safe. EXT-17 makes (b) mechanical.
+
+### Scope Decision Recorded at Roadmap Time (v5.0)
+
+- **REL-01 (event-loop stall watchdog) stays in v2.** Research `SUMMARY.md` Gap 5 asked whether it belongs to H, to G, or to a deferred reliability item. It is a reliability control rather than a distribution control, `asyncio.timeout` cannot preempt a blocking plugin regardless of where that plugin came from, and the exposure exists today with the 7 bundled plugins. Folding it into H would silently expand that workstream. Recorded as a decision, not an omission.
+
+### Key Decisions Logged (v4.1)
+
+- [Phase 25 — roadmap]: charting library = uPlot 1.6.32 (MIT, ~52KB IIFE + ~1KB CSS, interactive tooltips, Canvas 2D, time series); vendored to `web/static/uplot.min.js` + `web/static/uplot.min.css`; no CDN, no Node.
+- [Phase 25 — roadmap]: CSS 3-file split: `tokens.css` (`:root` blocks only), `components.css` (component rules via `var(--xxx)` only), `dashboard.css` (layout + `@import`); each file stays under 200 lines.
+- [Phase 25 — roadmap]: FOUC prevention: inline synchronous `<script>` as FIRST child of `<head>` (before any `<link>`); reads `localStorage.getItem("theme")` and sets `document.documentElement.dataset.theme`; executes before browser requests any CSS.
+- [Phase 27 — roadmap]: SSE bridge pattern: uvicorn-side `_poll_loop` background task is the SOLE SSE producer; calls `asyncio.to_thread(svc.get_status)` on uvicorn's event loop; bot daemon thread never touches `asyncio.Queue` objects. BotService is unchanged.
+- [Phase 27 — roadmap]: SPIKE recommended at Phase 27 start — validate lifespan + `asyncio.create_task` + `SseHub` wiring against actual `web/__init__.py` `create_app()` factory before full implementation.
+- [Phase 26 — roadmap]: `get_status()` `last_error` scrubbed to `exc.__class__.__name__` only at the `get_status()` boundary (never `str(exc)`); CI assertion validates SSE frames contain no credential-pattern strings (`@`, `password`, `token`, `key=`, `cvv`).
+- [Phase 26 — roadmap]: No new Python dependencies; raw `StreamingResponse(media_type="text/event-stream")` from starlette (already transitive dep) covers all SSE needs; do NOT add `sse-starlette`; do NOT upgrade FastAPI to 0.135+ in this milestone.
+- [Phase 26 — roadmap]: Log plugin-filter (OBS-08) is contingent — verify `writeLog` consistently tags lines with `[PLUGIN_NAME]` before building; if inconsistent, defer plugin filter sub-feature (not the whole requirement) to post-v4.1.
+
+### Key Decisions Logged (v4.0 carried)
 
 - [Phase 10-01]: create_app() router imports deferred inside factory body to avoid circular import; all fastapi imports confined to web/ package (CLI-04)
 - [Phase 10-01]: WEB_ALLOWLIST extends CLI ALLOWLIST with 4 notifier toggles only (no platform enables -- AppConfig has no enabled field per config-scope-note)
 - [Phase 10-01]: TemplateResponse uses new Starlette API signature: TemplateResponse(request, name, context) to avoid DeprecationWarning
-- Plugin interface: only `check_availability` and `auto_buy` are abstract; `login` and `detect_captcha` get no-op defaults — preserves contributor-friendliness
-- Plugin naming convention enforced: `shopbot_plugin_*.py`; non-matching files get a warning log, not a crash
-- One WebDriver instance per plugin (`self.driver` in `__init__`); no shared global driver — required for async safety
-- CVV via `getpass` at runtime; credentials via env vars only — must be complete before open source launch
-- SMS/Twilio is opt-in disabled by default to prevent accidental charges
-- nodriver preferred over Selenium for new plugins (async-native, bot-detection resistant); Selenium retained for Phase 1/2 refactor continuity
-- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
-- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
-- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
-- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern
-- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
-- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
-- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
-- [Phase 18-01]: monitor_only: bool = False in DebugConfig; default is False per CONTEXT.md (STATE.md was stale; CONTEXT.md wins)
-- [Phase 18-01]: CheckoutConfig uses Field(ge=) scalar bounds only; no @field_validator needed (scalar numeric bounds sufficient)
-- [Phase 18-01]: checkout: CheckoutConfig = CheckoutConfig() declared as explicit AppConfig class attribute; extra=ignore cannot drop a declared field (T-18-03 mitigated)
 - [Phase 18-02]: place_order_guarded is a concrete async method on RetailerPlugin ABC; test_mode default True (fail-safe suppress when config missing); PLUGIN_API_VERSION stays 2 (additive BUY-02)
+- [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
+- [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
 
-### Research Flags (carry into planning — v4.0)
+### Research Flags (v4.1 — carry into planning)
 
-- Phase 19 (confirmation selectors): Per-retailer confirmation URL patterns are HIGH confidence (Amazon `/gp/buy/thankyou`, BestBuy `/checkout/r/thank-you`). Backup DOM selectors (`#confirmedOrderId`, `#widget-purchaseConfirmationStatus` for Amazon; `.thank-you-order-number`, `[data-testid="order-number"]` for BestBuy) are MEDIUM confidence and require live UAT on a `test_mode` buy before hardcoding in `core/confirmation.py`. Flag: `--research-phase` during Phase 19 planning.
-- Phase 21 (checkout_attempts semantics): The DB schema adds `checkout_attempts INTEGER DEFAULT 0` but the increment strategy is unresolved: on every `auto_buy()` call entry, on every cart-add attempt, or only on confirmed orders. Must be an explicit decision in Phase 21 planning to avoid ambiguous double-buy detection.
-- Phase 22 (nodriver relaunch + CDP stealth): Whether `add_script_to_evaluate_on_new_document` persists across `Browser.stop()` + restart or must be re-injected needs validation against installed `nodriver==0.50.3` before finalizing `plugin.relaunch()`. Flag: `--research-phase` during Phase 22 planning.
-- Phase 23 (nodriver CDP cookie API): `cdp.storage.set_cookies()` exact import path and `CookieParam` constructor signature should be verified against installed `nodriver==0.50.3` before committing the restore path. The workaround is confirmed from nodriver issues #1816/#2020 but the exact API shape needs local verification. Flag: `--research-phase` during Phase 23 planning.
-- All checkout phases: Never log `self._cvv`; use `exc.__class__.__name__` not `str(exc)` on checkout exception paths; never add CVV/CARD_NUMBER to SECRET_KEYS. Add CI grep assertion blocking `_cvv` in any `writeLog` argument (carry-forward from v3.0 policy per PITFALLS 6.4).
-- Phase 22 (double-buy guard): Per-item timeout must wrap only the `check_availability` + `auto_buy` portion of `_check_and_buy`; `write_queue.put()` calls must be OUTSIDE the timeout context so a timed-out item cannot orphan a pending DB write (PITFALLS #10).
-- Phase 22 (DB error isolation): Distinguish `sqlite3.OperationalError` (transient locked — skip poll cycle, continue) from `sqlite3.DatabaseError` (fatal corruption — log CRITICAL, propagate) on read path (PITFALLS #11).
+- Phase 25: Run MC-4 test against the new template before closing the phase — non-local banner must remain visible and correctly styled in both themes (Pitfall 9).
+- Phase 26: Verify log line format for `[PLUGIN_NAME]` tag consistency before building plugin filter in `read_logs_filtered()`; if inconsistent, scope OBS-08 to level+search only (plugin filter deferred).
+- Phase 27: Spike at phase start — validate `asyncio.create_task(_poll_loop(...))` inside FastAPI lifespan context manager against installed `fastapi==0.115.8` + `uvicorn==0.30.6` before full implementation (cross-loop race is highest-risk pitfall).
+- Phase 27: `request.is_disconnected()` must be polled inside the SSE generator loop — verify FastAPI 0.115.8 supports this API (HIGH confidence per research, but confirm before implementing).
+- Phase 28: Price data is Amazon-only today (PRICE-02); non-Amazon items get explicit "No price history available for this plugin" message — never a blank chart area.
+- All phases: Zero-Node constraint is hard — no package.json, no CDN references, no external font URLs; all JS/CSS vendored via `web/static/`.
+
+### Sequencing Notes (v4.2 — carry into planning)
+
+- Phase 30 (Breakfix Hardening) is sequenced first: BF-02 is the milestone's one HIGH-priority item (place-order-timeout double-buy latch); closing it before other debt reduces exposure the longest.
+- Phase 31 must land before Phase 32: RH-04 (CodeQL) and RH-05 (dependabot) put CI security scanning in a working state before RH-02 (release-please) starts tagging releases against that same CI.
+- Phase 32: RH-03 (pyproject version reconcile to 2.0.0) lands in the same phase as RH-02 (release-please seed) — release-please needs a correct pyproject source-of-truth from its first run.
+- Phase 33: CFG-01 (field harmonization) must be implemented before CFG-02 (flexible per-platform config) — both touch the same config-schema surface; CFG-02 builds on the harmonized field set.
+- Phase 34 FC-01 carries the v4.1 Phase 26 research flag forward: verify `[PLUGIN_NAME]` log-tag consistency in `writeLog` before building the `/api/logs` plugin filter (was deferred from OBS-08 pending this verification).
+- Phase 35 folds Audit-Fixes (AF-*) and Doc-Hygiene (DH-*) together — both are low-effort, low-risk cleanup; sequenced last as the milestone's closing phase.
 
 ### Active Todos
 
-- v4.0 complete + archived. Run `/gsd:new-milestone` to scope the next cycle (phase numbering continues from 24).
-- Operator: work the v4.0 live-UAT checklist (Deferred Items below) before the first production live-buy.
+- **v5.0 roadmap is created.** Phases 36-50, 84/84 requirements mapped, no orphans. Next step: `/gsd:plan-phase 36`.
+- Phase 36 is the gate on everything else. Until PR #11 and #12 land and CI compiles on `master`, no other phase's work is durable and the v4.1/v4.2 "shipped" claims stay branch-only.
+- Operator: the deferred live-UAT checklists below are consolidated by Phase 50 (UAT-04) into one file with a stated acceptance bar. Running them stays operator work.
+- Operator (still open from the 2026-08-01 audit): Dependabot is repo-level PAUSED — unpause once PR #11 is in (Phase 36 → Phase 38 SCAN-01). **Update 2026-08-02 (36-01):** `dependabot[bot]` deleted PR #8's head branch 8 seconds after that PR was closed, so Dependabot is demonstrably reacting to events on this repo right now. That is the Pitfall 5 interaction expected to lift the 90-day-inactivity version-update pause. Treat a stalled `@dependabot rebase` in plans 36-04/05 as a real anomaly, not an assumed pause. Caveat: branch cleanup and version-update rebasing are separate subsystems, so this narrows the question rather than closing it.
 
 ### Blockers
 
@@ -104,21 +175,9 @@ Last activity: 2026-06-25 — Milestone v4.0 completed and archived
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-06-05. All are live cross-OS/UI manual checks documented in docs/PLATFORMS.md; none are code gaps. Phase 12 closed all of these.
+### Carried from v4.0 milestone close (2026-06-25) — 17 items
 
-| Category | Item | Status |
-|----------|------|--------|
-| verification | Phase 08 — keyring/encrypted-file live backend selection + restart persistence | human_needed |
-| verification | Phase 09 — masked-TTY setup entry (Windows PowerShell + Ubuntu) | human_needed |
-| verification | Phase 10 — web dashboard live render / Start-Stop / log poll / 0.0.0.0 warning | human_needed |
-| verification | Phase 11 — live cross-OS path + backend matrix | human_needed |
-| uat | Phase 11 — 11-HUMAN-UAT.md (6 live cross-OS scenarios) | partial (6 pending) |
-| uat | Phase 01 — 01-UAT.md | partial (0 pending) |
-| uat | Phase 19 — per-retailer confirmation selectors (Amazon + BestBuy) | UAT required before Phase 19 finalizes selectors |
-
-### Acknowledged at v4.0 milestone close (2026-06-25) — 17 items
-
-All deferred per the autonomous live-UAT policy; none are code gaps. This is the operator's pre-production live-buy checklist. Source: `gsd-sdk query audit-open` at close.
+All deferred per the autonomous live-UAT policy; none are code gaps. This is the operator's pre-production live-buy checklist.
 
 | Category | Item | Status |
 |----------|------|--------|
@@ -134,43 +193,111 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone) |
 | seed | SEED-002 — release-please automatic version tagging | dormant (release milestone) |
 
-**Tracked HIGH item (from audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening.
+**Tracked HIGH item (from v4.0 audit):** Phase 21 place-order-stage timeout double-buy edge (placed-but-unconfirmed) — verify live and consider P22-style hardening. **Addressed in v4.2 Phase 30 (BF-02).**
+| Phase 30 P01 | 22min | 3 tasks | 5 files |
+| Phase 30-breakfix-hardening P02 | 12min | 2 tasks | 2 files |
+| Phase 30-breakfix-hardening P03 | 10min | 2 tasks | 3 files |
+| Phase 30-breakfix-hardening P04 | 5min | 2 tasks | 4 files |
+| Phase 30-breakfix-hardening P06 | 10min | 2 tasks | 10 files |
+| Phase 30-breakfix-hardening P05 | 19min | 2 tasks | 4 files |
+| Phase 31 P01 | 6min | 2 tasks | 3 files |
+| Phase 31-ci-security-infrastructure P02 | 5min | 2 tasks | 2 files |
+| Phase 31 P03 | 8min | 2 tasks | 3 files |
+| Phase 32-release-automation-community-readiness P01 | 10min | 3 tasks | 4 files |
+| Phase 32 P02 | 9min | 2 tasks | 1 files |
+| Phase 32 P03 | 5min | 2 tasks | 2 files |
+| Phase 33 P01 | 6min | 3 tasks | 5 files |
+| Phase 33 P02 | 12min | - tasks | - files |
+| Phase 34-feature-completion P01 | 3min | 2 tasks | 3 files |
+| Phase 34 P03 | 15min | 3 tasks | 6 files |
+| Phase 34 P02 | 4min | 2 tasks | 9 files |
+| Phase 35 P01 | 5min | 3 tasks | 5 files |
+| Phase 35 P02 | 8min | 2 tasks | 8 files |
+| Phase 35 P03 | 5min | 2 tasks | 20 files |
+| Phase 36 P01 | 13min | 3 tasks | 2 files |
+
+### Acknowledged at v4.1 milestone close (2026-06-30) — 8 items
+
+All deferred per the autonomous live-UAT policy; none are code gaps. Operator dashboard/observability checklist plus carried release items.
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 27 — SSE infra live-socket checks (27-VERIFICATION.md) | human_needed |
+| verification | Phase 28 — observability surfaces live-browser render (28-VERIFICATION.md) | human_needed |
+| verification | Phase 29 — SSE client wiring live-browser (29-VERIFICATION.md) | human_needed |
+| verification | Phase 29.1 — tech-debt fixes live-runtime (29.1-VERIFICATION.md) | human_needed |
+| uat | Phase 29.1 — cold-load chart / stall->fallback / repeated-msg after repaint (29.1-HUMAN-UAT.md) | partial (3 pending) |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); manual-pause fallback in place. **In scope as v4.2 Phase 30 (BF-01), code wiring only — live-challenge proof stays operator debt.** |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant (release milestone). **Non-destructive audit half in scope as v4.2 Phase 31 (RH-01); destructive rewrite stays operator-gated.** |
+| seed | SEED-002 — release-please automatic version tagging | dormant (release milestone). **In scope as v4.2 Phase 32 (RH-02/RH-03).** |
+
+**Audit warnings tracked to backlog (non-blocking, from v4.1 audit refresh):** UI-03 SSR remove-button dead click handler (Phase 25, graceful-degradation, not XSS) — **in scope as v4.2 Phase 35 (AF-01).** `last_heartbeat` raw monotonic float in `get_status()` / SSE status payload (Phase 27, cosmetic, no credential exposure) — **in scope as v4.2 Phase 35 (AF-02).**
+
+### Acknowledged at v4.2 milestone close (2026-07-03) — 8 items
+
+All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledged via the pre-close open-artifact audit (`gsd-sdk query audit-open`) — live-browser/live-retailer/live-GitHub-Actions checks are structurally impossible in CI per this milestone's own "done = code-complete + CI-green" definition.
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 30 — Breakfix Hardening live-UAT (WAF challenge, double-buy edge, community-plugin login selectors) (30-VERIFICATION.md) | human_needed |
+| verification | Phase 31 — CI & Security Infrastructure live Actions runs (gitleaks/CodeQL green-run, Dependabot queue drain) (31-VERIFICATION.md) | human_needed |
+| verification | Phase 32 — Release Automation live Actions run + PVR toggle (32-VERIFICATION.md) | human_needed |
+| verification | Phase 33 — Config Refactor live poll-cadence jitter observation (33-VERIFICATION.md) | human_needed |
+| verification | Phase 34 — Feature Completion live-browser visual/theme rendering (log filter, analytics view) (34-VERIFICATION.md) | human_needed |
+| todo | Amazon WAF CAPTCHA auto-solve wiring (waf-auto-solve-followup.md) | pending (medium); code wiring shipped in v4.2 Phase 30 (BF-01) — live-challenge proof stays operator debt |
+| seed | SEED-001 — public repo history scrub/squash before release | dormant; non-destructive audit shipped in v4.2 Phase 31 (RH-01) — destructive rewrite stays operator-gated |
+| seed | SEED-002 — release-please automatic version tagging | dormant; code-complete in v4.2 Phase 32 (RH-02/RH-03) — first live Actions run pending operator Actions-allowlist widen |
+
+**Code-level tech debt carried forward (from v4.2-MILESTONE-AUDIT.md):** BF-02's write-ahead place-order marker is wired for Amazon + BestBuy only — the 5 community plugins (Walmart, Target, GameStop, NewEgg, SquareEnix) do not yet pass `order_marker_link` to `place_order_guarded`, leaving the same double-buy exposure BF-02 was created to close (pre-declared deferred scope; all 5 plugins independently EXPERIMENTAL/selector-unverified).
+
+**Operator-action items (confirmed still open by live checks during the v4.2 audit):** enable GitHub Private Vulnerability Reporting; widen the Actions allowlist for `gitleaks/gitleaks-action` + `googleapis/release-please-action`; merge release-please PR #11 to master; add a LICENSE file if open-sourcing; decide on a dedicated conduct-report channel; sign off on RH-07's PVR-only channel decision (made autonomously in the operator's absence).
 
 ---
-| Phase 18 P02 | 267 | 2 tasks | 2 files |
-| Phase 18 P18-03 | 8m | 2 tasks | 6 files |
-| Phase 18 P04 | 18 | 2 tasks | 9 files |
-| Phase 19 P19-01 | 4min | 3 tasks | 2 files |
-| Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
-| Phase 19 P19-03 | 3min | 1 task | 2 files |
-| Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
-| Phase 20 P20-01 | 8min | 2 tasks | 3 files |
-| Phase 20 P20-02 | 6min | 2 tasks | 3 files |
-| Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
-| Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
-| Phase 21 P21-02 | 7min | 1 tasks | 2 files |
-| Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
-| Phase 21 P04 | 20min | 1 tasks | 3 files |
-| Phase 22 P01 | 8min | 2 tasks | 3 files |
-| Phase 22 P02 | 6min | 2 tasks | 2 files |
-| Phase 22 P03 | 21min | 3 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
-| Phase 23-encrypted-session-persistence P23-03 | 3min | 1 task | 1 file |
-| Phase 23-encrypted-session-persistence P23-04 | 12min | 3 tasks | 5 files |
-| Phase 24-health-surface-server-safety P24-01 | 8m | 2 tasks | 2 files |
+| Phase 25-design-system P01 | 566s | 2 tasks | 2 files |
+| Phase 25-design-system P02 | 480s | 3 tasks | 5 files |
+| Phase 25-design-system P03 | 412 | 3 tasks | 1 files |
+| Phase 26-read-only-api-endpoints P01 | 360 | 3 tasks | 2 files |
+| Phase 27-sse-infrastructure P01 | 274s | 2 tasks | 2 files |
+| Phase 27-sse-infrastructure P02 | 120s | 2 tasks | 2 files |
+| Phase 27-sse-infrastructure P03 | 600 | 2 tasks | 3 files |
+| Phase 28-frontend-observability-surfaces P01 | 269 | 2 tasks | 2 files |
+| Phase 28-frontend-observability-surfaces P02 | 262 | 2 tasks | 2 files |
+| Phase 28-frontend-observability-surfaces P03 | 379 | 2 tasks | 1 files |
+| Phase 28-frontend-observability-surfaces P04 | 420 | 2 tasks | 1 files |
+| Phase 29-sse-client-wiring PP01 | 233s | - tasks | - files |
+| Phase 29-sse-client-wiring P02 | 240 | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last action**: Phase 23 Plan 03 complete -- CI guard test_no_committed_sessions.py; 648 passed, 10 skipped.
-**Next action**: Execute Phase 23 Plan 04 (plugin ABC save_session/restore_session implementation).
-**Context to carry**: SessionStore uses [salt][Fernet token] layout mirroring EncryptedFileBackend; build_session_store() is the factory for plugin ABC callers; restore() returns None (not raises) on InvalidToken per REL-04 contract; session_persistence field declared on all 7 platform models; CI guard asserts no .bin committed and data/* gitignore rule in place.
+**Last action (v5.0 roadmap)**: Milestone v5.0 Real Release & Plugin Ecosystem roadmapped. 84 requirements across 10 workstreams (A-J) mapped to 15 phases (36-50), continuing the phase numbering from v4.2's Phase 35 — no reset. Coverage 84/84, zero orphans, zero duplicates. Structure: Phase 36 MAIN (highest-risk, the 263-commit merge whose CI has never run), 37 PKG, 38 SCAN, 39 QUAL, 40 PUB, 41 FIX, then workstream H's researched H1-H7 order as Phases 42/43/44/46/47/48/49 with Phase 45 (PAR) inserted between H3 and H4 so PAR-03 and EXT-09 build one pre-transfer arming gate in adjacent phases, and Phase 50 closing on OPS + UAT. All 7 hard sequencing constraints verified satisfied and recorded in both ROADMAP.md and REQUIREMENTS.md. REVIEW.md deep passes assigned to Phases 45 and 47. UI hints on Phases 41 and 43. Files written: `.planning/ROADMAP.md` (v5.0 section added, all six shipped-milestone `<details>` blocks preserved untouched), `.planning/REQUIREMENTS.md` (Traceability populated per-requirement, placeholder ranges replaced), `.planning/STATE.md` (this file).
+
+**Last action (36-01)**: Phase 36 Plan 01 complete, the first irreversible plan of v5.0 and its first live writes to the public GitHub repo. Three mutations, all audited in the new `.planning/phases/36-mainline-reconciliation/36-MERGE-LOG.md`: (1) annotated tag `pre-v5-mainline` (tag object `7edffb33`) pushed to origin peeling to `e98ec83ff9e47459902c3c0615fd428f5dd27caf`, the phase rollback point, created only after `git ls-remote --tags origin refs/tags/pre-v5-mainline` returned empty; (2) **MAIN-05** PR #12 (signal handlers off the main thread) merged as merge commit `36f75c7643e5a72b72ac95a6d521edd8ffbb2971`, so `origin/master` advanced `e98ec83` to `36f75c7`. Because `required_status_checks.strict: true`, `gh pr update-branch 12` ran first and moved the head `3f27a2dff279852ced3f8712b56f582173946a3b` to `b1d7b8f5aef3b8767236eb5ba02b60ec97894695`; both are ancestors of `origin/master`, and both are recorded since 36-VALIDATION.md's MAIN-05 row names the pre-update SHA. `mergeStateStatus` reached `CLEAN` on poll iteration 4 of a 30-iteration budget with all six checks in bucket `pass` (no `skipping`, so Pitfall 4's allowance was never needed); (3) **MAIN-06** PR #8 (urllib3 1.26.5 to 1.26.18, open since 2023) closed unmerged with a superseded comment, after proving the premise from `origin/master` (`requirements.txt` pins exactly one `urllib3==2.7.0`, ahead of the PR's target, so merging would be a downgrade). Comment `https://github.com/thezoid/ShopPyBot/pull/8#issuecomment-5159680032` satisfies the MAIN-06 grep for both `urllib3==2.7.0` and `superseded`. Safety posture held throughout: no force operation of any kind, no direct push to `master` (the only ref pushed directly was the tag), no `--admin`/`--squash`/`--rebase`/`--auto`, and branch protection read identically before and after (`strict: true`, contexts `CodeQL` + `test (windows-latest)` + `test (ubuntu-latest)`, `enforce_admins: false`, force pushes disabled). None of the plan's four STOP conditions fired. Three observations recorded rather than papered over: PR #12 actually touched 2 files (`core/orchestrator.py` plus a new `tests/test_signal_registration_thread.py`) where the plan's `<verified_state>` named 1; `dependabot[bot]` self-deleted PR #8's head branch 8 seconds after the close (timeline-confirmed actor, NOT this executor, whose `--delete-branch=false` was honoured as proven by PR #12's head branch surviving the same flag); and two acceptance-criteria commands are brittle as written (a jq `\\.` escape loses a backslash layer through this harness on Windows, and `gh pr view --json mergedAt --jq .mergedAt` prints an empty line rather than the literal `null`), with robust replacements recorded in 36-MERGE-LOG.md's Tooling Note. Commits: `969b322` (audit log opened), `d04c5ca` (PR #12 row), `c321509` (PR #8 row), `c618989` (summary). MAIN-05 and MAIN-06 marked complete in REQUIREMENTS.md.
+
+**Next action (v5.0)**: `/gsd:execute-phase 36` — run plan 36-02 (PR #11 conflict resolution). **Its base is `origin/master` at `36f75c7`, not the `e98ec83` recorded at planning time**, so `git merge-tree` must be re-derived rather than assumed; PR #12 touched only `core/orchestrator.py` and a new test file, so neither conflict file (`.github/dependabot.yml`, `requirements.txt`) should be disturbed, but confirm rather than assume. Good news for plans 36-04/05: Dependabot reacted to the PR #8 close within 8 seconds, which is exactly the 36-RESEARCH.md Pitfall 5 interaction expected to lift the 90-day-inactivity version-update pause, so a stalled `@dependabot rebase` should be treated as a real anomaly rather than an assumed pause (caveat: branch cleanup and version-update rebasing are different Dependabot subsystems, so this is strong evidence, not proof). Note also that PR #12's ~32-second green CI run is master's ~757-test suite, **not** the merged tree's ~939 — MAIN-01's real proof still belongs to plan 36-03 against master's post-#11 HEAD. **MAIN-03 caution:** 36-CONTEXT.md records the include-all decision against 8 local commits, but `git rev-list --count origin/chore/v4.0-milestone-close..HEAD` now returns **18** (the original 8, plus 5 phase-36 planning commits, plus this plan's 5), and it will grow again before 36-02 pushes. Do not record MAIN-03 against the literal number 8; re-derive the SHA list with raw `git log` as 36-VALIDATION.md already mandates, and write one include row per actual SHA. Only `0cebc9e` (`feat(cli)` port auto-select) is code; the other 17 are docs.
+
+**Context to carry (v5.0)**: The milestone premise is that four shipped milestones' claims are ahead of reality — `master` is 263 commits behind, PR #11's `ci.yml` fails to compile so the v4.1+v4.2 suite has never run in CI, the built wheel contains no data files so `shoppybot web` cannot start from an install, and the public repo has no LICENSE. The workstream H trust model is consent plus SHA and content pinning plus honest provenance, explicitly **not** a sandbox; the dominant risk across every EXT phase is overclaiming, not a missing feature. Import is execution and nothing in v5.0 changes that.
 
 ---
 
-*Last updated: 2026-06-12 -- Phase 23 Plan 03 complete*
+**Last action**: Phase 33 Plan 02 complete (CFG-02: generic per-platform config declaration. `PlatformsConfig` gained `model_config = ConfigDict(extra="allow")` as its first class-body statement — an undeclared `platforms.<key>` section now passes through as a raw dict instead of being silently dropped (the literal bug CFG-02 fixes); the 7 declared platform fields keep full strict validation unchanged, proven by `test_known_platform_strict_validation_intact`. Added `RetailerPlugin.get_platform_config(model_cls)` to `core/plugin_base.py`: getattr-safe, four-case return logic (`model_cls()` defaults on missing config/key/section; the already-validated instance for a built-in platform; `model_cls(**raw)` for a new plugin's passthrough dict, raising `ValidationError` fail-loud on bad data; `model_cls()` fallback). `PLUGIN_API_VERSION` stays 2. Fixture-plugin test (`tests/test_platform_config_extension.py`) proves a brand-new `platforms.costco` section loads+validates via a test-module-scope `CostcoPlatformConfig` model (no `importlib.import_module` of the exec_module-loaded tmp plugin, per the plan's revised approach) with `core/config_schema.py` touched by nothing beyond the single `extra="allow"` line. TDD: RED->GREEN across 2 task commits; during GREEN verification, found the plan's proposed `AppConfig(**{"platforms": {...}})` fixture-construction snippet silently no-ops (`AppConfig.settings_customise_sources` excludes `init_settings` from its source tuple) — fixed by switching to the codebase's established `yaml_file=<Path>` injection pattern (Rule 1 auto-fix, test-only, no production-code change).) Full suite: 898 passed, 2 skipped (baseline 894 + 4 net-new tests), no regression. **Phase 33 (Config Refactor) is now fully complete: CFG-01 (33-01) and CFG-02 (33-02) both landed.** CFG-01 and CFG-02 marked complete in REQUIREMENTS.md. STATE.md/ROADMAP.md updated.
+**Next action**: Continue `/gsd:execute-phase 35` -- run plan 35-03 (DH-01/02/03 frontmatter reconciliation), the phase's final plan. Phase 35 Plans 01 (AF-01 + AF-03) and 02 (AF-02) are now complete.
+**Context to carry**: v4.2 is a debt-closure + release-hardening milestone; "done" = code-complete and CI-green, no live-environment testing in scope. Phase 30 (Breakfix) shipped first since BF-02 was the milestone's only HIGH item; 30-01..30-06 all complete. Phase 31 is fully complete (31-01 RH-01 secret-scan audit, 31-02 RH-04 CodeQL fix + ci.yml Node20 bump, 31-03 RH-05 dependabot + vuln remediation). Phase 32 is fully complete (32-01 RH-02/RH-03 release-please seed + pyproject reconcile, 32-02 RH-06 README rewrite, 32-03 RH-07 security contact). Phase 33 is now fully complete (33-01 CFG-01 field harmonization + back-compat shim, 33-02 CFG-02 generic per-platform config extension point via extra="allow" + get_platform_config). CI-verification/operator debt carried forward (post-push, not actioned this session per no-push policy): gitleaks-run green (31-01), CodeQL Actions green-run (31-02), Dependabot alert queue drain (31-03), release-please Actions-permissions allowlist gate (32-01 — third-party action blocked until operator widens selected-actions policy), and the PVR-enable repo Settings toggle (32-03) — all operator-gated GitHub Settings changes, not code gaps. New operator-UAT item from 33-01: live Amazon/BestBuy availability-poll cadence is now jittered 30-40s (was flat 30s) -- observable only against a live run, tracked in 33-VALIDATION.md. Phase 35 folds AF-* + DH-* as a trailing low-risk cleanup phase.
 
-## Performance Metrics (v1 + v2.0 + v3.0 history)
+**Last action (34-01)**: Phase 34 Plan 01 complete (FC-01: `[plugin]` log tag guarantee. `logger.py` gained a module-level `_current_plugin: ContextVar[str]` (default `"core"`) and `set_log_plugin(platform_key)` that coerces falsy input to `"core"`. `writeLog()` now builds one `head = f"[{type.upper()}][{plugin}][{ts}]"` reused identically for both the colored `print()` and the file write — level bracket stays first, plugin is the second bracket, timestamp computed once (consolidating the pre-existing double `datetime.now()` call). `core/orchestrator.py:supervise()` calls `set_log_plugin(getattr(plugin, "platform_key", None) or plugin.__class__.__name__.lower())` as its first executable statement; `asyncio.TaskGroup`/`create_task` context-copy semantics give automatic per-plugin isolation with no locking. TDD: RED->GREEN across 2 task commits (5 new tests: tag injection, `[core]` sentinel, level-first-bracket format-compat, falsy-input coercion, level-gate regression). Manual verification confirmed the produced line format: `[INFO][amazon][2026July02@20:33:04] checking stock`. Full suite: 906 passed, 2 skipped (baseline 901 + 5 net-new tests), no regression. No deviations -- plan executed exactly as written.) FC-01 marked complete in REQUIREMENTS.md.
+
+**Last action (34-03)**: Phase 34 Plan 03 complete (FC-02: outcome analytics, executed out of order ahead of 34-02 since the two plans touch disjoint files. `core/analytics.py` gained a PURE `compute_analytics(rows, platform_of)` -- stdlib `datetime` only, zero DB/fastapi imports -- computing `success_rate` (confirmed/attempted, union denominator `place_order_attempted_at IS NOT NULL OR order_id IS NOT NULL`, deliberately never `checkout_attempts` which increments under test_mode) and `avg_time_to_checkout_secs` (`confirmed_at - place_order_attempted_at` per confirmed row with both timestamps and a non-negative delta), overall + per-plugin, divide-by-zero-safe. `models.get_order_analytics_rows_sync()` mirrors `get_confirmed_orders_sync`. `BotService.get_analytics()` resolves `link -> platform_key` via `PluginRegistry.domain_patterns` (link never leaves this seam). `GET /api/analytics` (read-only, `asyncio.to_thread`, no `check_origin`) added to `web/routes/api.py`. Dashboard gained `#section-analytics`: two `.health-card` stat cards + a bare per-plugin `<table>`, rendered via `createElement`/`textContent` only (null metrics render "N/A"), wired into the initial backfill block. TDD: RED (4 fixture tests, `45e51a7`) -> GREEN (`c66fc6a`) for Task 1; Task 2 (`9bf6652`) added the endpoint + a no-link-key/CRED_PATTERN test; Task 3 (`71abe90`) added the dashboard view. Full suite: 912 passed, 2 skipped (baseline 906 + 6 net-new tests), no regression. Manual smoke test confirmed `BotService.get_analytics()` against a fresh empty DB returns valid JSON with `success_rate`/`avg_time_to_checkout_secs` = `null` and no `ZeroDivisionError`. No deviations -- plan executed exactly as written.) FC-02 marked complete in REQUIREMENTS.md. Phase 34 is now 2/3 plans complete -- 34-02 (`/api/logs` plugin filter, FC-01's remaining sub-feature) is the only plan left before Phase 34 closes.
+
+**Last action (34-02)**: Phase 34 Plan 02 complete (FC-01 filter+UI, the deferred half of OBS-08. `web/log_reader.py:read_logs_filtered` gained a trailing `plugin: str | None = None` param AND-composed with the existing level/search filters via the `[plugin]` tag guaranteed by 34-01's ContextVar (filter-then-limit order preserved). `web/routes/api.py:/logs` validates `plugin` against `re.fullmatch(r"[a-z0-9]+", ...)` (V5 defense-in-depth whitelist, invalid values dropped to `None`) before passing it as the 4th positional to `asyncio.to_thread(read_logs_filtered, ...)`. `core/service.py:list_plugins()` gained a `platform_key` key per plugin (never the class name). `web/routes/pages.py`'s dashboard route now offloads `svc.list_plugins()` via `asyncio.to_thread` (Refinement 1, matches the `/logs`|`/history`|`/analytics` convention) and passes `plugins` into the template context. `web/templates/dashboard.html` gained a `#log-plugin-filter` `<select>` in `.log-controls`, Jinja2-populated from `platform_key` values, wired to `pollLogs()`'s `plugin` query param via a `change` listener mirroring the level dropdown -- zero new CSS (reuses the existing `select` rule). Refinement 2 (FC-01 live-tail completion): added a pure `lineMatchesFilters(line, level, search, plugin)` JS guard and gated the SSE `'log'` listener's `appendLogLine` call behind it, so live-streamed lines now respect the active level/search/plugin filters (previously only the one-shot `pollLogs` snapshot was filtered -- the plugin filter, and incidentally level+search too, were bypassed during live tailing, the dashboard's primary mode). Refinement 3 (param whitelist) evaluated and kept as the generic regex per the plan's own threat-model escape hatch: an enum check against the live `platform_key` set would require a `to_thread`-wrapped filesystem+importlib `PluginRegistry` scan on every `/api/logs` request, a hot, continuously-polled endpoint. TDD: RED (`6c93c87`) -> GREEN (`039f242`) for Task 1 (4-arg `read_logs_filtered` contract + updated arity asserts); Task 2 (`8543b57`) added the dropdown + platform_key + both refinements as a single commit. No JS test harness exists in this Zero-Node codebase, so the live-tail filter guard is verified via 2 new static-analysis tests in `tests/test_sse_wiring.py` (presence + ordering of `lineMatchesFilters(...)` before `appendLogLine(...)` in the rendered HTML), matching the codebase's existing `test_no_onmessage_for_named_events`-style pattern. Full suite: 923 passed, 2 skipped (baseline 912 + 11 net-new tests), no regression. No deviations beyond the 3 orchestrator-directed refinements, all applied as specified.) FC-01 and FC-02 both marked complete in REQUIREMENTS.md. **Phase 34 (Feature Completion) is now fully complete: 34-01, 34-02, 34-03 all landed.** STATE.md/ROADMAP.md updated.
+
+**Last action (35-01)**: Phase 35 Plan 01 complete (AF-01 SSR remove-button graceful degradation + AF-03 dead escHtml() removal. `web/routes/pages.py` gained `POST /items/remove` on the unprefixed pages router: form-encoded, `Depends(check_origin)` CSRF-guarded (identical to every other mutating route), no-ops on an empty/missing `link` (never reaches `svc.remove_item`), calls `request.app.state.svc.remove_item(link)` for a non-empty link, and 303-redirects to `/` (POST/Redirect/GET). `web/templates/dashboard.html`'s dead SSR `.btn-remove` button (no JS listener existed anywhere) was replaced with a real `<form method="post" action="/items/remove">` + hidden `link` input + submit button reusing the existing `.btn-text-destructive` class -- the remove control now functions the instant the page loads or whenever `loadItems()`'s `fetch()` rejects, since `loadItems()` itself was left byte-for-byte unchanged (out of scope per RESEARCH.md Pitfall 1). AF-03: deleted the dead `escHtml()` helper (872-876) + its comment, confirmed 0 call sites via grep across `web/`. TDD: RED (`b9454d7`, 3 failing tests: functional remove+redirect, empty-link no-op, cross-origin 403) -> GREEN (`8f704ff`) for Task 1; Task 2 (`9794a10`) wired the SSR form + added an SSR-form-assertion test; Task 3 (`5e94f68`) deleted escHtml() + added a permanent grep-0 regression test. Full suite: 937 passed, 2 skipped (baseline 932 + 5 net-new tests), no regression. No deviations -- plan executed exactly as written.) AF-01 and AF-03 marked complete in REQUIREMENTS.md. Phase 35 is now 1/3 plans complete -- 35-02 (AF-02 last_heartbeat leak) and 35-03 (DH-01/02/03 frontmatter reconciliation) remain.
+
+**Last action (35-02)**: Phase 35 Plan 02 complete (AF-02: raw `last_heartbeat` monotonic float scrubbed from the single shaping boundary, `HealthRegistry.get_snapshot()` (`core/health.py`) -- the public-dict comprehension now also excludes `last_heartbeat` while the existing `heartbeat_age_secs` derivation is unchanged. Since both `BotService.get_status()` (passthrough) and the SSE `"status"` frame (`web/sse_hub.py` broadcasts `get_status()` verbatim) consume this one shaped dict, the single fix closed both public surfaces atomically. Critical lockstep consumer `core/cli/status.py` was updated in the SAME task/commit to read `heartbeat_age_secs` instead of computing `now - rec['last_heartbeat']`, avoiding the CLI silently regressing to always showing "never"; the now-orphaned `now = time.monotonic()` and `import time` were removed. TDD: RED confirmed (3 failures at the exact expected fix sites: `test_snapshot_public_keys_exact`, `test_snapshot_excludes_last_heartbeat`, `test_status_table`) before the GREEN production fix landed (`585484c`). Task 2 (`2143edc`) fanned the change across the 5 last_heartbeat-touching test files plus a new SSE-frame absence test (`tests/test_sse.py::test_sse_status_frame_excludes_last_heartbeat`, mirroring the existing `test_sse_no_credential_patterns` credential-pattern pattern) proving both the REST and SSE surfaces are clean; `grep -rn "last_heartbeat" tests/` confirms every remaining reference is an absence-assertion, none assert presence on a public surface. Full suite: 939 passed, 2 skipped (baseline 937 + 2 net-new tests), no regression. No deviations -- plan executed exactly as written.) AF-02 marked complete in REQUIREMENTS.md. **Phase 35 is now 2/3 plans complete -- 35-03 (DH-01/02/03 frontmatter reconciliation) is the only plan left before Phase 35 (and the v4.2 milestone) closes.**
+
+**Last action (35-03)**: Phase 35 Plan 03 complete (DH-01/02/03: v4.0/v4.1 planning-artifact frontmatter reconciliation, frontmatter-only, zero body edits. DH-01: v4.1 `25/26/27-VALIDATION.md` flipped `status: planned -> validated` + `wave_0_complete: false -> true` (backed by 763/776/785 full-suite tests passed per each phase's own SUMMARY/VERIFICATION; `nyquist_compliant: true` already correct, left untouched). DH-03: v4.0 `18..24-VALIDATION.md` (7 files) flipped ONLY `nyquist_compliant: false -> true`, per v4.0-MILESTONE-AUDIT.md's own explicit recommendation (755 full-suite tests passed); `status: draft` + `wave_0_complete: false` deliberately left untouched, narrower scope than DH-01 (RESEARCH.md Pitfall 5). DH-02: added `requirements:` frontmatter to Phase 28 `28-01..04-SUMMARY.md` (union = exactly OBS-01/02/03/04/06/09, verified via Python set-union check, the required fix per 28-VERIFICATION.md's Requirements Coverage table) plus Phase 27 `27-01..03-SUMMARY.md` (`[SSE-02]`) and Phase 29 `29-01..03-SUMMARY.md` (`[SSE-01]`) mirroring their own PLAN.md requirement IDs (discretionary polish per RESEARCH.md Open Question 1, low-cost so included). All 10 pre-edit frontmatter values grep-confirmed against the plan's `<current_frontmatter>` map before any edit; all 20 post-edit values grep-confirmed after. No `gsd` milestone-audit cross-reference tool exists in the SDK (`requirements` verb only exposes `mark-complete`), so verification relied on direct grep + set-union confirmation per the plan's documented fallback. Two atomic commits: `0b81b04` (Task 1, 10 VALIDATION.md files), `66bf260` (Task 2, 10 SUMMARY.md files). Full suite: 939 passed, 2 skipped (unchanged from 35-02 baseline -- frontmatter-only edits touch zero Python code). No deviations -- plan executed exactly as written.) DH-01, DH-02, DH-03 marked complete in REQUIREMENTS.md. **Phase 35 (Audit-Fixes & Doc-Hygiene Cleanup) is now fully complete: 35-01, 35-02, 35-03 all landed. The v4.2 Release Readiness milestone is now code-complete -- all 20 requirements (RH-01..07, AF-01..03, BF-01..03, CFG-01..02, FC-01..02, DH-01..03) landed.** STATE.md/ROADMAP.md updated.
+
+---
+
+## Performance Metrics (all milestones history)
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
@@ -238,122 +365,190 @@ All deferred per the autonomous live-UAT policy; none are code gaps. This is the
 | Phase 17-test-hardening P02 | 3min | 2 tasks | 1 files |
 | Phase 17-test-hardening P03 | 8min | 2 tasks | 2 files |
 | Phase 17-test-hardening P04 | 4min | 1 tasks | 1 files |
+| Phase 18 P02 | 267 | 2 tasks | 2 files |
+| Phase 18 P18-03 | 8m | 2 tasks | 6 files |
+| Phase 18 P04 | 18 | 2 tasks | 9 files |
+| Phase 19 P19-01 | 4min | 3 tasks | 2 files |
+| Phase 19-db-schema-confirmation-detection P02 | 8 | 2 tasks | 2 files |
+| Phase 19 P19-03 | 3min | 1 task | 2 files |
+| Phase 19-db-schema-confirmation-detection P19-04 | 15min | 3 tasks | 6 files |
+| Phase 20 P20-01 | 8min | 2 tasks | 3 files |
+| Phase 20 P20-02 | 6min | 2 tasks | 3 files |
+| Phase 20-checkout-profile-form-fill P03 | 7min | 2 tasks | 4 files |
+| Phase 20-checkout-profile-form-fill P04 | 14min | 3 tasks | 7 files |
+| Phase 21 P21-02 | 7min | 1 tasks | 2 files |
+| Phase 21-per-step-timeouts-unified-retry-cart-retry P03 | 30 | 2 tasks | 7 files |
+| Phase 21 P04 | 20min | 1 tasks | 3 files |
+| Phase 22 P01 | 8min | 2 tasks | 3 files |
+| Phase 22 P02 | 6min | 2 tasks | 2 files |
+| Phase 22 P03 | 21min | 3 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-01 | 4min | 2 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-02 | 5min | 2 tasks | 2 files |
+| Phase 23-encrypted-session-persistence P23-03 | 3min | 1 task | 1 file |
+| Phase 23-encrypted-session-persistence P23-04 | 12min | 3 tasks | 5 files |
+| Phase 24-health-surface-server-safety P24-01 | 8m | 2 tasks | 2 files |
+
+---
+
+*Last updated: 2026-08-02 — v5.0 roadmap created (Phases 36-50, 84 requirements mapped, 100% coverage)*
 
 ## Decisions
 
-- [Phase ?]: Used importlib.reload + monkeypatch.chdir in tests to isolate config.py module-level load without touching production code
-- [Phase ?]: PLUGIN_API_VERSION defined module-level before class body; importable without instantiation (T-01-VER)
-- [Phase 01-03]: yaml_file= constructor kwarg (not _yaml_file=) used for test injection; _active_yaml_file class sentinel bridges __init__ to classmethod settings_customise_sources
-- [Phase 01-03]: No env_prefix on AppConfig; single-user tool keeps DEBUG__LOGGING_LEVEL format simpler than SHOPBOT_DEBUG__LOGGING_LEVEL
-- [Phase ?]: [Phase 01-04]: Pinned all deps to exact installed versions; added nodriver==0.50.3 and pydantic-settings[yaml]==2.14.0 after human package-legitimacy approval; logger caches level at import (_LOGGING_LEVEL), eliminating per-loop config.yml reads
-- [Phase ?]: Phase-1 SEC-04: navigator.webdriver hidden on the existing Selenium driver via CDP injection; nodriver replaces it in Phase 2
-- [Phase ?]: Credentials sourced from env vars (BB_EMAIL/BB_PASSWORD); CVV via runtime getpass, never persisted or logged
-- [Phase ?]: open_browser hardcoded False pending AppConfig relocation (app block removed for SEC-01)
-- [Phase ?]: pytest-asyncio 1.3.0 with asyncio_mode=auto: no decorators needed on plain async def test_ functions
-- [Phase ?]: _route_all routes against _all_plugins to enable lazy-launch before active list is populated
-- [Phase ?]: D-02 closed: nodriver handles stealth architecturally; Selenium imports gone
-- [Phase ?]: Placeholder email SECURITY_CONTACT_PLACEHOLDER@example.com in SECURITY.md and CODE_OF_CONDUCT.md; maintainer must replace before launch
-- [Phase ?]: Anchored /config.yml in .gitignore to repo root to prevent ISSUE_TEMPLATE/config.yml exclusion
-- [Phase ?]: config.yml contact_links url points to SECURITY.md blob on master branch for private vulnerability reporting
-- [Phase ?]: TaskGroup of per-plugin coroutines with 1.5s stagger and single write-queue drain via asyncio.Queue
-- [Phase ?]: stdin listener thread uses loop.call_soon_threadsafe as the only thread-safe Event bridge; no direct event.set() from non-loop threads (ASYNC-03)
-- [Phase ?]: run_in_executor used only for sqlite3 calls and stdin readline; nodriver browser work stays on the event loop (ASYNC-01 primary model)
-- [Phase ?]: SoundNotifier: synchronous pygame calls (no executor, thread-safety unconfirmed)
-- [Phase ?]: DiscordNotifier: secret-safe error logging (class+status only, never webhook URL or str(exc))
-- [Phase ?]: Discord 429: raises RuntimeError with Retry-After; no retry loop in Phase 5 scope
-- [Phase ?]: build_dispatcher factory selects notifiers from config flags; dedup edge-trigger notifies once per restock via get_item_notification_state_sync
-- [Phase ?]: squareenix (no underscore) chosen for config key
-- [Phase ?]: Naming difference is intentional and documented
-- [Phase ?]: No separate helper module; Option A from RESEARCH Pattern 4
-- [Phase ?]: getattr-chain platform_key lookup: no hardcoded class-name string munging for jitter config
-- [Phase ?]: ANTI-02 UA always active -- falls back to DEFAULT_USER_AGENTS when platform user_agents empty
-- [Phase ?]: SC1 registry gate
-- [Phase 07-01]: BotService uses daemon thread with its own asyncio event loop for non-blocking start/stop from any sync caller
-- [Phase 07-01]: stop() cancels task via loop.call_soon_threadsafe so async_main's finally block runs teardown_all (no orphaned Chrome)
-- [Phase 07-01]: run() = asyncio.run(async_main(cfg, cvv)) identical to v1 behavior; CVV is a parameter only (never logged)
-- [Phase ?]: parse_known_args() in core.service:main() avoids sys.argv contamination when test calls main() directly
-- [Phase ?]: plugins/__init__.py added to make plugins/ a proper setuptools package; Phase 07-02 shoppybot entry point = core.service:main via pyproject.toml [project.scripts]
-- [Phase 07-03]: main.py is now a thin shim: validate+seed+getpass CVV gate then BotService(cfg).run(cvv); asyncio.run and async_main imports removed from main.py (now internal to core/service.py)
-- [Phase ?]: get_store lazy-fallback to EnvVarBackend keeps monkeypatch.setenv tests green (CRED-04)
-- [Phase ?]: _build_store stub returns EnvVarBackend in plan 08-01; auto-detection keyring->file->env deferred to plan 08-03
-- [Phase ?]: KeyringBackend uses SERVICE=shopbot hardcoded; keyring has no enumerate API so list() probes each SECRET_KEY individually (CRED-02)
-- [Phase ?]: EncryptedFileBackend: scrypt n=2**14 + fresh 16B salt per write; fdopen-in-with + os.replace-outside for Windows-safe atomic write; InvalidToken -> ValueError(SHOPBOT_STORE_PASSPHRASE) (CRED-03)
-- [Phase ?]: _build_store: explicit config > real keyring > encrypted-file (passphrase in env) > env-var; getpass deferred to explicit 'file' backend path only
-- [Phase ?]: get_store().get(KEY) replaces all os.environ secret reads in consumers; SC1 grep guard enforces no regression
-- [Phase 09-01]: build_parser() in core/cli/__init__.py owns the parser; core/service.py:main() delegates to it via build_parser() + parse_known_args(argv)
-- [Phase 09-01]: parse_known_args(argv) with explicit argv=None param; tests pass argv=[] to avoid sys.argv contamination in Python 3.13 strict subparser choices
-- [Phase 09-01]: handle_setup stub handles --migrate branch for back-compat; full interactive prompt body deferred to plan 09-02
-- [Phase ?]: [Phase 09-02]: handle_config_set raises SystemExit(2) for unknown keys -- consistent with _coerce pattern, required by test scaffold
-- [Phase ?]: [Phase 09-02]: sys.stdin.readline() in _prompt_backend instead of input() -- ASYNC-03 compliance
-- [Phase ?]: [Phase 09-02]: setup._write_backend reads _DEFAULT_YAML_PATH via import core.cli.config_cmd at call-time for monkeypatch testability
-- [Phase ?]: web.py lazy-import seam was correct from 09-01 stub; CLI-04 guard tests unskipped with SystemExit fix for run subcommand dispatch
-- [Phase ?]: bot_stop uses run_in_executor to dispatch blocking svc.stop() off event loop (T-10-08 mitigation)
-- [Phase ?]: svc.start() called with zero args (no CVV) per locked web-scope decision
-- [Phase ?]: bool() coercion applied to auto_buy and purchased when serializing 5-tuples to JSON items list
-- [Phase 10-03]: import core.credentials as module (not from-import) so patch("core.credentials.get_store") resolves the reference at call time in tests
-- [Phase ?]: [Phase 10-04]: Config routes in web/routes/config.py; WEB_ALLOWLIST gate (notifier toggles only, no platform enabled fields); SC3 HTML-leak guard test green
-- [Phase ?]: [Phase 11-01]: appauthor=False suppresses redundant vendor subdir on Windows for platformdirs
-- [Phase ?]: [Phase 11-01]: data_dir/config_path/log_dir re-read SHOPBOT_DATA_DIR on every call; env override seam keeps 341 tests green
-- [Phase ?]: [Phase 11-01]: platformdirs==4.10.0 pinned in requirements.txt and pyproject.toml core deps; tox-dev org, pre-vetted
-- [Phase ?]: [Phase 11-02]: logger.py lazy-imports core.paths.log_dir inside writeLog to avoid circular import with Plan 03
-- [Phase ?]: [Phase 11-04]: items list smoke pre-initializes DB via initialize_db() -- BotService.__init__ only calls init_store(), not initialize_db()
-- [Phase ?]: Option A (lazy import inside _load_logging_level) chosen over Option B (delete _CONFIG_PATH) to retain the constant for tooling inspection
-- [Phase ?]: [Phase 12-01]: TD-1 test isolation via finally-block reload: both tests restore logger to original import-time state to prevent _LOGGING_LEVEL bleed
-- [Phase ?]: TD-2 closed: Switch all three dirs_to_scan to rglob (not just core/) for future-proofing; companion assertion on core/cli/config_cmd.py proves recursion coverage
-- [Phase ?]: TD-3 closed: Separator guard anchored to Path(__file__).parent.parent with len(src_files)>0 guard; silent empty-list false-pass eliminated
-- [Phase ?]: [Phase 12-03]: TD-4 config seam accepted under MOD-02 -- write_web_config writes directly to _DEFAULT_YAML_PATH; BotService scope covers DB/registry/orchestrator only; WEB_ALLOWLIST is the safety boundary
-- [Phase ?]: [Phase 12-03]: MC-4 is_non_local banner gate proven both ways -- banner present when is_non_local=True, absent when is_non_local=False (Jinja2 conditional enforced in CI)
-- [Phase 12-04]: MC-1..MC-4 Windows variants recorded PENDING in docs/PLATFORMS.md (non-interactive agent env, no real TTY/restart cycle); MC-4 CI-asserted by tests/test_web_dashboard.py Plan 12-03; Ubuntu variants pending Ubuntu access
-- [Phase 13-01]: _parse_proxy_url uses stdlib urlparse; host_port always separate from credentials (T-13-01 mitigation; host_port stored on _ProxyEntry at construction time)
-- [Phase 13-01]: setup_proxy_auth is a no-op when username is empty; add_handler called before fetch.enable to avoid missing first 407 challenge (Pitfall 4)
-- [Phase 13-01]: ProxyPool.advance() returns None when all proxies retired; caller must fail loudly, never silently fall back to direct connection (Pitfall 2)
-- [Phase 13-01]: time.monotonic used for cooldown retired_until timestamps; module-level time attribute patched in tests (not global monotonic) for testability
-- [Phase 13-02]: ProxyConfig placed after CredentialsConfig before AppConfig; proxy: ProxyConfig = ProxyConfig() default-instance pattern; no model_validator or os.environ reads in ProxyConfig (credentials live in config.yml per RESEARCH Open Question 3)
-- [Phase 13-02]: sample.config.yml proxy example uses proxy.example.com placeholder only; real URLs in user's gitignored config.yml
-- [Phase ?]: [Phase 13-03]: Per-instance proxy scoping via registry.assign_proxy; conftest mock_nodriver_start gets AsyncMock on main_tab.send for apply_stealth compatibility
-- [Phase 14-01]: core/captcha.py uses Python logging module (not writeLog) -- writeLog writes stdout only; logging module enables caplog to capture security-assertion records in tests
-- [Phase 14-01]: TWOCAPTCHA_API_KEY is 20th SECRET_KEY; solve_count increments before network calls so cap is respected even when call raises
-- [Phase ?]: _build_captcha_solver helper extracted; assign_solver mirrors assign_proxy; BotService logging.getLogger for caplog-testable CAPTCHA startup log
-- [Phase ?]: _solve_or_pause helper; _wait_user_action always reused on fallback
-- [Phase ?]: Amazon WAF deferred; gokuProps -> manual pause; solve_amazon_waf not called this phase
-- [Phase ?]: PLUGIN_API_VERSION stays 2; no ABC changes; _captcha_solver injected as attribute
-- [Phase 15-01]: __init_subclass__ chosen for difficulty validation -- fails at class-definition time; plugins omitting difficulty inherit "medium" and are never invalidated
-- [Phase 15-01]: PLUGIN_API_VERSION stays 2; additive class attrs (difficulty/requires_proxy/requires_captcha) are non-breaking per RESEARCH Pattern 1
-- [Phase 15-03]: docs/PLUGIN_REGISTRY.md is the in-repo SPEC only; live GitHub wiki registry is populated manually by a maintainer on PR merge (Pitfall 5.1)
-- [Phase 15-03]: PR template Risk Declaration section replaced with Plugin Metadata section (difficulty/requires_proxy/requires_captcha); no duplicate risk section
-- [Phase 15-03]: PLUGIN_DEV.md ABC table column header updated to "Method / Attribute" to accommodate class-attr rows alongside method rows
-- [Phase 15-03]: tests/test_docs.py added with 4 doc-presence tests using Path(__file__).parent.parent as repo root; pattern available for future doc locking
-- [Phase ?]: Separate-update strategy: update_item_price_config_sync is standalone; add_items_sync 5-tuple unchanged
-- [Phase ?]: price_alert_armed/price_last_notified dedup columns strictly isolated from last_seen_available/last_notified (Pitfall 1 mitigated)
-- [Phase ?]: get_last_price_sync reads price_history newest-first; orchestrator must read BEFORE append to get previous price for drop trigger
-- [Phase 16-02]: _cents_to_display defined inline per notifier file; no shared helper module (single use-case per file, no abstraction needed)
-- [Phase 16-02]: get_price() is concrete non-abstract default on RetailerPlugin; PLUGIN_API_VERSION stays 2 (additive non-breaking, PRICE-02)
-- [Phase 16-02]: Amazon price selector list is site-specific and maintenance-required; documented in SUMMARY
-- [Phase 16-02]: _build_email_body() and _build_sms_body() extracted as testable module-level helpers; send() delegates to them
-- [Phase ?]: CDP assertion pattern
-- [Phase ?]: [Phase 18-03]: monitor_only gate uses getattr-safe access (plugin.config may be None in tests); defaults to False
-- [Phase ?]: [Phase 18-03]: --monitor-only CLI flag mutates cfg.debug.monitor_only on existing AppConfig instance; pydantic v2 mutable BaseModel, no reconstruction
-- [Phase ?]: [Phase 18-03]: needs_cvv adds not cfg.debug.monitor_only so CVV prompt never shown in monitor-only mode (T-18-09 mitigated)
-- [Phase ?]: checkout_attempts added with NOT NULL DEFAULT 0; never incremented in Phase 19 (Phase 21 owns increment)
-- [Phase ?]: update_item_confirmed_sync bind order: (order_id, confirmed_at, link) matching SET clause order
-- [Phase ?]: get_active_tab is sync def (not async); returns getattr(self.driver, 'main_tab', None); PLUGIN_API_VERSION stays 2 (additive BUY-03)
-- [Phase ?]: [Phase 20-04]: _fill_field logs selector name only never field value
-- [Phase ?]: [Phase 20-04]: Amazon shipping form-fill deferred to UAT Open Question 1; SPA onChange dispatch best-effort try/except Pitfall 7
-- [Phase ?]: 21-03
-- [Phase ?]: _AlreadyConfirmed sentinel to abort with_retry; WR-02 enqueue outside loop (21-04)
-- [Phase ?]: relaunch() proxy re-assignment is supervisor's responsibility before calling relaunch(); method takes no registry reference (REL-03)
-- [Phase ?]: setup() is the single stealth injection point in relaunch(); teardown errors swallowed with WARNING using exc.__class__.__name__ (Phase 22 REL-03)
-- [Phase 22-02]: sqlite3.OperationalError only caught in run_plugin items read; DatabaseError (corruption) propagates (REL-05 / Pitfall 7)
-- [Phase 22-02]: asyncio.timeout wraps only _check_and_buy; write_queue.put stays inside _check_and_buy after result is known, outside timeout context (REL-06)
-- [Phase 22-02]: cfg=None keyword default on run_plugin; item_timeout read via getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120) (forward-compatible)
-- [Phase ?]: supervise() catches Exception (not BaseException) so CancelledError propagates for clean shutdown; registry.assign_proxy called by supervisor before plugin.relaunch() (Phase 22 REL-01/REL-03)
-- [Phase 22-04]: _register_signals uses loop.add_signal_handler (POSIX) with NotImplementedError fallback to signal.signal (Windows); both paths cancel root_task via call_soon_threadsafe; _flush_write_queue drains queue before teardown_all so no pending DB write is lost on SIGTERM (SRV-02)
-- [Phase ?]: [Phase 23-01]: SessionStore mirrors EncryptedFileBackend [salt][Fernet token] layout; restore() returns None (not raises) on InvalidToken -- REL-04 silent login fallback contract
-- [Phase ?]: [Phase 23-01]: build_session_store() factory centralizes _resolve_passphrase() so plugin ABC callers (Plan 23-04) never duplicate env-var resolution
-- [Phase ?]: restore_session() fast-guards on store._passphrase is None directly; build_session_store() still used for actual ops
-- [Phase ?]: Startup registry loop calls restore_session() but NOT login() -- login stays lazy inside auto_buy() to avoid double-login or MFA block at startup
-- [Phase ?]: Raw CDP cookie restore via cdp_storage.set_cookies([CookieParam(...)]) -- never CookieJar.set_all() (nodriver bug #1816/#2020)
+- [Phase ?]: Phase 25-01: CSS comment stripping in test_no_external_urls_in_static prevents false positives on dashboard.css header comment text
+- [Phase ?]: Phase 25-01: test_no_innerHTML_with_api_data uses re.DOTALL to catch both XSS violations including the multiline cred.name case at line 255
+- [Phase ?]: CSS token split
+- [Phase ?]: escHtml unused stub
+- [Phase ?]: A2 chunking resolved: join chunks[:8] for SSE frame assertions
+- [Phase ?]: Phase 27-01: disconnect cleanup asserted via len(hub._queues)==0, not is_disconnected() (unreliable in TestClient)
+- [Phase ?]: Phase 27-01: each SSE test opens its own TestClient context manager (no shared fixture); lifespan runs per-test
+- [Phase ?]: TestClient compat
+- [Phase ?]: TestClient compat: detect starlette _TestClientTransport via http.response.debug scope extension; limit SSE generator to _TEST_MAX_FRAMES=20 in test context
+- [Phase ?]: _poll_loop poll_interval default changed to None; reads module var at runtime so test overrides of _POLL_INTERVAL_SECS take effect
+- [Phase ?]: SseHub instantiated in create_app factory body; asyncio.create_task(_poll_loop) only in lifespan where event loop is live
+- [Phase ?]: Phase 28-02: heartbeat_age_secs computed in get_snapshot() not at route boundary so Phase 29 SSE poll reads the field automatically
+- [Phase ?]: Phase 28-02: select rule added to components.css to match input[type=text] styling for log level dropdown
+- [Phase ?]: Phase 28-03: renderHealthCards and renderUptime are pure functions; MAX_LOG_LINES = 500 placed here so DOM cap test goes GREEN in wave 3
+- [Phase ?]: Phase 29-01: test_no_onmessage_for_named_events is GREEN at Wave 0 (anti-pattern guard; .onmessage absent from template; stays green through all plans)
+- [Phase 30-01]: place_order_attempted_at is a new dedicated TEXT column, not an overload of checkout_attempts or the CONFIRMED-<ts> sentinel (D-02)
+- [Phase 30-01]: D-15 login-failure loop suppression implemented via the should_retry closure predicate (plugin._checkout_stage != login), not a new exception or hand-rolled loop -- lowest-risk mechanism, reuses existing telemetry
+- [Phase 30-02]: WAF token injection via document.cookie tab.evaluate() (JS-eval), not CDP set_cookies — Plan permits either as best-effort per RESEARCH.md Assumption A1 (2captcha AmazonTask payload shape undocumented); JS-eval keeps the diff minimal with no new CDP imports
+- [Phase 30-02]: No redundant can_solve() re-check inside the WAF branch — The existing top-of-function solver gate already covers D-08 solver-unavailable fallback before WAF detection runs, mirroring the solve_recaptcha branch
+- [Phase 30-breakfix-hardening]: login() ABC default returns True (login-less plugin trivially logged in, D-14); every real plugin can now report a login failure — Enables the shared BF-03 verification mechanism without breaking existing no-op-login plugins
+- [Phase 30-breakfix-hardening]: _verify_login_generic is the single shared BF-03 verification mechanism (D-11), no per-plugin duplication — url-off-signin AND form-absent -> True; any ambiguity or exception -> False (D-13)
+- [Phase 30-breakfix-hardening]: relaunch() captures login_ok and logs ERROR on failure; no dispatcher plumbing added — relaunch() has never had orchestrator access; the D-15 operator alert already surfaces from the orchestrator's login_failed short-circuit (30-01) on the next monitoring cycle
+- [Phase 30-breakfix-hardening]: BF-02 marker import (mark_place_order_attempted_sync) is inline inside auto_buy(), not top-level -- keeps the first plugin->models write edge narrow and localized — Matches RESEARCH.md Pattern 1's exact example; avoids widening the plugin/models coupling beyond the single call site
+- [Phase 30-breakfix-hardening]: BestBuy parity marker write (Task 2) included rather than deferred — RESEARCH.md found the byte-identical swallowed-TimeoutError shape at bestbuy:389-396; the guard mechanism from 30-01 is platform-agnostic so closing the now-known symmetric exposure was low marginal cost
+- [Phase 30-breakfix-hardening]: 5 community plugins use the generic _verify_login_generic signal only (D-12), no platform-specific override — selectors are unverified TODOs; selector tuning stays operator debt per D-12
+- [Phase 30-breakfix-hardening]: D-15 implemented uniformly as abort-all-remaining-stages on failed login, not no-add-to-cart — all 5 community plugins call login() mid-flow after add-to-cart + checkout-proceed (Pitfall 3)
+- [Phase 30-breakfix-hardening]: Amazon/BestBuy auto_buy sets _checkout_stage="login" and calls login() at their existing (unchanged) positions -- Amazon before DOM interaction, BestBuy mid-flow after add-to-cart/checkout-proceed -- with uniform abort-all-remaining-stages on False — D-15 implemented consistently across all 7 plugins regardless of where login() sits in each flow, matching the 30-06 community-plugin precedent
+- [Phase 30-breakfix-hardening]: Amazon's tighter D-12 signal is absence of #ap_email (already the generic signal, since no live-verified account-landing selector exists); BestBuy's is redirect-off-/identity/signin (URL-only, honest available signal) — Neither plugin's post-login landing-page DOM is live-verified, so the URL-fragment-based generic check is the most honest signal available without inventing an unverified selector
+- [Phase 30-breakfix-hardening]: 30-REVIEW.md (deep code review, 2026-07-02) found CR-01 (critical): the BF-02 place-order marker was written unconditionally by Amazon/BestBuy auto_buy() before place_order_guarded's test_mode/monitor_only suppression check, permanently latching items reached under the documented-default test_mode=true with no click ever fired, plus a false possibly_placed alert. Gap-closure (same day, TDD, 4 commits: ba16879/22ec887/861fc79/dbe1345) resolved CR-01 (marker write moved into place_order_guarded via order_marker_link kwarg), MED-02 (possibly_placed alert now fires once per latch via alerted_links, not every poll cycle), LOW-03 (added clear_place_order_marker_sync recovery accessor), LOW-01 (redundant asyncio.TimeoutError tuple removed). MED-01 (community-plugin marker write) and LOW-02 (_checkout_stage invariant) remain deferred, pre-declared debt. Full suite: 887 passed, 2 skipped (baseline 878 passed, 2 skipped).
+- [Phase 31-01]: Suppressed the one gitleaks finding (tests/test_captcha.py:381 sentinel_key) with an inline #gitleaks:allow comment, not a .gitleaks.toml path exemption -- avoids silently suppressing a future real leak under tests/
+- [Phase 31-01]: No local gitleaks binary run this session (not pre-installed); CI enforcement path (gitleaks-action@v3) is self-contained and does not need one -- workflow validated by YAML correctness + acceptance-criteria greps
+- [Phase 31-02]: checkout@v6 + codeql-action@v4 used (not CONTEXT.md placeholder v4/v3) per live-verified research: current Node24 majors, not stale defaults
+- [Phase 31-02]: Folded ci.yml checkout@v4->v6 and setup-python@v5->v6 into this plan (orchestrator-directed) to close the adjacent Node20 exposure alongside the CodeQL fix
+- [Phase 31-02]: Autobuild step removed entirely rather than kept alongside build-mode -- Python is interpreted and autobuild is being phased out
+- [Phase ?]: [Phase 31-03]: Exact-pin style (==) kept for cryptography/pydantic-settings/jinja2 bumps, matching requirements.txt convention (resolves research Open Question #2)
+- [Phase ?]: [Phase 31-03]: cryptography bumped to latest 49.0.0 (not the minimum-patched 48.0.1 floor) -- removes the SECT-curve root-cause class outright; repo usage (Fernet/Scrypt only) has zero overlap with any deprecated/removed cipher surface
+- [Phase ?]: [Phase 31-03]: jinja2 bump applied in pyproject.toml [web] extra, not requirements.txt, despite the alert's manifest_path saying requirements.txt -- jinja2 is not declared in requirements.txt at all (research Pitfall 5)
+- [Phase 32-01]: Manifest-mode release-please with no extra-files entry; python release-type updates pyproject.toml natively
+- [Phase 32-01]: release-please workflow permissions scoped to exactly contents:write + pull-requests:write; no actions:write/id-token:write
+- [Phase 32-01]: Seeded .release-please-manifest.json at 2.0.0 = baseline only; release-please proposes the NEXT bump from commit history, does not re-tag 2.0.0
+- [Phase ?]: [Phase 32-02]: Collapsed README master/dev two-block badge layout to a single master-branch badge row (CI, CodeQL, Gitleaks) plus a static python-3.11+ badge; no fabricated license badge (no LICENSE file exists)
+- [Phase ?]: [Phase 32-02]: README Configuration section restructured to 3 explicit steps (non-secret config.yml edits vs .env credential setup) to align with SECURITY.md's env-var-only credential model
+- [Phase 32]: [Phase 32-03]: No email address substituted for the placeholder under any circumstance (D-RH-07 locked) -- GitHub PVR (security/advisories/new) is the sole reporting channel for both vulnerability and conduct reports
+- [Phase 32]: [Phase 32-03]: Operator note added inline in SECURITY.md (not just SUMMARY): Private Vulnerability Reporting must be enabled once in repo Settings -> Security -> 'Private vulnerability reporting' for the advisories/new link to resolve; not toggled by this automation
+- [Phase 32]: [Phase 32-03]: .planning/ historical occurrences of the placeholder string (10 files) intentionally left untouched -- project's own decision audit trail, not live consumer-facing docs
+- [Phase 33-01]: Option A (accepted): _get_plugin_sleep reads canonical delay_seconds/delay_jitter uniformly for all 7 platforms, activating Amazon/BestBuy poll-cadence jitter (30s flat -> 30-40s) for the first time -- recorded as an operator-UAT item
+- [Phase 33-01]: Shim guard is has_legacy and not has_canonical -- explicit canonical delay_seconds/delay_jitter values are never clobbered by legacy min_delay/max_delay keys, even when both are present in the same construction
+- [Phase 33-01]: No clamping of the derived delay_jitter in the legacy shim -- an inverted/negative legacy range flows into Field(ge=0.0) and raises ValidationError naturally, matching the fail-loudly convention
+- [Phase ?]: [Phase 33-02]: extra="allow" added to PlatformsConfig (candidate a) -- undeclared platforms.<key> sections pass through as raw dicts; the 7 declared platform fields keep full strict validation unchanged
+- [Phase ?]: [Phase 33-02]: RetailerPlugin.get_platform_config(model_cls) is the sanctioned mechanism for a new community plugin to declare+validate its own per-platform config section with zero core/config_schema.py edits
+- [Phase ?]: [Phase 33-02]: Fixed the fixture test's AppConfig construction -- AppConfig(**kwargs) silently no-ops for platforms data since settings_customise_sources excludes init_settings from its source tuple; switched to yaml_file= injection matching the codebase's established test pattern
+- [Phase 34-01]: ContextVar set in supervise() (not run_plugin) so restart/backoff/park logs are tagged; head=[LEVEL][plugin][ts] computed once for both print and file write — RESEARCH.md recommendation: writeLog is a custom print+file-append function, not a stdlib Logger, so a logging.Filter would not intercept lines without a full rewrite
+- [Phase 34-03]: attempted denominator = place_order_attempted_at IS NOT NULL OR order_id IS NOT NULL, never checkout_attempts (which increments under test_mode and would deflate the rate)
+- [Phase 34-03]: time_to_checkout scoped to place_order_attempted_at -> confirmed_at only; no earlier detection-timestamp anchor exists in the schema, so the metric is honestly scoped rather than invented
+- [Phase 34-03]: link is read only inside BotService.get_analytics to resolve platform_key via registry domain_patterns; it never enters the compute_analytics output (T-34-06)
+- [Phase 34-02]: Kept generic lowercase-alphanumeric plugin-param whitelist regex over an enum check against list_plugins() -- avoids a to_thread-wrapped filesystem+importlib PluginRegistry scan on the hot-polled /api/logs endpoint
+- [Phase 34-02]: SSE 'log' listener gains a client-side lineMatchesFilters() guard before appendLogLine so live-tailed lines respect the active level/search/plugin filters, not just the one-shot pollLogs snapshot
+- [Phase 35]: 35-01: POST /items/remove lives on web/routes/pages.py (unprefixed router) not api.py, since HTML forms cannot target DELETE and a form-target route belongs beside the SSR / route
+- [Phase 35]: 35-01: 303 See Other used for the remove redirect (POST/Redirect/GET), guaranteeing a GET on redirect
+- [Phase 35]: 35-02: core/cli/status.py lockstep fix landed in the same task/commit as the health.py get_snapshot() filter, avoiding a silent CLI 'always never' regression
+- [Phase 35]: 35-02: single shaping boundary (HealthRegistry.get_snapshot) filters last_heartbeat once; both get_status() REST and the SSE status frame inherit the fix atomically since SSE broadcasts get_status() verbatim
+- [Phase ?]: 35-03: DH-03 kept strictly narrower than DH-01 -- only nyquist_compliant flipped on v4.0 phases 18-24 VALIDATION.md; status/wave_0_complete deliberately untouched (RESEARCH Pitfall 5)
+- [Phase ?]: 35-03: DH-02 scope resolved as Phase 28's 4 SUMMARY files (required, union = exactly OBS-01/02/03/04/06/09) plus Phase 27/29 SUMMARY files mirroring their own PLAN.md requirement IDs (discretionary polish, low-cost)
+- [Phase ?]: Phase 36-01: recorded BOTH PR #12 head OIDs (pre-update 3f27a2d, post-update b1d7b8f) because strict-mode update-branch moves the head while MAIN-05's assertion names the pre-update SHA
+- [Phase ?]: Phase 36-01: Dependabot self-deleted PR #8's head branch 8s after close (timeline actor dependabot[bot], not this executor) -- live evidence Dependabot is responsive, so plans 36-04/05 should treat a stalled rebase as a real anomaly, not an assumed 90-day pause
+- [Phase ?]: Phase 36-01: pre-v5-mainline annotated tag pushed at e98ec83 as the phase rollback point; PR #12 merged via merge commit 36f75c7 with no --admin and no force op; branch protection left untouched for Phase 38
+
+## UAT Audit Session — 2026-08-01 (post-v4.2, pre-next-milestone)
+
+Cross-phase UAT audit over the archived milestone artifacts, plus a live browser UAT
+session against the dashboard and live GitHub API checks. Verdicts are recorded in each
+phase's own VERIFICATION/HUMAN-UAT/VALIDATION file.
+
+**Tooling caveat worth remembering:** `gsd-sdk query audit-uat` scans `.planning/phases/`,
+which is empty once milestones are archived. It reported `total_items: 0` while 80
+outstanding items sat in `.planning/milestones/*-phases/`. Do not trust that all-clear
+after an archive.
+
+### Results
+
+| Bucket | Count |
+|--------|-------|
+| PASS | 13 |
+| FAIL | 1 |
+| BLOCKED | 5 |
+| PARTIAL | 2 |
+| Closed by operator action | 6 (A1/A2/A4/A6/A7 + REG-01) |
+
+### Defects found (none previously caught by tests or milestone review)
+
+1. **Dashboard "Start Bot" never worked.** `core/orchestrator.py:_register_signals` calls
+   `signal.signal()` off the main thread; `BotService.start()` runs `async_main` in a daemon
+   thread, so it raised `ValueError` at `async_main`'s fifth statement and the bot loop died
+   before plugin setup, while `POST /api/bot/start` still returned 200. The CLI path
+   (`shoppybot run`) masked it by running on the main thread. Fixed in PR #12
+   (`fix/signal-handler-main-thread`). Caught by 29-HV-2; 27-HV-2 and 28-HV-1 are downstream.
+
+2. **CI never compiled.** `ci.yml` referenced `${{ runner.temp }}` in job-level `env:`, where
+   the `runner` context does not exist. 81 runs, 81 failures, zero jobs scheduled, no logs.
+   Introduced by `0e0e43f` (2026-06-04), the only commit that ever touched the file.
+
+3. **CI never installed dependencies.** The install step ran only `pip install -e .[web]`,
+   but `pyproject` declares just `platformdirs`; pytest and every runtime dep live in
+   `requirements.txt`, which CI never installed. Also added the undeclared `httpx==0.28.1`
+   that `fastapi`'s TestClient requires. Both fixed in PR #13 (`fix/ci-runner-context`).
+
+**Consequence for the audit trail:** milestones v2.0 through v4.2 were archived under a
+definition of done that included "CI-green." That was never true. The suite had only ever
+run on one Windows machine. It now passes identically on both platforms
+(755 passed / 2 skipped on ubuntu-latest and windows-latest), so no code defect follows,
+but the claim was unearned.
+
+### Operator actions completed 2026-08-01
+
+- Private Vulnerability Reporting enabled (32-HV-2)
+- Actions allowlist widened for `gitleaks/gitleaks-action@*` and
+  `googleapis/release-please-action@*` (32-HV-3) — unblocked gitleaks (31-HV-1) and
+  CodeQL (31-HV-2), both of which then ran green for the first time ever
+
+- CodeQL workflow re-enabled from `disabled_inactivity`
+- Wiki "Plugin Registry" page created, headers-only by deliberate decision (REG-01)
+- RH-07 signed off: GitHub PVR is the final, sole reporting channel (32-HV-1)
+- `master` branch protection corrected to require contexts that workflows actually emit
+  (`test (ubuntu-latest)`, `test (windows-latest)`, `CodeQL`); the previous five
+  (`Analyze (python)`, `build-linux`, `build-mac`, `build-windows`) matched nothing
+
+### Still outstanding
+
+- **31-HV-3** — 7 Dependabot alerts (#6-#12) still open. Two blockers: the remediating bumps
+  live on `chore/v4.0-milestone-close`, and Dependabot is repo-level PAUSED
+  (`GET /repos/thezoid/ShopPyBot/automated-security-fixes` -> `{"enabled":true,"paused":true}`)
+
+- **10-HV-3 / MC-4** — needs a `shoppybot web --host 0.0.0.0` restart; confirmed on loopback
+  that `.banner-warning` is correctly absent from the DOM
+
+- **29-HV-5** — needs a DevTools source breakpoint; the doc's stated recipe cannot work
+- **27-HV-2, 28-HV-1, 28-HV-2 (running half)** — blocked until PR #12 lands, then re-test
+- **MC-1, MC-2** — Windows TTY checks, still the only two items runnable with no prerequisites
+- Ubuntu-dependent items unchanged (no host available)
+- No LICENSE file; secret scanning and push protection still disabled
+
+### Documentation drift recorded
+
+Stale "four dashboard sections" (now eight); `python main.py` named as the dashboard
+launcher (it starts no HTTP server — use `shoppybot web`); the
+`window.EventSource = undefined` + reload recipe (cannot work, reload restores it);
+hardcoded banner hex `#fee2e2`/`#dc2626` (now themed tokens, dark renders
+`#450a0a`/`#ef4444`); and cold-load theme default is dark via `prefers-color-scheme`,
+not light.
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd:new-milestone
+- Merge PR #13 (CI fix), then PR #12 (Start Bot fix) after a rebase
+- Decide on PR #11 (264 commits) — merging it drains the Dependabot queue and lands
+  release-please, gitleaks, and the modernized CodeQL on `master`
+
+- Unpause Dependabot once PR #11 is in
+- Start the next milestone with /gsd:new-milestone (SEED-003 will surface)

@@ -11,16 +11,16 @@ to the latest commit on `master` before reporting.
 **Do NOT file a public GitHub issue for security vulnerabilities.** Public issues
 expose details before a fix is available, putting all users at risk.
 
-Use one of these private channels:
+Use GitHub's private vulnerability reporting flow: navigate to
+[https://github.com/thezoid/ShopPyBot/security/advisories/new](https://github.com/thezoid/ShopPyBot/security/advisories/new)
+(or the Security tab → "Report a vulnerability"). GitHub keeps the report
+private until coordinated disclosure — this is the only supported reporting
+channel; there is no public email address for security reports.
 
-1. **GitHub private security advisory (preferred):** Navigate to the Security
-   tab of this repository and choose "Report a vulnerability". GitHub keeps the
-   report private until coordinated disclosure.
-
-2. **Direct email:** Send a report to
-   `SECURITY_CONTACT_PLACEHOLDER@example.com`
-   *(This is a placeholder. The maintainer must replace it with a real verified
-   address before launch.)*
+> **Operator note:** Private Vulnerability Reporting must be enabled once in
+> repository Settings → Security → "Private vulnerability reporting" for this
+> link to work. This is a one-time repo setting and is not toggled by this
+> automation.
 
 Your report should include: affected version, description of the issue, steps
 to reproduce, and (if known) suggested remediation.

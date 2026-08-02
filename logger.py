@@ -1,5 +1,6 @@
 import logging
 import os
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from colorama import Fore, Style
@@ -23,6 +24,24 @@ def _load_logging_level() -> int:
 
 _LOGGING_LEVEL: int = _load_logging_level()
 
+# FC-01: per-task active-plugin tag, injected into every writeLog line as the
+# second bracket (after the level). Defaults to the "core" sentinel when no
+# plugin task has set it (startup, web tier, service init). Set once per
+# plugin task in core/orchestrator.py:supervise(); asyncio.create_task/TaskGroup
+# copy the context at task creation, so each plugin task's .set() is isolated.
+_current_plugin: ContextVar[str] = ContextVar("current_plugin", default="core")
+
+
+def set_log_plugin(platform_key: str):
+    """Set the active plugin tag for all writeLog calls in the current context/task.
+
+    Falsy input (None, "") coerces to the "core" sentinel. Returns the Token
+    from ContextVar.set() (callers may reset via it, but per-task context
+    isolation makes an explicit reset optional).
+    """
+    return _current_plugin.set(platform_key or "core")
+
+
 def setup_logger():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     return logging.getLogger(__name__)
@@ -40,11 +59,14 @@ def writeLog(message: str, type: str, writeTofile: bool = True) -> None:
     }
     color, level = log_levels.get(type.upper(), (Fore.LIGHTBLACK_EX, 0))
     if loggingLevel >= level:
-        print(f"{color}[{type.upper()}][{datetime.now().strftime('%Y%B%d@%H:%M:%S')}] {message}{Style.RESET_ALL}")
+        plugin = _current_plugin.get()
+        ts = datetime.now().strftime('%Y%B%d@%H:%M:%S')
+        head = f"[{type.upper()}][{plugin}][{ts}]"
+        print(f"{color}{head} {message}{Style.RESET_ALL}")
         if writeTofile:
             from core.paths import log_dir as _paths_log_dir  # lazy: avoids circular import with core/paths.py
             _log_dir = _paths_log_dir()
             _log_dir.mkdir(parents=True, exist_ok=True)
             log_file_path = _log_dir / f"{datetime.now().strftime('%Y%B%d')}.log"
             with open(log_file_path, "a", encoding="utf-8") as logFile:
-                logFile.write(f"[{type.upper()}][{datetime.now().strftime('%Y%B%d@%H:%M:%S')}] {message}\n")
+                logFile.write(f"{head} {message}\n")

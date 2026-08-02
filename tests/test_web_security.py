@@ -79,6 +79,23 @@ def test_csrf_rejected():
 # CR-03: non-local bind rejects loopback origins
 # ---------------------------------------------------------------------------
 
+def test_csrf_rejected_items_remove():
+    """POST /items/remove with a non-local origin returns 403 (AF-01)."""
+    from fastapi.testclient import TestClient
+    from web import create_app
+    svc = MagicMock()
+    svc.list_items.return_value = []
+    client = TestClient(create_app(svc), raise_server_exceptions=False)
+    resp = client.post(
+        "/items/remove",
+        data={"link": "http://example.com"},
+        headers={"origin": "http://evil.com"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 403
+    svc.remove_item.assert_not_called()
+
+
 def test_csrf_loopback_origin_rejected_on_non_local_bind():
     """When server is bound non-locally, a loopback Origin is rejected 403 (CR-03).
 

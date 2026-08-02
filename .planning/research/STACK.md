@@ -1,1110 +1,346 @@
-# Technology Stack
+# Stack Research
 
-**Project:** ShopPyBot — Async Plugin-Based Shopping Bot
-**Researched:** 2026-04-19 (v1/v2 baseline); v3.0 additions researched 2026-06-06
-**Brownfield context:** Existing Selenium + PyYAML + SQLite + pygame stack. This is an evolution, not a rewrite.
+**Domain:** Remote plugin manager for a Python retail-bot plugin framework (fetch, pin, verify, install, capability-limit, and index third-party `RetailerPlugin` subclasses) — ShopPyBot v5.0 workstream H / SEED-003
+**Researched:** 2026-08-02
+**Confidence:** HIGH (all version claims verified against PyPI JSON metadata and official docs; sandboxing claims cross-checked against PEP text and CPython issue tracker)
 
----
+## Context: What Already Exists
 
-## Python Version Baseline
+This is not greenfield. The extensibility framework thread of SEED-003 is already built:
 
-**Upgrade floor to Python 3.10.** Do not preserve the "3.8+" stated minimum.
+- `core/registry.py` `_discover_plugins` walks a directory for `shopbot_plugin_*.py`, isolates import failures (log + skip), and only requires the file live in `plugins_dir`. **A plugin manager's "install" step is: write a validated file into a directory. No new discovery mechanism is needed.**
+- `core/plugin_base.py` `RetailerPlugin` has 2 abstract methods, `PLUGIN_API_VERSION = 2`, `__init_subclass__` import-time validation, and `difficulty`/`requires_proxy`/`requires_captcha` metadata attributes already meant to be registry-surfaced.
+- `core/paths.py` already wraps `platformdirs.PlatformDirs("shoppybot", appauthor=False)` for `data_dir()`/`log_dir()`, with a `SHOPBOT_DATA_DIR` env override used by tests. The same pattern extends cleanly to a plugin install directory.
+- `docs/PLUGIN_REGISTRY.md` defines a 9-column schema today rendered by hand onto a GitHub wiki page (REG-01, still outstanding). This is the natural ancestor of a machine-readable index.
+- `requests==2.33.1`, `cryptography==49.0.0`, `platformdirs==4.10.0`, `pydantic==2.13.3` are already pinned dependencies. `pyproject.toml` pins `platformdirs==4.10.0` at the package level too.
 
-Rationale:
-- `asyncio.TaskGroup` (structured concurrency) requires 3.11+
-- `pydantic-settings` 2.x (the YAML-capable version) requires 3.10+
-- `nodriver` (async browser automation) requires 3.9+
-- Python 3.8 reached end-of-life October 2024
-
-**Recommendation:** Target 3.11 as minimum. 3.11 unlocks TaskGroup, is widely available, and aligns with all library requirements. The environment running this project is 3.14.3 — no constraints there.
-
----
+Everything recommended below is scoped to close the **distribution** gap (fetch/pin/verify/install/list/update/remove from a repo the maintainer never reviewed), not to rebuild the framework.
 
 ## Recommended Stack
 
-### 1. Browser Automation
+### Core Technologies (zero new PyPI dependencies for the core mechanism)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `nodriver` | 0.48.1 | Primary async browser driver | Async-first, CDP-direct, active successor to undetected-chromedriver |
-| `playwright` | 1.58.0 | Fallback / alternative interface | Better documented, broader community, explicit async API |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `requests` | 2.33.1 (pinned; 2.34.2 current on PyPI) | Fetch plugin file(s) and manifest over HTTPS from GitHub | Already a pinned dependency. Covers 100% of the fetch need via GitHub's REST Contents API and `raw.githubusercontent.com` — no `git` binary required. |
+| `hashlib` (stdlib) | n/a | Compute SHA-256 of fetched bytes for the local pin/lockfile | Zero new dependency. This is the actual trust anchor — see Integrity section. |
+| `json` (stdlib) | n/a | Registry index format, per-plugin manifest format, per-install lockfile | Matches existing `plugins list --json` CLI convention (`core/cli/plugins.py`); symmetric stdlib read/write (unlike `tomllib`, which is read-only in stdlib). |
+| `pydantic` | 2.13.3 (pinned) | Validate the third-party plugin manifest and registry entries before they touch disk or render in CLI/dashboard | Already pinned. Mirrors the exact pattern `get_platform_config()` already uses for another untrusted-shaped input (CFG-02). A fetched manifest is attacker-controlled data; never `json.loads()` it directly into an f-string or template. |
+| `platformdirs` | 4.10.0 (pinned; 4.11.0 current on PyPI) | Resolve the user-writable plugin install directory, per OS | Already pinned and already wrapped by `core/paths.py`. See Paths section for the exact extension. |
+| `sys.addaudithook` (stdlib, PEP 578) | n/a (CPython 3.8+) | Best-effort runtime detection/logging of a plugin's sensitive operations | Zero new dependency. Not a sandbox — see Capability Limiting section for exactly what this does and does not stop. |
 
-**Decision: Use `nodriver` as the primary driver for all plugins.**
+**No new runtime PyPI dependency is required to fetch, pin, verify, place, or index a plugin.** The only new dependency surface is optional and downstream: `pip` (already ships with the interpreter) invoked via `subprocess` for the *plugin's own declared dependencies* (question 6), never for the plugin fetch itself.
 
-`nodriver` is the officially designated successor to `undetected-chromedriver` by the same author (ultrafunkamsterdam). It is fully async from the ground up (not bolted on), communicates via CDP without the WebDriver HTTP intermediary layer, and is specifically designed to bypass anti-bot systems like Cloudflare, Akamai, and DataDome. Latest release: November 2025 (0.48.1). Requires Python >= 3.9 — compatible with our 3.11 floor.
+### Supporting Libraries (only if the project wants signature verification later)
 
-**Do NOT use:**
-- Selenium async wrappers (`selenium-wire`, async thread pools around sync Selenium) — threading around a sync driver is fragile and defeats the purpose of the refactor
-- `undetected-chromedriver` — nodriver supersedes it; the old package is no longer the primary target of maintenance
-- `playwright` as primary — Playwright's stealth story requires `playwright-stealth` (a separate maintained package, v2.0.2 as of 2025), adds complexity, and benchmark data shows Playwright at ~25% bypass success vs. nodriver/zendriver at 25-75%. For a bot targeting retail checkout flows, the CDP-direct approach of nodriver is architecturally cleaner.
-- Synchronous Selenium — incompatible with the asyncio parallel execution requirement
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `cryptography.hazmat.primitives.asymmetric.ed25519` (already pinned `cryptography==49.0.0`) | n/a — part of the existing pin | Verify a maintainer-signed registry entry (Ed25519 `verify()`/`sign()`) | Only if the project later builds a maintainer-signed central registry (an evolution of REG-01). Not needed for v1. Zero new dependency since `cryptography` is already pinned. |
+| `sigstore` (sigstore-python) | 4.5.0 current on PyPI | Keyless signing/verification via Sigstore's transparency log (Rekor) + OIDC identity | **Not recommended — see What NOT to Use.** |
 
-**Confidence: HIGH** — nodriver PyPI page verified, release date confirmed, successor relationship confirmed from official GitHub.
+### Development Tools
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| GitHub REST API — Contents endpoint (`GET /repos/{owner}/{repo}/contents/{path}?ref={sha}`) | Fetch a single plugin file or list a directory at an exact commit, with the git blob `sha` returned alongside content | Base64 content is only returned for files ≤1 MB; for 1–100 MB files, request with header `Accept: application/vnd.github.v3.raw` or use the `download_url` field. A `shopbot_plugin_*.py` file will never approach this limit in practice. |
+| `raw.githubusercontent.com/{owner}/{repo}/{40-char-sha}/{path}` | Simpler alternative fetch for plain file bytes, same content-addressing guarantee as the Contents API when the ref is a full commit SHA | No JSON envelope, no base64 decode step, CDN-served. Use as the primary fetch path; treat the Contents API as the source of the git blob `sha` for an extra integrity cross-check. |
+| `pip install --target <dir> --no-deps <pkg>==<version>` invoked via `subprocess.run([sys.executable, "-m", "pip", ...])` | Install a plugin's own declared dependencies into a plugin-private directory | Never installs into the app's own environment. See Dependency Isolation section. |
+
+## Installation
+
+```bash
+# No new packages for the core plugin-manager mechanism.
+# requirements.txt is unchanged for fetch/pin/verify/paths/registry.
+
+# The only NEW invocation is pip itself, already present as part of the
+# Python installation, called as a subprocess — not a new pyproject/requirements.txt entry:
+python -m pip install --target <plugin_vendor_dir> --no-deps <name>==<version>
+```
+
+If the project later adds maintainer-signed registry entries:
+```bash
+# still zero new deps — Ed25519 is already inside the pinned cryptography package
+# no pip install line needed
+```
 
 ---
 
-### 2. Async Concurrency
+## 1. Fetching a plugin from a third-party source
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `asyncio` (stdlib) | 3.11+ | Event loop, task scheduling | Built-in, no dep, TaskGroup in 3.11 |
-| `asyncio.TaskGroup` | 3.11+ | Parallel plugin execution | Structured concurrency, better than gather() |
+**Recommendation: GitHub REST Contents API / `raw.githubusercontent.com`, both via the already-pinned `requests`. Do not use `git clone`/`git archive` subprocess, `pip install <vcs-url>`, or a generic "plain HTTPS download."**
 
-**Decision: Use `asyncio.TaskGroup` for concurrent platform checks.**
+Rationale against each alternative, given this project's constraints:
 
-`asyncio.gather()` is the pre-3.11 approach but has a critical flaw for plugin execution: if one platform plugin raises an exception, gather() does not automatically cancel the remaining tasks. `TaskGroup` (3.11+) cancels all siblings on any failure — exactly the behavior needed when one platform's browser session crashes and you don't want zombie tasks.
+- **`git clone`/`git archive` via subprocess** — requires a `git` executable on the user's `PATH`. ShopPyBot's target user is "technically capable individuals," not necessarily developers with a dev toolchain installed; the project has zero existing dependency on `git` being present (its own CI/build/runtime never shells out to git). Adding this would be a new, unverifiable environmental precondition, and it would need per-OS error handling (Windows `git.exe` may or may not be on PATH depending on install method) for a capability `requests` already has.
+- **`pip install git+https://github.com/...@<sha>`** — pulls in the *entire* package install machinery: this executes the target repo's build backend (`setup.py`/`pyproject.toml` build-system hooks) during install, which is a **second, earlier** arbitrary-code-execution surface *before* the plugin is even imported (currently the only RCE surface is import time, per `PLUGIN_DEV.md` section 9). It also still shells out to `git` under the hood for the VCS URL. This is strictly worse than the status quo, not better.
+- **"Plain HTTPS download"** (e.g., a tarball URL with no structure) — under-specifies the actual mechanism; in practice this collapses to "download a GitHub archive," which has the reproducibility problem covered in the Pinning section below. The Contents/raw API is the structured version of the same idea and is free.
+- **GitHub REST Contents API / raw.githubusercontent.com** — `requests.get()`, already-pinned dependency, no external binary, no build-backend execution, works identically for install/update/list/remove.
 
-Pattern for plugin dispatch:
+**Scope decision this implies:** v1 of the plugin manager should be **GitHub-only** (matches REG-01's existing GitHub-wiki-based registry and this repo's own GitHub-native tooling — Dependabot, CodeQL, PVR). Generic Git-host support (GitLab, self-hosted Gitea) is the point at which `git` subprocess would become unavoidable, because those hosts don't expose GitHub's Contents/raw API shape. Treat that as an explicit deferred item, not silently unsupported.
+
+**Confidence: HIGH** — verified against GitHub REST API docs (Contents/blob endpoints) and current rate-limit changelog.
+
+## 2. Pinning to a commit SHA and verifying fetched bytes match the pin
+
+**Pin the commit SHA (40-char, never a branch/tag name) in the fetch URL itself. Do not hash-pin GitHub's tarball/zip *archive* bytes — GitHub does not guarantee those are stable.**
+
+This is the one place training-data intuition is actively wrong and needed verification: GitHub has publicly stated it does **not** guarantee byte-stable checksums for `codeload.github.com` archives (`.../archive/<ref>.tar.gz`) — the compression layer changed once already (Git 2.38's gzip→zlib default change in Jan 2023) and broke every downstream project that had hash-pinned an archive checksum. GitHub's own recommended fix is exactly what this project should do: **fetch by commit SHA, not by hash-of-archive.**
+
+Two fetch shapes, both content-addressed by the commit SHA rather than by archive compression:
+
+1. **`raw.githubusercontent.com/{owner}/{repo}/{commit_sha}/{path}`** — returns the exact file bytes (git blob content), no archive wrapper, no compression-format variability. This is what makes byte-for-byte reproducibility possible: the URL path itself pins the commit, and the response is the raw blob, not a re-serialized archive.
+2. **GitHub Contents API `GET /repos/{owner}/{repo}/contents/{path}?ref={commit_sha}`** — returns the same bytes (base64-encoded) *plus* the git blob `sha` (a git object hash of that exact content) in the same response, giving a free cross-check: decode, recompute, compare to the returned `sha` field.
+
+**What each option makes easy or impossible, concretely:**
+
+| Fetch option | Pin to exact SHA? | Byte-stable re-fetch? | Free content hash from the source? |
+|---|---|---|---|
+| `codeload.github.com/.../archive/<ref>.tar.gz` (or `/tarball/`, `/zipball/`) | Yes (SHA accepted as ref) | **No** — GitHub does not guarantee archive checksum stability, even for the same commit | No (would have to hash the archive itself, which is the thing that isn't stable) |
+| `raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}` | Yes (SHA is literally in the URL) | Yes — raw blob bytes, no compression/format layer | No (bytes only, no accompanying hash) |
+| GitHub Contents API `?ref={sha}` | Yes | Yes (same underlying blob) | **Yes** — response includes git blob `sha` |
+
+**Recommendation:** fetch via raw.githubusercontent.com for simplicity, cross-verify the git blob `sha` via one Contents API call at install time (cheap — unauthenticated rate limit is 60 req/hour, and an install is a handful of calls), then compute the project's **own** SHA-256 over the received bytes and record *that* in the install lockfile. Don't trust GitHub's blob `sha` (SHA-1, and it's GitHub attesting to its own data) as the sole pin — record an independently computed SHA-256 as the durable local record. See Integrity section.
+
+**Confidence: HIGH** for the archive-instability claim (GitHub's own blog post + LWN + multiple downstream project issues, e.g. spack#5411, easybuild#5151, bazel#3722, libgit2#4343, all describing the same 2023 breakage). **HIGH** for Contents API blob-sha behavior (GitHub REST docs, Contents/blobs pages).
+
+## 3. Integrity and authenticity
+
+**SHA-256 pinning (via stdlib `hashlib`, already-implicit dependency) plus an explicit install-time consent gate is the honest stopping point for this project. Sigstore is not worth it.**
+
+What the lockfile should record (one JSON file per installed plugin, e.g. `<user_data_dir>/plugins/<name>/.shoppybot-install.json`):
+
+```json
+{
+  "repo": "someuser/shoppybot-plugin-newegg2",
+  "commit_sha": "a1b2c3d4e5f6...(40 hex chars)",
+  "files": {
+    "shopbot_plugin_newegg2.py": "sha256:6f3d...",
+    "shoppybot-plugin.json": "sha256:91ab..."
+  },
+  "plugin_api_version_at_install": 2,
+  "registry_verified": false,
+  "consented_at": "2026-08-02T18:04:11Z",
+  "installed_at": "2026-08-02T18:04:12Z"
+}
+```
+
+- **Install-time:** fetch bytes, compute SHA-256 locally, show the user the repo, the commit SHA, the file list, and (if the plugin declares any) its dependency list — then require a typed confirmation before writing anything. This directly implements the seed's "explicit install-time consent, naming the source repo and requiring a typed confirm" option.
+- **Update-time:** re-resolve the target ref (registry `default_ref`, or a user-supplied new ref), fetch, recompute SHA-256, and **re-run the same consent flow** rather than silently swapping bytes — an update is a new trust decision, not a background refresh.
+- **Verify-on-load (optional but cheap):** before `_discover_plugins` imports a third-party file, recompute its SHA-256 and compare to the lockfile. A mismatch means the file was altered on disk after install (tampering, a corrupted write, or a manual edit) — refuse to import and warn, rather than silently executing altered bytes. This is a few lines of `hashlib` code, not a library.
+
+**Why not Sigstore (`sigstore-python` 4.5.0, verified current on PyPI):**
+
+Sigstore proves *who published an artifact* via keyless OIDC-bound signing plus a public transparency log (Rekor). That's the right tool when *this project* wants to prove *its own* releases weren't tampered with in the supply chain (e.g., signing ShopPyBot's own PyPI wheel). It is the wrong tool for verifying *arbitrary third-party plugin authors the maintainer has never vetted*, because:
+
+1. Sigstore verification only tells you the signature matches *some* identity (an email or a repo's OIDC claim) — it says nothing about whether that identity is trustworthy. For a curated central registry, a maintainer-controlled Ed25519 key check (see below) gives the same "did the registry curator vouch for this" answer with zero new dependencies.
+2. The dependency cost is real: `sigstore==4.5.0`'s `requires_dist` pulls in `tuf`, `pyOpenSSL`, `rfc3161-client`, `rfc8785`, `pyasn1`, `sigstore-models`, `sigstore-rekor-types`, `pyjwt`, `rich`, `id` — roughly ten new transitive dependencies for a project whose stated posture is "adds new dependencies reluctantly" and exact-pins everything. That is disproportionate to what a hobbyist tool's third-party plugin flow actually needs.
+3. Almost no third-party plugin author in this ecosystem will have Sigstore-signed their commits; requiring it would make the feature unusable, and treating its absence as "unverified" is exactly what an explicit consent-gate warning already communicates for free.
+
+**If the project wants something beyond SHA-256 + consent later:** use Ed25519 via the *already-pinned* `cryptography` package to let the maintainer sign entries in the central registry (question 7) — e.g., the registry curator signs `sha256(commit_sha + file_hashes)` for each vetted entry, and the CLI shows "signed by registry maintainer" vs. "unverified third-party" in the consent prompt. This adds zero new dependencies and directly reuses `REG-01` as the trust root, exactly as the seed suggests. This is a **v2 idea**, not a blocker for v1.
+
+**Confidence: HIGH** for sigstore's dependency tree (verified via PyPI JSON `requires_dist` for 4.5.0). **HIGH** for `cryptography`'s Ed25519 support (`hazmat.primitives.asymmetric.ed25519.Ed25519PrivateKey`/`Ed25519PublicKey`, documented in the pyca/cryptography docs, stable since `cryptography` 2.6).
+
+## 4. Where an installed plugin should live on disk
+
+**Add a second, user-writable plugin directory under `platformdirs.user_data_dir`, alongside the existing repo-relative `plugins/` directory, and merge both at discovery time with a provenance tag.**
+
+`core/paths.py` already resolves `data_dir()` via `PlatformDirs("shoppybot", appauthor=False).user_data_dir`, giving `%LOCALAPPDATA%\shoppybot` on Windows, `~/.local/share/shoppybot` on Linux, `~/Library/Application Support/shoppybot` on macOS (all confirmed by the existing `appauthor=False` comment and platformdirs' documented per-OS mapping). The correct extension is a `plugins_dir()` accessor mirroring `data_dir()`/`log_dir()`:
+
 ```python
-async with asyncio.TaskGroup() as tg:
-    for plugin in loaded_plugins:
-        tg.create_task(plugin.check_availability(item))
+def plugins_dir() -> Path:
+    """Return the user-writable third-party plugin directory, honouring SHOPBOT_DATA_DIR."""
+    return data_dir() / "plugins"
 ```
 
-**Do NOT use:**
-- `asyncio.gather()` — no structured cancellation; silently continues past failures
-- `concurrent.futures.ThreadPoolExecutor` wrapping sync Selenium — reintroduces GIL contention, negates async gains
-- `trio` or `anyio` — unnecessary abstraction layer; asyncio stdlib is sufficient for this use case
+This is a **second** plugin source, not a replacement for the in-repo `plugins/` directory:
 
-**Confidence: HIGH** — Python 3.11 docs verified, TaskGroup behavior confirmed from official documentation.
+- **Bundled `plugins/`** (repo-relative, ships with the package/wheel): the 7 first-party/community plugins already reviewed and shipped. Read-only in the sense that installing the package doesn't let a user write here without editing the install.
+- **`<user_data_dir>/plugins/`**: writable at runtime by the plugin manager's `install`/`update`/`remove` commands. Never touched by `pip install shoppybot` itself.
 
----
+`_discover_plugins(plugins_dir: Path)` already takes a `Path` argument and has no dependency on it being the repo directory — it just needs to be called **twice** (once per source) and the results merged, tagging each discovered plugin with its origin so the CLI/dashboard can render "bundled" vs. "third-party, installed from `<repo>` at `<sha>`" distinctly. This is additive to `PluginRegistry.__init__`, which already takes a single `plugins_dir: Path`; extend it to accept an iterable of `(Path, str)` (dir, source_label) pairs, or call `_discover_plugins` per source and concatenate before constructing instances — either is a small, localized change, not a redesign.
 
-### 3. Plugin Framework
+**Why this is safe:** `platformdirs.user_data_dir` is per-user by construction (no elevated permissions needed, no risk of writing into a shared/system location), which is the same safety property that already lets `CredentialStore`'s encrypted-file fallback and the SQLite DB live there without a permissions story. `appauthor=False` is already set project-wide, so the new directory is `.../shoppybot/plugins`, not `.../shoppybot/shoppybot/plugins`.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `importlib` (stdlib) | 3.11+ | Dynamic plugin loading | Built-in, sufficient for file-based discovery |
-| `abc.ABC` (stdlib) | 3.11+ | Plugin interface enforcement | Enforces the 4-method contract at import time |
+**Confidence: HIGH** — verified `platformdirs` 4.11.0 is current on PyPI (project pins 4.10.0, one minor behind — no compatibility concern, no urgent need to bump for this feature) and cross-checked the per-OS path semantics against the existing, working `core/paths.py` implementation.
 
-**Decision: Use `importlib` + `ABC` directly. Do NOT add `pluggy`.**
+## 5. Capability limiting for imported third-party code in CPython
 
-The project requirement is a `plugins/` directory with `.py` files that are auto-discovered. This is precisely the "naming convention discovery" pattern described in the Python Packaging User Guide. It requires zero external dependencies.
+**Survey conclusion, stated bluntly: nothing available in pure Python, at reasonable cost, stops a malicious plugin from reading the credential store once it is imported. The honest position is that none of the in-process options are a real security boundary here — the seed already says this ("process isolation... is the real fix... by far the most expensive"), and this research confirms it rather than contradicting it.**
 
-Discovery pattern:
-```python
-import importlib.util, pathlib
-from bot.plugin_base import BotPlugin  # ABC
+| Approach | What it actually stops | What it cannot stop | True cost here |
+|---|---|---|---|
+| **Import hooks / restricted globals** (e.g. RestrictedPython, custom `exec()` with a stripped `__builtins__`) | Accidental use of a few blocked names if the plugin author isn't trying to get around it | Python's own introspection (`object.__subclasses__()`, `type.__mro__` traversal, `getattr` chains) provides well-documented gadgets to reach unrestricted builtins from a "restricted" namespace; this is exactly why RestrictedPython pairs itself with a real OS sandbox (Zope's historical usage) rather than standing alone. It is also fundamentally the wrong shape for this project: a `RetailerPlugin` legitimately *needs* full filesystem, network, and subprocess access (it drives a real Chrome browser via nodriver/CDP) — restricting the globals a plugin can see would have to allowlist almost everything a malicious plugin would also want, i.e. it protects against almost nothing while adding real breakage risk. | High effort, low payoff, actively wrong for this plugin shape. |
+| **`sys.addaudithook`** (PEP 578) | Nothing, by design, unless a hook author explicitly raises inside a hook for a specific audited event (e.g., blocking `os.system`). Its real value here is **detection/logging**, not enforcement: it is documented as "not sandboxing," and CPython's own tracker (bpo-43438 / gh-87604) has an open issue specifically about the docs needing to be clearer that it is not one. | Coverage is incomplete — not every sensitive operation raises an audit event, and pure-Python code paths that don't touch an audited C-level operation (e.g., reading a file via a library that itself doesn't emit `open` in a hook-visible way, or raw `ctypes` calls) are invisible to it. A hook, once added, cannot be removed within the process, but that only protects the hook's own presence — it does not create a boundary. | Very low cost (stdlib, ~10 lines), and worth doing anyway as a **detection** layer — see recommendation below. |
+| **Subprocess isolation** (run `check_availability`/`auto_buy` in a child process) | Crash containment (a segfault or hang in one plugin doesn't take down the whole event loop) | Nothing security-relevant on its own: a bare subprocess running as the same OS user has the same filesystem permissions, the same OS keyring access, and the same network access as the parent. It does not stop credential theft; it only isolates *availability*, not *confidentiality*. | Moderate — real IPC/serialization work for a false sense of security unless paired with the next row. |
+| **seccomp (Linux) / Landlock (Linux, kernel 5.13+) / AppContainer or Job Objects (Windows)** | A genuine OS-enforced boundary: a correctly configured seccomp/Landlock policy *can* deny filesystem paths and syscalls outright, which is a real answer to "stop this plugin from reading the credential store." | Cross-platform parity is the killer: seccomp/Landlock are Linux-only with no equivalent code path; Windows would need an entirely separate AppContainer/Job Object implementation. ShopPyBot explicitly targets Windows-first (its own `platformdirs`/CI-matrix history treats Windows as a first-class target, and this very research session is running on Windows 11). Building and maintaining two OS-specific sandboxing implementations is a project of its own. | High — this is the "real fix," and it is exactly as expensive as the seed already flags it. Correctly deferred. |
+| **WASM (Pyodide or similar)** | Genuine memory/syscall sandboxing (Wasm's own security model) | Fundamentally incompatible with this plugin's job: a `RetailerPlugin` needs a real Chrome process reachable over CDP, real filesystem access to chromedriver/session files, and real outbound network sockets. None of that is available inside a Wasm sandbox without punching a hole through the sandbox for exactly the capabilities that matter — at which point the sandbox provides no protection for the things that actually need protecting. | Not viable for this plugin shape at all — not a cost tradeoff, a category mismatch. |
 
-def load_plugins(plugin_dir: pathlib.Path) -> list[BotPlugin]:
-    plugins = []
-    for path in plugin_dir.glob("*.py"):
-        spec = importlib.util.spec_from_file_location(path.stem, path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        for name in dir(module):
-            obj = getattr(module, name)
-            if (isinstance(obj, type)
-                    and issubclass(obj, BotPlugin)
-                    and obj is not BotPlugin):
-                plugins.append(obj())
-    return plugins
+**What is worth doing anyway, given that real isolation is out of scope for v1:**
+
+1. **`sys.addaudithook` as a detection/forensics layer**, not enforcement. Register a hook before `_discover_plugins` imports any third-party file, log (at WARNING) any audited event matching a short list of interesting names (`os.system`, `subprocess.Popen`, `socket.connect` to non-plugin-domain hosts, `open` outside the plugin's own directory tree or the app's documented data dirs) tagged with the plugin's name. This does not stop anything, but it means a malicious plugin's behavior leaves a trail the user or the maintainer can review after the fact — proportionate to "SHA-pin + explicit consent" being the stated trust model, and it costs a dozen lines of stdlib code.
+2. **Consent gate that specifically names the risk** (question 3/seed thread 2): the install-time prompt should say, in plain language, that a plugin can read the encrypted credential store, browser session cookies, and everything else the main process can reach — not just "do you trust this repo?" generically.
+3. **Do not represent any of the above as a security boundary in user-facing copy.** The audit-hook logging and the consent gate are honest about being detection and informed-consent, respectively — neither is containment. Overstating either would be worse than not building them.
+
+**Confidence: HIGH** — PEP 578 text itself states "this is not sandboxing"; CPython issue tracker confirms ongoing acknowledgment that docs under-communicate this; RestrictedPython's own documented pairing with OS-level sandboxes for real security is consistent across multiple sources; Landlock's 5.13+ kernel requirement and Linux-only scope is documented in the kernel's own Landlock docs and PEP 684/554 discussion threads about subinterpreter isolation limits (subinterpreters were also checked and explicitly are not a security boundary either — untrusted code escapes them too, per the PEP 684 discussion thread).
+
+## 6. Plugin-declared dependencies without polluting the app's environment
+
+**Yes, a plugin should be able to declare pinned dependencies, installed via `pip install --target <plugin-private dir> --no-deps <name>==<version>` per declared entry, run as a subprocess, never into the app's own site-packages/venv.**
+
+Mechanism:
+
+1. The plugin's own manifest (question 7) declares a flat list of pinned dependencies, e.g. `["lxml==5.3.0", "beautifulsoup4==4.13.0"]` — no VCS URLs, no unpinned ranges (mirrors this project's own "exact-pinned, added reluctantly" posture, now extended to third-party plugin authors).
+2. At install-consent time, show the user the exact dependency list alongside the plugin's own repo/SHA — a plugin declaring a dependency is a second thing the user is consenting to, not a hidden side effect.
+3. Install each into a plugin-private directory: `<user_data_dir>/plugins/<name>/_vendor/`, via:
+   ```python
+   subprocess.run(
+       [sys.executable, "-m", "pip", "install",
+        "--target", str(vendor_dir), "--no-deps", f"{pkg_name}=={pkg_version}"],
+       check=True,
+   )
+   ```
+   `--no-deps` is deliberate: install exactly the pinned version the manifest declared, nothing pip decides to pull in transitively without the user having seen it in the consent prompt. If a declared dependency itself has required sub-dependencies, the manifest should declare those explicitly too (flat list, no surprises) — this is a stricter posture than a normal `requirements.txt`, appropriate given the trust level.
+4. At import time, extend `sys.path` with `_vendor/` **only while importing that specific plugin's module**, and **append** (never `insert(0, ...)`) so the plugin's private copy can never shadow one of the app's own already-pinned dependencies (e.g., a malicious plugin declaring `cryptography==0.0.1` cannot cause the app's own `import cryptography` to resolve to that copy, because the app's own dependency resolves first via normal `sys.path` order / `sys.modules` caching).
+
+This is the same shape `pip install --target` is documented to solve (isolated per-project dependency directories) applied per-plugin instead of per-project, using only `pip` itself (which already ships with the interpreter — not a new `requirements.txt`/`pyproject.toml` line) as a subprocess, invoked by the app rather than by the user.
+
+**Explicitly not `pip install -e`, not installing into the app's active environment, not a VCS URL as a dependency source (a plugin's dependency should come from PyPI via a pinned version, not "yet another arbitrary repo" — chaining trust decisions through a plugin's own dependency graph is exactly the kind of transitive trust problem a hobbyist tool should refuse to take on).**
+
+**Confidence: MEDIUM-HIGH** — `pip install --target` behavior and its PYTHONPATH/sys.path implications are well-documented pip functionality (pip.pypa.io); the per-plugin sys.path-scoping pattern (append-only, import-time-scoped) is a reasoned design applying that primitive, not something separately citable — flagged here as the recommended design, not a verified third-party pattern.
+
+## 7. Machine-readable registry index format
+
+**Two-tier JSON, modeled directly on the closest real-world analog: Home Assistant's HACS and Obsidian's community plugin registry — both solve exactly this problem (import-and-execute third-party code, installed from GitHub repos the core maintainers never reviewed, indexed by a central machine-readable file).**
+
+Both surveyed systems converge on the same shape, which maps cleanly onto what already exists in this repo:
+
+| Layer | HACS | Obsidian | ShopPyBot equivalent |
+|---|---|---|---|
+| Central index (curated, one file, lists known plugins) | HACS's own default-repositories list | `community-plugins.json` — array of `{id, name, author, description, repo}` | A new `docs/plugin_registry.json` — the machine-readable evolution of the existing `docs/PLUGIN_REGISTRY.md` 9-column spec, replacing the human-only GitHub wiki (REG-01) |
+| Per-plugin manifest (lives in the third-party repo itself, root of the repo) | `hacs.json` (name, content_in_root, filename, etc.) + the integration's own `manifest.json` (name, version, min core version) | `manifest.json` (id, name, version, minAppVersion, author, description) | A new `shoppybot-plugin.json` at the third-party repo's root |
+
+**Central index schema (`docs/plugin_registry.json`, lives in *this* repo, PR-reviewable, git-diffable — an explicit improvement over the wiki, which nothing diffs today):**
+
+```json
+[
+  {
+    "name": "AmazonPlugin",
+    "repo": "shoppybot-org/shoppybot",
+    "platform": "Amazon",
+    "domain_patterns": ["amazon.com", "amazon.co.uk", "amazon.ca"],
+    "maintainer": "maintainer-username",
+    "difficulty": "hard",
+    "methods_implemented": ["setup", "teardown", "login", "detect_captcha"],
+    "last_verified": "2026-06-09",
+    "requires_proxy": false,
+    "requires_captcha": false,
+    "plugin_api_version": 2,
+    "default_ref": "a1b2c3d4e5f6...(commit sha the registry curator vouches for)",
+    "bundled": true
+  }
+]
 ```
 
-ABC enforces the contract:
-```python
-from abc import ABC, abstractmethod
+This is a 1:1 field mapping from the existing `docs/PLUGIN_REGISTRY.md` table plus two additions this feature needs: `plugin_api_version` (compatibility gate against `PLUGIN_API_VERSION = 2`) and `default_ref` (a **commit SHA**, never a branch — consistent with the Pinning section above; the registry curator's vouching is only meaningful if it's pinned).
 
-class BotPlugin(ABC):
-    platform: str  # e.g. "amazon"
+**Per-plugin manifest schema (`shoppybot-plugin.json`, lives in the third-party repo, fetched at install time via the same content-addressed mechanism as the plugin file — treat this as untrusted, attacker-controlled input and validate with `pydantic` before it touches disk or a UI):**
 
-    @abstractmethod
-    async def login(self, browser) -> None: ...
-
-    @abstractmethod
-    async def check_availability(self, browser, item: dict) -> bool: ...
-
-    @abstractmethod
-    async def auto_buy(self, browser, item: dict, config: dict) -> bool: ...
-
-    @abstractmethod
-    async def detect_captcha(self, browser) -> bool: ...
+```json
+{
+  "name": "NewEgg2Plugin",
+  "entry_file": "shopbot_plugin_newegg2.py",
+  "platform_key": "newegg2",
+  "domain_patterns": ["newegg.com"],
+  "plugin_api_version": 2,
+  "version": "0.3.1",
+  "dependencies": ["lxml==5.3.0"],
+  "difficulty": "medium",
+  "requires_proxy": false,
+  "requires_captcha": false,
+  "repo": "someuser/shoppybot-plugin-newegg2"
+}
 ```
 
-**Do NOT use:**
-- `pluggy` — designed for hook-based plugin systems (pytest-style); overkill for a simple auto-discovery pattern where all plugins implement the same interface. Adds a learning curve for contributors.
-- Entry point registration (`importlib.metadata`) — requires `pyproject.toml` per plugin, contradicts the "drop a .py file" contributor story
-- `stevedore` — heavyweight, originally from OpenStack, unnecessary
+**Both are JSON, not TOML or YAML, deliberately:** `json` is fully symmetric in the stdlib (read *and* write); `tomllib` (stdlib since 3.11, already the project's Python floor) is read-only — writing TOML would need a third-party `tomli-w` or similar. `pyyaml` is already pinned and would work too, but JSON is simplest for a fetched-over-HTTP, machine-authored, machine-read structure, and matches the CLI's existing `--json` convention (`core/cli/plugins.py`) — pick one format, and this project already leans JSON for exactly this kind of surface.
 
-**Confidence: HIGH** — Python stdlib docs verified, pattern is well-established.
+**A plugin not present in the central index is still installable** (that is the entire point of thread 1 — third-party repos the maintainer never reviewed) — but the CLI consent prompt should render differently for a registry-known entry (shows the curator-recorded difficulty/proxy/captcha metadata inline) versus an unknown one ("NOT in the ShopPyBot plugin registry — fully unverified source, proceed at your own risk").
 
----
-
-### 4. Configuration Management
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `pydantic-settings` | 2.13.1 | Typed config with YAML source | Validation at startup, replaces raw yaml.safe_load |
-| `pyyaml` | existing | YAML parsing (via pydantic-settings[yaml]) | Keep as transitive dep, don't load it directly |
-
-**Decision: Migrate from raw `yaml.safe_load()` to `pydantic-settings` with a YAML source.**
-
-The existing config is a raw dict from `yaml.safe_load()` with no validation — typos in config.yml produce KeyErrors at runtime inside bot loops. `pydantic-settings` with `YamlConfigSettingsSource` gives:
-1. Type coercion (strings to bool, int, etc.)
-2. Validation errors at startup, not mid-run
-3. Per-platform credential sections map naturally to nested Pydantic models
-4. Optional environment variable overrides for CI/secrets (no code change needed)
-
-The planned flat per-platform config (`platforms: amazon: {email, pwd, delay_ms}`) maps directly to a typed model hierarchy.
-
-Install: `pip install pydantic-settings[yaml]` — this pulls PyYAML as a transitive dep. Remove the direct `pyyaml` from requirements.txt.
-
-**Do NOT use:**
-- Raw `yaml.safe_load()` continued — no validation, runtime errors only
-- `dynaconf` — excellent for multi-environment server apps; overkill here. Adds a `dynaconf` binary, settings.toml + .secrets.toml convention the contributors don't need. The bot has one environment: the user's machine.
-- `python-dotenv` — appropriate for 12-factor apps; doesn't serve the YAML-first, human-editable config.yml workflow this audience expects
-
-**Confidence: HIGH** — pydantic-settings 2.13.1 on PyPI confirmed, YAML extra confirmed, Python 3.10+ requirement confirmed.
-
-**Python version note:** pydantic-settings 2.x requires Python >= 3.10. This is one of the forcing functions for the 3.11 floor recommendation above.
-
----
-
-### 5. HTTP / Notification Dispatch
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `httpx` | latest stable | Discord webhook, async HTTP | Sync + async API, drop-in for requests |
-| `twilio` | latest stable | SMS notifications | Official SDK, well-maintained |
-| `smtplib` (stdlib) | 3.11+ | Email/SMTP | Built-in, sufficient for transactional email |
-
-**Decision: Use `httpx` for webhook dispatch. Keep `smtplib` for email. Use official `twilio` SDK for SMS.**
-
-`httpx` provides both a synchronous and async client with an API nearly identical to `requests`. Since the codebase already uses `requests` for the TinyURL call, replacing `requests` with `httpx` unifies the HTTP client story. The async client (`httpx.AsyncClient`) slots into the async plugin dispatch pattern without wrapping.
-
-For Discord webhook delivery, a single POST to the webhook URL suffices — no persistent connection, no high concurrency. `httpx` is appropriate (vs. `aiohttp` which excels at sustained high-concurrency pools). Benchmark data shows `aiohttp` outperforms `httpx` under heavy sustained load, but webhook dispatch (fire-and-forget POST on stock events) is not that workload.
-
-`smtplib` + `email.mime` (stdlib) handles SMTP without an external dep. For the notification use case (send one email on stock event), it's sufficient.
-
-`twilio` SDK: the official Python package, actively maintained, handles auth and API versioning. Do not handroll SMS via raw HTTP.
-
-**Do NOT use:**
-- `aiohttp` — async-only, requires session lifecycle management, higher complexity than the notification dispatch pattern warrants
-- `requests` continued — sync-only; inconsistent with the async event loop; replace entirely with `httpx`
-- Third-party Discord libraries (`discord.py`, etc.) — webhook dispatch doesn't need a bot client library
-
-**Confidence: MEDIUM** — httpx vs aiohttp choice informed by multiple WebSearch sources. For this workload profile the distinction is low-stakes; either would work.
-
----
-
-### 6. Retry and Rate Limiting
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `tenacity` | 9.1.4 | Retry with exponential backoff | Native async support, decorator API |
-| `asyncio.sleep` (stdlib) | 3.11+ | Per-platform delay between checks | Built-in, no dep |
-
-**Decision: Use `tenacity` for retry logic. Use `asyncio.sleep()` for inter-check delays.**
-
-`tenacity` 9.x has full async support — the same `@retry` decorator applies to both sync and async functions. For the pattern of retrying a captcha-failed check or a transient network error on a platform check, it provides:
-- `wait_exponential_jitter` — jitter prevents all platforms from hammering simultaneously after a backoff
-- `stop_after_attempt` — prevents infinite retry loops
-- `retry_if_exception_type` — selective retry on specific error types
-
-Per-platform delays (`delay_ms` in config) should be implemented with `await asyncio.sleep(delay / 1000)` inside each plugin's check loop — not with tenacity, which is for exceptional retry paths, not normal pacing.
-
-**Do NOT use:**
-- `backoff` library — older, less maintained than tenacity, no meaningful advantage
-- `time.sleep()` inside async code — blocks the event loop, defeats concurrent execution entirely
-- `asyncio.sleep()` for retry logic — manually implementing exponential backoff with jitter is error-prone; use tenacity
-
-**Confidence: HIGH** — tenacity 9.1.4 confirmed on PyPI, async support confirmed via official docs and WebSearch.
-
----
-
-### 7. Retained from Existing Stack (No Change)
-
-| Technology | Purpose | Notes |
-|------------|---------|-------|
-| `sqlite3` (stdlib) | Purchased-item tracking | Sufficient; no ORM needed for this schema |
-| `pygame` | Audio alerts | Working, retain as-is |
-| `colorama` | Colored terminal output | Working, retain as-is |
-| `webdriver-manager` | ChromeDriver download | May become redundant if nodriver manages its own Chrome; evaluate during implementation |
-
-**On SQLite:** The purchased-item tracking schema is simple (name, link, purchased flag). Do not introduce SQLAlchemy or any ORM. `sqlite3` stdlib is correct here.
-
-**On webdriver-manager:** nodriver manages its own Chrome binary download differently from webdriver-manager. During Phase 1 implementation, verify whether `webdriver-manager` is still needed or can be dropped.
-
----
-
-## Final Requirements.txt Shape
-
-```
-# Browser automation
-nodriver>=0.48.1
-
-# Config
-pydantic-settings[yaml]>=2.13.1
-
-# HTTP / notifications
-httpx>=0.27.0
-twilio>=9.0.0
-
-# Retry
-tenacity>=9.0.0
-
-# Retained
-pygame
-colorama
-
-# Dev / test
-pytest
-pytest-asyncio
-```
-
-**Remove:**
-- `requests` (replaced by httpx)
-- `pyyaml` (now a transitive dep via pydantic-settings[yaml])
-- `selenium` (replaced by nodriver)
-- `webdriver_manager` (evaluate; likely replaceable by nodriver's own install mechanism)
-- duplicate entries in current requirements.txt (`selenium` and `pyyaml` each listed twice)
+**Confidence: MEDIUM-HIGH** — HACS's `hacs.json`/`manifest.json` split and Obsidian's `community-plugins.json`/`manifest.json` split are both confirmed via their own developer docs (hacs.xyz, docs.obsidian.md/Reference/Manifest); the specific field names proposed for ShopPyBot's own schema are a reasoned adaptation of the existing `docs/PLUGIN_REGISTRY.md` spec, not an independently-verified external standard.
 
 ---
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Browser automation | nodriver | playwright + playwright-stealth | Playwright stealth is a separate package, more complex setup; nodriver is async-native and purpose-built for bot detection evasion |
-| Browser automation | nodriver | selenium (async wrappers) | No native async; thread-pool wrapping is fragile and doesn't scale to 7+ platforms |
-| Plugin discovery | importlib + ABC | pluggy | pluggy is hook-oriented, not interface-oriented; adds contributor complexity with no benefit for a uniform 4-method interface |
-| Plugin discovery | importlib + ABC | entry_points | Requires pyproject.toml per plugin; contradicts drop-in .py contributor story |
-| Config | pydantic-settings | dynaconf | Dynaconf suits multi-environment server apps; adds unnecessary complexity for a single-user CLI tool |
-| Config | pydantic-settings | raw PyYAML | No validation; runtime KeyErrors inside bot loops are unacceptable |
-| HTTP | httpx | aiohttp | aiohttp is async-only and shines under sustained high concurrency; webhook dispatch is low-frequency fire-and-forget |
-| HTTP | httpx | requests | Sync-only; incompatible with asyncio event loop |
-| Concurrency | asyncio.TaskGroup | asyncio.gather | gather() does not cancel siblings on failure; TaskGroup provides structured concurrency with automatic cleanup |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|--------------------------|
+| GitHub REST Contents API + `raw.githubusercontent.com` via `requests` | `git clone`/`git archive` subprocess | Only if the project later supports non-GitHub hosts (GitLab, self-hosted Gitea) — those don't expose GitHub's Contents API shape, so generic Git-host support genuinely needs `git`. Not needed for v1's GitHub-only scope. |
+| SHA-256 pin (stdlib `hashlib`) + explicit consent gate | Ed25519-signed registry entries via existing `cryptography` pin | Once a maintainer-curated, actively-signed registry exists (a v2 evolution of REG-01). Zero new dependency either way since `cryptography` is already pinned — a genuine "when trust model matures" upgrade, not a cost tradeoff. |
+| SHA-256 pin + consent gate | Sigstore (`sigstore-python`) | Only if this project starts *publishing its own signed releases* (a different problem — proving ShopPyBot's own PyPI wheel wasn't tampered with) — not for verifying arbitrary third-party plugin authors who almost certainly haven't Sigstore-signed anything. |
+| `pip install --target` per-plugin, subprocess-invoked, append-only `sys.path` | Full per-plugin `venv` + subprocess-isolated plugin execution | Only if the project commits to real process isolation for plugin *execution* (not just dependency install) — the "real fix" the seed already flags as expensive and out of scope for v1. |
+| `sys.addaudithook` for detection/logging only | seccomp/Landlock (Linux) + AppContainer/Job Objects (Windows) for real enforcement | Only as part of a dedicated, budgeted process-isolation milestone — cross-platform parity work this size does not fit inside v5.0 workstream H. |
+| Two-tier JSON registry (central index + per-repo manifest) | Single flat JSON registry with everything centrally maintained | If the project decides it will only ever support registry-known plugins (no arbitrary third-party install) — but that contradicts the seed's explicit goal ("without that plugin ever being merged into this one"). |
 
----
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|--------------|
+| `git clone`/`git archive` subprocess as the primary fetch mechanism | Requires an external `git` binary on the user's PATH with no existing project dependency on one; adds per-OS PATH-detection error handling for a capability `requests` already covers | GitHub REST Contents API / `raw.githubusercontent.com` via `requests` |
+| `pip install git+https://...@<sha>` as the plugin fetch mechanism | Executes the target repo's build backend during install (a second RCE surface *before* import-time execution); still requires `git` under the hood for the VCS URL | Direct content fetch (raw/Contents API) of a plain `.py` file (or small file set); reserve `pip` for the plugin's own *declared PyPI dependencies* only (question 6), never for fetching the plugin itself |
+| Hash-pinning a GitHub archive (`codeload.github.com/.../archive/<ref>.tar.gz`) | GitHub does not guarantee archive byte-stability across re-downloads of the same ref — publicly documented, has broken multiple downstream projects (spack, easybuild, bazel, libgit2) | Pin the commit SHA in the fetch URL itself (raw content or Contents API), not a hash of a re-compressed archive |
+| `sigstore-python` (4.5.0) | ~10 new transitive dependencies (`tuf`, `pyOpenSSL`, `rfc3161-client`, `rfc8785`, `pyasn1`, `sigstore-models`, `sigstore-rekor-types`, `pyjwt`, `rich`, `id`) for a trust model (OIDC-bound publisher identity) that doesn't fit "arbitrary unvetted third-party plugin author"; disproportionate for a project that adds dependencies reluctantly | SHA-256 pin + explicit consent gate now; optional Ed25519 via the already-pinned `cryptography` package later, only for maintainer-signed registry entries |
+| RestrictedPython / AST-level sandboxing of plugin code | A `RetailerPlugin` legitimately needs full filesystem/network/subprocess access to drive a real browser — a restricted namespace would have to allowlist nearly everything a malicious plugin would also want, providing near-zero real protection while adding real breakage risk; known introspection-based escapes (`__subclasses__()`, `getattr` chains) are well documented | Consent gate + SHA pin + audit-hook logging (detection, not enforcement); defer real isolation |
+| seccomp/Landlock/container sandboxing for v1 | Real protection, but Linux-only (Landlock needs kernel 5.13+), no native Windows equivalent, and this project is Windows-first; the seed itself already flags this as "the real fix... by far the most expensive" — a dedicated milestone, not a workstream-H line item | Ship consent + SHA pin + capability *logging* now; scope process isolation as its own future milestone if it's ever prioritized |
+| WASM / Pyodide sandboxing | Category mismatch, not a cost tradeoff — a plugin needs a real Chrome process over CDP, real sockets, real filesystem access; none of that is available inside a Wasm sandbox without defeating the sandbox's purpose | N/A — not viable for this plugin shape |
+| TOML for the registry index or per-plugin manifest | `tomllib` is stdlib-read-only (3.11+); writing TOML needs a third-party library the project doesn't otherwise need; no benefit here since neither file is meant to be hand-edited by a human in this project's own repo workflow the way `config.yml` is | JSON — matches existing `--json` CLI convention, fully symmetric stdlib read/write |
+| `packaging` library for `PLUGIN_API_VERSION` comparison | `PLUGIN_API_VERSION` is a plain int (currently `2`) — a semver-parsing dependency solves a problem that doesn't exist here | Plain integer comparison (`plugin_api_version >= MIN_SUPPORTED`) |
+| GitPython / pygit2 | Heavier bindings (pygit2 statically links libgit2 — a large new binary dependency) that only generalize to "any Git host," which isn't this project's v1 scope (GitHub-only, per REG-01); gives no capability the GitHub REST/raw endpoints don't already provide more simply for the GitHub-hosted case | GitHub REST Contents API / raw content fetch via `requests` |
+
+## Stack Patterns by Variant
+
+**If the plugin manager stays GitHub-only (recommended for v1):**
+- Use `raw.githubusercontent.com` + GitHub Contents API exclusively via `requests`.
+- Because it needs zero new dependencies and matches this repo's own GitHub-native tooling (Dependabot, CodeQL, PVR) — the whole project already assumes GitHub as the host.
+
+**If the project later wants a maintainer-curated "verified" tier distinct from "arbitrary install":**
+- Use Ed25519 signing of registry entries via the already-pinned `cryptography` package.
+- Because it reuses REG-01 as the trust root exactly as the seed suggests, at zero new dependency cost, without pretending to solve the harder problem Sigstore solves (publisher identity for the project's *own* releases).
+
+**If a future milestone commits real budget to process isolation:**
+- Revisit seccomp/Landlock (Linux) and AppContainer/Job Objects (Windows) as a dedicated cross-platform sandboxing milestone, not a line item here.
+- Because it is the only option surveyed that is an actual security boundary rather than detection/consent — but it is expensive and platform-fragmented enough to deserve its own scoping pass, exactly as PROJECT.md's "Future Candidate Directions" already lists it separately from v5.0.
+
+## Version Compatibility
+
+| Package | Pinned | Current on PyPI | Notes |
+|---------|--------|------------------|-------|
+| `requests` | 2.33.1 | 2.34.2 | No functional gap for this feature; both support everything needed (`requests.get`, JSON decode, custom headers for the raw-media-type fallback). Bumping is a housekeeping item, not a blocker. |
+| `cryptography` | 49.0.0 | 50.0.0 | `hazmat.primitives.asymmetric.ed25519` has been stable since `cryptography` 2.6 — no version-specific gap for the optional Ed25519 path. |
+| `platformdirs` | 4.10.0 | 4.11.0 | `PlatformDirs(...).user_data_dir` behavior unchanged across this range; no compatibility risk for the new `plugins_dir()` accessor. |
+| `pydantic` | 2.13.3 | (not separately re-verified this session; already current per v4.2 close) | Used identically to the existing `get_platform_config()` pattern — no new API surface required. |
+| `sigstore` | not pinned (NOT recommended) | 4.5.0 | Documented here only to support the "why not" analysis; do not add. |
+| Python | `>=3.11` (project floor, per `pyproject.toml`) | n/a | `tomllib` (stdlib) would be available if TOML were chosen; not needed since JSON is recommended. |
 
 ## Sources
 
-- nodriver PyPI: https://pypi.org/project/nodriver/ (verified 0.48.1, Nov 2025)
-- nodriver GitHub: https://github.com/ultrafunkamsterdam/nodriver
-- playwright PyPI: https://pypi.org/project/playwright/ (verified 1.58.0, Jan 2026)
-- playwright-stealth PyPI: https://pypi.org/project/playwright-stealth/
-- Anti-bot benchmark comparison: https://medium.com/@dimakynal/baseline-performance-comparison-of-nodriver-zendriver-selenium-and-playwright-against-anti-bot-2e593db4b243
-- pydantic-settings PyPI: https://pypi.org/project/pydantic-settings/ (verified 2.13.1, Feb 2026, Python >=3.10)
-- tenacity PyPI: https://pypi.org/project/tenacity/ (verified 9.1.4, Feb 2026)
-- asyncio.TaskGroup docs: https://docs.python.org/3/library/asyncio-task.html
-- Python plugin discovery guide: https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/
-- httpx vs aiohttp comparison: https://www.speakeasy.com/blog/python-http-clients-requests-vs-httpx-vs-aiohttp
-- Playwright vs Selenium 2025: https://www.browserless.io/blog/playwright-vs-selenium-2025-browser-automation-comparison
+- https://docs.github.com/en/rest/repos/contents — Contents API endpoint shapes, 1 MB base64 threshold, `Accept: application/vnd.github.v3.raw` fallback (HIGH)
+- https://docs.github.com/en/rest/git/blobs — blob endpoint, base64 content + `sha` field, integrity cross-check mechanics (HIGH)
+- https://github.blog/open-source/git/update-on-the-future-stability-of-source-code-archives-and-hashes/ — GitHub's own statement that archive checksums are not guaranteed stable (HIGH)
+- https://lwn.net/Articles/921787/ — "Git archive generation meets Hyrum's law," Git 2.38 gzip→zlib default change breaking archive checksums (HIGH)
+- Multiple downstream project issues confirming the same archive-instability breakage: spack#5411, easybuild-easyconfigs#5151, bazel#3722, libgit2#4343 (MEDIUM-HIGH, corroborating community reports)
+- https://github.blog/changelog/2025-05-08-updated-rate-limits-for-unauthenticated-requests/ — current unauthenticated rate limit (60 req/hr) applying to both `api.github.com` and `raw.githubusercontent.com` (HIGH)
+- https://peps.python.org/pep-0578/ — PEP 578 text, explicit "this is not sandboxing" framing (HIGH)
+- https://github.com/python/cpython/issues/87604 — open issue on `sys.addaudithook` docs needing clearer non-sandbox framing (HIGH)
+- https://peps.python.org/pep-0684/ and the associated discuss.python.org thread on extending subinterpreters with sandboxing — subinterpreters are not a security boundary either (MEDIUM, discussion-thread sourced)
+- https://pypi.org/pypi/sigstore/json — `sigstore` 4.5.0 current, full `requires_dist` transitive dependency list (HIGH)
+- https://pypi.org/pypi/cryptography/json — `cryptography` 50.0.0 current on PyPI vs. 49.0.0 pinned (HIGH)
+- https://pypi.org/pypi/requests/json — `requests` 2.34.2 current on PyPI vs. 2.33.1 pinned (HIGH)
+- https://pypi.org/pypi/platformdirs/json — `platformdirs` 4.11.0 current on PyPI vs. 4.10.0 pinned (HIGH)
+- https://github.com/pyca/cryptography — Ed25519 signing/verification API (`Ed25519PrivateKey`/`Ed25519PublicKey`, `sign()`/`verify()`, `from_public_bytes()`) (HIGH)
+- https://pip.pypa.io/en/stable/cli/pip_install/ — `--target` isolation semantics, PYTHONPATH implications (HIGH)
+- https://hacs.xyz/docs/publish/start/ — `hacs.json` manifest shape, repository structure convention (MEDIUM-HIGH)
+- https://docs.obsidian.md/Reference/Manifest — `manifest.json` schema; `community-plugins.json` central index shape (MEDIUM-HIGH)
+- In-repo: `E:\repos\ShopPyBot\core\registry.py`, `core/plugin_base.py`, `core/paths.py`, `core/cli/plugins.py`, `docs/PLUGIN_REGISTRY.md`, `plugins/PLUGIN_DEV.md`, `.planning/seeds/SEED-003-remote-plugin-manager-and-extensibility-framework.md`, `requirements.txt`, `pyproject.toml` (existing implementation surveyed directly, not inferred)
 
 ---
-
----
-
-# v3.0 Stack Additions — Resilience + Ecosystem
-
-**Researched:** 2026-06-06
-**Confidence:** MEDIUM-HIGH overall. nodriver proxy API is still maturing (proxy_server in
-create_context confirmed; authenticated proxy extension approach confirmed via community demo).
-CAPTCHA SDK async class verified from PyPI and GitHub. Fingerprint benchmark data from
-independent 31-target study.
-
-Fixed baseline (verified current as of 2026-06-06): nodriver 0.50.3, Python 3.13.
-
----
-
-## Feature 1: Proxy Rotation
-
-### Decision: DIY thin wrapper using nodriver `create_context(proxy_server=...)` — no external library
-
-**How nodriver handles proxies (MEDIUM confidence — verified from official docs + community demo):**
-
-`Browser.create_context()` accepts `proxy_server: str` and `proxy_bypass_list: str`. This is the
-correct insertion point per official docs at
-https://ultrafunkamsterdam.github.io/nodriver/nodriver/classes/browser.html.
-
-Unauthenticated: pass directly as `"http://host:port"` or `"socks5://host:port"`.
-SOCKS5 with auth: `"socks://USERNAME:PASSWORD@SERVER:PORT"` (documented).
-HTTP with auth: Chrome ignores username/password in `--proxy-server` CLI args. Use a small
-Chrome extension (a temp ZIP with a background.js that calls
-`chrome.webRequest.onAuthRequired`) loaded via `--load-extension`. This is documented in the
-community demo at https://github.com/TufayelLUS/Python-nodriver-use-all-type-proxy and is the
-standard workaround for authenticated HTTP proxies in Chromium-based tools.
-
-**Why DIY, not a library:**
-
-Every proxy-rotation library (scrapy-rotating-proxies, proxy-pool, proxybroker) is Scrapy-coupled,
-requests/httpx-only, or unmaintained. The rotation logic for this bot is: a list of proxy strings
-in config, `itertools.cycle` over them, advance on request or on `check_availability` failure.
-That is 15-20 lines in `core/proxy.py` — not a dependency.
-
-### Stack addition for Feature 1
-
-| Library | pip name | Version | License | Purpose |
-|---------|----------|---------|---------|---------|
-| None (stdlib only) | — | — | — | `itertools.cycle`, `zipfile`, `tempfile` for extension ZIP |
-
-**Integration into plugin ABC:**
-- Add optional `proxy_list: list[str] = []` to per-platform pydantic config model.
-- `core/proxy.py` exposes `ProxyRotator(proxy_list)` with `.next() -> str` and
-  `.make_auth_extension(host, port, user, pwd) -> Path` (writes temp ZIP, returns path).
-- `RetailerPlugin.setup()` reads `self.config.platforms.<key>.proxy_list`, constructs a
-  `ProxyRotator`, and passes the next proxy to `nodriver.start()` or `create_context()`.
-- On `check_availability` failure that looks like a block (HTTP 403, timeout), rotate to next
-  proxy on the subsequent call. No per-request rotation — that requires per-request
-  `create_context`, which re-navigates the entire session and is too expensive for checkout flows.
-
-### What NOT to add for Feature 1
-
-| Avoid | Why |
-|-------|-----|
-| `proxybroker` | Unmaintained since 2020; Python 3.10+ incompatible |
-| `scrapy-rotating-proxies` | Scrapy-only; incompatible with nodriver/asyncio |
-| `proxy-pool` | Requires Redis; absurd overhead for a personal bot |
-| `selenium-wire` | Selenium-only; conflicts with nodriver architecture |
-| FlareSolverr sidecar | Docker dependency; overkill for personal use |
-| Per-request proxy rotation | Forces full browser session restart per check; destroys login state |
-
----
-
-## Feature 2: CAPTCHA-Solving Integration
-
-### Decision: `2captcha-python` with `AsyncTwoCaptcha`
-
-**Comparison of viable options (verified 2026-06-06):**
-
-| SDK | pip name | Version | License | Async | reCAPTCHA v2/v3 | Turnstile | hCaptcha | PerimeterX |
-|-----|----------|---------|---------|-------|-----------------|-----------|----------|------------|
-| `2captcha-python` | `2captcha-python` | 2.0.7 | MIT | YES (`AsyncTwoCaptcha`) | YES | YES | Not documented | NO direct |
-| `capsolver` | `capsolver` | 1.0.7 | MIT | NO | YES | YES | YES | YES (Akamai BMP) |
-| `anticaptchaofficial` | `anticaptchaofficial` | unknown | MIT | NO | YES | partial | YES | NO |
-
-**Choose `2captcha-python` because:**
-
-1. `AsyncTwoCaptcha` is a first-class async class verified in the official GitHub README (v2.0.7,
-   released May 2026). Drop it directly into `await` calls inside plugin coroutines — no
-   `run_in_executor` wrapping needed.
-2. Version 2.0.7 released May 29, 2026 — actively maintained; the latest release of any option.
-3. MIT license, no usage restrictions for personal bots.
-4. Covers the CAPTCHA types actually encountered on the 7 supported platforms: reCAPTCHA v2/v3
-   (Amazon checkout), Cloudflare Turnstile (GameStop/NewEgg), Amazon WAF, GeeTest, DataDome.
-5. hCaptcha appears in repo tags but is not in the official CAPTCHA type table — LOW confidence.
-   For Walmart (PerimeterX/HUMAN) and Target (Akamai), automated CAPTCHA solving via any of
-   these SDKs is not viable — the protection is behavioral/fingerprint-based, not a solvable
-   CAPTCHA token. Keep the existing `detect_captcha() -> True` + `asyncio.Event` manual-pause
-   pattern for those platforms.
-
-**capsolver is NOT chosen:** PyPI package v1.0.7 was last released July 2023 (nearly 3 years
-stale). No async API. The unofficial `python3-capsolver` fork (v1.2.0) adds aiohttp support but
-has no official backing — too high a maintenance risk for a core feature.
-
-**anticaptchaofficial is NOT chosen:** Sync-only; would require `run_in_executor` wrapping that
-blocks the write-queue-drain pattern; PyPI page was unreachable during research.
-
-**PerimeterX/HUMAN bypass services (RiskByPass, ScraperAPI) are explicitly out of scope:**
-These cost $5-7 per 1,000 solves and are priced for commercial scraping operations, not a personal
-bot that might hit one CAPTCHA per week.
-
-### Stack addition for Feature 2
-
-| Library | pip name | Version | License | Purpose |
-|---------|----------|---------|---------|---------|
-| 2captcha-python | `2captcha-python` | 2.0.7 | MIT | `AsyncTwoCaptcha` for in-plugin CAPTCHA token solving |
-
-**Integration into plugin ABC:**
-
-`detect_captcha()` already exists on `RetailerPlugin` as an async no-op. Extend the ABC with:
-- A default `solve_captcha(url: str, sitekey: str, captcha_type: str) -> str | None` method that
-  returns the solved token string or `None` if no API key is configured.
-- The implementation instantiates `AsyncTwoCaptcha(api_key)` where `api_key` comes from
-  `CredentialStore.get("captcha_api_key")` — never from config.yml or hardcoded.
-- Plugins that encounter solvable CAPTCHAs (Amazon WAF, Turnstile) override `detect_captcha` to
-  return True, then call `await self.solve_captcha(...)` and inject the token via `tab.evaluate`.
-- Platforms with PerimeterX/HUMAN keep `detect_captcha` returning True but do NOT attempt
-  solve — they emit the existing `asyncio.Event` to pause for manual intervention.
-
-**Install:**
-```bash
-pip install "2captcha-python==2.0.7"
-```
-
-Add to `requirements.txt` or as an optional extra:
-```toml
-[project.optional-dependencies]
-captcha = ["2captcha-python==2.0.7"]
-```
-
-### What NOT to add for Feature 2
-
-| Avoid | Why |
-|-------|-----|
-| `capsolver` (pip) | Stale (July 2023), no async API |
-| `python3-capsolver` | Unofficial fork, no official backing |
-| `anticaptchaofficial` | Sync-only; wrapping adds complexity |
-| RiskByPass / ScraperAPI subscriptions | $5-7/1k; commercial scale only |
-| `2captcha-python-async` (separate package) | Superseded by `AsyncTwoCaptcha` in main package |
-
----
-
-## Feature 3: Stronger Browser Fingerprint Resilience
-
-### Decision: CDP `Emulation` overrides via nodriver's raw CDP API — no new library
-
-**What nodriver already provides (do NOT duplicate — HIGH confidence):**
-
-nodriver 0.50.3 achieved 0 hard blocks across 31 Cloudflare targets in an independent benchmark
-(https://ianlpaterson.com/blog/anti-detect-browser-benchmark-patchright-nodriver-curl-cffi/).
-No other tool tested scored better. This is the result of architectural decisions, not patches:
-- `navigator.webdriver` is `false` by design — WebDriver wire protocol was never activated
-- No `Runtime.enable` CDP call — eliminates the primary Playwright-era detection vector
-- Connects via raw WebSocket CDP — indistinguishable from Chrome DevTools itself
-- No init scripts — nothing patches anything, so patches themselves are not a detection signal
-
-**What nodriver does NOT do (gaps to fill with ~30 lines of code):**
-
-- Canvas fingerprint is identical across all runs (reported in issue #2153). Sites using
-  canvas-based fingerprinting can link sessions.
-- Timezone and locale default to the host system — if a proxy routes through a different country,
-  timezone mismatch is a detection signal.
-- WebGL renderer string is Chrome's real renderer — not spoofed.
-
-**Fill these gaps using nodriver's exposed CDP modules (no new library):**
-
-nodriver exposes the full CDP `Emulation` and `Page` domains. Implement `core/fingerprint.py`:
-
-```python
-# core/fingerprint.py — ~30 lines, no new deps
-import nodriver.cdp.emulation as emulation
-import nodriver.cdp.page as page
-
-async def apply_emulation_overrides(tab, timezone_id: str, locale: str) -> None:
-    await tab.send(emulation.set_timezone_override(timezone_id=timezone_id))
-    await tab.send(emulation.set_locale_override(locale=locale))
-
-CANVAS_NOISE_JS = """
-(function() {
-    const orig = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = function(...args) {
-        const ctx = this.getContext('2d');
-        if (ctx) {
-            const d = ctx.getImageData(0, 0, 1, 1);
-            d.data[0] ^= 1; ctx.putImageData(d, 0, 0);
-        }
-        return orig.apply(this, args);
-    };
-})();
-"""
-
-async def inject_canvas_noise(tab) -> None:
-    await tab.send(page.add_script_to_evaluate_on_new_document(source=CANVAS_NOISE_JS))
-```
-
-Plugins call both functions inside `setup()` after the first tab is created. Timezone and locale
-values come from the platform config section (optional; default: host values if not set).
-
-**Why camoufox is NOT chosen:** Camoufox is Firefox-based. All 7 plugins are Chrome/nodriver.
-Switching browsers requires a full rewrite of every plugin's DOM selectors and checkout flows.
-In the same 31-target benchmark, camoufox scored 25/31 vs nodriver's 31/31 — nodriver is already
-superior for the specific sites this bot targets.
-
-**Why patchright is NOT chosen:** Patchright is Playwright-based — reintroduces the exact
-protocol layer nodriver was adopted to eliminate. Its benchmark gains came from using system
-Chrome 148 (not from patch quality); running system Chrome is already what nodriver does.
-
-### Stack addition for Feature 3
-
-| Library | pip name | Version | License | Purpose |
-|---------|----------|---------|---------|---------|
-| None — use nodriver CDP | — | — | — | Emulation.setTimezoneOverride, setLocaleOverride, Page.addScriptToEvaluateOnNewDocument |
-
-### What NOT to add for Feature 3
-
-| Avoid | Why |
-|-------|-----|
-| `camoufox` | Firefox only; requires full plugin rewrite; worse benchmark than nodriver |
-| `patchright` | Reintroduces Playwright; reintroduces the detection vector nodriver eliminated |
-| `playwright-stealth` | Playwright-only; broad patch surface is itself a fingerprint signal |
-| `undetected-chromedriver` | The predecessor nodriver replaced; more detectable than nodriver |
-| FlareSolverr | Docker sidecar; overkill for personal use |
-| Any comprehensive JS injection framework | A 5-line canvas shim via raw CDP is simpler and less detectable than a full stealth plugin |
-
----
-
-## Feature 4: Price Monitoring
-
-### Decision: Per-plugin DOM parsing with shared `core/price.py` helper; price history as a new SQLite table
-
-**Price parsing approach (HIGH confidence — no new library):**
-
-Each plugin already navigates the product page in a live nodriver tab. The price is in the DOM.
-Add `parse_price(tab) -> float | None` to the `RetailerPlugin` ABC with a default `return None`
-(existing plugins require zero changes). Each plugin implements its own CSS selector because
-retailer DOM structures differ (Amazon `.a-price-whole .a-price-fraction`, BestBuy
-`.priceView-hero-price span`, etc.). A shared helper in `core/price.py` handles cleanup:
-
-```python
-import re
-
-def clean_price(text: str | None) -> float | None:
-    if not text:
-        return None
-    digits = re.sub(r"[^\d.]", "", text)
-    try:
-        return float(digits)
-    except ValueError:
-        return None
-```
-
-nodriver's `await tab.find()` and `await element.get_attribute("textContent")` retrieve the price
-text — no additional parsing library needed.
-
-**Price history storage (HIGH confidence — extends existing SQLite pattern):**
-
-Add a `price_history` table using the same idempotent `PRAGMA table_info` + `ALTER TABLE` approach
-already in `initialize_db()`:
-
-```sql
-CREATE TABLE IF NOT EXISTS price_history (
-    id         INTEGER PRIMARY KEY,
-    item_link  TEXT    NOT NULL,
-    price      REAL    NOT NULL,
-    checked_at TEXT    NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_ph_link_time ON price_history(item_link, checked_at);
-```
-
-Add `target_price REAL` as a nullable column on the `items` table (same idempotent ALTER pattern).
-
-Extend `models.py` with `insert_price_sync(link, price, ts)` and
-`get_price_history_sync(link, limit) -> list[tuple]` — consistent with the existing `_sync`
-naming convention.
-
-**Price-drop alert:** Enqueue a `("price_drop", link, price)` tuple through the existing write
-queue drain. The orchestrator's `_dispatch_write` extension handles it by calling `dispatcher.notify()`
-with `action="price_drop"`. Reuses the existing notification fan-out — no new notification channel.
-The orchestrator calls `_check_price` alongside `_check_and_buy` in the per-plugin poll loop.
-
-### Stack addition for Feature 4
-
-| Library | pip name | Version | License | Purpose |
-|---------|----------|---------|---------|---------|
-| None — stdlib only | — | — | — | `re` for price cleanup; `sqlite3` already in use |
-
-### What NOT to add for Feature 4
-
-| Avoid | Why |
-|-------|-----|
-| `beautifulsoup4` / `lxml` | nodriver's DOM API suffices for a live rendered page; adding a parser for Chrome-rendered HTML is redundant |
-| `httpx` / `aiohttp` for price fetching | Would bypass the authenticated browser session; prices behind login/AJAX require the live tab |
-| `pandas` / `matplotlib` | Price history CSV export or charting is out of scope for a personal stock bot |
-| `APScheduler` | The existing asyncio poll loop handles scheduling; a second scheduler adds complexity with no benefit |
-| `SQLAlchemy` | The existing raw `sqlite3` pattern is simple and consistent; an ORM is over-engineering |
-
----
-
-## Feature 5: Plugin Ecosystem Tooling (Wiki Registry)
-
-### Decision: Pure Python script `tools/generate_wiki.py` — no new library, no new runtime dep
-
-**Approach:**
-
-The generator script runs in CI (not at bot runtime):
-1. Imports each `plugins/shopbot_plugin_*.py` via `importlib` (same mechanism as `PluginRegistry`).
-2. Reads three new class attributes from each plugin: `platform_name: str`,
-   `anti_detection_difficulty: str` (one of `"low"/"medium"/"high"/"extreme"`), and
-   `supported_actions: list[str]` (e.g. `["check_availability", "auto_buy"]`).
-3. Generates `Plugin-Registry.md` using f-strings — a Markdown table with columns: Platform,
-   Domains, Actions, Anti-Detection Difficulty, Maintainer.
-4. Pushes to the wiki repo via `subprocess.run(["git", "commit", ...])` against a checked-out
-   `<repo>.wiki.git` clone. The wiki repo is a separate bare git clone (standard GitHub wiki
-   mechanism — clone `<repo>.wiki.git`, commit files, push).
-
-This is a CI artifact script. Zero new pip dependencies. The `gh` CLI already present in CI
-handles authentication. The wiki clone + push pattern is the standard GitHub wiki automation
-approach (no dedicated API needed).
-
-### Stack addition for Feature 5
-
-| Library | pip name | Version | License | Purpose |
-|---------|----------|---------|---------|---------|
-| None — stdlib only | — | — | — | `importlib`, `pathlib`, `subprocess`, f-strings |
-
-### What NOT to add for Feature 5
-
-| Avoid | Why |
-|-------|-----|
-| `mkdocs` / `sphinx` | Full doc generators for a single Markdown table; extreme over-engineering |
-| `jinja2` | f-strings are sufficient for one table; templating adds a dep for zero gain |
-| `PyGithub` / `PyGitHub` | `subprocess git` against the wiki clone is simpler and needs no extra OAuth token scope |
-| `markitdown` | Converts FROM other formats TO Markdown; the source is already Python metadata |
-
----
-
-## v3.0 Consolidated Additions
-
-### New runtime dependencies (one)
-
-| Package | pip name | Version | License | Feature |
-|---------|----------|---------|---------|---------|
-| 2captcha-python | `2captcha-python` | 2.0.7 | MIT | CAPTCHA solving (AsyncTwoCaptcha) |
-
-### New stdlib-only modules (internal, no pip)
-
-| Module | Location | Feature |
-|--------|----------|---------|
-| `core/proxy.py` | ProxyRotator + auth extension builder | Proxy rotation |
-| `core/fingerprint.py` | apply_emulation_overrides + inject_canvas_noise | Fingerprint resilience |
-| `core/price.py` | clean_price() helper | Price parsing |
-| `tools/generate_wiki.py` | CI script | Wiki registry generation |
-
-### requirements.txt change
-
-```
-# Add:
-2captcha-python==2.0.7
-
-# Optional extra in pyproject.toml:
-# [project.optional-dependencies]
-# captcha = ["2captcha-python==2.0.7"]
-```
-
-### Existing dependencies — no version changes needed
-
-| Package | Pinned | Status |
-|---------|--------|--------|
-| nodriver | 0.50.3 | Current (verified 2026-06-06) |
-| cryptography | 44.0.2 | Current |
-| keyring | 25.7.0 | Current |
-| pydantic | 2.13.3 | Current |
-| pygame | 2.6.1 | Current |
-
----
-
-## v3.0 Alternatives Considered
-
-| Category | Chosen | Rejected | Reason Rejected |
-|----------|--------|----------|-----------------|
-| Proxy management | DIY `itertools.cycle` | proxybroker, proxy-pool, scrapy-rotating-proxies | Unmaintained / wrong runtime / Redis dependency |
-| CAPTCHA SDK | `2captcha-python` AsyncTwoCaptcha | `capsolver` (stale), `anticaptchaofficial` (sync) | No async; stale releases |
-| Fingerprint resilience | nodriver CDP Emulation + script | camoufox, patchright | Firefox rewrite; re-introduces Playwright |
-| Price parsing | nodriver DOM + stdlib `re` | beautifulsoup4, lxml, httpx | Redundant with live browser tab already open |
-| Wiki generation | Pure Python + subprocess git | mkdocs, jinja2, PyGithub | Over-engineering for one Markdown table |
-| PerimeterX/HUMAN bypass | Manual pause (existing pattern) | RiskByPass, ScraperAPI | $5-7/1k pricing; commercial scale only |
-
----
-
-## v3.0 Sources
-
-- nodriver PyPI (v0.50.3, verified 2026-06-06): https://pypi.org/project/nodriver/
-- nodriver Browser class docs — proxy_server in create_context: https://ultrafunkamsterdam.github.io/nodriver/nodriver/classes/browser.html
-- nodriver authenticated proxy demo: https://github.com/TufayelLUS/Python-nodriver-use-all-type-proxy
-- 2captcha-python PyPI (v2.0.7, verified 2026-06-06): https://pypi.org/project/2captcha-python/
-- 2captcha-python GitHub — AsyncTwoCaptcha confirmed: https://github.com/2captcha/2captcha-python
-- capsolver PyPI (v1.0.7, last release July 2023): https://pypi.org/project/capsolver/
-- Anti-detect browser benchmark 31 Cloudflare targets (nodriver 0 hard blocks, best result): https://ianlpaterson.com/blog/anti-detect-browser-benchmark-patchright-nodriver-curl-cffi/
-- Camoufox vs nodriver 2026: https://www.proxies.sx/blog/ai-browser-automation-camoufox-nodriver-2026
-- nodriver same fingerprint across runs (issue #2153): https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2153
-- Price tracker SQLite schema pattern: https://scrapfly.io/blog/posts/how-to-build-a-price-tracker-in-python
-- GitHub wiki automation via git clone+push: https://therenegadecoder.com/code/how-to-automate-your-github-wiki/
-- PerimeterX/HUMAN solving services comparison 2026: https://scrapingproxies.best/blog/tools/best-perimeterx-solvers/
-
----
-*v3.0 stack additions researched: 2026-06-06*
-
----
-
----
-
-# v4.0 Stack Additions — Win-the-Drop (Checkout Automation + Reliability)
-
-**Researched:** 2026-06-10
-**Confidence:** HIGH overall. nodriver API verified from source code. asyncio primitives verified
-from Python 3.13 stdlib docs. CredentialStore reuse patterns confirmed from in-repo code.
-
-**Verdict: Zero new runtime dependencies required for v4.0.**
-
-Every v4.0 feature is achievable with the existing pinned stack. The analysis below maps each
-feature to specific existing APIs and explains why no external library is needed.
-
----
-
-## Acquisition Core Features
-
-### Checkout Profile Form-Fill (shipping/billing)
-
-**Mechanism:** nodriver `tab.select(selector)` + `element.send_keys(value)` sequences.
-This is the exact pattern already used in `BestBuyPlugin.login()` and the existing checkout
-flows — shipping/billing form-fill is structurally identical to credential field-fill.
-
-**Profile storage:** A new `CheckoutProfile` Pydantic model (name, address1, address2, city,
-state, zip, country, phone) added to `core/config_schema.py`. Values stored in `CredentialStore`
-using new keys appended to `SECRET_KEYS`. Payment CVV already collected via `getpass` at runtime
-and never persisted (existing PCI-safe pattern, unchanged).
-
-**No new dep.** nodriver 0.50.3, Pydantic 2.13.3, and `core/credentials.py` cover this entirely.
-
----
-
-### Order-Confirmation Detection
-
-**Mechanism:** After the place-order click, poll for DOM confirmation signals (order number
-element, URL transition to `/thank-you` or `/order-confirmation`, or page title containing
-"Order" or "Thank You") using `tab.find()` or `tab.evaluate()`. Wrap the polling loop in
-`asyncio.timeout(budget_secs)` as a hard deadline. The `purchased` flag in SQLite is only
-written after a confirmation signal fires — not on button click.
-
-**No new dep.** `asyncio.timeout` (stdlib, Python 3.11+, already used in `_solve_or_pause()`),
-nodriver `tab.find()` / `tab.evaluate()`.
-
----
-
-### Bounded Retry-on-Cart with Backoff
-
-**Mechanism:** A `_retry_checkout(plugin, url, max_attempts, base_delay)` helper in
-`core/orchestrator.py`. Inner loop:
-
-```python
-for attempt in range(max_attempts):
-    if await loop.run_in_executor(None, get_item_purchased_sync, url):
-        return True   # idempotency guard
-    try:
-        success = await plugin.auto_buy(url)
-        if success:
-            return True
-    except Exception as exc:
-        writeLog(f"checkout attempt {attempt+1} failed: {exc.__class__.__name__}", "WARNING")
-    jitter = random.uniform(0, 1)
-    await asyncio.sleep(base_delay * (2 ** attempt) + jitter)
-return False
-```
-
-**No new dep.** `random` (stdlib), `asyncio.sleep` (stdlib). The idempotency guard reuses the
-existing `get_item_purchased_sync` read path. `tenacity` and `backoff` are NOT used: the retry
-semantics are domain-specific (max 3 attempts, bounded by a per-item checkout budget) and the
-5-line manual loop is clearer than decorator indirection for a bounded case.
-
----
-
-### Per-Step/Per-Item Checkout Time Budget
-
-**Mechanism:** `asyncio.timeout(n)` context manager wrapping individual checkout steps within
-plugin `auto_buy()` and wrapping `_check_and_buy()` in `run_plugin()`. Budget values from config:
-`app.item_timeout_secs` (default 120) and `app.checkout_step_timeout_secs` (default 30). On
-`asyncio.TimeoutError`, log the item URL and continue to the next item — do not raise into the
-supervisor.
-
-**No new dep.** `asyncio.timeout` is stdlib since Python 3.11.
-
----
-
-### Monitor-Only Run Mode
-
-**Mechanism:** A `--monitor-only` CLI flag sets `cfg.app.monitor_only = True`. In
-`_try_auto_buy()` (orchestrator), guard:
-
-```python
-if getattr(cfg.app, "monitor_only", False):
-    return
-```
-
-This closes the `test_mode` place-order hole: even if a plugin's `test_mode` check is missing,
-the orchestrator never calls `auto_buy()` in monitor-only mode. The config flag is a Pydantic
-`bool` field with `default=False`.
-
-**No new dep.**
-
----
-
-## Always-On Reliability Features
-
-### Per-Coroutine Supervision + Backoff Restart
-
-**Mechanism:** Replace the bare `tg.create_task(run_plugin(...))` in `async_main()` with a
-supervisor wrapper:
-
-```python
-async def _supervise_plugin(plugin, write_queue, poll_interval, dispatcher, max_failures=5):
-    attempt = 0
-    while attempt < max_failures:
-        try:
-            await run_plugin(plugin, write_queue, poll_interval, dispatcher)
-        except asyncio.CancelledError:
-            raise   # propagate clean shutdown, never swallow
-        except Exception as exc:
-            writeLog(f"[{plugin.__class__.__name__}] crash #{attempt+1}: {exc}", "ERROR")
-            attempt += 1
-            await asyncio.sleep(min(2 ** attempt, 60))
-    writeLog(f"[{plugin.__class__.__name__}] max_failures reached -- retiring", "ERROR")
-```
-
-The supervisor itself is what `TaskGroup` holds. A single plugin crash no longer propagates to
-siblings via the `except*` unwinding path.
-
-**No new dep.** Pure asyncio + stdlib math. `tenacity` is not used: the supervisor loop is
-stateful (it needs to relaunch the browser, not just retry a function call), and a custom
-supervisor gives cleaner control over the browser-crash relaunch sequence.
-
----
-
-### Browser-Crash/Disconnect Detection + Relaunch
-
-**Mechanism:** nodriver's `Browser.stopped` property checks `self._process.returncode is None`.
-When `returncode is not None`, the process has exited. Add a crash check at the top of
-`run_plugin()`'s inner loop:
-
-```python
-if plugin.driver and plugin.driver.stopped:
-    raise RuntimeError(f"[{plugin.__class__.__name__}] browser process exited")
-```
-
-This raises into `_supervise_plugin`, which handles:
-1. `await plugin.teardown()` — safe even if driver is None
-2. Backoff sleep
-3. `await plugin.setup()` — relaunches Chrome, re-applies stealth + proxy
-4. Re-login via `await plugin.login()`
-5. Restore session cookies from encrypted session store (see below)
-
-`browser._process_pid` (int) is used in log messages only.
-
-Re-applying stealth and proxy on relaunch reuses `apply_stealth()`, `build_proxy_browser_args()`,
-and `setup_proxy_auth()` from the existing `core/stealth.py` — no new code.
-
-**No new dep.** `browser.stopped` confirmed from nodriver source at `nodriver/core/browser.py`:
-property returns `True` when `self._process.returncode is not None`.
-
----
-
-### Encrypted Session/Cookie Persistence
-
-**Mechanism:**
-
-**Save path (called after successful login):**
-1. `cookies = await plugin.driver.cookies.get_all()` — returns `List[cdp.network.Cookie]`
-2. Serialize: `payload = json.dumps([c.to_json() for c in cookies]).encode()`
-3. Encrypt using existing Fernet machinery (reuse `_derive_key` + `Fernet` from `core/credentials.py`)
-4. Write ciphertext to `platformdirs.user_data_dir("shoppybot") / "sessions" / f"{platform_key}.bin"`
-
-**Restore path (called after browser relaunch, before first navigation):**
-1. Read and decrypt ciphertext using same key derivation
-2. Deserialize: `cookie_params = [cdp.network.CookieParam(**c) for c in json.loads(plaintext)]`
-3. Restore via raw CDP: `await plugin.driver.main_tab.send(cdp.storage.set_cookies(cookies=cookie_params))`
-
-**Why raw CDP, not `browser.cookies.set_all()`:** `CookieJar.set_all()` has a confirmed bug
-(nodriver Issues #1816, #2020) where the implementation calls `get_cookies` internally and
-discards the argument. Using `cdp.storage.set_cookies()` directly bypasses the buggy wrapper.
-`cdp.storage` is already imported transitively via `from nodriver import cdp` in `core/stealth.py`.
-
-**Why not `browser.cookies.save()` / `browser.cookies.load()`:** These write and read a
-plaintext file on disk. That violates the project's security posture (no plaintext secrets on
-disk). Manual encryption via the existing `cryptography.fernet.Fernet` path maintains the same
-security guarantee as `EncryptedFileBackend`.
-
-**Passphrase:** Reuses `SHOPBOT_STORE_PASSPHRASE` from `_resolve_passphrase()` in
-`core/credentials.py` — no new secrets to manage.
-
-**New file:** `core/session_store.py` (~60 lines). No new pip deps.
-
-**No new dep.** Reuses: `cryptography` (Fernet, already pinned), `json` (stdlib),
-`platformdirs` (already pinned), `cdp.storage` (already importable from nodriver).
-
----
-
-### DB Read-Path Error Isolation
-
-**Mechanism:** In `run_plugin()`, wrap `get_items_sync` in explicit DB error guards:
-
-```python
-try:
-    items = await loop.run_in_executor(None, get_items_sync)
-except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
-    writeLog(f"DB read failed, skipping poll cycle: {exc.__class__.__name__}", "ERROR")
-    await asyncio.sleep(poll_interval)
-    continue
-```
-
-Per-item errors in `_check_and_buy` already have broad `except Exception` guards. This change
-closes the `get_items_sync` path which currently has no isolation.
-
-**No new dep.** `sqlite3.OperationalError` and `sqlite3.DatabaseError` are stdlib.
-
----
-
-### Per-Item Orchestrator Timeout
-
-**Mechanism:** Wrap `_check_and_buy()` in `run_plugin()` with `asyncio.timeout`:
-
-```python
-async with asyncio.timeout(getattr(cfg.app, "item_timeout_secs", 120)):
-    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher)
-```
-
-On `asyncio.TimeoutError`, log the item URL and `continue` to the next item. The timeout is
-configurable in `config.yml` as `app.item_timeout_secs`.
-
-**No new dep.**
-
----
-
-### Structured Health/Heartbeat Surface
-
-**Mechanism:** A shared `HealthState` dataclass in `core/health.py`:
-
-```python
-from dataclasses import dataclass, field
-import time
-
-@dataclass
-class HealthState:
-    started_at: float = field(default_factory=time.monotonic)
-    last_tick: float = field(default_factory=time.monotonic)
-    plugin_states: dict[str, str] = field(default_factory=dict)
-    errors_since_start: int = 0
-```
-
-Exposed two ways:
-1. Orchestrator calls `health.last_tick = time.monotonic()` and updates `plugin_states` each
-   poll cycle. `writeLog(f"[HEALTH] {health.summary()}", "DEBUG")` emits a parseable heartbeat.
-2. FastAPI `/health` route (FastAPI already present as optional dep) returns `health.to_dict()`
-   as JSON. No new web framework.
-
-**No new dep.** `dataclasses` (stdlib), `time.monotonic()` (stdlib), FastAPI already present.
-
----
-
-### SIGTERM/SIGINT Teardown Bridge (Opportunistic)
-
-**Mechanism:** Cross-platform signal bridge in `async_main()`:
-
-```python
-import signal, sys
-
-def _request_shutdown(loop, stop_event):
-    loop.call_soon_threadsafe(stop_event.set)
-
-stop_event = asyncio.Event()
-loop = asyncio.get_running_loop()
-
-if sys.platform != "win32":
-    loop.add_signal_handler(signal.SIGTERM, _request_shutdown, loop, stop_event)
-else:
-    # Windows: add_signal_handler raises NotImplementedError; use signal.signal instead
-    signal.signal(signal.SIGTERM, lambda *_: loop.call_soon_threadsafe(stop_event.set))
-```
-
-When `stop_event` fires, cancel the TaskGroup tasks; the existing `finally` block in
-`async_main()` calls `registry.teardown_all()` to close Chrome processes before exit.
-
-**No new dep.** `signal` (stdlib), `asyncio.Event` (stdlib). Note: on Windows, `signal.SIGTERM`
-via `signal.signal()` is not guaranteed to fire from external process terminators; this is a
-best-effort guard, not a hard guarantee.
-
----
-
-### Headless pygame Import-Crash Guard (Opportunistic)
-
-**Mechanism:** In `utils.py`, promote the existing ad-hoc import to a module-level flag:
-
-```python
-try:
-    import pygame
-    _pygame_available = True
-except Exception:
-    _pygame_available = False
-```
-
-All sound functions guard on `_pygame_available` before calling any `pygame` API. This prevents
-`ImportError` on headless servers where `pygame` fails to find a display.
-
-**No new dep.**
-
----
-
-## v4.0 Consolidated Additions
-
-### New runtime dependencies
-
-**None.** Zero changes to `requirements.txt` or `pyproject.toml` for v4.0.
-
-### New stdlib-only internal modules
-
-| Module | Location | Purpose |
-|--------|----------|---------|
-| `core/session_store.py` | Encrypted cookie save/restore | Browser session persistence |
-| `core/health.py` | `HealthState` dataclass + summary | Heartbeat surface |
-
-### Config schema additions (Pydantic, no new dep)
-
-| Field | Type | Default | Purpose |
-|-------|------|---------|---------|
-| `app.monitor_only` | `bool` | `False` | Monitor-only run mode |
-| `app.item_timeout_secs` | `int` | `120` | Per-item orchestrator timeout |
-| `app.checkout_step_timeout_secs` | `int` | `30` | Per-step checkout budget |
-| `app.checkout_max_attempts` | `int` | `3` | Bounded retry-on-cart limit |
-| `app.supervisor_max_failures` | `int` | `5` | Per-plugin supervisor failure cap |
-
-### SECRET_KEYS additions (CredentialStore, no new dep)
-
-New keys for checkout profile fields (appended to `SECRET_KEYS` list in `core/credentials.py`):
-`CHECKOUT_NAME`, `CHECKOUT_ADDRESS1`, `CHECKOUT_ADDRESS2`, `CHECKOUT_CITY`, `CHECKOUT_STATE`,
-`CHECKOUT_ZIP`, `CHECKOUT_COUNTRY`, `CHECKOUT_PHONE`.
-
----
-
-## What NOT to Add for v4.0
-
-| Proposed Dep | Why to Reject | Use Instead |
-|---|---|---|
-| `tenacity` or `backoff` | Bounded 3-attempt checkout retry is a 10-line loop; decorator-based retry obscures the stateful relaunch logic in the supervisor | `asyncio.sleep` + `while attempt < max_attempts` |
-| `aiohttp` or `httpx` | No new HTTP calls introduced in v4.0; 2captcha HTTP is already `requests` in executor | `requests` in `run_in_executor` (existing) |
-| `async-healthcheck` or `aio-tiny-healthcheck` | FastAPI already present for the web UI; adding a second HTTP server is redundant | FastAPI `/health` route + heartbeat log line |
-| `structlog` | Introduces a second logging system alongside the existing `writeLog()` convention; migration cost, inconsistency risk | `writeLog()` with structured format strings |
-| `APScheduler` | All scheduling is `asyncio.sleep` in the existing poll loop | `asyncio.sleep` + `_get_plugin_sleep()` |
-| nodriver upgrade beyond 0.50.3 | `set_all` bug exists across multiple versions; upgrading risks breaking anti-detection; raw CDP workaround (`cdp.storage.set_cookies`) is version-stable | Pin at 0.50.3, use raw CDP for cookie restore |
-| `cryptography` upgrade | 44.0.2 is current and covers all Fernet/scrypt needs for session encryption | No change needed |
-| `pickle` for cookie serialization | Pickle is a binary execution vector; an encrypted pickle file is still a deserialization risk | `json.dumps` + `cdp.network.Cookie.to_json()` |
-
----
-
-## Integration Points
-
-| v4.0 Feature | Existing Hook | New Files/Changes |
-|---|---|---|
-| Checkout profile form-fill | Plugin `auto_buy()` override | `core/config_schema.py` (CheckoutProfile model), `SECRET_KEYS` additions |
-| Order-confirmation detection | `auto_buy()` return contract | Plugin files only |
-| Bounded retry-on-cart | `_try_auto_buy()` in orchestrator | `core/orchestrator.py` (`_retry_checkout` helper) |
-| Per-step timeout | Plugin `auto_buy()` internals | Plugin files + `core/config_schema.py` |
-| Monitor-only mode | `_try_auto_buy()` guard | `core/orchestrator.py`, `core/config_schema.py`, CLI |
-| Supervisor + backoff | `tg.create_task` replacement | `core/orchestrator.py` (`_supervise_plugin`) |
-| Browser crash + relaunch | `run_plugin()` crash check | `core/orchestrator.py`, `core/plugin_base.py` |
-| Encrypted cookie persistence | Post-login save; post-relaunch restore | New `core/session_store.py` |
-| DB read-path isolation | `run_plugin()` `get_items_sync` call | `core/orchestrator.py` |
-| Per-item orchestrator timeout | `run_plugin()` inner loop | `core/orchestrator.py` |
-| Health/heartbeat | Orchestrator poll cycle + FastAPI | New `core/health.py`; `web/routes.py` |
-| SIGTERM bridge | `async_main()` startup | `core/orchestrator.py` |
-| pygame import guard | `utils.py` | `utils.py` |
-
----
-
-## nodriver API Reference for v4.0 (HIGH confidence — verified from source)
-
-| API | Location | Notes |
-|-----|----------|-------|
-| `browser.stopped` | `nodriver/core/browser.py` | `True` when `self._process.returncode is not None` |
-| `browser._process_pid` | `nodriver/core/browser.py` | int; set at launch; log-safe |
-| `browser.cookies.get_all()` | `CookieJar` | Returns `List[cdp.network.Cookie]`; each has `.to_json()` |
-| `browser.cookies.set_all()` | `CookieJar` | BUGGY — discards argument; do not use |
-| `tab.send(cdp.storage.set_cookies(...))` | CDP direct | Correct cookie restore path; bypasses set_all bug |
-| `browser.cookies.save(file)` | `CookieJar` | Writes plaintext — do not use; encrypt manually |
-| `browser.cookies.load(file)` | `CookieJar` | Reads plaintext — do not use; decrypt manually |
-
----
-
-## v4.0 Sources
-
-- nodriver `Browser` class source, `stopped` property and `_process_pid`:
-  https://github.com/ultrafunkamsterdam/nodriver/blob/main/nodriver/core/browser.py (verified 2026-06-10)
-- nodriver `CookieJar.set_all()` bug (Issues #1816, #2020):
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/1816
-  https://github.com/ultrafunkamsterdam/undetected-chromedriver/issues/2020
-- Python 3.13 `asyncio.timeout` docs: https://docs.python.org/3.13/library/asyncio-task.html
-- Python 3.13 `signal` module Windows limitations: https://docs.python.org/3/library/asyncio-eventloop.html
-- `core/stealth.py` in-repo — `from nodriver import cdp` confirms `cdp.storage` importable (HIGH confidence)
-- `core/credentials.py` in-repo — Fernet + scrypt path confirmed reusable (HIGH confidence)
-- `core/orchestrator.py` in-repo — existing `asyncio.timeout(120)` usage confirms pattern (HIGH confidence)
-
----
-*v4.0 stack additions researched: 2026-06-10*
+*Stack research for: ShopPyBot v5.0 workstream H — Remote plugin manager (SEED-003)*
+*Researched: 2026-08-02*

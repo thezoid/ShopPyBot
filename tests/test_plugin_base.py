@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from core.plugin_base import RetailerPlugin, PLUGIN_API_VERSION
@@ -69,9 +69,10 @@ def test_minimal_plugin_instantiates():
 
 
 async def test_login_noop():
+    """D-14: ABC default login() returns True (login-less plugin is trivially logged in)."""
     p = MinimalPlugin(config=None)
     result = await p.login()
-    assert result is None
+    assert result is True
 
 
 async def test_detect_captcha_noop():
@@ -300,6 +301,97 @@ async def test_place_order_guarded_suppressed_when_debug_absent():
 
 
 # ---------------------------------------------------------------------------
+# CR-01: place_order_guarded owns the durable marker write (moved from callers)
+# ---------------------------------------------------------------------------
+
+
+async def test_place_order_guarded_suppressed_test_mode_writes_no_marker():
+    """CR-01: when test_mode suppresses the click, NO marker write occurs even when
+    order_marker_link is provided -- writing here would permanently poison the item
+    with no click ever having fired."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = True
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(
+            click_fn, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is False
+    click_fn.assert_not_called()
+    mock_marker.assert_not_called()
+
+
+async def test_place_order_guarded_suppressed_monitor_only_writes_no_marker():
+    """CR-01: when monitor_only suppresses the click, NO marker write occurs even when
+    order_marker_link is provided."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = True
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(
+            click_fn, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is False
+    click_fn.assert_not_called()
+    mock_marker.assert_not_called()
+
+
+async def test_place_order_guarded_writes_marker_before_click():
+    """CR-01/D-01: when both flags are False and order_marker_link is provided, the
+    durable marker write completes BEFORE click_fn() fires (write-before-click
+    ordering preserved at the one site that knows a real click is about to fire)."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+
+    call_order: list[str] = []
+
+    def _fake_marker_write(link, attempted_at):
+        call_order.append("marker")
+
+    async def _fake_click():
+        call_order.append("click")
+
+    with patch(
+        "models.mark_place_order_attempted_sync", side_effect=_fake_marker_write
+    ) as mock_marker:
+        result = await plugin.place_order_guarded(
+            _fake_click, order_marker_link="https://ex.com/item"
+        )
+
+    assert result is True
+    assert call_order == ["marker", "click"]
+    mock_marker.assert_called_once()
+    assert mock_marker.call_args[0][0] == "https://ex.com/item"
+
+
+async def test_place_order_guarded_no_marker_link_skips_write():
+    """When order_marker_link is None (default; unwired community plugins, MED-01),
+    the click still fires but no marker write is attempted."""
+    cfg = MagicMock()
+    cfg.debug.test_mode = False
+    cfg.debug.monitor_only = False
+    plugin = MinimalPlugin(config=cfg)
+    click_fn = AsyncMock()
+
+    with patch("models.mark_place_order_attempted_sync") as mock_marker:
+        result = await plugin.place_order_guarded(click_fn)
+
+    assert result is True
+    click_fn.assert_awaited_once()
+    mock_marker.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # BUY-03: get_active_tab() -- additive concrete hook on RetailerPlugin ABC
 # ---------------------------------------------------------------------------
 
@@ -382,3 +474,69 @@ def test_plugin_api_version_unchanged():
     """PLUGIN_API_VERSION must stay 2 after adding relaunch() + restore_session() (additive REL-03)."""
     import core.plugin_base
     assert core.plugin_base.PLUGIN_API_VERSION == 2
+
+
+# ---------------------------------------------------------------------------
+# BF-03: _verify_login_generic -- shared post-login verification helper (D-11/D-12/D-13)
+# ---------------------------------------------------------------------------
+
+
+async def test_verify_login_generic_url_still_signin_returns_false():
+    """D-13: URL still contains the sign-in fragment -> False (login form may be gone,
+    but ambiguity/lack of positive URL-change signal must not be treated as success)."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/ap/signin?openid=1"
+    fake_tab.select = AsyncMock(return_value=None)
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+    fake_tab.select.assert_not_called()  # short-circuits before checking the form
+
+
+async def test_verify_login_generic_form_still_present_returns_false():
+    """URL changed off sign-in but the login form selector is still present -> False."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/some-other-page"
+    fake_tab.select = AsyncMock(return_value=object())  # form element still found
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+    fake_tab.select.assert_awaited_once_with("#ap_email", timeout=5)
+
+
+async def test_verify_login_generic_url_changed_and_form_absent_returns_true():
+    """URL no longer contains the sign-in fragment AND the form is gone -> True."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/account/landing"
+    fake_tab.select = AsyncMock(return_value=None)  # form no longer present
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is True
+
+
+async def test_verify_login_generic_exception_returns_false():
+    """D-13: any exception during verification -> False, never raises."""
+    p = MinimalPlugin(config=None)
+    fake_tab = MagicMock()
+    fake_tab.target.url = "https://example.com/account/landing"
+    fake_tab.select = AsyncMock(side_effect=RuntimeError("cdp error"))
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False
+
+
+async def test_verify_login_generic_attribute_error_returns_false():
+    """D-13: an exception reading tab.target.url (e.g. AttributeError) -> False, never raises."""
+    p = MinimalPlugin(config=None)
+    fake_tab = object()  # no .target attribute at all
+
+    result = await p._verify_login_generic(fake_tab, "/ap/signin", "#ap_email")
+
+    assert result is False

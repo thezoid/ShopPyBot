@@ -15,11 +15,11 @@ def test_registry_idle_before_use():
     assert reg.get_snapshot() == {}
 
 
-def test_heartbeat_sets_last_heartbeat():
+def test_heartbeat_sets_heartbeat_age_secs():
     reg = HealthRegistry()
     reg.heartbeat("PluginA")
     snap = reg.get_snapshot()
-    assert snap["PluginA"]["last_heartbeat"] > 0.0
+    assert snap["PluginA"]["heartbeat_age_secs"] is not None
 
 
 def test_default_status_is_idle():
@@ -102,5 +102,34 @@ def test_snapshot_public_keys_exact():
     reg = HealthRegistry()
     reg.heartbeat("PluginA")
     snap = reg.get_snapshot()
-    expected_keys = {"status", "last_heartbeat", "consecutive_errors", "items_checked", "orders_confirmed"}
+    expected_keys = {
+        "status", "consecutive_errors",
+        "items_checked", "orders_confirmed", "last_error",
+        "heartbeat_age_secs",
+    }
     assert set(snap["PluginA"].keys()) == expected_keys
+
+
+def test_snapshot_excludes_last_heartbeat():
+    """AF-02: the raw last_heartbeat monotonic float never crosses the public snapshot boundary."""
+    reg = HealthRegistry()
+    reg.heartbeat("PluginA")
+    snap = reg.get_snapshot()
+    assert "last_heartbeat" not in snap["PluginA"]
+
+
+def test_heartbeat_age_secs_fresh():
+    """heartbeat_age_secs is a non-negative float after calling heartbeat()."""
+    reg = HealthRegistry()
+    reg.heartbeat("PluginA")
+    snap = reg.get_snapshot()
+    assert snap["PluginA"]["heartbeat_age_secs"] is not None
+    assert snap["PluginA"]["heartbeat_age_secs"] >= 0.0
+
+
+def test_heartbeat_age_secs_never():
+    """heartbeat_age_secs is None when the plugin is registered but never heartbeated."""
+    reg = HealthRegistry()
+    reg._ensure("PluginA")          # registered but never heartbeated
+    snap = reg.get_snapshot()
+    assert snap["PluginA"]["heartbeat_age_secs"] is None

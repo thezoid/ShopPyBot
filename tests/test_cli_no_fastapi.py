@@ -8,8 +8,15 @@ import pytest
 def test_web_no_fastapi(monkeypatch, capsys):
     """handle_web returns 1 and prints pip hint when fastapi is absent."""
     monkeypatch.setitem(sys.modules, "fastapi", None)
-    if "core.cli.web" in sys.modules:
-        del sys.modules["core.cli.web"]
+    # Purge any cached web/* and core.cli.web modules so the lazy
+    # `from web import create_app` actually re-imports and hits the fastapi=None
+    # ImportError. An earlier web-importing test (e.g. test_api_observability)
+    # may have cached `web` in sys.modules; without this purge the cached module
+    # is reused and the ImportError guard never fires. monkeypatch.delitem
+    # auto-restores the original entries after the test (no cross-test leakage).
+    for name in list(sys.modules):
+        if name == "web" or name.startswith("web.") or name == "core.cli.web":
+            monkeypatch.delitem(sys.modules, name, raising=False)
     from core.cli.web import handle_web
 
     result = handle_web(None, None)

@@ -125,12 +125,41 @@ class AmazonPlugin(RetailerPlugin):
         )
         await tab.evaluate(inject_js)
 
+    async def _inject_waf_token(self, tab, solution: dict) -> None:
+        """Inject a validated Amazon WAF voucher/token pair into the page.
+
+        Rejects either value if it contains a quote, backslash, or newline (V5/CR-02)
+        before any tab.evaluate() interpolation -- same invariant as _inject_token.
+        Raises on rejection so the caller falls back to the manual pause (D-08).
+
+        Best-effort injection via document.cookie: the exact live payload shape 2captcha
+        expects is undocumented (RESEARCH.md Assumption A1); this asserts the WIRING is
+        correct, not live-challenge acceptance, which stays operator debt.
+        """
+        voucher = solution.get("captcha_voucher") or ""
+        token = solution.get("existing_token") or ""
+        for value in (voucher, token):
+            if "'" in value or "\\" in value or "\n" in value:
+                raise ValueError("WAF voucher/token failed validation")
+
+        safe_voucher = _json.dumps(voucher)
+        safe_token = _json.dumps(token)
+        inject_js = (
+            f"(function(){{"
+            f"document.cookie='aws-waf-token='+encodeURIComponent({safe_token})+';path=/';"
+            f"document.cookie='aws-waf-voucher='+encodeURIComponent({safe_voucher})+';path=/';"
+            f"}})();"
+        )
+        await tab.evaluate(inject_js)
+
     async def _solve_or_pause(self, tab, pageurl: str) -> None:
         """Attempt automated reCAPTCHA v2 solve; fall back to manual pause on any failure.
 
-        Decision tree (ANTI-06, T-14-inject, T-14-block2, T-14-silent, T-14-waf):
+        Decision tree (ANTI-06, T-14-inject, T-14-block2, T-14-silent, T-14-waf, BF-01/D-06..D-09):
           1. No solver or can_solve() False -> manual pause
-          2. window.gokuProps present (WAF) -> INFO log + manual pause (deferred)
+          2. window.gokuProps present (WAF) -> single automated solve attempt;
+             decode failure / solve failure-or-timeout / injection failure -> manual pause;
+             success -> inject voucher/token; no manual pause
           3. Empty sitekey -> manual pause
           4. Solve raises / times out -> manual pause
           5. Token empty or contains quote/newline -> manual pause
@@ -144,17 +173,55 @@ class AmazonPlugin(RetailerPlugin):
             )
             return
 
-        # WAF detection: window.gokuProps present means Amazon WAF CAPTCHA (deferred).
+        # WAF detection: window.gokuProps present means Amazon WAF CAPTCHA (D-06).
         try:
             waf_raw = await tab.evaluate(_WAF_PROBE_JS)
         except Exception:
             waf_raw = None
         if waf_raw:
-            _log.info("Amazon WAF CAPTCHA detected -- auto-solve deferred; falling back to manual pause")
-            await self._wait_user_action(
-                self.captcha_event,
-                "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
-            )
+            try:
+                waf_data = _json.loads(waf_raw)
+            except Exception:
+                _log.warning("Amazon WAF gokuProps decode failed -- falling back to manual pause")
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
+            # Solve via run_in_executor; single attempt only (D-07: the ~30s gokuProps
+            # freshness window makes a second solve likely stale). Mirrors the
+            # solve_recaptcha branch below.
+            loop = asyncio.get_running_loop()
+            try:
+                async with asyncio.timeout(120):
+                    solution = await loop.run_in_executor(
+                        None,
+                        lambda: solver.solve_amazon_waf(
+                            waf_data.get("key"),
+                            waf_data.get("iv"),
+                            waf_data.get("context"),
+                            pageurl,
+                        ),
+                    )
+            except Exception as exc:
+                _log.warning("Amazon WAF solve failed: %s", exc.__class__.__name__)
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
+            try:
+                await self._inject_waf_token(tab, solution)
+            except Exception as exc:
+                _log.warning("Amazon WAF token injection failed: %s", exc.__class__.__name__)
+                await self._wait_user_action(
+                    self.captcha_event,
+                    "Amazon WAF CAPTCHA detected. Solve it in the browser, then press Enter.",
+                )
+                return
+
             return
 
         sitekey = await self._extract_sitekey(tab)
@@ -175,7 +242,7 @@ class AmazonPlugin(RetailerPlugin):
                 token = await loop.run_in_executor(
                     None, solver.solve_recaptcha, sitekey, pageurl
                 )
-        except (asyncio.TimeoutError, Exception) as exc:
+        except Exception as exc:
             _log.warning("CAPTCHA solve failed: %s", exc.__class__.__name__)
             await self._wait_user_action(
                 self.captcha_event,
@@ -296,8 +363,13 @@ class AmazonPlugin(RetailerPlugin):
             writeLog(f"Error checking Amazon item: {exc.__class__.__name__}", "ERROR")
             return False
 
-    async def login(self) -> None:
-        """Sign in to Amazon using AMZ_EMAIL / AMZ_PASSWORD env vars (SEC-01)."""
+    async def login(self) -> bool:
+        """Sign in to Amazon using AMZ_EMAIL / AMZ_PASSWORD env vars (SEC-01).
+
+        Returns True only after _verify_login_generic confirms the post-submit
+        URL/DOM signal (D-12); missing creds, missing DOM elements, an unconfirmed
+        signal, or an exception all return False (D-13).
+        """
         # SEC-01: credentials from credential store only -- never from config.yml or hardcoded.
         store = get_store()
         email = store.get("AMZ_EMAIL") or ""
@@ -305,7 +377,7 @@ class AmazonPlugin(RetailerPlugin):
         # Guard: if credentials are missing, log and abort (never log their values).
         if not email or not password:
             writeLog("AMZ_EMAIL or AMZ_PASSWORD not set -- skipping login", "ERROR")
-            return
+            return False
 
         try:
             tab = await self.driver.get(
@@ -322,7 +394,7 @@ class AmazonPlugin(RetailerPlugin):
             email_field = await tab.select("#ap_email", timeout=10)
             if not email_field:
                 writeLog("Email field not found on Amazon sign-in page", "ERROR")
-                return
+                return False
             await email_field.send_keys(email)
 
             continue_btn = await tab.select("#continue", timeout=10)
@@ -339,14 +411,14 @@ class AmazonPlugin(RetailerPlugin):
             password_field = await tab.select("#ap_password", timeout=10)
             if not password_field:
                 writeLog("Password field not found on Amazon sign-in page", "ERROR")
-                return
+                return False
             await password_field.send_keys(password)
 
             writeLog("Attempting to click sign-in button", "INFO")
             sign_in_btn = await tab.select("#signInSubmit", timeout=10)
             if not sign_in_btn:
                 writeLog("Sign-in submit button not found", "ERROR")
-                return
+                return False
             await sign_in_btn.click()
 
             # Check for MFA prompt.
@@ -359,9 +431,15 @@ class AmazonPlugin(RetailerPlugin):
                 )
 
             writeLog("Signed in to Amazon", "INFO")
+            verified = await self._verify_login_generic(tab, "/ap/signin", "#ap_email")
+            if not verified:
+                writeLog("Amazon login verification failed", "WARNING")
+                return False
             await self.save_session()
+            return True
         except Exception as exc:
             writeLog(f"Error during Amazon sign-in: {exc.__class__.__name__}", "ERROR")
+            return False
 
     async def auto_buy(self, url: str) -> bool:
         """Attempt to purchase the item at url. Returns True on success.
@@ -386,7 +464,11 @@ class AmazonPlugin(RetailerPlugin):
         # login() is intentionally NOT wrapped in asyncio.timeout: Amazon requires
         # manual passkey dismissal and OTP entry -- a human-gated step that must not
         # be killed by a step timer. See _wait_user_action for the 300s unattended guard.
-        await self.login()
+        self._checkout_stage = "login"
+        login_ok = await self.login()
+        if not login_ok:
+            writeLog("Amazon login failed during auto_buy -- aborting checkout", "ERROR")
+            return False
         try:
             step_timeout_secs = getattr(
                 getattr(self.config, "checkout", None), "step_timeout_secs", 30
@@ -460,7 +542,18 @@ class AmazonPlugin(RetailerPlugin):
             self._checkout_stage = "place-order"
             async with asyncio.timeout(step_timeout_secs):
                 self._last_tab = tab  # BUY-03: expose confirmation page to orchestrator
-                return await self.place_order_guarded(place_order.click)
+                # CR-01/D-01: the durable write-ahead marker is written by
+                # place_order_guarded itself, immediately before the click, and ONLY
+                # when the click is not suppressed by test_mode/monitor_only. Writing
+                # it here unconditionally (pre-CR-01 behavior) permanently latched
+                # items reached under test_mode -- the documented "safe for testing"
+                # default -- even though no click ever fired. Not routed through
+                # write_queue (async put() does not guarantee on-disk durability before
+                # the click -- would defeat D-01). Distinct from the purchased/confirmed
+                # write, which stays write_queue-owned, unchanged (ASYNC-05).
+                return await self.place_order_guarded(
+                    place_order.click, order_marker_link=url
+                )
         except Exception as exc:
             writeLog(
                 f"Error during Amazon auto-buy at stage {self._checkout_stage!r}: {exc.__class__.__name__}",

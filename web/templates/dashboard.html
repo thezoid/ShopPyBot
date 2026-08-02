@@ -1,10 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    (function() {
+      var t = localStorage.getItem('theme');
+      if (t === 'dark' || t === 'light') {
+        document.documentElement.dataset.theme = t;
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ShopPyBot Dashboard</title>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/components.css">
   <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/vendor/uplot.min.css">
+  <!-- OBS-05: load uPlot in <head> (synchronous, no defer) so the uPlot global is
+       defined before the inline block's new uPlot() runs at cold load (moved from body end) -->
+  <script src="/static/vendor/uplot.iife.min.js"></script>
 </head>
 <body>
   {% if is_non_local %}
@@ -13,6 +29,17 @@
     on a non-local interface. Use only on a trusted private network.
   </div>
   {% endif %}
+
+  <header class="app-header">
+    <span class="app-header-title">ShopPyBot</span>
+    <span id="header-uptime" class="text-secondary"></span>
+    <span id="sse-indicator" class="sse-indicator" aria-live="polite">
+      <span id="sse-dot" class="status-dot"></span>
+      <span id="sse-label" class="text-secondary"></span>
+    </span>
+    <button type="button" id="theme-toggle" class="btn"
+            aria-label="Switch to dark mode">&#9728;</button>
+  </header>
 
   <div class="container">
     <h1>ShopPyBot Dashboard</h1>
@@ -34,6 +61,12 @@
         <label class="section-label">Recent Logs</label>
         <pre id="log-content" class="log-pre"></pre>
       </div>
+    </section>
+
+    <!-- Section: Plugin Health (Phase 28 OBS-01/02/03) -->
+    <section class="card" id="section-health">
+      <h2>Plugin Health</h2>
+      <div class="health-grid" id="health-grid"></div>
     </section>
 
     <!-- Section 2: Items -->
@@ -58,8 +91,10 @@
               <td>{{ "Yes" if item[2] else "No" }}</td>
               <td>{{ item[3] }}</td>
               <td>
-                <button class="btn-remove btn-text-destructive" type="button"
-                        data-link="{{ item[1] }}">Remove Item</button>
+                <form method="post" action="/items/remove" class="inline-remove-form">
+                  <input type="hidden" name="link" value="{{ item[1] }}">
+                  <button class="btn-text-destructive" type="submit">Remove Item</button>
+                </form>
               </td>
             </tr>
             {% endfor %}
@@ -97,6 +132,43 @@
       </form>
     </section>
 
+    <!-- Section: Confirmed Orders (Phase 28 OBS-04) -->
+    <section class="card" id="section-buys">
+      <h2>Confirmed Orders</h2>
+      <table id="buys-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Order ID</th>
+            <th>Confirmed At</th>
+            <th>Checkout Attempts</th>
+          </tr>
+        </thead>
+        <tbody id="buys-tbody">
+          <!-- populated by JS: empty-state row OR data rows -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section: Analytics (Phase 34 FC-02) -->
+    <section class="card" id="section-analytics">
+      <h2>Analytics</h2>
+      <div class="health-grid" id="analytics-grid"></div>
+      <table id="analytics-table">
+        <thead>
+          <tr>
+            <th>Plugin</th>
+            <th>Orders</th>
+            <th>Success Rate</th>
+            <th>Avg Time-to-Checkout</th>
+          </tr>
+        </thead>
+        <tbody id="analytics-tbody">
+          <!-- populated by JS: empty-state row OR data rows -->
+        </tbody>
+      </table>
+    </section>
+
     <!-- Section 3: Credentials -->
     <section class="card" id="section-credentials">
       <h2>Credentials</h2>
@@ -112,53 +184,625 @@
         <!-- populated by JS on load -->
       </div>
     </section>
+
+    <!-- Section: Log Viewer (Phase 28 OBS-06/07/08) -->
+    <section class="card" id="section-log-viewer">
+      <h2>Log Viewer</h2>
+      <div class="log-viewer">
+        <div class="log-controls">
+          <label for="log-level-filter">Level</label>
+          <select id="log-level-filter">
+            <option value="">All levels</option>
+            <option value="ERROR">ERROR</option>
+            <option value="WARNING">WARNING</option>
+            <option value="INFO">INFO</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="TRACE">TRACE</option>
+          </select>
+          <label for="log-plugin-filter">Plugin</label>
+          <select id="log-plugin-filter">
+            <option value="">All plugins</option>
+            {% for p in plugins %}
+              {% if p.platform_key %}
+              <option value="{{ p.platform_key }}">{{ p.platform_key }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <label for="log-search">Search</label>
+          <input type="text" id="log-search" placeholder="Search logs...">
+          <button type="button" id="btn-log-follow" class="btn btn-accent"
+                  aria-pressed="true">Follow</button>
+          <button type="button" id="btn-log-refresh" class="btn btn-sm">Refresh</button>
+        </div>
+        <div id="log-buffer" class="log-buffer" role="log" aria-live="polite"
+             aria-label="Log output"></div>
+      </div>
+    </section>
   </div>
 
   <script>
+    // --- Theme toggle handler ---
+    const toggleBtn = document.getElementById('theme-toggle');
+    function syncThemeToggle() {
+      // Reflect the theme resolved by the FOUC <head> script (localStorage / prefers-color-scheme).
+      const isDark = (document.documentElement.dataset.theme || 'light') === 'dark';
+      toggleBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      toggleBtn.textContent = isDark ? '☾' : '☀';
+    }
+    syncThemeToggle();
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.dataset.theme || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+      syncThemeToggle();
+    });
+
     const POLL_MS = 2000;
+    const ANALYTICS_POLL_MS = 30000;  // IN-02: analytics changes slowly; a much slower cadence than POLL_MS is sufficient
+    const SSE_STALL_MS = 8000;  // SSE-01: stall threshold (8 missed 1s status ticks; under the 15s keepalive)
     let failCount = 0;
 
     // --- Status + Logs polling ---
+    // --- Health card helpers (OBS-01 / OBS-02) ---
+
+    function heartbeatClass(ageSecs) {
+      if (ageSecs === null || ageSecs === undefined) return 'heartbeat-err';
+      if (ageSecs < 30) return 'heartbeat-ok';
+      if (ageSecs < 60) return 'heartbeat-warn';
+      return 'heartbeat-err';
+    }
+
+    function heartbeatText(ageSecs) {
+      if (ageSecs === null || ageSecs === undefined) return 'Heartbeat: never';
+      return 'Heartbeat: ' + ageSecs + 's';
+    }
+
+    function badgeClass(status) {
+      if (status === 'running') return 'badge-ok';
+      if (status === 'error')   return 'badge-err';
+      return 'badge-neutral';
+    }
+
+    function dotClass(status) {
+      if (status === 'running') return 'running';
+      if (status === 'error')   return 'error';
+      return 'stopped';
+    }
+
+    // --- renderHealthCards: pure function; called from pollStatus and Phase 29 SSE ---
+    function renderHealthCards(statusPayload) {
+      const grid = document.getElementById('health-grid');
+      grid.innerHTML = '';
+      const plugins = statusPayload && statusPayload.plugins;
+      if (!plugins || Object.keys(plugins).length === 0) {
+        const p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'No plugins registered.';
+        grid.appendChild(p);
+        return;
+      }
+      Object.entries(plugins).forEach(function([name, rec]) {
+        const card = document.createElement('div');
+        card.className = 'health-card';
+        card.setAttribute('data-plugin', name);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'health-card-name';
+        nameSpan.textContent = name;
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + badgeClass(rec.status);
+
+        const dot = document.createElement('span');
+        dot.className = 'status-dot ' + dotClass(rec.status);
+
+        const badgeLabel = document.createElement('span');
+        badgeLabel.className = 'badge-label';
+        const statusTextMap = {running: 'Running', stopped: 'Stopped', error: 'Error'};
+        badgeLabel.textContent = statusTextMap[rec.status] || rec.status;
+
+        badge.appendChild(dot);
+        badge.appendChild(badgeLabel);
+
+        const hbSpan = document.createElement('span');
+        hbSpan.className = 'heartbeat-age ' + heartbeatClass(rec.heartbeat_age_secs);
+        hbSpan.textContent = heartbeatText(rec.heartbeat_age_secs);
+
+        const stats = document.createElement('div');
+        stats.className = 'health-card-stats';
+
+        const errStat = document.createElement('span');
+        errStat.textContent = 'Errors: ' + (rec.consecutive_errors || 0);
+
+        const chkStat = document.createElement('span');
+        chkStat.textContent = 'Checked: ' + (rec.items_checked || 0);
+
+        const ordStat = document.createElement('span');
+        ordStat.textContent = 'Orders confirmed: ' + (rec.orders_confirmed || 0);
+
+        stats.appendChild(errStat);
+        stats.appendChild(chkStat);
+        stats.appendChild(ordStat);
+
+        card.appendChild(nameSpan);
+        card.appendChild(badge);
+        card.appendChild(hbSpan);
+        card.appendChild(stats);
+
+        if (rec.last_error) {
+          const errSpan = document.createElement('span');
+          errSpan.className = 'health-card-error';
+          errSpan.textContent = rec.last_error;
+          card.appendChild(errSpan);
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    // --- renderUptime: pure function; called from pollStatus and Phase 29 SSE (OBS-09) ---
+    function humanizeUptime(secs) {
+      if (!secs || secs < 0) return '';
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      if (h > 0) return 'Up ' + h + 'h ' + m + 'm';
+      return 'Up ' + m + 'm';
+    }
+
+    function renderUptime(uptimeSecs) {
+      document.getElementById('header-uptime').textContent = humanizeUptime(uptimeSecs);
+    }
+
+    // --- Log viewer constant (OBS-07 DOM cap; render functions land in 28-04) ---
+    const MAX_LOG_LINES = 500;
+
+    // --- renderStatus: pure shared renderer; called by pollStatus and Phase 29 SSE ---
+    function renderStatus(data) {
+      var dot = document.getElementById('status-dot');
+      var label = document.getElementById('status-label');
+      var btnStart = document.getElementById('btn-start');
+      var btnStop = document.getElementById('btn-stop');
+      if (data.running) {
+        dot.className = 'status-dot running';
+        label.textContent = 'Running';
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+      } else {
+        dot.className = 'status-dot stopped';
+        label.textContent = 'Stopped';
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+      }
+      renderUptime(data.uptime_secs);
+      renderHealthCards(data);
+    }
+
+    // --- setIndicator: SSE connection state indicator (Phase 29 SSE wiring) ---
+    function setIndicator(state) {
+      var dot = document.getElementById('sse-dot');
+      var label = document.getElementById('sse-label');
+      if (state === 'live') {
+        dot.className = 'status-dot running';
+        label.textContent = 'Live';
+      } else {
+        dot.className = 'status-dot reconnecting';
+        label.textContent = 'Reconnecting';
+      }
+    }
+
     async function pollStatus() {
       try {
         const resp = await fetch('/api/status');
         const data = await resp.json();
-        const dot = document.getElementById('status-dot');
-        const label = document.getElementById('status-label');
-        const btnStart = document.getElementById('btn-start');
-        const btnStop = document.getElementById('btn-stop');
-        if (data.running) {
-          dot.className = 'status-dot running';
-          label.textContent = 'Running';
-          btnStart.disabled = true;
-          btnStop.disabled = false;
-        } else {
-          dot.className = 'status-dot stopped';
-          label.textContent = 'Stopped';
-          btnStart.disabled = false;
-          btnStop.disabled = true;
-        }
+        renderStatus(data);
         failCount = 0;
       } catch (e) {
         failCount++;
         if (failCount >= 3) {
           document.getElementById('log-content').textContent = 'Connection lost — retrying...';
+          const grid = document.getElementById('health-grid');
+          grid.innerHTML = '';
+          const p = document.createElement('p');
+          p.className = 'text-secondary';
+          p.textContent = 'Failed to load plugin status. Check server logs.';
+          grid.appendChild(p);
         }
       }
     }
 
-    async function pollLogs() {
+    // --- loadConfirmedBuys: pure fetch function; called once on page load (OBS-04) ---
+    async function loadConfirmedBuys() {
+      const tbody = document.getElementById('buys-tbody');
       try {
-        const resp = await fetch('/api/logs');
+        const resp = await fetch('/api/history');
         const data = await resp.json();
-        document.getElementById('log-content').textContent = (data.logs || []).join('\n');
-      } catch (e) { /* silent */ }
+        tbody.innerHTML = '';
+        const orders = data.confirmed_orders || [];
+        if (orders.length === 0) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 4;
+          td.className = 'text-secondary';
+          td.textContent = 'No confirmed orders yet.';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+        orders.forEach(function(order) {
+          const tr = document.createElement('tr');
+          tr.appendChild(makeCell(order.name));
+          tr.appendChild(makeCell(order.order_id));
+          tr.appendChild(makeCell(order.confirmed_at));
+          tr.appendChild(makeCell(String(order.checkout_attempts)));
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'text-secondary';
+        td.textContent = 'Failed to load order history. Check server logs.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
     }
 
-    setInterval(pollStatus, POLL_MS);
-    setInterval(pollLogs, POLL_MS);
+    // --- Analytics (Phase 34 FC-02): headline stat cards + per-plugin table ---
+    function formatSuccessRate(rate) {
+      if (rate === null || rate === undefined) return 'N/A';
+      return (rate * 100).toFixed(1) + '%';
+    }
+
+    function formatDurationSecs(secs) {
+      if (secs === null || secs === undefined) return 'N/A';
+      return secs.toFixed(1) + 's';
+    }
+
+    function makeStatCard(label, value) {
+      const card = document.createElement('div');
+      card.className = 'health-card';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'health-card-name';
+      nameSpan.textContent = label;
+
+      const stats = document.createElement('div');
+      stats.className = 'health-card-stats';
+      const valueSpan = document.createElement('span');
+      valueSpan.textContent = value;
+      stats.appendChild(valueSpan);
+
+      card.appendChild(nameSpan);
+      card.appendChild(stats);
+      return card;
+    }
+
+    // --- renderAnalytics: pure function; called from pollAnalytics ---
+    function renderAnalytics(data) {
+      const grid = document.getElementById('analytics-grid');
+      const tbody = document.getElementById('analytics-tbody');
+      grid.innerHTML = '';
+      tbody.innerHTML = '';
+
+      const overall = (data && data.overall) || {};
+      grid.appendChild(makeStatCard('Overall Success Rate', formatSuccessRate(overall.success_rate)));
+      grid.appendChild(makeStatCard('Avg Time-to-Checkout', formatDurationSecs(overall.avg_time_to_checkout_secs)));
+
+      const perPlugin = (data && data.per_plugin) || [];
+      if (perPlugin.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'text-secondary';
+        td.textContent = 'No per-plugin analytics yet.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+      perPlugin.forEach(function(row) {
+        const tr = document.createElement('tr');
+        tr.appendChild(makeCell(row.plugin));
+        tr.appendChild(makeCell(row.confirmed + '/' + row.attempted));
+        tr.appendChild(makeCell(formatSuccessRate(row.success_rate)));
+        tr.appendChild(makeCell(formatDurationSecs(row.avg_time_to_checkout_secs)));
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- pollAnalytics: fetch function; called on page load and every
+    // ANALYTICS_POLL_MS thereafter (FC-02, IN-02) ---
+    async function pollAnalytics() {
+      try {
+        const resp = await fetch('/api/analytics');
+        const data = await resp.json();
+        renderAnalytics(data);
+      } catch (e) {
+        const tbody = document.getElementById('analytics-tbody');
+        tbody.innerHTML = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'text-secondary';
+        td.textContent = 'Failed to load analytics. Check server logs.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+    }
+
+    // --- shared link encoding + per-chart uPlot instance registry ---
+    function linkB64(link) {
+      // URL-safe base64 WITH '=' padding — the server's urlsafe_b64decode requires it.
+      return btoa(unescape(encodeURIComponent(link))).replace(/\+/g,'-').replace(/\//g,'_');
+    }
+    function chartId(link) {
+      // DOM id must not contain '=' (breaks querySelector/CSS); strip trailing padding (CR-02).
+      return 'chart-' + linkB64(link).replace(/=+$/,'');
+    }
+    const _chartInstances = {};
+
+    // --- loadPriceChart: per-item uPlot chart; called from loadItems() (OBS-05) ---
+    async function loadPriceChart(itemLink) {
+      const id = chartId(itemLink);
+      const containerEl = document.getElementById(id);
+      if (!containerEl) return;
+      // CR-01: tear down any prior uPlot instance for this chart before re-rendering.
+      if (_chartInstances[id]) { _chartInstances[id].destroy(); delete _chartInstances[id]; }
+      containerEl.innerHTML = '';  // clear prior canvas/message (no API data)
+
+      let series;
+      try {
+        const resp = await fetch('/api/price-history/' + linkB64(itemLink));
+        const data = await resp.json();
+        series = data.series || [];
+      } catch (e) {
+        const msg = document.createElement('div');
+        msg.className = 'chart-empty';
+        msg.textContent = 'Failed to load price history.';
+        containerEl.appendChild(msg);
+        return;
+      }
+
+      if (series.length === 0) {
+        const msg = document.createElement('div');
+        msg.className = 'chart-empty';
+        msg.setAttribute('role', 'status');
+        msg.textContent = 'No price history available for this plugin.';
+        containerEl.appendChild(msg);
+        return;
+      }
+
+      // CRITICAL: convert ISO strings to Unix seconds (uPlot scales.x time:true requires numbers)
+      const ts = series.map(function(p) { return Date.parse(p.t) / 1000; });
+      const prices = series.map(function(p) { return p.price; });
+      const style = getComputedStyle(document.documentElement);
+
+      const opts = {
+        width: containerEl.clientWidth || 300,
+        height: 120,
+        series: [
+          {},
+          {
+            stroke: style.getPropertyValue('--color-accent').trim(),
+            width: 2,
+            points: { show: ts.length < 2 },
+          }
+        ],
+        axes: [
+          { stroke: style.getPropertyValue('--color-text-muted').trim() },
+          { stroke: style.getPropertyValue('--color-text-muted').trim() },
+        ],
+        scales: { x: { time: true } },
+      };
+      _chartInstances[id] = new uPlot(opts, [ts, prices], containerEl);
+    }
+
+    // --- Log viewer render functions (OBS-06/07/08) ---
+    var logFollowEnabled = true;
+    var _lastLogLine = '';
+    var _dedupNextLine = false;  // OBS-07: one-shot backfill->SSE boundary dedup flag
+    var logSearchTimer = null;
+
+    function logLevelClass(line) {
+      var m = line.match(/^\[(\w+)\]/);
+      if (!m) return 'log-level-info';
+      var map = {
+        ERROR: 'log-level-error', WARNING: 'log-level-warn',
+        INFO: 'log-level-info', DEBUG: 'log-level-debug',
+        TRACE: 'log-level-trace',
+      };
+      return map[m[1].toUpperCase()] || 'log-level-info';
+    }
+
+    // --- lineMatchesFilters: pure guard mirroring read_logs_filtered's AND-composed
+    // level/plugin/search match logic (web/log_reader.py). Used by the SSE 'log'
+    // listener so live-tail lines respect the same active filters as the one-shot
+    // pollLogs snapshot -- without this, every streamed line bypassed the filters
+    // (FC-01 completion: the plugin filter only worked on the initial snapshot).
+    // IN-03: the plugin match is anchored to the SECOND-bracket tag position
+    // (mirrors web/log_reader.py's _plugin_tag_matches), not a free-floating
+    // substring -- a message body containing a literal "[plugin]"-shaped string
+    // must not false-positive match. ---
+    function lineMatchesFilters(line, level, search, plugin) {
+      if (level && !line.startsWith('[' + level.toUpperCase() + ']')) return false;
+      if (plugin) {
+        var firstClose = line.indexOf(']');
+        if (firstClose === -1 || !line.startsWith('[' + plugin + ']', firstClose + 1)) return false;
+      }
+      if (search && line.toLowerCase().indexOf(search.toLowerCase()) === -1) return false;
+      return true;
+    }
+
+    function appendLogLine(lineText) {
+      // OBS-07: one-shot boundary dedup — drop a line only when armed (the first line after a
+      // backfill repaint) AND it equals the last backfilled line. All later lines append
+      // unconditionally, so legitimately repeated bot messages are no longer suppressed.
+      if (_dedupNextLine) {
+        _dedupNextLine = false;
+        if (lineText === _lastLogLine) return;
+      }
+      _lastLogLine = lineText;
+      var bufferEl = document.getElementById('log-buffer');
+      var span = document.createElement('span');
+      span.className = 'log-line ' + logLevelClass(lineText);
+      span.textContent = lineText;
+      bufferEl.appendChild(span);
+      // DOM cap lives here so BOTH the batch (renderLogLines) and the Phase 29
+      // incremental (SSE appendLogLine) paths stay bounded (WR-03, OBS-07).
+      while (bufferEl.children.length > MAX_LOG_LINES) {
+        bufferEl.removeChild(bufferEl.firstChild);
+      }
+    }
+
+    function maybeScrollToBottom() {
+      if (logFollowEnabled) {
+        var bufferEl = document.getElementById('log-buffer');
+        bufferEl.scrollTop = bufferEl.scrollHeight;
+      }
+    }
+
+    function renderLogLines(lines) {
+      var bufferEl = document.getElementById('log-buffer');
+      bufferEl.innerHTML = '';
+      _lastLogLine = '';  // CR-02: reset no-dup sentinel on repaint so a later SSE line matching the last batch line is not wrongly dropped
+      _dedupNextLine = false;  // OBS-07: clear flag on ALL paths (incl. empty-filter repaint) before early return
+      if (!lines || lines.length === 0) {
+        var p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'No log lines match the current filter.';
+        bufferEl.appendChild(p);
+        maybeScrollToBottom();
+        return;
+      }
+      lines.forEach(function(line) { appendLogLine(line); });  // appendLogLine enforces the 500-line cap
+      _dedupNextLine = true;  // OBS-07: arm one-shot dedup for the first post-backfill SSE line
+      maybeScrollToBottom();
+    }
+
+    // Follow toggle and scroll-pause listeners
+    (function() {
+      var bufferEl = document.getElementById('log-buffer');
+      var followBtn = document.getElementById('btn-log-follow');
+
+      bufferEl.addEventListener('scroll', function() {
+        var atBottom = bufferEl.scrollHeight - bufferEl.scrollTop <= bufferEl.clientHeight + 8;
+        if (!atBottom && logFollowEnabled) {
+          logFollowEnabled = false;
+          followBtn.classList.remove('btn-accent');
+          followBtn.setAttribute('aria-pressed', 'false');
+        }
+      });
+
+      followBtn.addEventListener('click', function() {
+        logFollowEnabled = !logFollowEnabled;
+        followBtn.classList.toggle('btn-accent', logFollowEnabled);
+        followBtn.setAttribute('aria-pressed', String(logFollowEnabled));
+        if (logFollowEnabled) {
+          bufferEl.scrollTop = bufferEl.scrollHeight;
+        }
+      });
+    })();
+
+    async function pollLogs() {
+      var level = document.getElementById('log-level-filter').value;
+      var plugin = document.getElementById('log-plugin-filter').value;
+      var search = document.getElementById('log-search').value;
+      var params = new URLSearchParams({ n: 500 });
+      if (level) params.set('level', level);
+      if (plugin) params.set('plugin', plugin);
+      if (search) params.set('search', search);
+      try {
+        const resp = await fetch('/api/logs?' + params.toString());
+        const data = await resp.json();
+        var logs = data.logs || [];
+        renderLogLines(logs);  // canonical log surface (the Log Viewer); CR-03: no uncapped #log-content write
+      } catch (e) {
+        var bufferEl = document.getElementById('log-buffer');
+        bufferEl.innerHTML = '';
+        var p = document.createElement('p');
+        p.className = 'text-secondary';
+        p.textContent = 'Failed to load logs. Retrying...';
+        bufferEl.appendChild(p);
+      }
+    }
+
+    // Filter controls wired to pollLogs (debounced search, immediate level/plugin/refresh)
+    (function() {
+      document.getElementById('log-level-filter').addEventListener('change', function() {
+        pollLogs();
+      });
+      document.getElementById('log-plugin-filter').addEventListener('change', function() {
+        pollLogs();
+      });
+      document.getElementById('log-search').addEventListener('input', function() {
+        clearTimeout(logSearchTimer);
+        logSearchTimer = setTimeout(pollLogs, 300);
+      });
+      document.getElementById('btn-log-refresh').addEventListener('click', function() {
+        pollLogs();
+      });
+    })();
+
+    // One-shot backfill for initial paint (both paths)
     pollStatus();
     pollLogs();
+    pollAnalytics();
+
+    // IN-02: analytics has no SSE event type -- refresh on a slow, independent
+    // timer (unlike pollStatus/pollLogs, which piggyback on SSE or its fallback)
+    // so the success-rate/time-to-checkout cards do not go stale for the session.
+    setInterval(pollAnalytics, ANALYTICS_POLL_MS);
+
+    // SSE wiring: feature-detect EventSource; fall back to polling if unavailable
+    if (typeof EventSource !== 'undefined') {
+      var es = new EventSource('/api/events');
+      var _sseLastStatusTs = Date.now();   // SSE-01: watchdog timestamp (init at construction, Pitfall 2)
+      var _sseFallbackTimer = null;        // SSE-01: REST fallback interval handle (null when inactive)
+
+      // SSE-01/02: idle watchdog. EventSource.onerror fires only on close, never on idle; if the
+      // stream stalls open with no `status` event for SSE_STALL_MS, flip the indicator and start a
+      // REST polling safety net so data stays fresh. Recovery (below) tears the fallback down.
+      // Handle stored (WR-02) for testability/lifecycle; page unload clears it on this non-SPA page.
+      var _sseWatchdog = setInterval(function() {
+        if (Date.now() - _sseLastStatusTs > SSE_STALL_MS) {
+          setIndicator('reconnecting');
+          if (!_sseFallbackTimer) {  // Pitfall 3: guard so only one fallback timer ever runs
+            _sseFallbackTimer = setInterval(function() { pollStatus(); pollLogs(); }, POLL_MS);
+          }
+        }
+      }, POLL_MS);
+
+      es.addEventListener('status', function(e) {
+        try {
+          renderStatus(JSON.parse(e.data));
+          _sseLastStatusTs = Date.now();  // SSE-01: status seen — reset watchdog
+          setIndicator('live');           // CR-01: any status event means the stream is live (never gate on the fallback timer)
+          if (_sseFallbackTimer) {        // SSE-02: recovery — stop the REST fallback poll
+            clearInterval(_sseFallbackTimer);
+            _sseFallbackTimer = null;
+          }
+        } catch (err) { /* CR-01: ignore malformed SSE frame, keep stream alive */ }
+      });
+      es.addEventListener('log', function(e) {
+        try {
+          var p = JSON.parse(e.data);
+          var level = document.getElementById('log-level-filter').value;
+          var search = document.getElementById('log-search').value;
+          var plugin = document.getElementById('log-plugin-filter').value;
+          // FC-01: gate live-tail lines through the same filters as pollLogs.
+          if (lineMatchesFilters(p.line, level, search, plugin)) {
+            appendLogLine(p.line);
+            maybeScrollToBottom();
+          }
+        } catch (err) { /* CR-01: ignore malformed SSE frame */ }
+      });
+      es.onopen = function() { setIndicator('live'); _sseLastStatusTs = Date.now(); };  // SSE-01: reset watchdog on clean open
+      es.onerror = function() { setIndicator('reconnecting'); };
+    } else {
+      setInterval(pollStatus, POLL_MS);
+      setInterval(pollLogs, POLL_MS);
+    }
 
     // --- Bot controls ---
     document.getElementById('btn-start').addEventListener('click', async () => {
@@ -227,19 +871,57 @@
     }
 
     // --- Load items ---
+    function makeCell(text) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      return td;
+    }
+
     async function loadItems() {
       const resp = await fetch('/api/items');
       const data = await resp.json();
       const tbody = document.getElementById('items-tbody');
       tbody.innerHTML = '';
+      // Remove any previously injected chart containers
+      const oldCharts = document.querySelectorAll('.item-chart-wrapper');
+      oldCharts.forEach(function(el) { el.parentNode.removeChild(el); });
       if (!data.items || data.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-secondary">No items tracked yet. Add one below to start monitoring.</td></tr>';
         return;
       }
-      data.items.forEach(item => {
+      const itemsTable = document.getElementById('items-table');
+      data.items.forEach(function(item) {
+        const b64 = btoa(unescape(encodeURIComponent(item.link))).replace(/\+/g,'-').replace(/\//g,'_');
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${item.name}</td><td>${item.link}</td><td>${item.auto_buy ? 'Yes' : 'No'}</td><td>${item.quantity}</td><td><button class="btn-text-destructive" type="button" onclick="removeItem('${item.link.replace(/'/g, "\\'")}')">Remove Item</button></td>`;
+        tr.setAttribute('data-link', b64);
+        tr.appendChild(makeCell(item.name));
+        tr.appendChild(makeCell(item.link));
+        tr.appendChild(makeCell(item.auto_buy ? 'Yes' : 'No'));
+        tr.appendChild(makeCell(String(item.quantity)));
+
+        const tdAction = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'btn-text-destructive';
+        btn.type = 'button';
+        btn.textContent = 'Remove Item';
+        btn.addEventListener('click', function() { removeItem(item.link); });
+        tdAction.appendChild(btn);
+        tr.appendChild(tdAction);
         tbody.appendChild(tr);
+
+        // Insert a sibling chart container div below the items table for this item
+        const wrapper = document.createElement('div');
+        wrapper.className = 'item-chart-wrapper';
+        wrapper.setAttribute('data-link', b64);
+        const chartDiv = document.createElement('div');
+        chartDiv.id = chartId(item.link);
+        chartDiv.className = 'chart-container';
+        wrapper.appendChild(chartDiv);
+        itemsTable.parentNode.insertBefore(wrapper, itemsTable.nextSibling);
+      });
+      // Load charts after all rows are in DOM
+      data.items.forEach(function(item) {
+        loadPriceChart(item.link);
       });
     }
 
@@ -252,14 +934,40 @@
       (data.credentials || []).forEach(cred => {
         const div = document.createElement('div');
         div.className = 'cred-row';
-        div.innerHTML = `
-          <span class="cred-name">${cred.name}</span>
-          <span class="cred-status ${cred.is_set ? '' : 'text-secondary'}">${cred.is_set ? 'Set' : 'Not set'}</span>
-          <div class="cred-form">
-            <input type="password" placeholder="Enter new value" id="cred-input-${cred.name}" autocomplete="new-password">
-            <button type="button" class="btn btn-accent btn-sm" onclick="saveCredential('${cred.name}')">Save Credential</button>
-            <span class="field-feedback" id="cred-fb-${cred.name}"></span>
-          </div>`;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'cred-name';
+        nameSpan.textContent = cred.name;
+
+        const statusSpan = document.createElement('span');
+        statusSpan.className = cred.is_set ? 'cred-status' : 'cred-status text-secondary';
+        statusSpan.textContent = cred.is_set ? 'Set' : 'Not set';
+
+        const credForm = document.createElement('div');
+        credForm.className = 'cred-form';
+
+        const input = document.createElement('input');
+        input.type = 'password';
+        input.placeholder = 'Enter new value';
+        input.id = 'cred-input-' + cred.name;
+        input.autocomplete = 'new-password';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn btn-accent btn-sm';
+        saveBtn.textContent = 'Save Credential';
+        saveBtn.addEventListener('click', () => saveCredential(cred.name));
+
+        const fb = document.createElement('span');
+        fb.className = 'field-feedback';
+        fb.id = 'cred-fb-' + cred.name;
+
+        credForm.appendChild(input);
+        credForm.appendChild(saveBtn);
+        credForm.appendChild(fb);
+        div.appendChild(nameSpan);
+        div.appendChild(statusSpan);
+        div.appendChild(credForm);
         container.appendChild(div);
       });
     }
@@ -364,6 +1072,7 @@
     loadItems();
     loadCredentials();
     loadConfig();
+    loadConfirmedBuys();
   </script>
 </body>
 </html>

@@ -22,7 +22,7 @@ from core.health import HealthRegistry
 from core.orchestrator import async_main
 from core.stealth import ProxyPool
 from logger import writeLog
-from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync
+from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync, get_confirmed_orders_sync
 
 _log = logging.getLogger(__name__)
 
@@ -101,15 +101,60 @@ class BotService:
         link = match[1]
         return get_price_history_sync(link, limit)
 
+    def get_confirmed_orders(self) -> list:
+        """Return confirmed-order rows (name, order_id, confirmed_at, checkout_attempts).
+
+        Read-only; no bot start required. Web layer calls this instead of importing
+        models directly (MOD-02).
+        """
+        return get_confirmed_orders_sync()
+
+    def get_price_history_by_link(self, link: str, limit: int = 200) -> list[tuple[int, str, str]]:
+        """Return last N (price_cents, currency, scraped_at) rows for an item URL.
+
+        Link-keyed variant for the web price-history endpoint (it already holds the
+        decoded URL). Read-only; no bot start required (MOD-02).
+        """
+        return get_price_history_sync(link, limit)
+
+    def get_analytics(self) -> dict:
+        """Compute outcome analytics from existing order records (FC-02).
+
+        Read-only; no bot start required. Resolves link -> platform_key via
+        PluginRegistry.platform_of (registry's domain_patterns match -- no
+        plugin/platform column exists on items), then delegates the actual
+        metric math to the PURE core.analytics module. link is read ONLY here
+        to derive platform_key -- it never enters the returned dict (T-34-06).
+        """
+        from core.analytics import compute_analytics
+        from core.registry import PluginRegistry
+        from models import get_order_analytics_rows_sync
+
+        plugins_dir = Path(__file__).parent.parent / "plugins"
+        registry = PluginRegistry(self._cfg, plugins_dir)
+
+        columns = (
+            "name", "link", "order_id", "confirmed_at",
+            "checkout_attempts", "place_order_attempted_at", "purchased",
+        )
+        rows = [dict(zip(columns, row)) for row in get_order_analytics_rows_sync()]
+        return compute_analytics(rows, registry.platform_of)
+
     def list_plugins(self) -> list[dict]:
         """Return one dict per discovered plugin from _all_plugins.
 
         Reads registry._all_plugins (eager, no browser, no network).
         Never reads _active_plugins (empty until setup_for_items runs).
         Returns dicts with keys: name, domain_patterns, difficulty,
-        requires_proxy, requires_captcha.
+        requires_proxy, requires_captcha, platform_key.
+
+        platform_key falls back to the SAME normalized class-name tag the
+        logger/analytics use (core.registry._plugin_tag) when the plugin
+        declares no explicit platform_key (WR-02) -- otherwise a plugin
+        without platform_key gets a real, non-"core" log tag and analytics
+        bucket that the dashboard's plugin dropdown can never offer.
         """
-        from core.registry import PluginRegistry
+        from core.registry import PluginRegistry, _plugin_tag
 
         plugins_dir = Path(__file__).parent.parent / "plugins"
         registry = PluginRegistry(self._cfg, plugins_dir)
@@ -124,6 +169,7 @@ class BotService:
                 "difficulty": getattr(plugin, "difficulty", "medium"),
                 "requires_proxy": getattr(plugin, "requires_proxy", False),
                 "requires_captcha": getattr(plugin, "requires_captcha", False),
+                "platform_key": _plugin_tag(plugin),
             }
             for plugin in registry._all_plugins
         ]

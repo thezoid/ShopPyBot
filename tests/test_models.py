@@ -178,3 +178,132 @@ def test_get_item_order_state_missing_row(tmp_data_dir):
 
     assert purchased is False
     assert order_id is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 26: get_confirmed_orders_sync (OBS-08)
+# ---------------------------------------------------------------------------
+
+
+def test_get_confirmed_orders_sync_empty(tmp_data_dir):
+    """get_confirmed_orders_sync returns [] when no items have purchased=1."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+
+    result = get_confirmed_orders_sync()
+
+    assert result == []
+
+
+def test_get_confirmed_orders_sync_returns_confirmed(tmp_data_dir):
+    """get_confirmed_orders_sync returns one tuple with 4 fields after confirmation."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget B", "https://ex.com/wb", True, 1, False)])
+    models.update_item_confirmed_sync(
+        "https://ex.com/wb", "ORD-7", "2026-01-01T00:00:00+00:00"
+    )
+
+    result = get_confirmed_orders_sync()
+
+    assert len(result) == 1
+    row = result[0]
+    assert len(row) == 4
+    assert row[1] == "ORD-7"
+    assert row[2] == "2026-01-01T00:00:00+00:00"
+
+
+def test_get_confirmed_orders_sync_excludes_unpurchased(tmp_data_dir):
+    """get_confirmed_orders_sync does not include items where purchased=0."""
+    import models
+    from models import get_confirmed_orders_sync
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget C", "https://ex.com/wc", True, 1, False)])
+
+    result = get_confirmed_orders_sync()
+
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 30: place-order marker column + accessors (BF-02)
+# ---------------------------------------------------------------------------
+
+
+def test_place_order_marker_columns_added(tmp_data_dir):
+    """initialize_db(delete=True) adds place_order_attempted_at column."""
+    import models
+    models.initialize_db(delete=True)
+
+    conn = sqlite3.connect(models.DB_PATH)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    conn.close()
+
+    assert "place_order_attempted_at" in cols
+
+
+def test_place_order_marker_migration_on_legacy_schema(tmp_data_dir):
+    """initialize_db() on a DB missing place_order_attempted_at adds it (idempotent)."""
+    import models
+    conn = sqlite3.connect(models.DB_PATH)
+    conn.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "link TEXT NOT NULL UNIQUE, auto_buy BOOLEAN NOT NULL, "
+        "quantity INTEGER NOT NULL, purchased BOOLEAN NOT NULL DEFAULT 0)"
+    )
+    conn.commit()
+    conn.close()
+
+    models.initialize_db()
+    models.initialize_db()  # second call must be a no-op (idempotent)
+
+    conn = sqlite3.connect(models.DB_PATH)
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    conn.close()
+
+    assert cols.count("place_order_attempted_at") == 1
+
+
+def test_place_order_marker_round_trip(tmp_data_dir):
+    """mark_place_order_attempted_sync then get_place_order_marker_sync returns the timestamp."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/marker1", True, 1, False)])
+
+    models.mark_place_order_attempted_sync(
+        "https://ex.com/marker1", "2026-07-02T00:00:00+00:00"
+    )
+    result = models.get_place_order_marker_sync("https://ex.com/marker1")
+
+    assert result == "2026-07-02T00:00:00+00:00"
+
+
+def test_place_order_marker_missing_link_returns_none(tmp_data_dir):
+    """get_place_order_marker_sync on an unknown link returns None (no raise)."""
+    import models
+    models.initialize_db(delete=True)
+
+    result = models.get_place_order_marker_sync("https://no-such-item")
+
+    assert result is None
+
+
+def test_clear_place_order_marker_sync_resets_to_none(tmp_data_dir):
+    """LOW-03: clear_place_order_marker_sync resets place_order_attempted_at to NULL
+    after a manual operator review, so the item can resume auto-buy attempts."""
+    import models
+    models.initialize_db(delete=True)
+    models.add_items_sync([("Widget", "https://ex.com/marker2", True, 1, False)])
+
+    models.mark_place_order_attempted_sync(
+        "https://ex.com/marker2", "2026-07-02T00:00:00+00:00"
+    )
+    assert models.get_place_order_marker_sync("https://ex.com/marker2") == (
+        "2026-07-02T00:00:00+00:00"
+    )
+
+    models.clear_place_order_marker_sync("https://ex.com/marker2")
+
+    assert models.get_place_order_marker_sync("https://ex.com/marker2") is None

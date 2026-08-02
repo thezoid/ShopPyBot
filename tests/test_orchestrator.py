@@ -546,6 +546,7 @@ async def test_check_and_buy_purchase_dispatches_purchased_event(fake_plugin, fa
     with (
         patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch("core.orchestrator.writeLog"),
     ):
@@ -696,6 +697,7 @@ async def test_monitor_only_false_calls_try_auto_buy(fake_plugin, fake_notifier)
 
     with (
         patch("core.orchestrator.get_item_notification_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
     ):
@@ -772,6 +774,7 @@ async def test_orchestrator_confirmed_path():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -802,6 +805,7 @@ async def test_orchestrator_fallback_path():
     with (
         patch("core.orchestrator.writeLog", side_effect=capture_log),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -827,6 +831,7 @@ async def test_no_double_buy_single_put():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, None)
@@ -863,6 +868,121 @@ async def test_dispatch_confirmed_tag(tmp_data_dir):
     assert row[2] == ts, f"confirmed_at mismatch: {row[2]!r}"
 
 
+# ---------------------------------------------------------------------------
+# WR-01 (34-REVIEW): _dispatch_write must tag write-queue log lines with the
+# OWNING plugin (resolved via registry.platform_of(link)), not the permanent
+# [core] tag the long-lived write-queue-drain task would otherwise carry.
+# ---------------------------------------------------------------------------
+
+
+def _make_tagged_amazon_plugin():
+    """Build a plugin whose platform_key is the real dashboard/log tag 'amazon'."""
+    from core.plugin_base import RetailerPlugin
+
+    class AmazonPlugin(RetailerPlugin):
+        domain_patterns = ["amazon.com"]
+        platform_key = "amazon"
+
+        async def check_availability(self, url: str) -> bool:
+            return True
+
+        async def auto_buy(self, url: str) -> bool:
+            return True
+
+    return AmazonPlugin(config=None)
+
+
+async def test_dispatch_confirmed_tags_owning_plugin_not_core(tmp_data_dir):
+    """WR-01: ("confirmed", link, ...) must call set_log_plugin("amazon") -- the
+    link's owning plugin -- before writeLog, never leaving the permanent [core]
+    tag the write-queue-drain task's ContextVar defaults to."""
+    import models
+    from core.orchestrator import _dispatch_write
+    from core.registry import PluginRegistry
+
+    models.initialize_db(delete=True)
+    link = "https://amazon.com/item"
+    models.add_items_sync([("Widget", link, True, 1, False)])
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    tagged: list[str] = []
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.set_log_plugin", side_effect=tagged.append),
+    ):
+        await _dispatch_write(loop=asyncio.get_running_loop(), item=("confirmed", link, "111-2223334-5556667", "2026-07-02T00:00:40+00:00"), registry=registry)
+
+    assert "amazon" in tagged, (
+        f"Expected set_log_plugin('amazon') to resolve the write's owning plugin; got {tagged}"
+    )
+    assert "core" not in tagged, (
+        f"Must not fall back to the [core] sentinel when the link resolves to a real plugin; got {tagged}"
+    )
+
+
+async def test_dispatch_purchased_unresolvable_link_falls_back_to_core(tmp_data_dir):
+    """WR-01 fallback: a link matching no registered plugin resolves to 'core',
+    and an absent registry (registry=None) also resolves to 'core' -- never raises."""
+    import models
+    from core.orchestrator import _dispatch_write
+    from core.registry import PluginRegistry
+
+    models.initialize_db(delete=True)
+    link = "https://unknown-retailer.example/item"
+    models.add_items_sync([("Widget", link, True, 1, False)])
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    tagged: list[str] = []
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.set_log_plugin", side_effect=tagged.append),
+    ):
+        await _dispatch_write(asyncio.get_running_loop(), ("purchased", link), registry)
+        await _dispatch_write(asyncio.get_running_loop(), ("purchased", link), None)
+
+    assert tagged == ["core", "core"], f"Expected both dispatches to tag 'core', got {tagged}"
+
+
+async def test_write_queue_drain_threads_registry_into_dispatch(tmp_data_dir):
+    """_write_queue_drain accepts an optional registry and threads it into every
+    _dispatch_write call so plugin tagging works for the real long-lived drain task."""
+    from core.orchestrator import _write_queue_drain
+    from core.registry import PluginRegistry
+
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://amazon.com/item2"
+    await queue.put(("clear_available", link))
+
+    registry = PluginRegistry.__new__(PluginRegistry)
+    registry._all_plugins = [_make_tagged_amazon_plugin()]
+
+    received_registries: list = []
+
+    async def fake_dispatch(loop, item, registry=None):
+        received_registries.append(registry)
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator._dispatch_write", side_effect=fake_dispatch),
+    ):
+        drain_task = asyncio.create_task(_write_queue_drain(queue, registry))
+        await queue.join()
+        drain_task.cancel()
+        try:
+            await drain_task
+        except asyncio.CancelledError:
+            pass
+
+    assert received_registries == [registry], (
+        f"Expected _dispatch_write to receive the same registry instance; got {received_registries}"
+    )
+
+
 async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     """WR-02: auto_buy True + detect_order_confirmation raises -> legacy ("purchased", link)
     enqueued exactly once. Never zero enqueues (which would leave item available and
@@ -879,6 +999,7 @@ async def test_no_double_buy_on_confirmation_detection_error(tmp_data_dir):
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
         patch(
             "core.confirmation.detect_order_confirmation",
@@ -1015,7 +1136,7 @@ async def test_item_timeout_continues_to_next(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         check_and_buy_calls.append(name)
 
     async def fake_sleep(secs):
@@ -1083,7 +1204,7 @@ async def test_write_queue_put_outside_timeout(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         # Simulate _check_and_buy placing a write (as set_available would)
         await write_queue.put(("set_available", link, "2026-01-01T00:00:00+00:00"))
 
@@ -1149,7 +1270,7 @@ async def test_run_plugin_heartbeat_and_items_checked(fake_plugin):
     async def fake_executor(executor, fn, *args):
         return items
 
-    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+    async def fake_check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None):
         pass
 
     async def fake_sleep(secs):
@@ -1171,7 +1292,7 @@ async def test_run_plugin_heartbeat_and_items_checked(fake_plugin):
     snap = health.get_snapshot()
     plugin_name = plugin.__class__.__name__
     assert plugin_name in snap, f"Plugin not registered in health snapshot; snap={snap}"
-    assert snap[plugin_name]["last_heartbeat"] > 0.0, "last_heartbeat must be set after one cycle"
+    assert snap[plugin_name]["heartbeat_age_secs"] is not None, "heartbeat_age_secs must be set after one cycle"
     assert snap[plugin_name]["items_checked"] >= 1, "items_checked must be >= 1 after one matching item"
 
 
@@ -1191,6 +1312,7 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin_c, "Widget", "https://amazon.com/item", q_c, None, health=health_c)
@@ -1211,6 +1333,7 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     with (
         patch("core.orchestrator.writeLog"),
         patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
         patch("core.orchestrator.increment_checkout_attempts_sync"),
     ):
         await _try_auto_buy(plugin_l, "Widget", "https://amazon.com/item", q_l, None, health=health_l)
@@ -1218,4 +1341,155 @@ async def test_orders_confirmed_increments_on_confirmed_and_legacy():
     snap_l = health_l.get_snapshot()
     assert snap_l.get("AmazonPlugin", {}).get("orders_confirmed", 0) == 1, (
         f"orders_confirmed must be 1 on legacy path; snap={snap_l}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BF-02: _PossiblyPlaced guard -- possibly_placed operator alert (Plan 30-01)
+# ---------------------------------------------------------------------------
+
+
+async def test_possibly_placed_alert_fires_once(fake_notifier):
+    """_try_auto_buy fires exactly one possibly_placed alert when the marker is set."""
+    from core.orchestrator import _try_auto_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = _make_amazon_plugin(bought=False)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    q: asyncio.Queue = asyncio.Queue()
+
+    with (
+        patch("core.orchestrator.writeLog"),
+        patch("core.orchestrator.get_item_order_state_sync", return_value=(False, None)),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator.increment_checkout_attempts_sync"),
+    ):
+        await _try_auto_buy(plugin, "Widget", "https://amazon.com/item", q, dispatcher)
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 1, (
+        f"Expected exactly 1 possibly_placed alert, got {len(possibly_placed_events)}"
+    )
+    assert q.empty(), "No enqueue on possibly_placed abort -- item skipped, not re-attempted"
+
+
+# ---------------------------------------------------------------------------
+# MED-02: possibly_placed alert fires exactly once across poll cycles, not
+# once per cycle (_check_and_buy pre-check before _try_auto_buy)
+# ---------------------------------------------------------------------------
+
+
+async def test_check_and_buy_possibly_placed_alert_fires_once_across_cycles(
+    fake_plugin, fake_notifier
+):
+    """MED-02: across N consecutive _check_and_buy cycles with the marker set,
+    dispatcher.notify(possibly_placed) fires exactly once (not once per cycle),
+    and _try_auto_buy is never invoked after the item is latched."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+    alerted_links: set = set()
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+        patch("core.orchestrator.writeLog"),
+    ):
+        for _ in range(5):
+            await _check_and_buy(
+                plugin,
+                "Widget",
+                link,
+                auto_buy=True,
+                write_queue=queue,
+                dispatcher=dispatcher,
+                alerted_links=alerted_links,
+            )
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 1, (
+        f"Expected exactly 1 possibly_placed alert across 5 cycles, got "
+        f"{len(possibly_placed_events)}"
+    )
+    mock_try_buy.assert_not_awaited()
+
+
+async def test_check_and_buy_possibly_placed_recheck_marker_cleared_reallows_alert(
+    fake_plugin, fake_notifier
+):
+    """After the marker is cleared (operator resolved) and later re-latches, a
+    fresh possibly_placed alert must fire again (alerted_links discards on clear)."""
+    from core.orchestrator import _check_and_buy
+    from notifications.dispatcher import NotificationDispatcher
+
+    plugin = fake_plugin(domains=["example.com"], available=True, bought=True)
+    notifier = fake_notifier()
+    dispatcher = NotificationDispatcher([notifier])
+    queue: asyncio.Queue = asyncio.Queue()
+    link = "https://example.com/w"
+    alerted_links: set = set()
+
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T00:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    assert link in alerted_links
+
+    # Marker cleared (operator reviewed) -- next cycle sees no marker.
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch("core.orchestrator.get_place_order_marker_sync", return_value=None),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock) as mock_try_buy,
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    assert link not in alerted_links, "alerted_links must discard link once marker clears"
+    mock_try_buy.assert_awaited_once()
+
+    # Marker re-latches (a new genuine possibly-placed event) -- must alert again.
+    with (
+        patch("core.orchestrator.get_item_notification_state_sync", return_value=(True, "t0")),
+        patch(
+            "core.orchestrator.get_place_order_marker_sync",
+            return_value="2026-07-02T05:00:00+00:00",
+        ),
+        patch("core.orchestrator._try_auto_buy", new_callable=AsyncMock),
+        patch("core.orchestrator.writeLog"),
+    ):
+        await _check_and_buy(
+            plugin, "Widget", link, auto_buy=True, write_queue=queue,
+            dispatcher=dispatcher, alerted_links=alerted_links,
+        )
+
+    possibly_placed_events = [e for e in notifier.events if e.action == "possibly_placed"]
+    assert len(possibly_placed_events) == 2, (
+        f"Expected 2 possibly_placed alerts (initial latch + re-latch after clear), "
+        f"got {len(possibly_placed_events)}"
     )

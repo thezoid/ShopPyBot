@@ -378,7 +378,7 @@ def test_balance_check_error_response_disables_solver(caplog):
     import logging
     from core.captcha import CaptchaSolver
 
-    sentinel_key = "sentinel-api-key-cp03-xyzzy"
+    sentinel_key = "sentinel-api-key-cp03-xyzzy"  #gitleaks:allow
     solver = CaptchaSolver(sentinel_key, max_solves=10, low_threshold=1.0)
 
     error_resp = MagicMock()

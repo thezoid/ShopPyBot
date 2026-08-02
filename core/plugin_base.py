@@ -1,9 +1,12 @@
+import asyncio
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Literal
 
 from nodriver.cdp import network as cdp_network
 from nodriver.cdp import storage as cdp_storage
+from pydantic import BaseModel
 
 from core.session_store import build_session_store
 from core.stealth import _is_ban_response
@@ -145,11 +148,24 @@ class RetailerPlugin(ABC):
         """
         return getattr(self.driver, "main_tab", None)
 
-    async def place_order_guarded(self, click_fn) -> bool:
+    async def place_order_guarded(
+        self, click_fn, *, order_marker_link: str | None = None
+    ) -> bool:
         """Invoke click_fn only when test_mode and monitor_only are both False.
 
         Returns True when the click fires, False when suppressed.
         Never raises. PLUGIN_API_VERSION stays 2 (additive concrete method, BUY-02).
+
+        CR-01: this is the ONLY site that knows a real click is about to fire, so
+        the durable place-order marker write lives here rather than being written
+        unconditionally by the caller before the guard runs. When order_marker_link
+        is provided and the click is NOT suppressed, mark_place_order_attempted_sync
+        is durably awaited (via run_in_executor) immediately BEFORE click_fn() --
+        preserving the D-01 write-before-click ordering. The suppressed branch
+        returns before any marker write, so a test_mode/monitor_only run (where no
+        click ever fires) can no longer permanently latch the item as "possibly
+        placed" or fire a false possibly_placed alert (the pre-CR-01 regression:
+        callers wrote the marker unconditionally, ahead of this guard).
 
         Safe-default behavior when config or debug is absent:
         - test_mode defaults to True (suppressed): missing config prevents an order.
@@ -166,12 +182,42 @@ class RetailerPlugin(ABC):
         if test_mode or monitor_only:
             writeLog("place-order suppressed (monitor_only/test_mode)", "INFO")
             return False
+        if order_marker_link is not None:
+            from models import mark_place_order_attempted_sync
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await asyncio.get_running_loop().run_in_executor(
+                None, mark_place_order_attempted_sync, order_marker_link, now_iso
+            )
         await click_fn()
         return True
 
-    async def login(self) -> None:
-        """Authenticate with the retail platform. No-op default."""
-        return None
+    async def login(self) -> bool:
+        """Authenticate with the retail platform. No-op default returns True
+        (a login-less plugin is trivially "logged in", D-14)."""
+        return True
+
+    async def _verify_login_generic(
+        self, tab, signin_url_fragment: str, form_selector: str
+    ) -> bool:
+        """D-12 generic post-login signal: URL no longer contains signin_url_fragment
+        AND form_selector is no longer present. D-13: ambiguous/exception -> False.
+
+        Never raises -- callers treat a raised exception the same as False
+        (fail-safe). PLUGIN_API_VERSION stays 2 -- additive concrete method (BF-03).
+        """
+        try:
+            current_url = tab.target.url
+            if signin_url_fragment in current_url:
+                return False
+            form_present = await tab.select(form_selector, timeout=5)
+            return form_present is None
+        except Exception as exc:
+            writeLog(
+                f"[{self.__class__.__name__}] login verification error:"
+                f" {exc.__class__.__name__}",
+                "WARNING",
+            )
+            return False
 
     async def detect_captcha(self) -> bool:
         """Return True if a CAPTCHA is present. No-op default."""
@@ -211,9 +257,55 @@ class RetailerPlugin(ABC):
         session_restored = await self.restore_session()
         if not session_restored:
             writeLog(f"[{plugin_name}] restore_session=False; re-logging in", "INFO")
-            await self.login()
+            login_ok = await self.login()
+            if not login_ok:
+                writeLog(
+                    f"[{plugin_name}] relaunch: re-login failed; NOT authenticated",
+                    "ERROR",
+                )
         else:
             writeLog(f"[{plugin_name}] relaunch: session restored; skipping login", "INFO")
+
+    def get_platform_config(self, model_cls: type[BaseModel]) -> BaseModel:
+        """Return this plugin's per-platform config, validated against model_cls.
+
+        CFG-02: lets a plugin declare and validate its own platforms.<platform_key>
+        section with zero edits to core/config_schema.py. PlatformsConfig has
+        model_config = ConfigDict(extra="allow"), so an undeclared platform key
+        passes through as a raw dict instead of being dropped; core only
+        guarantees passthrough of that section, not validation -- model_cls's
+        own Field constraints apply here.
+
+        Handles four cases (getattr-safe; never raises AttributeError on missing
+        config/platform_key/section):
+        - Missing config, platform_key, or section (raw is None): returns
+          model_cls() defaults -- a plugin with no matching section is valid.
+        - One of the 7 built-in platforms: raw is already a validated model_cls
+          instance -- returned as-is.
+        - A new plugin's undeclared section: raw is a passthrough dict --
+          constructed into model_cls, letting pydantic raise ValidationError on
+          bad data (fail loudly, matching the 7 existing platforms' behavior).
+        - A platform_key collision: raw is already a validated instance of a
+          DIFFERENT pydantic model (that section validated against some other
+          model_cls). Raises TypeError (WR-02) instead of silently discarding
+          the real, already-validated config and returning model_cls() defaults.
+
+        PLUGIN_API_VERSION stays 2 -- additive concrete method (CFG-02).
+        """
+        platforms = getattr(self.config, "platforms", None) if self.config else None
+        key = getattr(self, "platform_key", None)
+        raw = getattr(platforms, key, None) if key else None
+        if raw is None:
+            return model_cls()
+        if isinstance(raw, model_cls):
+            return raw
+        if isinstance(raw, dict):
+            return model_cls(**raw)   # raises ValidationError on invalid data -- intentional
+        raise TypeError(
+            f"get_platform_config({model_cls.__name__}) called for platform_key="
+            f"{key!r}, but that section already validated as {type(raw).__name__}: "
+            "refusing to silently discard real config data"
+        )
 
     def _session_platform_key(self) -> str | None:
         """Return platform_key attribute if defined on the subclass, else None."""

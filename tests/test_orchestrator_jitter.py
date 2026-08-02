@@ -1,16 +1,18 @@
-"""ANTI-01 orchestrator jitter unit tests.
+"""ANTI-01 / CFG-01 orchestrator jitter unit tests.
 
-Plan: 06-02
-Requirements: ANTI-01
+Plan: 06-02, 33-01
+Requirements: ANTI-01, CFG-01
 
 Covers:
-- _get_plugin_sleep returns a value in [min_delay, max_delay] when the plugin's
-  platform config defines both fields (walmart example: min=8, max=15)
+- _get_plugin_sleep returns a value in [delay_seconds, delay_seconds + delay_jitter] when
+  the plugin's platform config defines canonical fields (walmart example: 8 + jitter 7 = [8,15])
+  via either legacy (min_delay/max_delay, mapped by the shim) or canonical construction
 - _get_plugin_sleep returns poll_interval when plugin has no platform_key attribute
-- _get_plugin_sleep returns poll_interval for an Amazon/BestBuy-shaped config that
-  has delay_seconds/delay_jitter but NOT min_delay/max_delay
-- SC2: config-only behavior -- setting min=8/max=15 yields values in [8, 15] across
-  50 iterations without any code change
+- CFG-01 Option A: _get_plugin_sleep now reads canonical delay_seconds/delay_jitter uniformly
+  for all 7 platforms -- Amazon/BestBuy gain poll-cadence jitter (30-40s) for the first time
+  (see 33-RESEARCH.md CRITICAL FINDING); this is a documented, accepted behavior change
+- SC2: config-only behavior -- setting min=8/max=15 (or canonical delay_seconds=8/delay_jitter=7)
+  yields values in [8, 15] across 50-200 iterations without any code change
 """
 
 from types import SimpleNamespace
@@ -76,6 +78,43 @@ def test_jitter_stays_in_range_over_50_iterations():
     )
 
 
+def test_jitter_in_range_for_walmart_canonical_config():
+    """CFG-01: canonical-construction WalmartPlatformConfig(delay_seconds=20.0, delay_jitter=5.0)
+    yields a value in [20.0, 25.0] -- deliberately disjoint from the legacy defaults (8.0/15.0)
+    so this test cannot pass via a pre-shim default-value coincidence; it only passes once the
+    model actually declares/reads canonical delay_seconds/delay_jitter."""
+    walmart_cfg = WalmartPlatformConfig(delay_seconds=20.0, delay_jitter=5.0)
+    platforms = SimpleNamespace(walmart=walmart_cfg)
+    plugin = _make_plugin(platform_key="walmart", platforms_ns=platforms)
+
+    result = _get_plugin_sleep(plugin, poll_interval=30.0)
+
+    assert isinstance(result, float)
+    assert 20.0 <= result <= 25.0, f"Expected value in [20.0, 25.0], got {result}"
+
+
+def test_legacy_community_config_preserves_delay_distribution():
+    """CFG-01: a legacy walmart config (min_delay/max_delay) driven through _get_plugin_sleep
+    preserves the [8.0, 15.0] effective delay distribution across 200 iterations -- the shim
+    must not change the 5 community plugins' effective poll-delay range."""
+    walmart_cfg = WalmartPlatformConfig(min_delay=8.0, max_delay=15.0)
+    assert walmart_cfg.delay_seconds == 8.0
+    assert walmart_cfg.delay_jitter == 7.0
+
+    platforms = SimpleNamespace(walmart=walmart_cfg)
+    plugin = _make_plugin(platform_key="walmart", platforms_ns=platforms)
+
+    out_of_range = []
+    for _ in range(200):
+        value = _get_plugin_sleep(plugin, poll_interval=30.0)
+        if not (8.0 <= value <= 15.0):
+            out_of_range.append(value)
+
+    assert not out_of_range, (
+        f"Got {len(out_of_range)} values outside [8.0, 15.0]: {out_of_range[:5]}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test: fallback when platform_key absent
 # ---------------------------------------------------------------------------
@@ -101,15 +140,21 @@ def test_fallback_when_platform_key_is_none():
 # ---------------------------------------------------------------------------
 
 
-def test_fallback_for_amazon_shaped_config():
-    """_get_plugin_sleep falls back to poll_interval for Amazon config lacking min/max_delay."""
+def test_amazon_config_activates_poll_jitter():
+    """CFG-01 Option A: _get_plugin_sleep now reads canonical delay_seconds/delay_jitter for
+    all 7 platforms, activating poll-cadence jitter for Amazon (was a flat poll_interval
+    fallback prior to this phase; see 33-RESEARCH.md CRITICAL FINDING).
+
+    poll_interval is deliberately set to a value (5.0) disjoint from the expected [30.0, 40.0]
+    jittered range so this test cannot pass via a pre-GREEN fallback-to-poll_interval
+    coincidence -- it only passes once _get_plugin_sleep actually reads Amazon's canonical
+    delay_seconds/delay_jitter instead of falling back."""
     amazon_cfg = AmazonPlatformConfig(delay_seconds=30.0, delay_jitter=10.0)
     platforms = SimpleNamespace(amazon=amazon_cfg)
-    # plugin.platform_key="amazon" but AmazonPlatformConfig has no min_delay/max_delay
     plugin = _make_plugin(platform_key="amazon", platforms_ns=platforms)
 
-    result = _get_plugin_sleep(plugin, poll_interval=30.0)
-    assert result == 30.0, f"Expected 30.0 fallback for amazon config, got {result}"
+    result = _get_plugin_sleep(plugin, poll_interval=5.0)
+    assert 30.0 <= result <= 40.0, f"Expected jittered value in [30.0, 40.0], got {result}"
 
 
 def test_fallback_for_platform_config_with_neither_delay_field():

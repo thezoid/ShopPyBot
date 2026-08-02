@@ -32,6 +32,13 @@ proxy:
 # as environment variables (see .env.example); the CVV is collected at runtime
 # via a hidden prompt and never written to disk.
 
+# Per-platform anti-detection delay config (CFG-01): all 7 platforms (amazon, bestbuy,
+# walmart, target, gamestop, squareenix, newegg) use the canonical field names
+# delay_seconds (base delay) and delay_jitter (added random jitter width, 0..delay_jitter).
+# Legacy field names min_delay/max_delay are still accepted on the 5 community platforms
+# (walmart/target/gamestop/squareenix/newegg) via a deprecated back-compat shim that maps
+# them to delay_seconds/delay_jitter automatically -- no config changes are required, but
+# new configs should use the canonical names.
 platforms:
   amazon:
     delay_seconds: 30.0

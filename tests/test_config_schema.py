@@ -85,7 +85,8 @@ def test_poll_interval_yaml_override(tmp_path):
 
 
 def test_walmart_platform_fields_load_from_yaml(tmp_path):
-    """ANTI-01/02/03: walmart min_delay, max_delay, headless, user_agents load from YAML."""
+    """ANTI-01/02/03/CFG-01: legacy walmart min_delay/max_delay YAML maps to canonical
+    delay_seconds/delay_jitter; headless, user_agents load from YAML."""
     cfg = {
         "debug": {"logging_level": 3, "test_mode": True},
         "available": {"timeout": 10, "items": []},
@@ -101,8 +102,8 @@ def test_walmart_platform_fields_load_from_yaml(tmp_path):
     f = tmp_path / "config.yml"
     f.write_text(yaml.dump(cfg))
     config = AppConfig(yaml_file=f)
-    assert config.platforms.walmart.min_delay == 8.0
-    assert config.platforms.walmart.max_delay == 15.0
+    assert config.platforms.walmart.delay_seconds == 8.0
+    assert config.platforms.walmart.delay_jitter == 7.0
     assert config.platforms.walmart.headless is False
     assert config.platforms.walmart.user_agents == ["Mozilla/5.0 FakeAgent/1.0"]
 
@@ -140,7 +141,8 @@ def test_default_user_agents_is_non_empty_list_of_strings():
 
 
 def test_squareenix_platform_config_reachable(tmp_path):
-    """ANTI-01: platforms.squareenix (no underscore) is reachable on PlatformsConfig."""
+    """ANTI-01/CFG-01: platforms.squareenix (no underscore) is reachable on PlatformsConfig;
+    legacy min_delay/max_delay maps to canonical delay_seconds/delay_jitter."""
     cfg = {
         "available": {"items": []},
         "platforms": {"squareenix": {"min_delay": 5, "max_delay": 10}},
@@ -148,8 +150,8 @@ def test_squareenix_platform_config_reachable(tmp_path):
     f = tmp_path / "config.yml"
     f.write_text(yaml.dump(cfg))
     config = AppConfig(yaml_file=f)
-    assert config.platforms.squareenix.min_delay == 5.0
-    assert config.platforms.squareenix.max_delay == 10.0
+    assert config.platforms.squareenix.delay_seconds == 5.0
+    assert config.platforms.squareenix.delay_jitter == 5.0
 
 
 def test_amazon_and_bestbuy_headless_default_true(valid_config_yml):
@@ -169,6 +171,86 @@ def test_amazon_headless_false_loads_as_false(tmp_path):
     f.write_text(yaml.dump(cfg))
     config = AppConfig(yaml_file=f)
     assert config.platforms.amazon.headless is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 33: CFG-01 canonical delay-field shim (delay_seconds/delay_jitter)
+# ---------------------------------------------------------------------------
+
+
+def test_legacy_delay_shim_maps_to_canonical():
+    """CFG-01: legacy min_delay/max_delay construction maps to canonical
+    delay_seconds/delay_jitter (delay_seconds := min_delay, delay_jitter := max_delay - min_delay).
+    A canonical-only construction produces the same attributes directly."""
+    from core.config_schema import WalmartPlatformConfig
+
+    legacy = WalmartPlatformConfig(min_delay=8.0, max_delay=15.0)
+    assert legacy.delay_seconds == 8.0
+    assert legacy.delay_jitter == 7.0
+
+    canonical = WalmartPlatformConfig(delay_seconds=8.0, delay_jitter=7.0)
+    assert canonical.delay_seconds == 8.0
+    assert canonical.delay_jitter == 7.0
+
+
+def test_canonical_delay_precedence_over_legacy():
+    """CFG-01: explicit canonical delay_seconds/delay_jitter are never clobbered by legacy keys,
+    even when both legacy and canonical keys are present in the same construction."""
+    from core.config_schema import WalmartPlatformConfig
+
+    cfg = WalmartPlatformConfig(min_delay=1, max_delay=2, delay_seconds=99, delay_jitter=55)
+    assert cfg.delay_seconds == 99.0
+    assert cfg.delay_jitter == 55.0
+
+
+def test_legacy_delay_shim_emits_deprecation_warning():
+    """CFG-01: constructing a platform config with legacy min_delay/max_delay emits a
+    DeprecationWarning naming the deprecated keys."""
+    from core.config_schema import WalmartPlatformConfig
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        WalmartPlatformConfig(min_delay=8.0, max_delay=15.0)
+    assert any("min_delay" in str(w.message) for w in caught)
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+def test_legacy_delay_shim_inverted_range_raises_clear_error():
+    """WR-01: an inverted legacy range (max_delay < min_delay) still hard-fails
+    (fail-loud is intentional, not clamped) but the error must name min_delay/
+    max_delay -- not a bare delay_jitter Field(ge=0.0) error the user never set."""
+    from core.config_schema import WalmartPlatformConfig
+
+    with pytest.raises(ValidationError) as exc_info:
+        WalmartPlatformConfig(min_delay=20.0, max_delay=5.0)
+    message = str(exc_info.value)
+    assert "min_delay" in message
+    assert "max_delay" in message
+
+
+def test_shim_legacy_fallback_defaults_match_community_model_defaults():
+    """WR-03: the shim's hardcoded min_delay/max_delay fallbacks (8.0/15.0) must stay
+    in sync with the 5 community platform models' delay_seconds/delay_jitter Field
+    defaults (8.0 + 7.0 = 15.0). Cheap drift guard: a future tuning pass that changes
+    one of the 5 models' defaults without updating the shim fails this test loudly."""
+    from core.config_schema import (
+        GameStopPlatformConfig,
+        NeweggPlatformConfig,
+        SquareEnixPlatformConfig,
+        TargetPlatformConfig,
+        WalmartPlatformConfig,
+    )
+
+    for model_cls in (
+        WalmartPlatformConfig,
+        TargetPlatformConfig,
+        GameStopPlatformConfig,
+        SquareEnixPlatformConfig,
+        NeweggPlatformConfig,
+    ):
+        defaults = model_cls()
+        assert defaults.delay_seconds == 8.0
+        assert defaults.delay_jitter == 7.0
 
 
 # ---------------------------------------------------------------------------

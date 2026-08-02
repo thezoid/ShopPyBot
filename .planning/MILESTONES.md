@@ -1,5 +1,47 @@
 # Milestones
 
+## v4.2 Release Readiness (Shipped: 2026-07-03)
+
+**Phases completed:** 6 phases, 20 plans, 45 tasks
+
+**Delivered:** ShopPyBot closes out its debt-closure and release-hardening backlog: a place-order double-buy idempotency latch, Amazon WAF auto-solve wiring, and real post-login verification harden the acquisition path; CI now runs a real secret scan, a working CodeQL workflow, and Dependabot with a clean alert queue; release-please is seeded and `pyproject.toml` reconciled to 2.0.0 with a refreshed README and a real security-contact channel; platform delay-config fields are harmonized with a back-compat shim and plugins can self-declare their own config section; the dashboard gained a per-plugin log filter and outcome analytics; and the three outstanding v4.1 audit warnings plus stale v4.0/v4.1 doc frontmatter are resolved.
+
+**Key accomplishments:**
+
+- **Breakfix hardening (P30):** Place-order-timeout double-buy latch (`_PossiblyPlaced` marker + guard, HIGH), Amazon WAF auto-solve via the existing 2captcha path with the manual-pause fallback preserved, and real post-login DOM/URL verification (`_verify_login_generic`) rolled out to all 7 plugins.
+- **CI & security infrastructure (P31):** gitleaks secret-scan CI job + local tracked-secret guard test, CodeQL workflow repaired (retired Node16 actions bumped to `checkout@v6`/`codeql-action@v4`), `.github/dependabot.yml` added and all 7 open vulnerability alerts remediated (cryptography/pydantic-settings/jinja2 bumped).
+- **Release automation & community readiness (P32):** `pyproject.toml` reconciled to 2.0.0, release-please seeded and wired for conventional-commit changelog/tagging, README rewritten for the current 7-platform architecture, SECURITY.md/CODE_OF_CONDUCT.md routed through GitHub Private Vulnerability Reporting (placeholder contact removed).
+- **Config refactor (P33):** Platform delay-config fields harmonized to `delay_seconds`/`delay_jitter` with a back-compat shim for legacy configs, and a generic per-platform config extension point (`extra="allow"` + `get_platform_config()`) lets any plugin self-declare its own config section with zero core schema edits.
+- **Feature completion (P34):** Every log line now carries a `[plugin]` tag; `/api/logs` and the dashboard gained a live plugin filter; a new outcome-analytics endpoint/view computes success-rate and time-to-checkout from confirmed-order records.
+- **Audit-fixes & doc-hygiene (P35):** SSR remove-button now degrades gracefully without JS, the raw `last_heartbeat` float no longer leaks from `get_status()`/SSE, the dead `escHtml()` helper is removed, and v4.0/v4.1 planning-artifact frontmatter is reconciled to match each phase's real passing status.
+
+**Audit:** `.planning/milestones/v4.2-MILESTONE-AUDIT.md` — 20/20 requirements satisfied, 6/6 phases, 6/6 integration boundaries WIRED, 8/9 E2E flows complete. Full suite 940 passed / 2 skipped. Status `tech_debt` (no blockers): 1 code-level gap (BF-02 marker not yet propagated to the 5 community plugins, pre-declared deferred scope), 5 operator-gated GitHub Settings items (PVR toggle, Actions allowlist x2, LICENSE file, conduct-report channel), 1 pending sign-off (RH-07 channel choice made autonomously), and a Nyquist frontmatter lag across all 6 of this milestone's own phases.
+
+**Known deferred items at close: 8** (see STATE.md → Deferred Items) — 5 phase `human_needed` verification statuses (live-environment checks structurally impossible in CI) + 1 todo (Amazon WAF live-challenge acceptance, manual-pause fallback in place) + 2 dormant seeds (SEED-001 destructive history rewrite stays operator-gated; SEED-002 fully closes once release-please's first Actions run goes green).
+
+---
+
+## v4.1 Dashboard & Observability (Shipped: 2026-06-30)
+
+**Phases completed:** 6 phases (25-29 + inserted 29.1), 20 plans
+
+**Delivered:** The optional FastAPI dashboard is redesigned on a zero-Node vendored design system and surfaces live operational observability over SSE, without breaking the CLI-default, localhost-bound, no-CDN posture.
+
+**Key accomplishments:**
+
+- **Design system (P25):** Zero-Node vendored CSS split (`tokens.css` / `components.css` / `dashboard.css`), light/dark theme with FOUC-safe inline `<head>` script, uPlot 1.6.32 vendored (no CDN), and the `loadItems()`/`loadCredentials()` XSS vector replaced with `createElement`/`textContent`; MC-4 non-local banner + CSRF gate preserved.
+- **Read-only API (P26):** `GET /api/history`, `GET /api/price-history/{link_b64}`, and a filterable `GET /api/logs` (level/search/n) — every sync DB/log read wrapped in `asyncio.to_thread`; `last_error` scrubbed to `exc.__class__.__name__`; CI assertion guards the read path against credential-pattern leaks.
+- **SSE infrastructure (P27):** Single `/api/events` stream over a clean cross-thread bridge where uvicorn's `_poll_loop` is the sole producer (bot daemon never touches `asyncio.Queue`); keepalive comments, disconnect cleanup (no generator leak), `retry: 3000`, and a cursor-based log tail.
+- **Observability surfaces (P28):** Per-plugin health cards (status badge, monotonic heartbeat-age color bands, error/items counters, confirmed-orders counter), confirmed-buys table, per-item uPlot price charts with explicit empty-state, color-coded filterable log viewer (Follow/pause-on-scroll, 500-line DOM cap), and a uptime status bar.
+- **SSE client wiring (P29):** Replaced the 2s `setInterval` polling with a single feature-detected `EventSource('/api/events')` (named status/log listeners, one-shot backfill), a polling fallback for environments without `EventSource`, and a Live/Reconnecting indicator.
+- **Tech-debt cleanup (P29.1, inserted):** Closed 3 audit warnings — uPlot loader relocated to `<head>` (cold-load `ReferenceError` race removed), blanket consecutive-line log drop replaced with a one-shot backfill-boundary dedup, and an SSE idle watchdog + REST polling fallback so a stalled-but-open stream flips to Reconnecting and recovers to Live.
+
+**Audit:** `.planning/milestones/v4.1-MILESTONE-AUDIT.md` (refresh 2026-06-30) — 16/16 requirements satisfied, 6/6 phases, 6/6 integration boundaries WIRED, 5/5 E2E flows complete. Full suite 807 passed / 2 skipped. Status `tech_debt` (no blockers): 2 low-sev warnings (UI-03 SSR remove-button dead handler; `last_heartbeat` cosmetic field in status payload).
+
+**Known deferred items at close: 8** (see STATE.md → Deferred Items) — 4 `human_needed` verifications (P27/28/29/29.1, live-browser/socket) + 1 partial HUMAN-UAT (29.1, 3 scenarios), all deferred per the autonomous live-UAT policy; 1 todo (Amazon WAF auto-solve, manual-pause fallback in place); 2 dormant seeds (SEED-001 repo scrub, SEED-002 release-please) — release-milestone items.
+
+---
+
 ## v4.0 Win-the-Drop (Shipped: 2026-06-25)
 
 **Phases completed:** 7 phases, 29 plans

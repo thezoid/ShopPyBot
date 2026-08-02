@@ -25,10 +25,10 @@ from pathlib import Path
 
 from core.captcha import CaptchaSolver
 from core.credentials import get_store
-from core.registry import PluginRegistry
+from core.registry import PluginRegistry, _plugin_tag
 from core.retry import RetryPolicy, compute_delay, with_retry
 from core.stealth import ProxyPool
-from logger import writeLog
+from logger import writeLog, set_log_plugin
 from models import (
     get_items_sync,
     update_item_purchased_sync,
@@ -37,6 +37,7 @@ from models import (
     clear_item_available_sync,
     get_item_notification_state_sync,
     get_item_order_state_sync,
+    get_place_order_marker_sync,
     increment_checkout_attempts_sync,
     append_price_history_sync,
     get_last_price_sync,
@@ -101,7 +102,15 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     plugin.relaunch() before re-entering run_plugin (REL-03).
 
     Backoff uses compute_delay from core/retry.py (REL-08 single source).
+
+    MED-02: alerted_links is created once here (outside the restart loop) and
+    threaded into every run_plugin() call, so the possibly_placed alert stays
+    "fires once" across run_plugin restarts within this process run. It does
+    NOT persist across a full process restart (fresh set on next launch) --
+    the marker itself (durable, in SQLite) is the source of truth for whether
+    the item is still latched; alerted_links only dedupes the alert cadence.
     """
+    set_log_plugin(_plugin_tag(plugin))
     checkout_cfg = getattr(cfg, "checkout", None)
     n_budget = getattr(checkout_cfg, "alert_on_errors", 3)
     policy = RetryPolicy(
@@ -111,10 +120,14 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
     )
     failure_times: deque = deque()
     attempt = 0
+    alerted_links: set = set()
 
     while True:
         try:
-            await run_plugin(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, health=health)
+            await run_plugin(
+                plugin, write_queue, poll_interval,
+                dispatcher=dispatcher, cfg=cfg, health=health, alerted_links=alerted_links,
+            )
             attempt = 0  # healthy run completed; reset backoff so future failures start fresh (WR-02)
             if health is not None:
                 plugin_name = plugin.__class__.__name__
@@ -137,6 +150,7 @@ async def supervise(plugin, write_queue, poll_interval, dispatcher, cfg, registr
             if health is not None:
                 plugin_name = plugin.__class__.__name__
                 health.record_error(plugin_name)
+                health.record_last_error(plugin_name, exc)  # SSE-03: class name only
                 # health_degraded: consecutive-error early-warning, fires ONCE per episode.
                 # Threshold: max(1, n_budget-1) so degraded precedes park (distinct signals).
                 # Re-arms on healthy run via disarm_degraded above.
@@ -280,9 +294,15 @@ async def _evaluate_price_triggers(plugin, name, link, price_cents, prev_price, 
 def _get_plugin_sleep(plugin, poll_interval: float) -> float:
     """Return per-platform jitter sleep or shared poll_interval as fallback.
 
-    Reads plugin.platform_key to resolve config.platforms.<key>. Returns
-    random.uniform(min_delay, max_delay) when both are defined; otherwise
-    returns poll_interval. Any attribute lookup failure falls back safely.
+    CFG-01: reads plugin.platform_key to resolve config.platforms.<key>, then reads
+    the canonical delay_seconds/delay_jitter fields uniformly for all 7 platforms.
+    Returns delay_seconds + random.uniform(0, delay_jitter) when both are defined;
+    otherwise returns poll_interval. Any attribute lookup failure falls back safely.
+
+    Option A (accepted, see 33-CONTEXT.md/33-RESEARCH.md): Amazon/BestBuy now receive
+    poll-cadence jitter from this uniform read path (e.g. 30 + uniform(0, 10) = 30-40s)
+    instead of always falling back to the flat poll_interval, since their models already
+    declare delay_seconds/delay_jitter with real defaults.
     """
     try:
         platform_key = getattr(plugin, "platform_key", None)
@@ -291,19 +311,35 @@ def _get_plugin_sleep(plugin, poll_interval: float) -> float:
         platform_cfg = getattr(plugin.config.platforms, platform_key, None)
         if platform_cfg is None:
             return poll_interval
-        min_delay = getattr(platform_cfg, "min_delay", None)
-        max_delay = getattr(platform_cfg, "max_delay", None)
-        if min_delay is None or max_delay is None:
+        delay_seconds = getattr(platform_cfg, "delay_seconds", None)
+        delay_jitter = getattr(platform_cfg, "delay_jitter", None)
+        if delay_seconds is None or delay_jitter is None:
             return poll_interval
-        return random.uniform(min_delay, max_delay)
+        return delay_seconds + random.uniform(0, delay_jitter)
     except Exception:
         return poll_interval
 
 
-async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, dispatcher=None, cfg=None, health=None) -> None:
-    """Long-running poll coroutine for one plugin. Cancelled on shutdown."""
+async def run_plugin(
+    plugin,
+    write_queue: asyncio.Queue,
+    poll_interval: float,
+    dispatcher=None,
+    cfg=None,
+    health=None,
+    alerted_links: set | None = None,
+) -> None:
+    """Long-running poll coroutine for one plugin. Cancelled on shutdown.
+
+    alerted_links (MED-02): shared set of links already alerted for
+    possibly_placed, threaded from supervise() so the alert stays "fires once"
+    across run_plugin restarts within the same process run. Defaults to a
+    fresh set when called directly (e.g. tests) without going through supervise.
+    """
     loop = asyncio.get_running_loop()
     item_timeout = getattr(getattr(cfg, "checkout", None), "item_timeout_secs", 120)
+    if alerted_links is None:
+        alerted_links = set()
     while True:
         try:
             items = await loop.run_in_executor(None, get_items_sync)
@@ -332,7 +368,10 @@ async def run_plugin(plugin, write_queue: asyncio.Queue, poll_interval: float, d
                 # orphan a pending DB write (REL-06). If the item times out before reaching
                 # put(), the write is simply not reached -- no orphan (WR-01).
                 async with asyncio.timeout(item_timeout):
-                    await _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=dispatcher, health=health)
+                    await _check_and_buy(
+                        plugin, name, link, auto_buy, write_queue,
+                        dispatcher=dispatcher, health=health, alerted_links=alerted_links,
+                    )
             except TimeoutError:
                 writeLog(
                     f"[{plugin.__class__.__name__}] item timeout ({item_timeout}s): {name} -- skipping",
@@ -379,6 +418,15 @@ class _AlreadyConfirmed(Exception):
         self.order_id = order_id
 
 
+class _PossiblyPlaced(Exception):
+    """Sentinel: raised inside on_attempt when a place-order click was dispatched
+    (marker set) but no order_id was ever confirmed. Aborts retry -- D-03/D-04:
+    fail-safe = miss-a-buy over risk-a-double-buy. Caught in _try_auto_buy, which
+    alerts the operator (D-04) instead of silently returning."""
+    def __init__(self, attempted_at: str) -> None:
+        self.attempted_at = attempted_at
+
+
 async def _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher) -> None:
     """Enqueue confirmation or legacy-purchased after a successful buy (WR-02).
 
@@ -420,6 +468,14 @@ async def _pre_attempt_check(loop, link: str, platform: str) -> None:
             "INFO",
         )
         raise _AlreadyConfirmed("")
+    attempted_at = await loop.run_in_executor(None, get_place_order_marker_sync, link)
+    if attempted_at is not None:
+        writeLog(
+            f"[{platform}] place-order marker set (attempted_at={attempted_at}) "
+            "with no confirmed order_id -- possibly placed, aborting retry",
+            "WARNING",
+        )
+        raise _PossiblyPlaced(attempted_at)
     await loop.run_in_executor(None, increment_checkout_attempts_sync, link)
 
 
@@ -438,14 +494,32 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         result = await with_retry(
             lambda: _attempt_buy(plugin, link),
             policy,
-            should_retry=lambda r: not r[0],  # only retry on auto_buy failure; True+no-order_id flows to legacy enqueue (no-double-buy)
+            # Retry on auto_buy failure EXCEPT a verified-failed login (D-15): once
+            # plugin._checkout_stage == "login" on a failed attempt, the login stage
+            # is non-retryable inside this loop -- suppression lives in the predicate
+            # itself, not a post-hoc check, so login() is never re-invoked.
+            should_retry=lambda r: not r[0] and plugin._checkout_stage != "login",
             on_attempt=lambda _: _pre_attempt_check(loop, link, platform),
         )
     except _AlreadyConfirmed as confirmed:
         writeLog(f"[{platform}] idempotency exit: order_id={confirmed.order_id}", "INFO")
         return
+    except _PossiblyPlaced as pp:
+        writeLog(
+            f"[{platform}] possibly-placed exit: attempted_at={pp.attempted_at} -- "
+            "alerting operator, skipping until manually reviewed",
+            "WARNING",
+        )
+        if dispatcher is not None:
+            await dispatcher.notify(_build_event(name, link, platform, "possibly_placed"))
+        return
     success, order_id = result
     if not success:
+        if plugin._checkout_stage == "login":
+            writeLog(f"[{platform}] login verification failed -- aborting, not retrying", "WARNING")
+            if dispatcher is not None:
+                await dispatcher.notify(_build_event(name, link, platform, "login_failed"))
+            return
         writeLog(f"[{platform}] cart-retry exhausted (stage={plugin._checkout_stage})", "WARNING")
         return
     await _enqueue_buy_result(name, link, platform, order_id, write_queue, dispatcher)
@@ -453,7 +527,9 @@ async def _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=None
         health.inc_orders_confirmed(platform)
 
 
-async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None):
+async def _check_and_buy(
+    plugin, name, link, auto_buy, write_queue, dispatcher=None, health=None, alerted_links=None
+):
     """Check one item and optionally buy it. Logs and continues on any error."""
     loop = asyncio.get_running_loop()
     try:
@@ -501,10 +577,56 @@ async def _check_and_buy(plugin, name, link, auto_buy, write_queue, dispatcher=N
                 "INFO",
             )
             return
+        # MED-02: pre-check the place-order marker BEFORE entering the cart-retry
+        # loop. _pre_attempt_check (inside _try_auto_buy) still raises _PossiblyPlaced
+        # as defense-in-depth against a marker appearing mid-retry, but checking here
+        # first means a latched item short-circuits on every subsequent poll cycle
+        # without re-entering with_retry -- the operator alert fires exactly once
+        # (per process run; alerted_links resets on process restart) via alerted_links
+        # instead of every poll cycle.
+        marker = await loop.run_in_executor(None, get_place_order_marker_sync, link)
+        if marker is not None:
+            if alerted_links is None or link not in alerted_links:
+                if alerted_links is not None:
+                    alerted_links.add(link)
+                writeLog(
+                    f"[{plugin.__class__.__name__}] place-order marker set "
+                    f"(attempted_at={marker}) -- possibly placed, skipping until "
+                    "manually reviewed",
+                    "WARNING",
+                )
+                if dispatcher is not None:
+                    await dispatcher.notify(
+                        _build_event(name, link, plugin.__class__.__name__, "possibly_placed")
+                    )
+            return
+        if alerted_links is not None:
+            # Marker cleared (e.g. operator ran clear_place_order_marker_sync) --
+            # allow a future genuine re-latch to alert again.
+            alerted_links.discard(link)
         await _try_auto_buy(plugin, name, link, write_queue, dispatcher, health=health)
 
 
-async def _dispatch_write(loop, item) -> None:
+def _tag_write_for_link(registry, link) -> None:
+    """Resolve link -> owning-plugin tag and set it for this write's writeLog call.
+
+    WR-01: the write-queue-drain task is a single long-lived asyncio task whose
+    ContextVar persists ACROSS iterations -- so every dispatch must explicitly
+    (re)set the tag (never conditionally skip), or a later unresolvable-link write
+    would silently keep showing a PRIOR item's plugin tag. Falls back to "core"
+    when registry is None or resolution fails; never raises (reused hostname-match
+    logic lives in PluginRegistry.platform_of, shared with core/service.py FC-02).
+    """
+    tag = "core"
+    if registry is not None:
+        try:
+            tag = registry.platform_of(link)
+        except Exception:
+            tag = "core"
+    set_log_plugin(tag)
+
+
+async def _dispatch_write(loop, item, registry=None) -> None:
     """Execute a single typed write-queue item against the correct models function.
 
     Supported tuple tags:
@@ -512,9 +634,15 @@ async def _dispatch_write(loop, item) -> None:
       ("confirmed", link, order_id, ts)        -> update_item_confirmed_sync(link, order_id, ts)
       ("set_available", link, ts)              -> set_item_available_sync(link, ts)
       ("clear_available", link)                -> clear_item_available_sync(link)
+
+    registry (WR-01, optional): when provided, the write's log line is tagged with
+    the link's OWNING plugin (via registry.platform_of) instead of the permanent
+    [core] tag the write-queue-drain task would otherwise carry for its entire
+    lifetime -- see _tag_write_for_link.
     """
     if not isinstance(item, tuple):
         # Legacy bare-link support: treat as purchased
+        _tag_write_for_link(registry, item)
         await loop.run_in_executor(None, update_item_purchased_sync, item)
         writeLog(f"Marked purchased: {item}", "INFO")
         return
@@ -522,48 +650,57 @@ async def _dispatch_write(loop, item) -> None:
     tag = item[0]
     if tag == "purchased":
         link = item[1]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, update_item_purchased_sync, link)
         writeLog(f"Marked purchased: {link}", "INFO")
     elif tag == "confirmed":
         link, order_id, ts = item[1], item[2], item[3]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, update_item_confirmed_sync, link, order_id, ts)
         writeLog(f"Order confirmed: {link} order_id={order_id}", "INFO")
     elif tag == "set_available":
         link, ts = item[1], item[2]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, set_item_available_sync, link, ts)
         writeLog(f"Marked available: {link}", "DEBUG")
     elif tag == "clear_available":
         link = item[1]
+        _tag_write_for_link(registry, link)
         await loop.run_in_executor(None, clear_item_available_sync, link)
         writeLog(f"Cleared available: {link}", "DEBUG")
     else:
         writeLog(f"Unknown write-queue tag '{tag}' -- skipped", "WARNING")
 
 
-async def _write_queue_drain(queue: asyncio.Queue) -> None:
-    """Serializes all DB writes. Runs until cancelled."""
+async def _write_queue_drain(queue: asyncio.Queue, registry=None) -> None:
+    """Serializes all DB writes. Runs until cancelled.
+
+    registry (WR-01, optional): threaded into every _dispatch_write call so the
+    long-lived drain task's log lines are tagged per-item with the owning plugin.
+    """
     loop = asyncio.get_running_loop()
     while True:
         item = await queue.get()
         try:
-            await _dispatch_write(loop, item)
+            await _dispatch_write(loop, item, registry)
         except Exception as exc:
             writeLog(f"DB write failed for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
             queue.task_done()
 
 
-async def _flush_write_queue(queue: asyncio.Queue, loop) -> None:
+async def _flush_write_queue(queue: asyncio.Queue, loop, registry=None) -> None:
     """Drain remaining items after TaskGroup exits (drain task was cancelled).
 
     The _write_queue_drain task may have an in-flight item with task_done() not yet
     called (queue.join() would hang). Manual get_nowait() + task_done() drains it.
     Errors are logged; task_done() is always called so join() does not deadlock (T-22-06).
+    registry (WR-01, optional): same per-item plugin tagging as _write_queue_drain.
     """
     while not queue.empty():
         item = queue.get_nowait()
         try:
-            await _dispatch_write(loop, item)
+            await _dispatch_write(loop, item, registry)
         except Exception as exc:
             writeLog(f"Write-queue flush error for {item!r}: {exc.__class__.__name__}", "ERROR")
         finally:
@@ -706,7 +843,7 @@ async def async_main(cfg, cvv, health_registry=None) -> None:
 
     try:
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(_write_queue_drain(write_queue), name="write-queue-drain")
+            tg.create_task(_write_queue_drain(write_queue, registry), name="write-queue-drain")
             for plugin in registry._active_plugins:
                 tg.create_task(
                     supervise(plugin, write_queue, poll_interval, dispatcher=dispatcher, cfg=cfg, registry=registry, health=health_registry),
@@ -715,7 +852,7 @@ async def async_main(cfg, cvv, health_registry=None) -> None:
     except* KeyboardInterrupt:
         pass
     finally:
-        await _flush_write_queue(write_queue, loop)
+        await _flush_write_queue(write_queue, loop, registry)
         try:
             await asyncio.wait_for(write_queue.join(), timeout=5)
         except asyncio.TimeoutError:

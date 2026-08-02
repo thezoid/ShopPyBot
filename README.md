@@ -1,17 +1,12 @@
 # ShopPyBot
 
-*master*
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=master)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=master)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=master)
-
-*dev*
-![Linux](https://github.com/thezoid/ShopPyBot/actions/workflows/app_linuxBuild.yml/badge.svg?branch=dev)
-![Mac](https://github.com/thezoid/ShopPyBot/actions/workflows/app_macBuild.yml/badge.svg?branch=dev)
-![Windows](https://github.com/thezoid/ShopPyBot/actions/workflows/app_windowsBuild.yml/badge.svg?branch=dev)
+![CI](https://github.com/thezoid/ShopPyBot/actions/workflows/ci.yml/badge.svg?branch=master)
+![CodeQL](https://github.com/thezoid/ShopPyBot/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)
+![Gitleaks](https://github.com/thezoid/ShopPyBot/actions/workflows/gitleaks.yml/badge.svg?branch=master)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
 ## Overview
-ShopPyBot is a bot designed to automate the process of checking availability and purchasing items from online stores like Amazon and BestBuy.
+ShopPyBot is a drop-in plugin framework that monitors item availability and can automatically purchase across 7 retail platforms: Amazon, BestBuy, Walmart, Target, GameStop, NewEgg, and Square Enix. Community contributors can add support for a new platform by dropping a single plugin file into `plugins/` — no changes to the core framework required.
 
 ### Disclaimer
 
@@ -25,8 +20,12 @@ Account restrictions may be triggered by any of the following: 1) running multip
 
 ## Features
 
-- Automated availability checks
-- Automated purchasing
+- **Plugin framework** — add a new retail platform via a single file in `plugins/`, no core changes required
+- Automated availability checks and automated purchasing across all 7 supported platforms (Amazon, BestBuy, Walmart, Target, GameStop, NewEgg, Square Enix)
+- **Optional web dashboard** (`pip install -e .[web]`) with observability: a live status stream (Server-Sent Events), a health surface, and log filtering by plugin and level
+- **Price monitoring** — alert or auto-buy on a target price or a percentage price drop
+- **Anti-detection** — fingerprint and proxy rotation, plus 2captcha-backed CAPTCHA solving
+- **Encrypted session persistence** (Fernet + scrypt) so logins survive restarts
 - CAPTCHA detection and notification
 - Configurable via `config.yml`
 - Logging and error handling
@@ -35,8 +34,12 @@ Account restrictions may be triggered by any of the following: 1) running multip
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+
 - pip (Python package installer)
+- Google Chrome or Chromium installed locally. Selenium drives this browser
+  directly; `chromedriver` itself is auto-downloaded via `webdriver_manager`
+  (see `selenium.driver_path` in `config.yml`), but the Chrome/Chromium binary
+  is not installed for you.
 
 #### Best Buy
 
@@ -52,7 +55,7 @@ Account restrictions may be triggered by any of the following: 1) running multip
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/yourusername/ShopPyBot.git
+git clone https://github.com/thezoid/ShopPyBot.git
 cd ShopPyBot
 ```
 
@@ -64,11 +67,13 @@ python -m venv .venv
 source .venv/bin/activate  # On macOS/Linux
 ```
 
-3. Install the required dependencies:
+3. Install the project in editable mode with the `web` extra (FastAPI/uvicorn/jinja2, needed for the optional web dashboard):
 
 ```sh
-pip install -r requirements.txt
+pip install -e .[web]
 ```
+
+This also registers the `shoppybot` console command (see [Running the Bot](#running-the-bot)).
 
 ## Configuration
 
@@ -78,24 +83,43 @@ pip install -r requirements.txt
 cp sample.config.yml config.yml
 ```
 
-2. Edit `config.ym`l to include your Amazon and BestBuy account details and the items you want to monitor.
+2. Edit `config.yml` to add the items you want to monitor. `config.yml` holds only non-secret item and behavior settings — it never holds account credentials.
 
-****If you update these in your settings, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
+3. Account credentials go in environment variables, never in `config.yml`. Copy `.env.example` to `.env` and populate your platform credentials there; `.env` is gitignored and must never be committed. See [SECURITY.md](SECURITY.md#credentials-and-secrets) for the full credential-handling policy.
+
+****If you update `config.yml`, please do not commit it to your local repository! I do not take responsibility for any PII or other sensitive data that may leak through your commits!***
 
 ### Changing the Alert Sound
 
-The alert sounds can simply be changed by replacing the existing `.mp3` files with new ones of the same name. There is also support for replacing the `.mp3` files with `.wav` files.
+The bundled alert sounds (`sounds/notification.wav`, `sounds/available.wav`, `sounds/buy.wav`) are original, royalty-free tones generated from scratch by `sounds/generate_alert_sounds.py` (public domain / CC0, no third-party samples). Regenerate them any time with:
+
+```sh
+python sounds/generate_alert_sounds.py
+```
+
+To use your own sounds, drop a file of the same name (`notification`, `available`, or `buy`) into `sounds/`. Both `.mp3` and `.wav` are supported; `utils.py` loads `.mp3` first, then falls back to `.wav`.
 
 ## Running the Bot
 
 ```sh
-python main.py
+shoppybot
 ```
+
+`shoppybot` is the console entry point registered by `pip install -e .[web]`. `python main.py` still works as an alternative if you prefer running from a source checkout directly.
 
 ## Contributing
 
-Contributions are welcome! Please read the contributing guidelines for more information.
+Contributions are welcome! Please read [the contributing guidelines](CONTRIBUTING.md) for more information.
+
+## Versioning
+
+Product releases follow [SemVer](https://semver.org/), automated via
+[release-please](https://github.com/googleapis/release-please) and seeded at
+`2.0.0` (matching the pre-existing `v2.0` git tag). The `v4.0`/`v4.1` tags in
+this repository's history are **internal planning-milestone markers**, not
+product releases, and are unrelated to the `release-please`-managed SemVer
+series — do not compare them numerically.
 
 ## Credits
 
-[Final Fantasy 14 Sound Fan Kit]https://na.finalfantasyxiv.com/lodestone/special/fankit/smartphone_ringtone/) - Square Enix
+[Final Fantasy 14 Sound Fan Kit](https://na.finalfantasyxiv.com/lodestone/special/fankit/smartphone_ringtone/) - Square Enix

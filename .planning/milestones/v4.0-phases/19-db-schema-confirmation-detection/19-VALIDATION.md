@@ -2,7 +2,7 @@
 phase: 19
 slug: db-schema-confirmation-detection
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-11
 ---
