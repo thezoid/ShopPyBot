@@ -1,37 +1,54 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-03T18:39:59.814Z",
+  "timestamp": "2026-08-01T23:44:34.447Z",
   "context": "default",
   "milestone": "v4.2",
-  "milestone_name": "Release Readiness",
-  "workflow": "gsd-autonomous",
-  "stage": "milestone-complete-archived",
-  "status": "milestone_complete",
+  "milestone_name": "Release Readiness (closed) — post-milestone UAT audit session",
+  "workflow": "gsd-audit-uat",
+  "stage": "uat-audit-complete-pending-merges",
+  "status": "paused",
   "completed_steps": [
-    {"step": "Phase 30 Breakfix Hardening", "detail": "BF-01 Amazon WAF auto-solve, BF-02 place-order double-buy latch (HIGH), BF-03 7-plugin login verification"},
-    {"step": "Phase 31 CI & Security Infrastructure", "detail": "RH-01 gitleaks CI, RH-04 CodeQL fix, RH-05 dependabot.yml + 7 vuln bumps"},
-    {"step": "Phase 32 Release Automation & Community Readiness", "detail": "RH-03 pyproject 2.0.0, RH-02 release-please seed, RH-06 README rewrite, RH-07 PVR security contact"},
-    {"step": "Phase 33 Config Refactor", "detail": "CFG-01 delay-field harmonization + shim, CFG-02 generic per-platform config (extra=allow + get_platform_config)"},
-    {"step": "Phase 34 Feature Completion", "detail": "FC-01 plugin log-tag filter (contextvar), FC-02 outcome analytics (/api/analytics)"},
-    {"step": "Phase 35 Audit-Fixes & Doc-Hygiene", "detail": "AF-01 SSR remove route, AF-02 last_heartbeat scrub, AF-03 escHtml removal, DH-01/02/03 frontmatter reconcile"},
-    {"step": "Milestone lifecycle", "detail": "audit (tech_debt) -> complete (archived, tag v4.2) -> cleanup (phases moved to milestones/v4.2-phases/)", "commit": "3a52cc1"}
+    {"step": "Cross-phase UAT audit", "detail": "80 outstanding items across 66 files in the archived milestone dirs; SDK had falsely reported zero"},
+    {"step": "Live browser UAT sweep", "detail": "13 PASS / 1 FAIL / 5 BLOCKED / 2 PARTIAL, driven via Claude-in-Chrome against a seeded local dashboard"},
+    {"step": "SEED-003 planted", "detail": "remote plugin manager + third-party liability disclaimer + extensibility framework", "commit": "d485710"},
+    {"step": "Port auto-select for `shoppybot web`", "detail": "probe/increment/report + opt-in --open; 18 tests", "commit": "0cebc9e"},
+    {"step": "UAT verdicts recorded", "detail": "11 phase artifacts, +246/-40, all frontmatter validated", "commit": "70f31c5"},
+    {"step": "STATE.md session record", "detail": "verdict counts, 3 defects, operator actions, outstanding items, doc drift", "commit": "f883f13"},
+    {"step": "PR #13 CI fix MERGED", "detail": "runner-context compile fix + requirements.txt install + httpx; CI green for the first time ever", "commit": "4123059"},
+    {"step": "PR #12 signal-handler fix", "detail": "rebased onto master, all 4 checks green, CLEAN and awaiting operator merge", "commit": "3f27a2d"},
+    {"step": "Operator actions", "detail": "PVR enabled, Actions allowlist widened, CodeQL re-enabled, wiki registry published, RH-07 signed off, branch protection corrected"}
   ],
-  "remaining_steps": [],
-  "blockers": [],
+  "remaining_steps": [
+    {"step": "Merge PR #12", "detail": "operator command; the classifier blocks agent-initiated merges"},
+    {"step": "Push 4 local commits on chore/v4.0-milestone-close", "detail": "d485710, 0cebc9e, 70f31c5, f883f13"},
+    {"step": "Decide on PR #11", "detail": "264 commits; unblocks the Dependabot drain, release-please, gitleaks and modern CodeQL on master"},
+    {"step": "Re-test 27-HV-2 / 28-HV-1 / 28-HV-2 running-half", "detail": "all three were blocked by the Start Bot defect; re-run once PR #12 lands"},
+    {"step": "10-HV-3 / MC-4", "detail": "needs a `shoppybot web --host 0.0.0.0` restart to verify the banner in both themes"},
+    {"step": "29-HV-5", "detail": "needs a DevTools source breakpoint; the doc's stated recipe cannot work"},
+    {"step": "MC-1 / MC-2", "detail": "Windows TTY keyring survival + masked prompt; the only two items with no prerequisites"},
+    {"step": "Repair 12 drifted UAT docs", "detail": "three of them produce FALSE PASSES as written; see the drift list in STATE.md"},
+    {"step": "Fix docs/PLUGIN_REGISTRY.md example row", "detail": "says difficulty 'hard'; AmazonPlugin inherits 'medium' from core/plugin_base.py:78-80"}
+  ],
+  "blockers": [
+    {"description": "Agent cannot merge PRs or write branch protection", "type": "external", "workaround": "Operator runs it with the `!` prefix; worked cleanly for branch protection and PR #13"},
+    {"description": "31-HV-3 Dependabot queue will not drain", "type": "external", "workaround": "Two causes: remediating bumps live on chore/v4.0-milestone-close (needs PR #11), AND Dependabot is repo-level PAUSED"},
+    {"description": "PR #11 mergeStateStatus reads UNKNOWN", "type": "technical", "workaround": "Re-query after PR #12 lands; it read BLOCKED before branch protection was corrected"}
+  ],
   "human_actions_pending": [
-    {"action": "Enable GitHub Private Vulnerability Reporting (Settings -> Security & analysis)", "context": "SECURITY.md + CODE_OF_CONDUCT.md link security/advisories/new which 404s until enabled (RH-07)", "blocking": false},
-    {"action": "Widen repo Actions allowlist (Settings -> Actions -> General) for gitleaks/gitleaks-action@* + googleapis/release-please-action@*", "context": "currently 'selected' with no third-party patterns -> gitleaks startup_failure every push, release-please cannot run", "blocking": false},
-    {"action": "Merge the release-please PR (#11 at close) to cut release 2.0.0", "context": "release-please seeded at 2.0.0; first release is operator-triggered", "blocking": false},
-    {"action": "Add a LICENSE file if open-sourcing", "context": "none exists; no license badge fabricated", "blocking": false},
-    {"action": "Live-UAT deferred checks", "context": "Amazon WAF live-challenge, BF-02 live double-buy edge, community-plugin selectors, BestBuy post-login DOM, Amazon/BestBuy jittered poll cadence", "blocking": false}
+    {"action": "gh pr merge 12 --repo thezoid/ShopPyBot --squash --delete-branch", "context": "PR #12 is CLEAN with all 4 checks green; closes the only real product defect the audit found", "blocking": true},
+    {"action": "Decide whether to merge PR #11", "context": "264 commits; drains the 7 Dependabot alerts and lands release-please + gitleaks + modern CodeQL on master", "blocking": false},
+    {"action": "Unpause Dependabot", "context": "GET /repos/thezoid/ShopPyBot/automated-security-fixes returns {\"enabled\":true,\"paused\":true}; no new PRs open until unpaused", "blocking": false},
+    {"action": "Add a LICENSE file if open-sourcing", "context": "still none; repo is already public", "blocking": false},
+    {"action": "Consider enabling secret scanning + push protection", "context": "both disabled; free on public repos and would partly cover for gitleaks", "blocking": false}
   ],
   "decisions": [
-    {"decision": "RH-07 security contact = GitHub Private Vulnerability Reporting (no email published)", "rationale": "operator away at decision; avoids publishing a private email on a public repo; reversible", "phase": "32"},
-    {"decision": "Config canonical delay fields = delay_seconds/delay_jitter; Amazon/BestBuy jitter ACTIVATED (Option A)", "rationale": "those fields were dead (flat poll_interval); unifying consumption activates jitter 30-40s; poll-cadence only, anti-detection improvement", "phase": "33"},
-    {"decision": "BF-02 double-buy marker wired to Amazon/BestBuy only", "rationale": "deliberate pre-declared deferral; the 5 community plugins cannot reliably place live orders yet (operator debt)", "phase": "30"},
-    {"decision": "Autonomous run: auto-commit per plan, push to branch per phase, no direct master push", "rationale": "prior GSD authorization; avoids data loss; branch+PR route", "phase": "all"}
+    {"decision": "Wiki Plugin Registry published headers-only, zero rows", "rationale": "last-verified means confirmed against a live retail site; no plugin has ever been live-verified (19-UAT-1), so any date would be fabricated", "phase": "15"},
+    {"decision": "PVR is the final sole security-report channel; no maintainer email", "rationale": "operator sign-off on 32-HV-1, converting an autonomous default into a real decision", "phase": "32"},
+    {"decision": "_register_signals fixed with a main-thread guard, not a widened except", "rationale": "signal disposition is process-level and main-thread-only on both platforms; the threaded path already has BotService.stop() for cooperative cancellation", "phase": "n/a"},
+    {"decision": "Branch protection requires test (ubuntu-latest), test (windows-latest), CodeQL", "rationale": "the old five matched nothing any workflow emits. Kept the stable `CodeQL` aggregate over `Analyze (python)`, which PR #11 renames to `Analyze (python, none)` via build-mode", "phase": "n/a"},
+    {"decision": "httpx==0.28.1 added to requirements.txt rather than a new extra", "rationale": "pytest already lives there; keeps one install path and fixes the undeclared-dep papercut", "phase": "n/a"}
   ],
   "uncommitted_files": [],
-  "next_action": "v4.2 fully closed, archived, pushed (tag v4.2 on origin). No in-progress GSD work. NEXT: operator completes human_actions_pending (GitHub settings + release PR #11), then /gsd:new-milestone to start v4.3, OR open a PR from chore/v4.0-milestone-close to master.",
-  "context_notes": "v4.2 Release Readiness executed autonomously via /gsd-autonomous: 6 phases (30-35) each discuss->plan->plan-check->execute->verify->code-review->fix. 20/20 requirements satisfied, full suite 940 passed / 2 skipped. Working tree clean, all committed + pushed to chore/v4.0-milestone-close. Audit = tech_debt (deferred UAT + operator actions only, no code gaps), archived to .planning/milestones/v4.2-MILESTONE-AUDIT.md. Tests: use .venv/Scripts/python.exe -m pytest, NOT rtk pytest. STATE.md uses a custom prose-field schema the gsd-sdk state verbs cannot parse (hand-edit)."
+  "next_action": "Ask the operator to run `gh pr merge 12 --repo thezoid/ShopPyBot --squash --delete-branch`, then offer to push the 4 local commits and pull PR #11 merge-readiness.",
+  "context_notes": "Session began as a routine UAT status check and became a real audit. `gsd-sdk query audit-uat` reported total_items: 0 — a FALSE all-clear, because it scans .planning/phases/ which is empty once milestones are archived; 80 real items sat in .planning/milestones/*-phases/. Three defects fell out, none previously caught by any test or milestone review: (1) dashboard Start Bot never worked, _register_signals raising ValueError off the main thread; (2) CI never compiled, ${{ runner.temp }} in job-level env:, 81 runs 81 failures zero jobs; (3) CI never installed dependencies, pyproject declares only platformdirs. CI is now green for the first time in project history: 755 passed / 2 skipped, identical on Ubuntu and Windows. Carry forward: v2.0 through v4.2 were all archived claiming 'CI-green', which was never true. Environment notes that still hold: use .venv/Scripts/python.exe -m pytest, NOT rtk pytest; STATE.md uses a custom prose-field schema the gsd-sdk state verbs cannot parse (hand-edit); a background dashboard server may still be running on 127.0.0.1:8001 (port 8000 belongs to an unrelated MMFManager backend); the session scratchpad directory was wiped mid-run once, so never leave uncommitted work in a worktree placed there."
 }
