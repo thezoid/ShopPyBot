@@ -17,6 +17,7 @@ import random
 import signal
 import sqlite3
 import sys
+import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -644,7 +645,18 @@ def _register_signals(loop, root_task) -> None:
     POSIX: loop.add_signal_handler (thread-safe, runs in event loop).
     Windows ProactorEventLoop: raises NotImplementedError; fallback to signal.signal.
     Both paths use loop.call_soon_threadsafe (mirrors BotService.stop() pattern).
+
+    No-op off the main thread. Signal disposition is a process-level concern the
+    interpreter only permits the main thread to change: signal.signal() raises
+    ValueError there, and the POSIX add_signal_handler path raises ValueError from
+    signal.set_wakeup_fd for the same reason. BotService.start() runs async_main in
+    a daemon thread (the web dashboard's Start Bot path), so without this guard the
+    bot loop dies before it reaches plugin setup. That path does not need signal
+    handlers: BotService.stop() already cancels the root task cooperatively.
     """
+    if threading.current_thread() is not threading.main_thread():
+        return
+
     def _shutdown(*_) -> None:
         writeLog("Shutdown signal received -- initiating teardown", "INFO")
         loop.call_soon_threadsafe(root_task.cancel)
