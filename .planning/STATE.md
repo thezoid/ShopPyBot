@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.2
-milestone_name: Release Readiness
-status: Awaiting next milestone
-last_updated: "2026-07-03T04:26:44.105Z"
-last_activity: 2026-07-03 — Milestone v4.2 completed and archived
+milestone: v5.0
+milestone_name: Real Release and Plugin Ecosystem
+status: planning
+last_updated: "2026-08-02T05:16:43.486Z"
+last_activity: 2026-08-02
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # ShopPyBot — State
@@ -28,10 +28,10 @@ progress:
 
 ## Current Position
 
-Phase: Milestone v4.2 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-03 — Milestone v4.2 completed and archived
+Status: Defining requirements
+Last activity: 2026-08-02 — Milestone v5.0 started
 
 ## Phase Status
 
@@ -409,9 +409,11 @@ after an archive.
    before plugin setup, while `POST /api/bot/start` still returned 200. The CLI path
    (`shoppybot run`) masked it by running on the main thread. Fixed in PR #12
    (`fix/signal-handler-main-thread`). Caught by 29-HV-2; 27-HV-2 and 28-HV-1 are downstream.
+
 2. **CI never compiled.** `ci.yml` referenced `${{ runner.temp }}` in job-level `env:`, where
    the `runner` context does not exist. 81 runs, 81 failures, zero jobs scheduled, no logs.
    Introduced by `0e0e43f` (2026-06-04), the only commit that ever touched the file.
+
 3. **CI never installed dependencies.** The install step ran only `pip install -e .[web]`,
    but `pyproject` declares just `platformdirs`; pytest and every runtime dep live in
    `requirements.txt`, which CI never installed. Also added the undeclared `httpx==0.28.1`
@@ -429,6 +431,7 @@ but the claim was unearned.
 - Actions allowlist widened for `gitleaks/gitleaks-action@*` and
   `googleapis/release-please-action@*` (32-HV-3) — unblocked gitleaks (31-HV-1) and
   CodeQL (31-HV-2), both of which then ran green for the first time ever
+
 - CodeQL workflow re-enabled from `disabled_inactivity`
 - Wiki "Plugin Registry" page created, headers-only by deliberate decision (REG-01)
 - RH-07 signed off: GitHub PVR is the final, sole reporting channel (32-HV-1)
@@ -441,8 +444,10 @@ but the claim was unearned.
 - **31-HV-3** — 7 Dependabot alerts (#6-#12) still open. Two blockers: the remediating bumps
   live on `chore/v4.0-milestone-close`, and Dependabot is repo-level PAUSED
   (`GET /repos/thezoid/ShopPyBot/automated-security-fixes` -> `{"enabled":true,"paused":true}`)
+
 - **10-HV-3 / MC-4** — needs a `shoppybot web --host 0.0.0.0` restart; confirmed on loopback
   that `.banner-warning` is correctly absent from the DOM
+
 - **29-HV-5** — needs a DevTools source breakpoint; the doc's stated recipe cannot work
 - **27-HV-2, 28-HV-1, 28-HV-2 (running half)** — blocked until PR #12 lands, then re-test
 - **MC-1, MC-2** — Windows TTY checks, still the only two items runnable with no prerequisites
@@ -463,5 +468,6 @@ not light.
 - Merge PR #13 (CI fix), then PR #12 (Start Bot fix) after a rebase
 - Decide on PR #11 (264 commits) — merging it drains the Dependabot queue and lands
   release-please, gitleaks, and the modernized CodeQL on `master`
+
 - Unpause Dependabot once PR #11 is in
 - Start the next milestone with /gsd:new-milestone (SEED-003 will surface)

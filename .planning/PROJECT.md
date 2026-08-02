@@ -24,6 +24,8 @@ v4.2: 6 phases (30-35) / 20 plans / 45 tasks, all complete. Full suite: 940 pass
 
 **Deferred (carried):** all live-environment UAT (v4.0 acquisition checks, v4.1 dashboard live-browser/socket checks, v4.2 WAF/double-buy/CI-Actions live checks) tracked in STATE.md → Deferred Items as the operator's pre-production + release checklist; the 5-community-plugin BF-02 marker propagation gap; the destructive half of SEED-001 (public-repo history scrub/squash) stays operator-gated.
 
+**Correction recorded 2026-08-02:** everything described above as "shipped" for v4.1 and v4.2 is shipped *on a branch*, not on `master`. A full-repo sweep found the default branch 263 commits behind, PR #11 hard-blocked because its `ci.yml` fails to compile (so the v4.1+v4.2 suite has never run in CI), the built wheel missing every data file (`shoppybot web` cannot start from an installed wheel), and no LICENSE on a public repo. Milestone v5.0 exists to make the mainline and the published artifact match these claims.
+
 **Key constraints (held):** secrets never in config.yml/logs/SQLite plaintext; full card number / CVV never persisted to disk or logs (retailer-saved payment + CVV-at-runtime only); GUI optional, CLI default; the credential-managing web UI binds to localhost by default; zero-Node (no package.json/CDN/external fonts — vendored CSS/JS only); observability is read-only over `get_status()` + DB with no new secrets.
 
 <details>
@@ -59,20 +61,36 @@ v4.2: 6 phases (30-35) / 20 plans / 45 tasks, all complete. Full suite: 940 pass
 
 </details>
 
-## Next Milestone
+## Current Milestone: v5.0 Real Release & Plugin Ecosystem
 
-Not yet scoped. Run `/gsd:new-milestone` to begin questioning → research → requirements → roadmap for the next milestone.
+**Goal:** Make the default branch, the published artifact, and the public repo actually be what four shipped milestones already claim, then open the plugin framework to third parties with a trust model that survives the fact that importing a plugin is executing it.
 
-**Candidate directions:** see Future Candidate Directions below.
+**Premise (established by the 2026-08-02 sweep, 221 evidenced findings):** `master` is 263 commits behind. Every v4.1 and v4.2 artifact — the dashboard, gitleaks, release-please — exists only on the unmerged `chore/v4.0-milestone-close` branch. The default branch is still v4.0, PR #11's test suite has never run in CI (its branch `ci.yml` references `${{ runner.temp }}` in a job-level `env:` and fails to compile), and the built wheel contains zero data files, so `shoppybot web` cannot start on any non-editable install. The claims are ahead of the reality; this milestone closes that gap.
+
+**Target features:**
+- **A. Mainline reconciliation** — fix the branch `ci.yml` compile bug, resolve PR #11 without dropping `httpx`, triage the 4 local commits absent from the PR, land #11 → #12 → Dependabot PRs in dependency order, close the stale #8.
+- **B. Distributable artifact** — package-data and a truthful dependency declaration in `pyproject.toml`; installing the wheel must launch `shoppybot web` and play sounds.
+- **C. Public-repo readiness** — LICENSE, delete `_deprecated/`, README rewritten for nodriver (not Selenium), `sample.config.yml` rebuilt to include `monitor_only` and every current section, CODEOWNERS, documentation drift.
+- **D. Live defect closure** — `/api/bot/start` fire-and-forget reporting, stdin listener EOF spin / None-stdin / executor occupancy, `/api/config` applying to the running process, Discord empty-`url` embeds on `plugin_parked` + `health_degraded`, browser preflight diagnosis, `/api/history` one-shot staleness.
+- **E. Scanning to zero** — 7 open Dependabot alerts, 5 real CodeQL alerts, `ci.yml` permissions block, remove the disabled CodeQL workflow, gitleaks as a required check, branch-protection hardening.
+- **F. Quality floor** — linter, formatter, and typechecker adopted and wired into CI (none exist today, so CLAUDE.md's own standards are unenforced), coverage measurement, bare-except sites, dead code.
+- **G. Community plugin parity** — BF-02 place-order marker on the 5 community plugins, per-step timeouts, `monitor_only` entry guard, confirmation-tab capture.
+- **H. Plugin ecosystem (SEED-003)** — user-writable plugin directory, install provenance, machine-readable registry, `PLUGIN_API_VERSION` enforcement, install-time consent gate, capability limits, third-party liability disclaimer, and `install`/`update`/`remove` CLI.
+- **I. Ops hardening** — `price_history` index and retention policy.
+- **J. UAT repair and triage** — fix the 2 physically impossible test recipes, re-run the 8 items PR #11/#12 unblock, and triage the 61 live-environment items against a stated acceptance bar.
+
+**Seeds in scope:** SEED-002 (release-please has never executed — register it on master and cut a real release), SEED-001 (retire the destructive history rewrite as a recorded decision: gitleaks across 964 commits found only a test-fixture false positive; keep the LICENSE and public-launch half), SEED-003 (full plugin ecosystem, 16 verified gaps).
+
+**Sequencing constraints:** A gates E. B gates SEED-002 being worth running. H is the only workstream needing a genuine design pass. Per RETROSPECTIVE.md lesson 4, G and H both warrant a post-verification REVIEW.md deep-review pass — G touches a safety-critical guard, H adds a new unauthenticated input surface.
 
 ## Future Candidate Directions
 
-Candidates for later milestones (next milestone not yet scoped — run `/gsd:new-milestone`):
-- **Destructive public-repo history scrub/squash** (SEED-001 remainder) — operator-gated one-time action; only in scope once ready to make the repo public. The non-destructive audit half shipped in v4.2 (RH-01).
-- **BF-02 5-plugin propagation** — thread `order_marker_link` through the 5 community plugins' `place_order_guarded` calls (mechanical follow-up mirroring the existing Amazon/BestBuy pattern); closes the residual double-buy exposure flagged by the v4.2 audit.
-- **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon).
+Candidates for milestones after v5.0:
+- **Checkout form-fill for the remaining 5 retailers** (v4.0 covers BestBuy + Amazon; v5.0 workstream G brings them to safety parity, not checkout parity).
+- **Order-confirmation detection for the 5 community plugins** — currently Amazon/BestBuy only; every community plugin falls through the detector.
 - **Request/API-mode (hybrid) checkout** — faster than DOM but per-site reverse-engineering and an arms race.
-- **Live-environment UAT sweep** — burn down the accumulated operator UAT checklist (STATE.md → Deferred Items, 32+ items across v4.0/v4.1/v4.2) before first production live-buy.
+- **Live-environment UAT execution** — v5.0 workstream J triages and repairs the checklist; actually running the ~61 live-retail/live-host items remains operator work gated on a funded 2captcha balance, an Ubuntu host, and a real drop.
+- **Process isolation for third-party plugins** — the real fix for the SEED-003 blast-radius problem, and by far the most expensive; v5.0 ships consent plus capability limits instead.
 
 <details>
 <summary>Shipped: v4.0 Win-the-Drop (Acquisition Core + Reliability) — 2026-06-25</summary>
@@ -172,7 +190,7 @@ Candidates for later milestones (next milestone not yet scoped — run `/gsd:new
 
 ### Active
 
-Next milestone not yet scoped — run `/gsd:new-milestone`.
+Milestone v5.0 Real Release & Plugin Ecosystem — workstreams A-J (see Current Milestone above). REQ-IDs assigned in `.planning/REQUIREMENTS.md`.
 
 ### Deferred
 
@@ -240,4 +258,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 — v4.2 Release Readiness milestone shipped (6 phases, 20 plans, 20/20 requirements); full evolution review complete*
+*Last updated: 2026-08-02 — milestone v5.0 Real Release & Plugin Ecosystem scoped from a 221-finding full-repo sweep (PRs, security/quality scans, outstanding UAT, seed gaps, defect re-verification) plus an adversarial completeness pass*
