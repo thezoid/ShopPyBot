@@ -43,3 +43,40 @@ jobs:
           # workflow fail to compile -- instant failure, zero jobs scheduled.
           SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot
         run: pytest --tb=short
+
+  # Builds the wheel and installs it into a clean virtualenv holding nothing but
+  # the wheel and its own declared dependencies. This job must NEVER install from
+  # requirements.txt and must never install the package with -e. The test job
+  # above does install from requirements.txt, deliberately; doing the same here
+  # would hide every dependency and data file that the wheel itself is missing,
+  # which is the entire class of defect this job exists to catch. Ubuntu is not
+  # optional either: colorama and pyyaml reach a Windows install transitively and
+  # a Windows-only run would keep missing exactly that failure mode.
+  wheel:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install build tooling
+        # Only pip and build. Nothing here reaches the clean venv, which the
+        # verification script creates itself and installs the wheel into.
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+      - name: Build wheel
+        run: python -m build --wheel --outdir dist
+      - name: Verify wheel
+        env:
+          # Same step-level rule as the Test step above: the `runner` context does
+          # not exist in job-level `env:`, and using it there fails the whole
+          # workflow to compile rather than failing this one job.
+          SHOPBOT_DATA_DIR: ${{ runner.temp }}/shopbot-wheel
+          WHEEL_VENV: ${{ runner.temp }}/wheelenv
+        run: python scripts/verify_wheel.py --wheel-dir dist --venv "${{ env.WHEEL_VENV }}"
