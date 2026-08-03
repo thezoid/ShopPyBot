@@ -112,7 +112,7 @@ Audit: `.planning/milestones/v4.2-MILESTONE-AUDIT.md` (status: tech_debt — 20/
 ### 🔄 v5.0 Real Release & Plugin Ecosystem (Phases 36-50) — IN PROGRESS
 
 - [x] **Phase 36: Mainline Reconciliation** — `master` becomes the real ShopPyBot and its suite runs in CI for the first time (MAIN-01..07) (completed 2026-08-02)
-- [ ] **Phase 37: Distributable Artifact** — the built wheel actually runs, so publishing one is worth doing (PKG-01..06)
+- [x] **Phase 37: Distributable Artifact** — the built wheel actually runs, so publishing one is worth doing (PKG-01..06) (completed 2026-08-03)
 - [ ] **Phase 38: Scanning to Zero** — every scanner reports zero real findings and the checks that produce them are required (SCAN-01..11)
 - [ ] **Phase 39: Quality Floor** — lint, format, typecheck, and coverage enforced in CI before the milestone's new code lands (QUAL-01..09)
 - [ ] **Phase 40: Public-Repo Readiness** — LICENSE, current README, honest sample config, CODEOWNERS, drift corrected (PUB-01..09)
@@ -173,8 +173,22 @@ Plans:
   4. `bundled_plugins_dir()` called from an installed wheel returns a directory containing the 7 bundled plugins, and that result is recorded as the input Phase 43 (EXT-03) depends on.
   5. `requirements.txt` pins neither `selenium` nor `webdriver-manager`, and no Dependabot alert references either.
 
-**Plans**: TBD
-**Note**: PKG-06 is a hard gate on Phase 43. If the bundled root does not survive a wheel install, the `importlib.resources` fix belongs here, not to workstream H.
+**Plans**: 4 plans (strictly sequential, waves 1 through 4; executors share the main working tree with no worktree isolation, so concurrent commits are not safe)
+Plans:
+
+- [x] 37-01-PLAN.md: relocate `sounds/` to `core/sounds/`, resolve it through `importlib.resources`, declare package-data so the wheel ships the sounds plus the six `web/static` and `web/templates` files (PKG-01)
+- [x] 37-02-PLAN.md: declare the nine dependencies the production tree actually imports, move `pygame` and `httpx` to extras, delete the dead `selenium` and `webdriver-manager` pins, prove it in a clean venv (PKG-02, PKG-03, PKG-04)
+- [x] 37-03-PLAN.md: create `core.paths.bundled_plugins_dir()` as the named seam, prove the refactor is behavior-preserving, record the answered PKG-06 result where Phase 43 reads it (PKG-06)
+- [x] 37-04-PLAN.md: add `scripts/verify_wheel.py` and a `wheel` CI job on both runners that installs the built wheel with no `requirements.txt` and runs the five locked assertions (PKG-05)
+
+**Planning corrections** (from `37-SCOUT.md`, verified against a real built-and-installed wheel 2026-08-02, these supersede the requirement text where they conflict):
+
+  - The wheel is not degraded, it is dead. `shoppybot --help` fails at import on `pydantic_settings` before any command dispatch, so execution never reaches the `StaticFiles` mount that PKG-01 and PKG-05 are written around. The cheapest correct first assertion is `shoppybot --help` exiting 0, not launching a server.
+  - PKG-03's named list is incomplete and partly wrong. `websockets` and `starlette` are already present transitively and are not the failure cause; `pydantic-settings` is the highest-impact omission and PKG-03 does not name it. `colorama` and `pyyaml` are also undeclared unconditional imports of `logger.py`, invisible to a Windows-only probe because `click` and `uvicorn[standard]` happen to supply them there but not on Linux.
+  - PKG-06 names `bundled_plugins_dir()` as though it exists. It does not; the real mechanism is a bare expression at `core/orchestrator.py:814`. Plan 37-03 creates the accessor for real.
+  - `sounds/` is structurally unshippable, not merely unshipped: `utils` is a top-level module, so `SOUNDS_DIR` resolves to `site-packages/sounds`, which cannot be package data of any package. Plan 37-01 relocates it rather than adding a config line.
+
+**Note**: PKG-06 is a hard gate on Phase 43, and it is ANSWERED favorably. The bundled root resolves to `site-packages/plugins` with all 7 plugins intact on a real wheel install, so the `importlib.resources` fix is NOT needed and does not belong to this phase. Plan 37-03 converts that one-off observation into a named accessor, a regression test, and a CI assertion so it cannot rot before Phase 43 consumes it.
 
 ### Phase 38: Scanning to Zero
 
@@ -268,7 +282,8 @@ Plans:
 
 **Plans**: TBD
 **UI hint**: yes
-**Research flag**: Blocked on PKG-06's factual answer. If `bundled_plugins_dir()` does not resolve from an installed wheel, the `importlib.resources` fix is Phase 37 work, not this phase's.
+**Research flag**: ANSWERED by plan 37-03, this phase is unblocked. `core.paths.bundled_plugins_dir()` now exists as the named accessor, and calling it from a clean Python 3.13 venv holding only the built wheel (no extras, no `requirements.txt`) returns `<venv>/Lib/site-packages/plugins` containing exactly the 7 bundled `shopbot_plugin_*.py` files (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart). No `importlib.resources` rewrite is needed and none belongs to Phase 37. `tests/test_paths.py` guards the result, `core/orchestrator.py` and `core/service.py` call the accessor rather than inlining the path, and a seam guard already enforces this phase's criterion 5.
+**Caveat carried forward** (from `37-SCOUT.md` correction 2, retained deliberately): the bundled root lands as a top-level `site-packages/plugins` entry, so any other distribution shipping a top-level `plugins` package would collide with it. It resolves correctly today and does not block this phase, but the multi-root design here should treat the bundled root's location as something it owns rather than something it inherits.
 
 ### Phase 44: Provenance, Load-Boundary Integrity & Run Lock
 
@@ -399,7 +414,7 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17) + 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Mainline Reconciliation | 5/5 | Complete   | 2026-08-02 |
-| 37. Distributable Artifact | 0/TBD | Not started | - |
+| 37. Distributable Artifact | 4/4 | Complete   | 2026-08-03 |
 | 38. Scanning to Zero | 0/TBD | Not started | - |
 | 39. Quality Floor | 0/TBD | Not started | - |
 | 40. Public-Repo Readiness | 0/TBD | Not started | - |

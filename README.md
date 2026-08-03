@@ -91,13 +91,13 @@ cp sample.config.yml config.yml
 
 ### Changing the Alert Sound
 
-The bundled alert sounds (`sounds/notification.wav`, `sounds/available.wav`, `sounds/buy.wav`) are original, royalty-free tones generated from scratch by `sounds/generate_alert_sounds.py` (public domain / CC0, no third-party samples). Regenerate them any time with:
+The bundled alert sounds (`core/sounds/notification.wav`, `core/sounds/available.wav`, `core/sounds/buy.wav`) are original, royalty-free tones generated from scratch by `scripts/generate_alert_sounds.py` (public domain / CC0, no third-party samples). Regenerate them any time with:
 
 ```sh
-python sounds/generate_alert_sounds.py
+python scripts/generate_alert_sounds.py
 ```
 
-To use your own sounds, drop a file of the same name (`notification`, `available`, or `buy`) into `sounds/`. Both `.mp3` and `.wav` are supported; `utils.py` loads `.mp3` first, then falls back to `.wav`.
+To use your own sounds, drop a file of the same name (`notification`, `available`, or `buy`) into `core/sounds/`. Both `.mp3` and `.wav` are supported; `utils.py` loads `.mp3` first, then falls back to `.wav`.
 
 ## Running the Bot
 

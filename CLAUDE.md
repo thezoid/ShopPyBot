@@ -35,7 +35,7 @@ Single-process bot with a blocking `while True` loop in `main.py`. One shared Se
 - `logger.py` — custom `writeLog(message, type)` with colorama colors + file output to `logs/YYYYMONTHDD.log`; verbosity controlled by `debug.logging_level` (0–5) in config
 - `amazon_bot.py` — `check_amazon_item()` (DOM button presence), `amz_sign_in()` (manual OTP step required), `auto_buy_amazon_item()`
 - `bestbuy_bot.py` — `check_bestbuy_item()`, `bb_sign_in()`, `auto_buy_bestbuy_item()`
-- `utils.py` — pygame sound playback; looks for `sounds/{name}.mp3` then `.wav`
+- `utils.py` — pygame sound playback; resolves `core/sounds/` via `importlib.resources` and looks for `{name}.mp3` then `.wav`
 
 ## Config
 
@@ -54,7 +54,7 @@ Created at `data/shop_py_bot.db` on first run. Items are inserted by URL (unique
 
 ## Sounds
 
-`sounds/` directory. Three named files: `notification`, `buy`, `available`. Replace `.mp3` files with same-name files (`.mp3` or `.wav`) to change sounds.
+`core/sounds/` package. Three named files: `notification`, `buy`, `available`. Replace `.wav` files with same-name files (`.mp3` or `.wav`) to change sounds. Regenerate the bundled tones with `python scripts/generate_alert_sounds.py`.
 
 ## Amazon-specific
 

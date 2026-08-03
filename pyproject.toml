@@ -6,14 +6,46 @@ build-backend = "setuptools.build_meta"
 name = "shoppybot"
 version = "2.0.0"
 requires-python = ">=3.11"
-dependencies = ["platformdirs==4.10.0"]
+# Every entry below is imported unconditionally somewhere in the production tree.
+# colorama and pyyaml are imported by logger.py, which nearly everything imports;
+# they arrive on Windows only by accident (colorama via click's win32 marker,
+# PyYAML via uvicorn[standard]) and only with the web extra, so a bare install
+# fails on any OS without them. Pins match requirements.txt byte for byte.
+dependencies = [
+    "colorama==0.4.6",
+    "cryptography==49.0.0",
+    "keyring==25.7.0",
+    "nodriver==0.50.3",
+    "platformdirs==4.10.0",
+    "pydantic==2.13.3",
+    "pydantic-settings[yaml]==2.14.2",
+    "pyyaml==6.0.2",
+    "requests==2.33.1",
+]
 
 [project.optional-dependencies]
+# starlette and websockets are imported directly (web/ routes, core/orchestrator.py's
+# guarded ConnectionClosed check) but currently arrive as transitives of fastapi and
+# uvicorn[standard]. They get floors, not pins, so they do not fight their parents'
+# resolution: fastapi 0.115.8 requires starlette>=0.40.0,<0.46.0 and uvicorn[standard]
+# requires websockets>=10.4.
 web = [
     "fastapi==0.115.8",
     "uvicorn[standard]==0.30.6",
     "jinja2==3.1.6",
     "python-multipart==0.0.32",
+    "starlette>=0.40",
+    "websockets>=10.4",
+]
+# pygame stays optional: utils.py degrades gracefully when it is absent, and forcing
+# an audio stack onto a headless server install is the wrong trade (Phase 24).
+sound = ["pygame==2.6.1"]
+# httpx is test-only: nothing on a runtime path imports it, but starlette's TestClient
+# imports it at module level.
+test = [
+    "pytest==9.0.3",
+    "pytest-asyncio==1.3.0",
+    "httpx==0.28.1",
 ]
 
 [project.scripts]
@@ -26,6 +58,15 @@ exclude = ["tests*"]
 
 [tool.setuptools]
 py-modules = ["models", "logger", "config", "utils", "main"]
+include-package-data = true
+
+# The globs below are what actually ship the data files; include-package-data alone
+# includes nothing without a MANIFEST.in or an SCM plugin. Keep them narrow so an
+# untracked local file cannot be swept into a published wheel. static/vendor/* is a
+# separate entry because static/* does not descend into subdirectories.
+[tool.setuptools.package-data]
+"core.sounds" = ["*.wav", "*.mp3"]
+web = ["static/*", "static/vendor/*", "templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

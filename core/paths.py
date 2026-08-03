@@ -51,6 +51,25 @@ def log_dir() -> Path:
     return Path(_DIRS.user_log_dir)
 
 
+def bundled_plugins_dir() -> Path:
+    """Return the directory holding the bundled shopbot_plugin_*.py files.
+
+    This is distribution content, not user data. It ships inside the wheel and
+    resolves to site-packages/plugins on an installed copy, so it must not move
+    when a test relocates the data root.
+
+    Deliberately does NOT consult _REPO_ROOT_OVERRIDE. That override exists so
+    tests can relocate the legacy data root away from the real checkout, and
+    core.registry._discover_plugins imports and executes every .py file under
+    the directory returned here. A monkeypatchable module global must never be
+    able to redirect executable-code discovery (T-37-10).
+
+    Computed from __file__ directly, which makes it byte-identical to the bare
+    expression it replaced in core/orchestrator.py and core/service.py.
+    """
+    return Path(__file__).parent.parent / "plugins"
+
+
 def _migrate_logs(repo_root: Path) -> None:
     """Copy legacy logs/ dir to log_dir() and remove the src. No-op if already done."""
     import shutil
