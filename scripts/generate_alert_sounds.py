@@ -5,9 +5,9 @@ These tones are synthesized from scratch with the Python standard library only
 The output is therefore free of any copyright/licensing encumbrance (CC0 /
 public domain). Re-run this script to regenerate the three alert sounds:
 
-    python sounds/generate_alert_sounds.py
+    python scripts/generate_alert_sounds.py
 
-It writes notification.wav, available.wav, and buy.wav into this directory.
+It writes notification.wav, available.wav, and buy.wav into `core/sounds/`.
 `utils.play_sound()` loads `{name}.mp3` first, then `{name}.wav`, so removing the
 old `.mp3` files makes these `.wav` files take effect.
 """
@@ -18,7 +18,9 @@ import struct
 import wave
 
 SAMPLE_RATE = 44100  # Hz
-_DIR = os.path.dirname(os.path.abspath(__file__))
+# Output lands in the bundled package, not next to this dev-only script.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DIR = os.path.join(_REPO_ROOT, "core", "sounds")
 
 
 def _synth(notes, total_dur, decay):

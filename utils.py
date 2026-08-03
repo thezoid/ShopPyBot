@@ -1,3 +1,4 @@
+import importlib.resources
 import os
 
 try:
@@ -9,8 +10,20 @@ except (ModuleNotFoundError, ImportError):
 
 from logger import writeLog
 
+def _resolve_sounds_dir() -> str:
+    """Return the filesystem path of the bundled ``core.sounds`` package.
+
+    Resolving through the package (rather than a path relative to this module)
+    is what makes the sounds survive a wheel install: ``utils`` is a top-level
+    module, so a module-relative path would point at a non-existent
+    ``site-packages/sounds``. Raises if ``core.sounds`` cannot be located; a
+    broken install must fail loudly at import rather than degrade silently.
+    """
+    return str(importlib.resources.files("core.sounds"))
+
+
 # Define the path to the sounds directory
-SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
+SOUNDS_DIR = _resolve_sounds_dir()
 
 
 def _initialize_audio() -> bool:
