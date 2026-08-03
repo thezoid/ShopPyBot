@@ -13,13 +13,13 @@ import asyncio
 import logging
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 
 from core.config_schema import AppConfig
 from core.credentials import init_store
 from core.health import HealthRegistry
 from core.orchestrator import async_main
+from core.paths import bundled_plugins_dir
 from core.stealth import ProxyPool
 from logger import writeLog
 from models import add_items_sync, get_items_sync, remove_item_sync, get_price_history_sync, get_confirmed_orders_sync
@@ -130,7 +130,7 @@ class BotService:
         from core.registry import PluginRegistry
         from models import get_order_analytics_rows_sync
 
-        plugins_dir = Path(__file__).parent.parent / "plugins"
+        plugins_dir = bundled_plugins_dir()
         registry = PluginRegistry(self._cfg, plugins_dir)
 
         columns = (
@@ -156,7 +156,7 @@ class BotService:
         """
         from core.registry import PluginRegistry, _plugin_tag
 
-        plugins_dir = Path(__file__).parent.parent / "plugins"
+        plugins_dir = bundled_plugins_dir()
         registry = PluginRegistry(self._cfg, plugins_dir)
         return [
             {

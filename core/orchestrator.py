@@ -21,10 +21,10 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
-from pathlib import Path
 
 from core.captcha import CaptchaSolver
 from core.credentials import get_store
+from core.paths import bundled_plugins_dir
 from core.registry import PluginRegistry, _plugin_tag
 from core.retry import RetryPolicy, compute_delay, with_retry
 from core.stealth import ProxyPool
@@ -811,7 +811,7 @@ async def async_main(cfg, cvv, health_registry=None) -> None:
     """Entry point: stagger setup, run TaskGroup, teardown cleanly."""
     from notifications import build_dispatcher
 
-    plugins_dir = Path(__file__).parent.parent / "plugins"
+    plugins_dir = bundled_plugins_dir()
     proxy_pool = _build_proxy_pool(cfg)
     captcha_solver = _build_captcha_solver(cfg)
     loop = asyncio.get_running_loop()
