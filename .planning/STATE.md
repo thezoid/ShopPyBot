@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Real Release & Plugin Ecosystem
 status: executing
-last_updated: "2026-08-03T22:10:22.434Z"
-last_activity: 2026-08-03 -- Phase 37 plan 02 complete (PKG-02/03/04, the wheel now installs and runs from a clean venv)
+last_updated: "2026-08-03T22:22:00.000Z"
+last_activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a real wheel install; bundled_plugins_dir() is now a named seam)
 progress:
   total_phases: 15
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 7
 ---
 
@@ -29,9 +29,9 @@ progress:
 ## Current Position
 
 Phase: 37 (Distributable Artifact) — EXECUTING
-Plan: 3 of 4
-Status: Executing Phase 37 (plans 01 and 02 complete)
-Last activity: 2026-08-03 -- Phase 37 plan 02 complete (PKG-02/03/04, the wheel now installs and runs from a clean venv)
+Plan: 4 of 4
+Status: Executing Phase 37 (plans 01, 02 and 03 complete)
+Last activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a real wheel install; bundled_plugins_dir() is now a named seam)
 
 **Carry into Phase 37:**
 
@@ -42,7 +42,8 @@ Last activity: 2026-08-03 -- Phase 37 plan 02 complete (PKG-02/03/04, the wheel 
 - **The third-party Actions allowlist is NOT blocking.** `gitleaks-action` and `release-please-action` both resolve and run. That expectation carried from the v4.2 audit is now stale.
 - **Dependabot is awake.** Closing PR #8 lifted the inactivity pause; it rebased PR #20 on request within about 2 minutes and self-closed 3 superseded PRs.
 - `pre-v5-mainline` tag at `e98ec83` remains the rollback point for everything Phase 36 did.
-- Local test env: `.venv/Scripts/python.exe -m pytest`, 967 collected (965 passed / 2 skipped). As of 37-02 `pyproject.toml` declares the real 9-package runtime set plus `web`, `sound` and `test` extras, so `pip install -e ".[web,test]"` is now sufficient; `pip install -r requirements.txt` remains the dev-pin path.
+- **37-04's CI assertion 4 has its accessor.** `from core.paths import bundled_plugins_dir` returns a directory holding exactly 7 `shopbot_plugin_*.py` files, verified from a bare wheel install with no extras. That is the one-liner the wheel job should assert; it needs only `platformdirs`, so it runs before any extra is installed.
+- Local test env: `.venv/Scripts/python.exe -m pytest`, 971 collected (969 passed / 2 skipped) as of 37-03. As of 37-02 `pyproject.toml` declares the real 9-package runtime set plus `web`, `sound` and `test` extras, so `pip install -e ".[web,test]"` is now sufficient; `pip install -r requirements.txt` remains the dev-pin path.
 
 ## Phase Status
 
@@ -81,6 +82,7 @@ Last activity: 2026-08-03 -- Phase 37 plan 02 complete (PKG-02/03/04, the wheel 
 ---
 | Phase 37 P01 | 12min | 2 tasks | 11 files |
 | Phase 37 P02 | 7min | 2 tasks | 2 files |
+| Phase 37 P03 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -483,6 +485,9 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 - [Phase 37-01]: generate_alert_sounds.py moved to scripts/, outside every packages.find include pattern, and its absence from the wheel is asserted (T-37-02)
 - [Phase ?]: Phase 37-02: the real dependency list is 9, not the 5 the scout named -- colorama and pyyaml are unconditional logger.py imports that arrive on Windows only by accident (click win32 marker, uvicorn[standard]) and only via the web extra, so a bare pip install shoppybot fails on any OS without them
 - [Phase ?]: Phase 37-02: pygame stays OPTIONAL in a sound extra and httpx in a test extra; starlette and websockets get floors (>=0.40, >=10.4) not hard pins so they do not fight fastapi's and uvicorn's own resolution
+- [Phase 37-03]: bundled_plugins_dir() computes from __file__ directly, never via _repo_root(), so the monkeypatchable _REPO_ROOT_OVERRIDE cannot redirect a directory whose every .py file is exec_module'd (T-37-10)
+- [Phase 37-03]: core/service.py's two inline plugin-path sites were refactored alongside core/orchestrator.py:814; the plan named only the orchestrator, but must-have truth 4 and Phase 43 criterion 5 cover every production module
+- [Phase 37-03]: PKG-06 answered from a real wheel install, not asserted: bundled_plugins_dir() returns <venv>/Lib/site-packages/plugins with all 7 shopbot_plugin_*.py files, so no importlib.resources rewrite is needed and Phase 43 (EXT-03) is unblocked
 
 ## UAT Audit Session — 2026-08-01 (post-v4.2, pre-next-milestone)
 
