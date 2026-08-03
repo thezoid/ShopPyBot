@@ -24,9 +24,9 @@
 The built wheel does not run. This is the precondition for release-please being worth anything.
 
 - [x] **PKG-01**: An installed wheel contains `web/static/*`, `web/templates/*`, and `sounds/*`, so `create_app()` does not raise `RuntimeError` on the `StaticFiles` mount
-- [ ] **PKG-02**: `pyproject.toml` declares every actual runtime dependency, not just `platformdirs==4.10.0`
-- [ ] **PKG-03**: `websockets`, `starlette`, `httpx`, and `requests` are each declared in the correct place (all four are imported or required today and none is declared where it is used)
-- [ ] **PKG-04**: Dead `selenium` and `webdriver-manager` pins are removed from `requirements.txt`, which also removes a recurring Dependabot noise source
+- [x] **PKG-02**: `pyproject.toml` declares every actual runtime dependency, not just `platformdirs==4.10.0`
+- [x] **PKG-03**: `websockets`, `starlette`, `httpx`, and `requests` are each declared in the correct place (all four are imported or required today and none is declared where it is used)
+- [x] **PKG-04**: Dead `selenium` and `webdriver-manager` pins are removed from `requirements.txt`, which also removes a recurring Dependabot noise source
 - [ ] **PKG-05**: A CI job installs the built wheel into a clean environment and asserts that `shoppybot web` starts and a sound file resolves
 - [ ] **PKG-06**: `bundled_plugins_dir()` is verified to resolve correctly from an installed wheel (blocks EXT-03; if it fails, the fix is `importlib.resources` and belongs to this workstream)
 
@@ -182,9 +182,9 @@ Populated during roadmap creation, 2026-08-02. Every v1 requirement maps to exac
 | MAIN-06 | Phase 36 | Complete |
 | MAIN-07 | Phase 36 | Complete |
 | PKG-01 | Phase 37 | Complete |
-| PKG-02 | Phase 37 | Pending |
-| PKG-03 | Phase 37 | Pending |
-| PKG-04 | Phase 37 | Pending |
+| PKG-02 | Phase 37 | Complete |
+| PKG-03 | Phase 37 | Complete |
+| PKG-04 | Phase 37 | Complete |
 | PKG-05 | Phase 37 | Pending |
 | PKG-06 | Phase 37 | Pending |
 | PUB-01 | Phase 40 | Pending |
