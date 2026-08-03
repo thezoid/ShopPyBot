@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Real Release & Plugin Ecosystem
-status: executing
-last_updated: "2026-08-03T22:22:00.000Z"
-last_activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a real wheel install; bundled_plugins_dir() is now a named seam)
+status: completed
+last_updated: "2026-08-03T22:47:03.048Z"
+last_activity: 2026-08-03 -- Phase 37 plan 04 complete (PKG-05 gated in CI; scripts/verify_wheel.py observed failing, not just passing)
 progress:
   total_phases: 15
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 7
+  completed_plans: 9
+  percent: 13
 ---
 
 # ShopPyBot — State
@@ -28,12 +28,19 @@ progress:
 
 ## Current Position
 
-Phase: 37 (Distributable Artifact) — EXECUTING
+Phase: 37 (Distributable Artifact) — COMPLETE
 Plan: 4 of 4
-Status: Executing Phase 37 (plans 01, 02 and 03 complete)
-Last activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a real wheel install; bundled_plugins_dir() is now a named seam)
+Status: Phase 37 complete (all 4 plans; PKG-01..06 all closed). Next: Phase 38 (Scanning to Zero)
+Last activity: 2026-08-03 -- Phase 37 plan 04 complete (PKG-05 gated in CI; scripts/verify_wheel.py observed failing, not just passing)
 
-**Carry into Phase 37:**
+**Carry into Phase 38:**
+
+- **The `wheel` CI job has never run on a runner.** It lands with this branch's next push. Its command was executed locally on Windows and exits 0 with five PASS lines, but the ubuntu-latest leg is unexercised, and that leg is the one that would catch a Linux-only dependency gap. Treat its first CI run as new information, not as a formality.
+- **`scripts/verify_wheel.py` is the local debugger for a red wheel job.** One command reproduces exactly what CI does: `.venv/Scripts/python.exe scripts/verify_wheel.py --wheel-dir <dir with one .whl> --venv <scratch path>`. No push needed.
+- **Do not let the wheel job install from `requirements.txt` or with `-e`.** That converts the gate into a green rubber stamp (T-37-14). There is a comment above the job saying so, and the job's steps are asserted free of both strings.
+- Phase 38 owns SHA-pinning the third-party actions and adding a `permissions:` block across `ci.yml`. The new job deliberately matches the existing `@v6` tag style so that sweep finds a consistent file.
+
+**Carry from Phase 37:**
 
 - **`master` is now the source of truth.** Tip `a99b67de708fa75d2ce085824e6611485a173f22`. The v4.1+v4.2 surface is on the default branch and its CI is green on both `ubuntu-latest` and `windows-latest`.
 - **Use raw `git`, never `rtk git`, for any ancestry, range, or rev-list query.** Confirmed live twice: `rtk git log <range>` drops merge commits and returned an empty range that actually contained two commits. `/mingw64/bin/git` explicitly if interference is suspected. Other rtk verbs are fine.
@@ -50,7 +57,7 @@ Last activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a r
 | Phase | Goal Summary | Status | Reqs |
 |-------|-------------|--------|------|
 | 36 — Mainline Reconciliation | `master` becomes the real ShopPyBot; the v4.1+v4.2 suite runs in CI for the first time | **Complete** (5/5 plans; MAIN-01..07 all verified; master `a99b67d`, CI 961 passed / 2 skipped both runners) | MAIN-01..07 |
-| 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | Not started | PKG-01..06 |
+| 37 — Distributable Artifact | The built wheel actually runs; truthful dependency declaration; PKG-06 answers EXT-03's blocker | **Complete** (4/4 plans; PKG-01..06 all verified; a clean-venv wheel install passes all 5 assertions, and the gate was observed failing on two doctored wheels) | PKG-01..06 |
 | 38 — Scanning to Zero | Dependabot/CodeQL/secret-scanning queues to zero real findings; required checks + branch protection | Not started | SCAN-01..11 |
 | 39 — Quality Floor | Lint, format, typecheck, coverage enforced in CI before the milestone's new code lands | Not started | QUAL-01..09 |
 | 40 — Public-Repo Readiness | LICENSE, nodriver README, honest sample config, CODEOWNERS, drift corrected, SEED-001 retired | Not started | PUB-01..09 |
@@ -69,9 +76,9 @@ Last activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a r
 
 ## Performance Metrics
 
-**Plans completed**: 2 of TBD
-**Requirements completed**: 2 of 84 (MAIN-05, MAIN-06; MAIN-02 and MAIN-03 resolved locally, counted once proven on `master` in 36-03)
-**Phases completed**: 0 of 15
+**Plans completed**: 9 of TBD (Phase 36: 5, Phase 37: 4)
+**Requirements completed**: 13 of 84 (MAIN-01..07, PKG-01..06)
+**Phases completed**: 2 of 15 (36, 37)
 **Blockers resolved**: 0
 
 | Phase | Plan | Duration | Tasks | Files |
@@ -83,6 +90,7 @@ Last activity: 2026-08-03 -- Phase 37 plan 03 complete (PKG-06 answered from a r
 | Phase 37 P01 | 12min | 2 tasks | 11 files |
 | Phase 37 P02 | 7min | 2 tasks | 2 files |
 | Phase 37 P03 | 7min | 2 tasks | 5 files |
+| Phase 37 P04 | 17min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -169,7 +177,8 @@ Both reviews carry the same two non-negotiable criteria: (a) for every shipped c
 
 ### Active Todos
 
-- **Phase 36 is CLOSED and its gate is lifted.** `master` carries the full v4.1+v4.2 surface with green CI, so all downstream phase work is now durable. Next step: `/gsd:plan-phase 37` (Distributable Artifact). PKG-06 gates Phase 43, so answer the wheel question early.
+- **Phases 36 and 37 are CLOSED.** `master` carries the full v4.1+v4.2 surface with green CI, and the built wheel now installs and runs. Next step: `/gsd:plan-phase 38` (Scanning to Zero).
+- **Phase 37's work is committed but not pushed.** The `wheel` CI job and `scripts/verify_wheel.py` exist only on `chore/v4.0-milestone-close` until this branch is pushed and merged. Until then no runner has ever executed the job, so nothing about it is green or red yet.
 - **Operator action, release-please.** Enable Settings, Actions, General, Workflow permissions, "Allow GitHub Actions to create and approve pull requests". release-please currently fails at PR creation with `GitHub Actions is not permitted to create or approve pull requests`. This is NOT the third-party allowlist, which is confirmed working. Deliberately not changed autonomously during Phase 36: it is a security-posture setting that permits Actions to self-approve pull requests, which is a call for the repo owner.
 - **PR #21 open. DO NOT MERGE AS-IS. Proven to break SSE, not a precautionary hold.** pip minor-and-patch group, 10 updates. Its CI fails on both runners with `tests/test_sse.py::test_lifespan_creates_hub_and_registers_route`, `AssertionError: /api/events not registered; routes=['/openapi.json', '/static']`. Under `fastapi==0.141.1` the SSE route is never registered, so `create_app()` yields an app with no live-update channel. This confirms the v4.1 Phase 26 decision (FastAPI pinned below 0.135 because SSE uses a raw starlette `StreamingResponse`) for a concrete, reproducible reason.
   - **Safe half:** the `requirements.txt` upgrades (platformdirs, pydantic, pytest, pytest-asyncio, pyyaml, requests, selenium, webdriver-manager). All upgrades; MAIN-02 protected pins untouched.
@@ -488,6 +497,10 @@ All deferred per the autonomous live-UAT policy; none are code gaps. Acknowledge
 - [Phase 37-03]: bundled_plugins_dir() computes from __file__ directly, never via _repo_root(), so the monkeypatchable _REPO_ROOT_OVERRIDE cannot redirect a directory whose every .py file is exec_module'd (T-37-10)
 - [Phase 37-03]: core/service.py's two inline plugin-path sites were refactored alongside core/orchestrator.py:814; the plan named only the orchestrator, but must-have truth 4 and Phase 43 criterion 5 cover every production module
 - [Phase 37-03]: PKG-06 answered from a real wheel install, not asserted: bundled_plugins_dir() returns <venv>/Lib/site-packages/plugins with all 7 shopbot_plugin_*.py files, so no importlib.resources rewrite is needed and Phase 43 (EXT-03) is unblocked
+- [Phase 37-04]: assertion 3 asserts both halves separately (wheel zip entries AND a runtime SOUNDS_DIR resolve), because a dropped core.sounds package marker passes one and fails the other
+- [Phase 37-04]: assertion 5 polls real HTTP, never the printed dashboard URL, because core/cli/web.py prints it with flush=True before create_app() runs
+- [Phase 37-04]: the wheel job is a second CI job with its own install step; merging it with the test job's requirements.txt install would make it prove nothing (T-37-14)
+- [Phase 37-04]: the gate was proven to be a gate: two doctored wheels made scripts/verify_wheel.py exit 1 naming assertion 3, once on the ships-nothing half and once on the ships-but-does-not-resolve half
 
 ## UAT Audit Session — 2026-08-01 (post-v4.2, pre-next-milestone)
 

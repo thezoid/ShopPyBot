@@ -112,7 +112,7 @@ Audit: `.planning/milestones/v4.2-MILESTONE-AUDIT.md` (status: tech_debt — 20/
 ### 🔄 v5.0 Real Release & Plugin Ecosystem (Phases 36-50) — IN PROGRESS
 
 - [x] **Phase 36: Mainline Reconciliation** — `master` becomes the real ShopPyBot and its suite runs in CI for the first time (MAIN-01..07) (completed 2026-08-02)
-- [ ] **Phase 37: Distributable Artifact** — the built wheel actually runs, so publishing one is worth doing (PKG-01..06)
+- [x] **Phase 37: Distributable Artifact** — the built wheel actually runs, so publishing one is worth doing (PKG-01..06) (completed 2026-08-03)
 - [ ] **Phase 38: Scanning to Zero** — every scanner reports zero real findings and the checks that produce them are required (SCAN-01..11)
 - [ ] **Phase 39: Quality Floor** — lint, format, typecheck, and coverage enforced in CI before the milestone's new code lands (QUAL-01..09)
 - [ ] **Phase 40: Public-Repo Readiness** — LICENSE, current README, honest sample config, CODEOWNERS, drift corrected (PUB-01..09)
@@ -179,7 +179,7 @@ Plans:
 - [x] 37-01-PLAN.md: relocate `sounds/` to `core/sounds/`, resolve it through `importlib.resources`, declare package-data so the wheel ships the sounds plus the six `web/static` and `web/templates` files (PKG-01)
 - [x] 37-02-PLAN.md: declare the nine dependencies the production tree actually imports, move `pygame` and `httpx` to extras, delete the dead `selenium` and `webdriver-manager` pins, prove it in a clean venv (PKG-02, PKG-03, PKG-04)
 - [x] 37-03-PLAN.md: create `core.paths.bundled_plugins_dir()` as the named seam, prove the refactor is behavior-preserving, record the answered PKG-06 result where Phase 43 reads it (PKG-06)
-- [ ] 37-04-PLAN.md: add `scripts/verify_wheel.py` and a `wheel` CI job on both runners that installs the built wheel with no `requirements.txt` and runs the five locked assertions (PKG-05)
+- [x] 37-04-PLAN.md: add `scripts/verify_wheel.py` and a `wheel` CI job on both runners that installs the built wheel with no `requirements.txt` and runs the five locked assertions (PKG-05)
 
 **Planning corrections** (from `37-SCOUT.md`, verified against a real built-and-installed wheel 2026-08-02, these supersede the requirement text where they conflict):
 
@@ -414,7 +414,7 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17) + 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Mainline Reconciliation | 5/5 | Complete   | 2026-08-02 |
-| 37. Distributable Artifact | 3/4 | In Progress|  |
+| 37. Distributable Artifact | 4/4 | Complete   | 2026-08-03 |
 | 38. Scanning to Zero | 0/TBD | Not started | - |
 | 39. Quality Floor | 0/TBD | Not started | - |
 | 40. Public-Repo Readiness | 0/TBD | Not started | - |
