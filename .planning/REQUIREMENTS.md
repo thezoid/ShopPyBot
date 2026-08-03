@@ -23,7 +23,7 @@
 
 The built wheel does not run. This is the precondition for release-please being worth anything.
 
-- [ ] **PKG-01**: An installed wheel contains `web/static/*`, `web/templates/*`, and `sounds/*`, so `create_app()` does not raise `RuntimeError` on the `StaticFiles` mount
+- [x] **PKG-01**: An installed wheel contains `web/static/*`, `web/templates/*`, and `sounds/*`, so `create_app()` does not raise `RuntimeError` on the `StaticFiles` mount
 - [ ] **PKG-02**: `pyproject.toml` declares every actual runtime dependency, not just `platformdirs==4.10.0`
 - [ ] **PKG-03**: `websockets`, `starlette`, `httpx`, and `requests` are each declared in the correct place (all four are imported or required today and none is declared where it is used)
 - [ ] **PKG-04**: Dead `selenium` and `webdriver-manager` pins are removed from `requirements.txt`, which also removes a recurring Dependabot noise source
@@ -181,7 +181,7 @@ Populated during roadmap creation, 2026-08-02. Every v1 requirement maps to exac
 | MAIN-05 | Phase 36 | Complete |
 | MAIN-06 | Phase 36 | Complete |
 | MAIN-07 | Phase 36 | Complete |
-| PKG-01 | Phase 37 | Pending |
+| PKG-01 | Phase 37 | Complete |
 | PKG-02 | Phase 37 | Pending |
 | PKG-03 | Phase 37 | Pending |
 | PKG-04 | Phase 37 | Pending |

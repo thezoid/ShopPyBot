@@ -176,7 +176,7 @@ Plans:
 **Plans**: 4 plans (strictly sequential, waves 1 through 4; executors share the main working tree with no worktree isolation, so concurrent commits are not safe)
 Plans:
 
-- [ ] 37-01-PLAN.md: relocate `sounds/` to `core/sounds/`, resolve it through `importlib.resources`, declare package-data so the wheel ships the sounds plus the six `web/static` and `web/templates` files (PKG-01)
+- [x] 37-01-PLAN.md: relocate `sounds/` to `core/sounds/`, resolve it through `importlib.resources`, declare package-data so the wheel ships the sounds plus the six `web/static` and `web/templates` files (PKG-01)
 - [ ] 37-02-PLAN.md: declare the nine dependencies the production tree actually imports, move `pygame` and `httpx` to extras, delete the dead `selenium` and `webdriver-manager` pins, prove it in a clean venv (PKG-02, PKG-03, PKG-04)
 - [ ] 37-03-PLAN.md: create `core.paths.bundled_plugins_dir()` as the named seam, prove the refactor is behavior-preserving, record the answered PKG-06 result where Phase 43 reads it (PKG-06)
 - [ ] 37-04-PLAN.md: add `scripts/verify_wheel.py` and a `wheel` CI job on both runners that installs the built wheel with no `requirements.txt` and runs the five locked assertions (PKG-05)
@@ -413,7 +413,7 @@ All requirements satisfied across v1 (44) + v2.0 (22) + v3.0 (18) + v4.0 (17) + 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Mainline Reconciliation | 5/5 | Complete   | 2026-08-02 |
-| 37. Distributable Artifact | 0/TBD | Not started | - |
+| 37. Distributable Artifact | 1/4 | In Progress | PKG-01 |
 | 38. Scanning to Zero | 0/TBD | Not started | - |
 | 39. Quality Floor | 0/TBD | Not started | - |
 | 40. Public-Repo Readiness | 0/TBD | Not started | - |
