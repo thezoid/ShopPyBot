@@ -173,8 +173,22 @@ Plans:
   4. `bundled_plugins_dir()` called from an installed wheel returns a directory containing the 7 bundled plugins, and that result is recorded as the input Phase 43 (EXT-03) depends on.
   5. `requirements.txt` pins neither `selenium` nor `webdriver-manager`, and no Dependabot alert references either.
 
-**Plans**: TBD
-**Note**: PKG-06 is a hard gate on Phase 43. If the bundled root does not survive a wheel install, the `importlib.resources` fix belongs here, not to workstream H.
+**Plans**: 4 plans (strictly sequential, waves 1 through 4; executors share the main working tree with no worktree isolation, so concurrent commits are not safe)
+Plans:
+
+- [ ] 37-01-PLAN.md: relocate `sounds/` to `core/sounds/`, resolve it through `importlib.resources`, declare package-data so the wheel ships the sounds plus the six `web/static` and `web/templates` files (PKG-01)
+- [ ] 37-02-PLAN.md: declare the nine dependencies the production tree actually imports, move `pygame` and `httpx` to extras, delete the dead `selenium` and `webdriver-manager` pins, prove it in a clean venv (PKG-02, PKG-03, PKG-04)
+- [ ] 37-03-PLAN.md: create `core.paths.bundled_plugins_dir()` as the named seam, prove the refactor is behavior-preserving, record the answered PKG-06 result where Phase 43 reads it (PKG-06)
+- [ ] 37-04-PLAN.md: add `scripts/verify_wheel.py` and a `wheel` CI job on both runners that installs the built wheel with no `requirements.txt` and runs the five locked assertions (PKG-05)
+
+**Planning corrections** (from `37-SCOUT.md`, verified against a real built-and-installed wheel 2026-08-02, these supersede the requirement text where they conflict):
+
+  - The wheel is not degraded, it is dead. `shoppybot --help` fails at import on `pydantic_settings` before any command dispatch, so execution never reaches the `StaticFiles` mount that PKG-01 and PKG-05 are written around. The cheapest correct first assertion is `shoppybot --help` exiting 0, not launching a server.
+  - PKG-03's named list is incomplete and partly wrong. `websockets` and `starlette` are already present transitively and are not the failure cause; `pydantic-settings` is the highest-impact omission and PKG-03 does not name it. `colorama` and `pyyaml` are also undeclared unconditional imports of `logger.py`, invisible to a Windows-only probe because `click` and `uvicorn[standard]` happen to supply them there but not on Linux.
+  - PKG-06 names `bundled_plugins_dir()` as though it exists. It does not; the real mechanism is a bare expression at `core/orchestrator.py:814`. Plan 37-03 creates the accessor for real.
+  - `sounds/` is structurally unshippable, not merely unshipped: `utils` is a top-level module, so `SOUNDS_DIR` resolves to `site-packages/sounds`, which cannot be package data of any package. Plan 37-01 relocates it rather than adding a config line.
+
+**Note**: PKG-06 is a hard gate on Phase 43, and it is ANSWERED favorably. The bundled root resolves to `site-packages/plugins` with all 7 plugins intact on a real wheel install, so the `importlib.resources` fix is NOT needed and does not belong to this phase. Plan 37-03 converts that one-off observation into a named accessor, a regression test, and a CI assertion so it cannot rot before Phase 43 consumes it.
 
 ### Phase 38: Scanning to Zero
 
