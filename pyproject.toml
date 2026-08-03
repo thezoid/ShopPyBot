@@ -26,6 +26,15 @@ exclude = ["tests*"]
 
 [tool.setuptools]
 py-modules = ["models", "logger", "config", "utils", "main"]
+include-package-data = true
+
+# The globs below are what actually ship the data files; include-package-data alone
+# includes nothing without a MANIFEST.in or an SCM plugin. Keep them narrow so an
+# untracked local file cannot be swept into a published wheel. static/vendor/* is a
+# separate entry because static/* does not descend into subdirectories.
+[tool.setuptools.package-data]
+"core.sounds" = ["*.wav", "*.mp3"]
+web = ["static/*", "static/vendor/*", "templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
