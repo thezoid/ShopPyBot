@@ -282,7 +282,8 @@ Plans:
 
 **Plans**: TBD
 **UI hint**: yes
-**Research flag**: Blocked on PKG-06's factual answer. If `bundled_plugins_dir()` does not resolve from an installed wheel, the `importlib.resources` fix is Phase 37 work, not this phase's.
+**Research flag**: ANSWERED by plan 37-03, this phase is unblocked. `core.paths.bundled_plugins_dir()` now exists as the named accessor, and calling it from a clean Python 3.13 venv holding only the built wheel (no extras, no `requirements.txt`) returns `<venv>/Lib/site-packages/plugins` containing exactly the 7 bundled `shopbot_plugin_*.py` files (amazon, bestbuy, gamestop, newegg, squareenix, target, walmart). No `importlib.resources` rewrite is needed and none belongs to Phase 37. `tests/test_paths.py` guards the result, `core/orchestrator.py` and `core/service.py` call the accessor rather than inlining the path, and a seam guard already enforces this phase's criterion 5.
+**Caveat carried forward** (from `37-SCOUT.md` correction 2, retained deliberately): the bundled root lands as a top-level `site-packages/plugins` entry, so any other distribution shipping a top-level `plugins` package would collide with it. It resolves correctly today and does not block this phase, but the multi-root design here should treat the bundled root's location as something it owns rather than something it inherits.
 
 ### Phase 44: Provenance, Load-Boundary Integrity & Run Lock
 
