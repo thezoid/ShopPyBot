@@ -202,7 +202,28 @@ Plans:
   3. `.github/workflows/` on `master` contains no `disabled_manually` CodeQL workflow, and `origin/dev` with its 4 rotted workflows has a recorded disposition.
   4. Every third-party action in every workflow is referenced by a 40-character commit SHA, and `ci.yml` declares an explicit `permissions` block.
 
-**Plans**: TBD
+**Plans**: 6 plans (strictly sequential, waves 1 through 6; executors share the main working tree with no worktree isolation, and `strict: true` branch protection makes parallel merges impossible)
+Plans:
+
+- [ ] 38-01-PLAN.md: read-only baseline. Inventory every open alert, prove what produces the `CodeQL` required check before anything is deleted, decide the cryptography disposition from the advisory plus a reachability grep (SCAN-01, SCAN-06)
+- [ ] 38-02-PLAN.md: production code fixes. `core/urls.host_matches` replaces substring URL tests at `main.py:51` and `core/cli/run.py:33`, cryptography moves out of the vulnerable range, and the secret-name-not-value invariant gets a test (SCAN-01, SCAN-02, SCAN-03)
+- [ ] 38-03-PLAN.md: workflow hardening. `permissions` block in `ci.yml`, gated removal of `codeql-analysis.yml`, every `uses:` pinned to a verified SHA with a trailing tag comment, SCAN-08's deferral recorded in three files (SCAN-05, SCAN-06, SCAN-08, SCAN-11)
+- [ ] 38-04-PLAN.md: land the branch by pull request, then re-query alerts 3, 4, 5, 33, 34 and Dependabot 13 from the API after the post-merge CodeQL analysis (SCAN-01, SCAN-03, SCAN-05, SCAN-06, SCAN-11)
+- [ ] 38-05-PLAN.md: queue dispositions. 19 test-file alerts dismissed per alert as `used in tests`, 7 clear-text alerts dismissed per sub-case as `false positive`, secret scanning non-provider patterns and validity checks enabled (SCAN-02, SCAN-04, SCAN-09)
+- [ ] 38-06-PLAN.md: gitleaks becomes a required check, `origin/dev` archived to a verified tag then deleted, closing measurement with a per-requirement verdict (SCAN-07, SCAN-10)
+
+**Planning corrections** (verified live 2026-08-03 against the GitHub API, these supersede the success criteria above where they conflict):
+
+  - Criterion 1's "7 dependency alerts" is STALE. There is **1**, Dependabot `#13`, `cryptography==49.0.0`, GHSA-g6cj-pr64-35w5. Six closed as a side effect of Phase 37's dependency work. A patched release `50.0.0` exists on PyPI, and the vulnerable PKCS#7 EnvelopedData path is not reachable: the tree imports only `Fernet`, `InvalidToken` and `Scrypt`.
+  - Criterion 1's "two `logger.py` clear-text alerts" is STALE and misplaced. There are **7**: 5 `py/clear-text-logging-sensitive-data` and 2 `py/clear-text-storage-sensitive-data`. Only 4 are in `logger.py`; alerts `#27`, `#28`, `#29` are in `core/cli/setup.py`, which the requirement does not name. All 7 share one taint source, `SECRET_KEYS` at `core/credentials.py:47`, a list of credential key NAMES rather than values, so all 7 are false positives backed by a new regression test rather than by a code change.
+  - Alerts `#25` and `#26` are stale duplicates of `#31` and `#32` at pre-Phase-37 line numbers. Their only open instances come from `.github/workflows/codeql-analysis.yml:analyze`, which is `disabled_manually`, so nothing can ever refresh them and they cannot close on their own.
+  - Criterion 2's "and the rule applies to administrators" is SCAN-08, which is **DEFERRED to milestone close by operator decision 2026-08-03**. Requiring reviews plus admin enforcement would stop the orchestrator landing Phases 39 through 50 without a human approval on every pull request. Phase 38 records the deferral with the exact apply commands; it does not implement it.
+  - The SCAN-06 trap is RESOLVED and removal is safe, subject to re-verification at execution time. The `CodeQL` required check is emitted by the `github-advanced-security` app, not by any workflow job. `Analyze (python)` and `Analyze (actions)` come from the default-setup workflow at path `dynamic/github-code-scanning/codeql`, id `325304050`. The file-based workflow, id `8840986`, has been `disabled_manually` since Phase 36 and its last analysis was at master `4123059b`.
+  - SCAN-05's "CodeQL alert #30" is the wrong number. The two open `actions/missing-workflow-permissions` alerts are `#33` and `#34`, one per job in `ci.yml`.
+  - Criterion 3's `origin/dev` disposition is DELETE, after tagging. The branch is 923 behind master and **1 ahead**, at `65ef2b906ed4b6aca85ccf4e02e42deff80174e3`, and that commit is not reachable from master. Tag `archive/dev-final` is pushed and four-way verified before the branch delete, never after.
+  - Criterion 4 is widened deliberately: GitHub-owned `actions/*` references are pinned too, not only third-party ones. A moving tag is a moving tag regardless of owner.
+
+**Risk**: The deletion in SCAN-06 and the required-check addition in SCAN-07 are the same class of hazard from opposite directions: a required context with no producer blocks every future merge, including this phase's own. Both are gated on live evidence rather than on file contents, and SCAN-07 carries a named revert.
 
 ### Phase 39: Quality Floor
 
