@@ -1669,7 +1669,9 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/contents/tests/test_secret_names_not_v
   you should see: pass.
   if it fails: STOP. Do not dismiss.
 
-- [ ] Step 15. `[DECIDE]` Re-derive the live clear-text alert set into a variable. Steps 16, 17 and 19 drive their loops from filtered subsets of this variable, never from literal numbers.
+- [ ] Step 15. `[DECIDE]` Re-derive the live clear-text alert set and split it into the three groups BY PATH. This is the overview read only: steps 16, 17, 18 and 19 each re-derive their own group inside their own fence and assert it there, so nothing that mutates depends on these variables surviving a call boundary.
+
+<!-- POSTURE-PENDING: the expected sets `27 28 29`, `31 32` and `25 26` asserted in steps 16, 17, 18 and 19 are the numbers measured while code scanning was enabled. If code scanning was re-enabled after any period of being off, re-derive all three sets from a live 200 and update those four assertions before running the fences, because a re-enable may renumber alerts. Do not weaken an assertion to make a fence pass. -->
 
 ```powershell
 $clearText = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
@@ -1677,33 +1679,50 @@ $clearText = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?st
   Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
 $clearText | ForEach-Object { "{0} {1} {2}:{3}" -f $_.number, $_.rule.id, $_.most_recent_instance.location.path, $_.most_recent_instance.location.start_line }
 "clear-text alert records: " + $clearText.Count
-$groupA = @($clearText | Where-Object { $_.most_recent_instance.location.path -like "core/cli/setup.py" } | ForEach-Object { $_.number })
-$groupB = @($clearText | Where-Object { $_.number -in 31,32 } | ForEach-Object { $_.number })
-$groupC = @($clearText | Where-Object { $_.number -in 25,26 } | ForEach-Object { $_.number })
+$groupA = @($clearText | Where-Object { $_.most_recent_instance.location.path -eq "core/cli/setup.py" } | ForEach-Object { $_.number } | Sort-Object)
+$groupB = @($clearText | Where-Object { $_.most_recent_instance.location.path -eq "logger.py" -and $_.most_recent_instance.location.start_line -in @(65,72) } | ForEach-Object { $_.number } | Sort-Object)
+$groupC = @($clearText | Where-Object { $_.most_recent_instance.location.path -eq "logger.py" -and $_.most_recent_instance.location.start_line -in @(43,50) } | ForEach-Object { $_.number } | Sort-Object)
 "GA=[$($groupA -join ' ')]  GB=[$($groupB -join ' ')]  GC=[$($groupC -join ' ')]"
 ```
 
-  you should see: exactly 7 numbers: 25, 26, 27, 28, 29, 31, 32, then `clear-text alert records: 7` and `GA=[27 28 29]  GB=[31 32]  GC=[25 26]`. Paste both of those lines into `38-05-SUMMARY.md` exactly as printed; `38-05-PLAN.md` Task 2's acceptance criteria read them by those names. Every value in them is derived from this query, never typed in. Alert #30 is absent by design; it is not open at baseline, which is why the phase's inventory of 3 + 19 + 7 + 2 = 31 alerts spans numbers 3 through 34.
+  you should see: exactly 7 numbers: 25, 26, 27, 28, 29, 31, 32, then `clear-text alert records: 7` and `GA=[27 28 29]  GB=[31 32]  GC=[25 26]`. Paste both of those lines into `38-05-SUMMARY.md` exactly as printed; `38-05-PLAN.md` Task 2's acceptance criteria read them by those names. Every value in them is derived from this query BY PATH, never typed in: group A is everything at `core/cli/setup.py`, group B is `logger.py:65` and `:72` (the live `print` and `logFile.write` lines inside `writeLog`), group C is `logger.py:43` and `:50` (the same finding recorded at its pre-Phase-37 line numbers). The alert numbers are the expectation the derivation is checked against, never the selector. Alert #30 is absent by design; it is not open at baseline, which is why the phase's inventory of 3 + 19 + 7 + 2 = 31 alerts spans numbers 3 through 34.
   Seven is a count of open alert RECORDS, not a count of findings the current master analysis still reports. Five of the seven are live on master; #25 and #26 are already `state=fixed` under the default-setup analysis and remain open records only because the retired workflow analysis left open instances behind. Step 18 is what distinguishes the two. Do not skip it.
-  if it fails: any deviation must be investigated before dismissing. Do not adjust the loops to match.
+  if it fails: any deviation must be investigated before dismissing. Do not adjust the loops to match. This step is an overview and is NOT the gate: steps 16, 17, 18 and 19 each re-derive their own group inside their own `& { ... }` and assert it there, so a wrong set here stops those fences even if this print is skipped or scrolled past.
 
 - [ ] Step 16. Group A: the three `core/cli/setup.py` alerts, reason `false positive`, with their own comment string.
 
 ```powershell
-$ca = "False positive. CodeQL's taint source is SECRET_KEYS at core/credentials.py:47, a module-level list of 20 credential key NAMES, not values. The flagged expressions print a key name (setup.py:108 in the --migrate branch, :126 in the interactive branch) or a prefix derived from a key name via key.split('_')[0] (setup.py:122, interactive branch). No SECRET_KEYS value reaches a print or a log call on either of the two code paths that write one: interactively via _prompt_secret (setup.py:15-25, called at :123) straight into store.set() at :125, and under --migrate via os.environ.get straight into store.set() at core/credentials.py:406-409. The invariant is pinned by tests/test_secret_names_not_values.py, which fails if any value reaches stdout or the log file."
-foreach ($n in $groupA) {
-  $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$ca" | ConvertFrom-Json
-  "#{0} -> {1}" -f $r.number, $r.state
+& {
+  $ctp = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
+    ConvertFrom-Json |
+    Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
+  $ga = @($ctp | Where-Object { $_.most_recent_instance.location.path -eq "core/cli/setup.py" } | ForEach-Object { $_.number } | Sort-Object)
+  $gaSet = ($ga -join ' ')
+  "GA=[$gaSet]"
+  if ($gaSet -ne "27 28 29") { throw "HALT: group A derived [$gaSet], the interfaces table expects [27 28 29]. An empty derivation is the code-scanning 403 and would make the PATCH loop below iterate zero times, dismissing nothing while printing nothing; a different derivation is a renumber and would dismiss the wrong alerts. Do not PATCH." }
+  $ca = "False positive. CodeQL's taint source is SECRET_KEYS at core/credentials.py:47, a module-level list of 20 credential key NAMES, not values. The flagged expressions print a key name (setup.py:108 in the --migrate branch, :126 in the interactive branch) or a prefix derived from a key name via key.split('_')[0] (setup.py:122, interactive branch). No SECRET_KEYS value reaches a print or a log call on either of the two code paths that write one: interactively via _prompt_secret (setup.py:15-25, called at :123) straight into store.set() at :125, and under --migrate via os.environ.get straight into store.set() at core/credentials.py:406-409. The invariant is pinned by tests/test_secret_names_not_values.py, which fails if any value reaches stdout or the log file."
+  foreach ($n in $ga) {
+    $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$ca" | ConvertFrom-Json
+    "#{0} -> {1}" -f $r.number, $r.state
+  }
 }
 ```
 
-  you should see: `#27 -> dismissed`, `#28 -> dismissed`, `#29 -> dismissed`.
+  you should see: `GA=[27 28 29]`, then `#27 -> dismissed`, `#28 -> dismissed`, `#29 -> dismissed`.
+  if a guard throws: nothing is PATCHed, which is the designed outcome. `GA=[]` means the query returned no clear-text alerts at all, which on a private repository is the code-scanning 403 and not an empty finding set; any other value means the alerts renumbered. Re-derive and reconcile before dismissing anything. Do not unwrap the block, do not delete the assertion, and do not edit the expected set to match what was derived.
   IRREVERSIBLE: PATCH-dismisses the Group A alerts. It destroys their open state. Recoverable only by a manual PATCH back to `state=open`; the dismissal event in the audit trail is permanent.
 
 - [ ] Step 17. Group B: the two live `logger.py` alerts, with a DISTINCT comment string. That string carries the shared-sink caveat deliberately, because the caveat is the honest limit of this dismissal and it has to live where a future reader of the alert will see it, not only in a summary file. Paste the WHOLE fenced block as ONE invocation: the caveat claims a measurable property of `logger.py`, so the measurement and the two guards that judge it sit in the same parsed unit as the PATCH loop they gate. `$cb` asserts a LOCATION, not a CodeQL fingerprinting algorithm; the `SINK` and `CALLERS` values printed below are the measurement behind it.
 
 ```powershell
 & {
+  $ctp = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
+    ConvertFrom-Json |
+    Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
+  $gb = @($ctp | Where-Object { $_.most_recent_instance.location.path -eq "logger.py" -and $_.most_recent_instance.location.start_line -in @(65,72) } | ForEach-Object { $_.number } | Sort-Object)
+  $gbSet = ($gb -join ' ')
+  "GB=[$gbSet]"
+  if ($gbSet -ne "31 32") { throw "HALT: group B derived [$gbSet], the interfaces table expects [31 32]. An empty derivation is the code-scanning 403 and would make the PATCH loop below iterate zero times, dismissing nothing while printing nothing; a different derivation is a renumber and would dismiss the wrong alerts. Do not PATCH." }
   $lg = Get-Content logger.py
   $sink = if ($lg[48] -match '^def writeLog' -and $lg[64] -match 'print\(' -and $lg[71] -match 'logFile\.write') { "OK" } else { "MISMATCH" }
   $callers = @(Get-ChildItem -Path core,plugins,notifications,web,tests,scripts -Recurse -Filter *.py | Select-String -Pattern "writeLog\(").Count + @(Select-String -Path main.py,models.py,utils.py,config.py -Pattern "writeLog\(").Count
@@ -1711,28 +1730,37 @@ foreach ($n in $groupA) {
   if ($sink -ne "OK") { throw "HALT: logger.py:49/:65/:72 are not the writeLog definition and its two sink lines. CB's shared-sink caveat would be false; do not PATCH." }
   if ($callers -lt 2) { throw "HALT: only $callers writeLog call sites outside logger.py. CB's shared-sink caveat would be false; do not PATCH." }
   $cb = "False positive. Same source as the setup.py alerts: SECRET_KEYS at core/credentials.py:47. The flow reaches logger.writeLog through core/credentials.py:414, an f-string that interpolates the key NAME into a WARNING message when a backend read-back fails. No secret value is on this path. Pinned by tests/test_secret_names_not_values.py, which asserts sentinel values reach neither stdout (logger.py:65) nor the log file (logger.py:72), and includes a positive control proving the assertion is not vacuous. Shared-sink caveat, stated deliberately and measured at dismissal time: these two alerts are located at logger.py:65 and :72, the print and logFile.write lines inside writeLog (defined at logger.py:49), which is the sink every logging caller in this repository reaches, not a location unique to the credentials flow. A future genuine secret leak arriving at those same lines through a different caller would therefore present at an already-dismissed location rather than as a new finding. That is exactly why this dismissal is backed by tests/test_secret_names_not_values.py, which fails on regression, rather than by this comment alone."
-  foreach ($n in $groupB) {
+  foreach ($n in $gb) {
     $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$cb" | ConvertFrom-Json
     "#{0} -> {1}" -f $r.number, $r.state
   }
 }
 ```
 
-  you should see: `SINK=OK writeLog call sites outside logger.py: <n>` with `<n>` at least 2, then `#31 -> dismissed`, `#32 -> dismissed`. Paste the `SINK=` line into `38-05-SUMMARY.md`; it is the evidence behind `$cb`'s shared-sink caveat and `38-05-PLAN.md` Task 2 requires it on record.
+  you should see: `GB=[31 32]`, then `SINK=OK writeLog call sites outside logger.py: <n>` with `<n>` at least 2, then `#31 -> dismissed`, `#32 -> dismissed`. Paste the `SINK=` line into `38-05-SUMMARY.md`; it is the evidence behind `$cb`'s shared-sink caveat and `38-05-PLAN.md` Task 2 requires it on record.
   if a guard throws: nothing is PATCHed, which is the designed outcome. `SINK=MISMATCH` means `logger.py:49`, `:65` and `:72` are no longer the `writeLog` definition and its two sink lines, so the caveat's stated locations would be false; fewer than two external call sites means the sink is not shared and the caveat overstates it. Re-derive the line numbers and rewrite `$cb` before dismissing anything. Do not unwrap the block or delete a guard to get past it.
   IRREVERSIBLE: PATCH-dismisses the Group B alerts. It destroys their open state. Recoverable only by a manual PATCH back to `state=open`; the dismissal event in the audit trail is permanent.
 
 - [ ] Step 18. `[DECIDE]` BEFORE Group C, prove the staleness claim for #25 and #26 with the instances endpoint rather than asserting it. This runs AHEAD of the group C PATCH so the evidence exists before the mutation.
 
 ```powershell
-foreach ($n in $groupC) {
-  rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_page=10" |
+& {
+  $ctp = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
     ConvertFrom-Json |
-    ForEach-Object { "#$n ref={0} sha={1} cat={2} state={3}" -f $_.ref, $_.commit_sha.Substring(0,8), $_.category, $_.state }
+    Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
+  $gc = @($ctp | Where-Object { $_.most_recent_instance.location.path -eq "logger.py" -and $_.most_recent_instance.location.start_line -in @(43,50) } | ForEach-Object { $_.number } | Sort-Object)
+  $gcSet = ($gc -join ' ')
+  "GC=[$gcSet]"
+  if ($gcSet -ne "25 26") { throw "HALT: group C derived [$gcSet], the interfaces table expects [25 26]. An empty derivation is the code-scanning 403 and would make the loop below print nothing, and nothing printed reads as 'no live instance found', which is exactly the staleness proof step 19 depends on; a different derivation is a renumber and would prove staleness for the wrong alerts. Do not run step 19." }
+  foreach ($n in $gc) {
+    rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_page=10" |
+      ConvertFrom-Json |
+      ForEach-Object { "#$n ref={0} sha={1} cat={2} state={3}" -f $_.ref, $_.commit_sha.Substring(0,8), $_.category, $_.state }
+  }
 }
 ```
 
-  you should see: every instance with `state=open` carrying a category beginning `.github/workflows/codeql-analysis.yml`, and the instance carrying the bare `/language:python` default-setup category reading `state=fixed`. Paste this output into the summary.
+  you should see: `GC=[25 26]` from the in-fence derivation, then every instance with `state=open` carrying a category beginning `.github/workflows/codeql-analysis.yml`, and the instance carrying the bare `/language:python` default-setup category reading `state=fixed`. Paste this output into the summary.
   YOUR CALL: if any open instance carries `/language:python`, the alert is LIVE not stale. Move it into Group B's reasoning, rewrite the comment, and record the change. Do not run step 19 on it.
   DEFER BRANCH: if VERDICT-SCAN-06 was DEFER, skip step 19 and go to step 20. Step 19's comment string is factually false on that branch.
 
@@ -1742,18 +1770,25 @@ foreach ($n in $groupC) {
 & {
   $v = (Select-String -Path .planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md -Pattern "^VERDICT-SCAN-06: (SAFE-TO-DELETE|DEFER)$" | ForEach-Object { $_.Matches[0].Groups[1].Value })
   if ($v -ne "SAFE-TO-DELETE") { throw "VERDICT-SCAN-06 = '$v' - the staleness comment asserts a deletion that did not happen. DO NOT DISMISS. Go to step 20." }
-  $liveInst = @($groupC | ForEach-Object { $n = $_; rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_page=10" | ConvertFrom-Json | Where-Object { $_.state -eq "open" -and $_.category -notlike ".github/workflows/codeql-analysis.yml*" } }).Count
+  $ctp = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
+    ConvertFrom-Json |
+    Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
+  $gc = @($ctp | Where-Object { $_.most_recent_instance.location.path -eq "logger.py" -and $_.most_recent_instance.location.start_line -in @(43,50) } | ForEach-Object { $_.number } | Sort-Object)
+  $gcSet = ($gc -join ' ')
+  "GC=[$gcSet]"
+  if ($gcSet -ne "25 26") { throw "HALT: group C derived [$gcSet], the interfaces table expects [25 26]. An empty derivation is the code-scanning 403 and would make both loops below iterate zero times, reporting a clean liveInst of 0 and dismissing nothing; a different derivation is a renumber and would dismiss the wrong alerts. Do not PATCH." }
+  $liveInst = @($gc | ForEach-Object { $n = $_; rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_page=10" | ConvertFrom-Json | Where-Object { $_.state -eq "open" -and $_.category -notlike ".github/workflows/codeql-analysis.yml*" } }).Count
   "open instances NOT from the retired codeql-analysis.yml workflow: $liveInst"
   if ($liveInst -ne 0) { throw "HALT: $liveInst open instance(s) on group C come from a live analysis. They are not stale and the staleness comment would be false; do not PATCH." }
   $cc = "False positive, and stale. Same underlying SECRET_KEYS finding as #31 and #32, recorded at pre-Phase-37 line numbers (logger.py:50 and :43, now :72 and :65 after the FC-01 ContextVar block was inserted). The default-setup instance at master 36f75c76 is already state=fixed; the remaining open instances all carry category .github/workflows/codeql-analysis.yml:analyze, at master 4123059b and at refs/pull/12/merge and refs/pull/13/merge. That workflow was disabled_manually and was deleted in Phase 38 (SCAN-06), so nothing can ever refresh those instances and the alert cannot close by itself."
-  foreach ($n in $groupC) {
+  foreach ($n in $gc) {
     $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$cc" | ConvertFrom-Json
     "#{0} -> {1}" -f $r.number, $r.state
   }
 }
 ```
 
-  you should see: `open instances NOT from the retired codeql-analysis.yml workflow: 0`, then `#25 -> dismissed`, `#26 -> dismissed`. That is SEVEN distinct strings written across steps 5, 5.1, 5.2, 5.3, 16, 17 and 19. Paste the `open instances NOT from...` line into the summary; it is the machine-checkable form of step 18's staleness proof and it is measured inside the same invocation as the PATCH it authorises, so it cannot be skipped by a call boundary.
+  you should see: `GC=[25 26]` from the in-fence derivation, then `open instances NOT from the retired codeql-analysis.yml workflow: 0`, then `#25 -> dismissed`, `#26 -> dismissed`. That is SEVEN distinct strings written across steps 5, 5.1, 5.2, 5.3, 16, 17 and 19. Paste the `open instances NOT from...` line into the summary; it is the machine-checkable form of step 18's staleness proof and it is measured inside the same invocation as the PATCH it authorises, so it cannot be skipped by a call boundary.
   The `& { ... }` wrapper is load-bearing for the same reason it is at Block 3 step 11 and Block 6 step 15: this is the phase's third branch-conditional irreversible mutation, and prose alone (step 0, step 18's DEFER note, the IRREVERSIBLE line below) cannot stop a paste. The guard reads the recorded SCAN-06 verdict and throws on DEFER, and the wrapper makes that throw abort the PATCH loop rather than merely printing ahead of it. If pwsh shows a `>>` continuation prompt, that is the shell holding the block, not a hang. A caller that submits the lines independently gets a parse error on the opening brace; a caller that logs that error and keeps going still reaches the PATCH, so an automated driver must abort the whole sequence on it.
   IRREVERSIBLE: PATCH-dismisses the Group C alerts. It destroys their open state and writes `$cc` permanently into the repository audit trail, where it cannot be edited. Must not run before the step 18 staleness proof, and must not run at all on the DEFER branch, because `$cc` asserts a deletion that did not happen.
 
