@@ -31,6 +31,16 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+      # starlette is a FLOOR, not a pin: it exists only to match the declared minimum
+      # of the held-back fastapi above. Measured from installed metadata, not from a
+      # comment: fastapi 0.115.8 requires starlette<0.46.0,>=0.40.0. PR #34 proposed
+      # raising the floor to >=1.6.0, which makes `pip install .[web]` UNSATISFIABLE
+      # outright, a harder failure than the SSE break. Only the incompatible range is
+      # ignored, so starlette updates below 0.46.0 and its security advisories in that
+      # range still surface. Widen this bound in the same change that lifts fastapi,
+      # never before.
+      - dependency-name: "starlette"
+        versions: [">=0.46.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
