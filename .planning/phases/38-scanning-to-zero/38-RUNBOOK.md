@@ -4,7 +4,7 @@ Generated 2026-08-04. Source of truth is the six PLAN files in this directory; t
 
 ### READ THIS FIRST
 
-1. You are on branch `chore/v4.0-milestone-close` at `910e31d`, clean tree, nothing unpushed, 4 commits ahead of `origin/master` (`bd70601`).
+1. Starting position, to VERIFY rather than to assume: you are on the planning branch (`chore/v4.0-milestone-close` when this run-book was written), some commits ahead of `origin/master`, with a clean tree across the four carry-over paths. None of that is a standing fact about your box. The branch head moves with every remediation pass, so do not compare it against a written-down SHA; Block 1 step 2 derives it. The clean tree is a PRECONDITION that Block 1 step 2's gate establishes each time, and it was measurably false the last time this run-book was revised.
 2. The ONE gate: the six Phase 38 plans are UNVERIFIED. Nothing below Block 0 runs until the plan checker returns a written PASS verdict.
 3. Irreversible in this phase: 26 code scanning alert dismissals; 1 Dependabot dismissal; enabling `secret_scanning_validity_checks`, which sends candidate secrets to their issuing providers and cannot be un-sent (threat T-38-29); deletion of `.github/workflows/codeql-analysis.yml`; creation of remote tag `archive/dev-final`; deletion of remote branch `origin/dev`; up to 2 branch-protection PATCHes; 2 PR merges to master. Locally reversible but disruptive: Block 2 step 28 upgrades your `.venv` to cryptography 50.
 4. A "NOT MET" outcome is allowed and is better than a zero reached by dismissal. SCAN-08 closes as a recorded DEFERRAL, on purpose.
@@ -15,12 +15,12 @@ Generated 2026-08-04. Source of truth is the six PLAN files in this directory; t
 Tag legend: `[WALK AWAY]` start it and leave. `[WATCH]` stay and re-run or observe; it does not block. `[DECIDE]` a judgement you must write down. `[BROWSER]` a click in the GitHub web UI. `[SAY TO CLAUDE]` a prompt to paste into this session verbatim; the text after the `>` is the prompt.
 
 1. Block 0: plan-checker gate and blocking-constraint acknowledgement. 20 min. `[DECIDE]`
-2. Block 1: 38-01, branch cut, three-scanner baseline, SCAN-06 verdict, cryptography verdict. 45 min. `[DECIDE]`
+2. Block 1: the wave-0 hard gate (code scanning must answer HTTP 200 or the phase does not start), then 38-01, branch cut, three-scanner baseline, SCAN-06 verdict, cryptography verdict. 45 min. `[DECIDE]`
 3. Block 2: 38-02, url host-match fix, cryptography pin, secret-name invariant test. 95 min. Six `[DECIDE]` points (steps 6, 21, 34, 35, 48, 49) plus two negative-control judgements (13/14, 40/41). The only genuine `[WALK AWAY]` stretches are the full pytest runs.
 4. Block 3: 38-03, ci.yml permissions, CodeQL workflow removal, SHA pins, SCAN-08 deferral record. 55 min. `[DECIDE]`
 5. Block 4: 38-04, open PR, green checks, merge to master, post-merge alert re-query. 70 min plus up to 35 min of waiting. Eleven `[DECIDE]` points (steps 3, 5, 8, 9, 10, 24, 25, 26, 33, 34, 35), including the step 9 HARD STOP and the step 10 merge to master. Only step 6's `--watch` is a genuine `[WALK AWAY]`; steps 7, 20, 21 and 31 are `[WATCH]`.
 6. Block 5: 38-05, 26 dismissals written as seven distinct reason strings (four test-fixture shapes, three clear-text sub-cases), then two ORDERED secret-scanning PATCHes with an alert enumeration and a poll between them. 50 min hands-on plus up to 15 min of polling. Eleven `[DECIDE]` points (steps 0, 3, 4, 13, 14, 15, 18, 25, 27, 27.5, 32), which includes the two PATCH decisions at 25 and 27.5 and the commit at 32. Step 27 is the block's only `[WATCH]` and it is `[DECIDE]` as well: its poll is what gates the irreversible half. No `[WALK AWAY]` anywhere in the block.
-7. Block 6: 38-06, gitleaks required check, archive-then-delete `origin/dev` as one guarded invocation, the seven-group dismissal-reason audit, FINAL GATE table, docs PR. 70 min. Twelve `[DECIDE]` points (steps 2, 5, 11, 14, 15, 22, 23, 25.5, 26, 31, 32, 33). No `[WATCH]` and no `[WALK AWAY]` anywhere in the block: step 31 is `[DECIDE]` and explicitly says STAY AT THE KEYBOARD. Master's merge path is locked from step 5 until step 33, and step 15 is the phase's only ref deletion.
+7. Block 6: 38-06, gitleaks required check, archive-then-delete `origin/dev` as one guarded invocation, the seven-group dismissal-reason audit, FINAL GATE table, docs PR. 70 min. Thirteen `[DECIDE]` points (steps 2, 5, 11, 14, 15, 22, 23, 25.5, 26, 31, 32, 33, 37). No `[WATCH]` and no `[WALK AWAY]` anywhere in the block: step 31 is `[DECIDE]` and explicitly says STAY AT THE KEYBOARD. Master's merge path is locked from step 5 until step 33, and step 15 is the phase's only ref deletion.
 8. Background: Actions "create and approve pull requests" setting. 2 min. `[BROWSER]`
 9. Background: PR #23 GitHub App decision (not a PAT, ever). `[DECIDE]`
 10. Background: PR #25 split, requirements.txt half only. `[DECIDE]`
@@ -68,6 +68,24 @@ $PSVersionTable.PSVersion
 
 Zero GitHub state is mutated in this entire block. Every API call is a read. Step 33 exists to prove that.
 
+- [ ] WAVE 0 HARD GATE. `[DECIDE]` Nothing in this phase runs, including Block 1 step 1, until the code scanning alert list answers HTTP 200. Paste the WHOLE fenced block as ONE invocation. The `& { ... }` wrapper is load-bearing: a bare top-level `throw` does not stop a command submitted after it across a call boundary, so the guard has to share a parsed unit with what it guards.
+
+```powershell
+& {
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | Out-String)
+  $status = ($resp -split '\r?\n')[0]
+  "PRECONDITION status line: [$status]"
+  if ($status -notmatch '^HTTP/\S+\s+200\b') { throw "HALT (wave-0 gate): the code scanning alert list returned '$status'. Record that line verbatim and STOP the phase. A non-200 is UNKNOWN, never zero." }
+  "PRECONDITION ok"
+}
+```
+
+  you should see: a `PRECONDITION status line:` whose bracketed value contains ` 200`, then `PRECONDITION ok`. Write the status line down; Block 5 and Block 6 both require it on record.
+  if it fails: HALT the phase and record the status line verbatim. Diagnose it as an ENABLEMENT problem, not an auth problem: a 403 from `code-scanning/alerts` on this repository means code scanning is not available for the repository's current plan and visibility, and a 404 from `secret-scanning/alerts` means the feature is switched off. Re-authenticating, re-scoping a token, or retrying does not change either answer. The next step is an operator decision about repository posture, and CLAUDE.md forbids changing visibility without an explicit instruction. Do NOT proceed to Block 1 "carefully": every alert number, every dismissal and the whole baseline downstream of here would be derived from an unreadable endpoint.
+  This gate asserts on the status VALUE, in the same invocation as what it gates. Do not replace it with an exit-code test and do not split it across two pastes.
+
+<!-- POSTURE-PENDING: the branch-protection half of this gate (whether `branches/master` must read `protected: true` and what the required-contexts list must contain before the phase may start) cannot be written while the repository posture is undecided; re-derive that half, and whether it is a hard gate or a recorded non-requirement, once the operator settles the posture. The code-scanning 200 requirement above is unconditional and stands either way. -->
+
 - [ ] Precheck: confirm `gh` is authenticated and can read all three scanners.
 
 ```powershell
@@ -75,7 +93,8 @@ rtk gh auth status
 ```
 
   you should see: account `thezoid` active, scopes including `repo` and `workflow`.
-  if it fails: `rtk proxy gh auth login`. A 403 on any probe below invalidates the whole baseline, so fix auth first.
+  if it fails: no active account, or a missing `repo` / `workflow` scope, is the AUTH case; fix it with `rtk proxy gh auth login`.
+  A 403 from a code-scanning or secret-scanning endpoint is NOT the auth case and re-authenticating will not clear it. On this repository it means the feature is not enabled for the current plan and visibility; a 404 from secret scanning means it is switched off. Both are repository-posture decisions for the operator, not credential problems. In either case HALT, record the verbatim status line, and do not re-run the probe under different credentials hoping for a different answer. The wave-0 gate above is the check that decides this.
 
 - [ ] Step 1. `[SAY TO CLAUDE]`
 
@@ -85,43 +104,58 @@ rtk gh auth status
 
 - [ ] Step 2. Cut the working branch off `origin/master` and carry the planning-branch-only files onto it. FIRST, from the planning branch, confirm exactly what only exists here. `checkout -B` silently loses every planning-branch-only path that is not named explicitly, and the carry-over is more than the phase directory.
 
-  GATE, before anything else in this step. `$PLANSHA` is the CURRENT COMMIT. Any Phase 38 edit that is not yet committed is not in `$PLANSHA`, so the `rtk git checkout $PLANSHA -- <phase dir>` below would overwrite the working-tree files with the older committed content and silently discard the revisions. There is no error and no diff to notice.
+  GATE, before anything else in this step. `$PLANSHA` is the CURRENT COMMIT. Any Phase 38 edit that is not yet committed is not in `$PLANSHA`, so the `rtk git checkout $PLANSHA -- <path>` below would overwrite the working-tree files with the older committed content and silently discard the revisions. There is no error and no diff to notice. The gate covers ALL FOUR carry-over paths, not the phase directory alone: the restore overwrites every one of them, and uncommitted work in `.planning/ROADMAP.md`, `.planning/HANDOFF.json` or `37-VERIFICATION.md` is destroyed the same way and is NOT recoverable, because that content was never staged, so there is no stash entry and no dangling blob. `38-01-PLAN.md` Task 1 gates on the same four paths from one `set --` list; this is its pwsh equivalent and the two must cover the same set.
 
 ```powershell
-rtk git status --porcelain -- .planning/phases/38-scanning-to-zero/
+rtk git status --porcelain -- .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
 ```
 
   you should see: empty output.
-  if it fails: HARD STOP. Any ` M` or `??` line here means the carry-over checkout would restore stale pre-remediation plans over the revised ones. Commit every Phase 38 plan revision, and `38-RUNBOOK.md` itself, on the planning branch FIRST, then re-run this gate. Do not proceed "carefully"; the loss is silent. At the time this run-book was written the phase directory held five modified plan files and an untracked `38-RUNBOOK.md`, so expect this gate to fire on a first pass.
+  if it fails: HARD STOP. Any ` M` or `??` line here means the carry-over checkout would restore stale pre-remediation content over the revised content, in whichever of the four paths it names. Commit every Phase 38 plan revision, `38-RUNBOOK.md` itself, and any edit to `ROADMAP.md`, `HANDOFF.json` or `37-VERIFICATION.md` on the planning branch FIRST, then re-run this gate. Do not proceed "carefully"; the loss is silent. At the time this run-book was written the phase directory held five modified plan files and an untracked `38-RUNBOOK.md`, so expect this gate to fire on a first pass.
 
   Only once the gate is clean:
 
 ```powershell
-$PLANSHA = rtk proxy git rev-parse HEAD
+$PLANSHA = (rtk proxy git rev-parse HEAD).Trim()
 $PLANSHA
+rtk proxy git ls-tree --name-only $PLANSHA -- .planning/phases/38-scanning-to-zero/38-RUNBOOK.md
 rtk git fetch origin --prune --tags
 rtk proxy git diff --name-status origin/master..HEAD
 ```
 
-  you should see: `$PLANSHA` prints `910e31d45b0e64ecafaf62636f572e9eb4871794`, and the name-status listing covering exactly four things: the `.planning/phases/38-scanning-to-zero/` directory, `.planning/ROADMAP.md` (which carries Phase 38's plan list and all eight planning corrections), `.planning/HANDOFF.json`, and `.planning/phases/37-distributable-artifact/37-VERIFICATION.md`.
-  if it lists anything more: name that path in the next block too rather than dropping it silently. Do not assume the four are the whole set; the listing wins.
+  you should see: `$PLANSHA` prints a 40-character hex SHA, which is the CURRENT commit on the planning branch and is derived here rather than expected: do not compare it against a written-down value. An earlier draft of this run-book hardcoded `910e31d`, which names a tree that predates this file's own remediation and does not contain `38-RUNBOOK.md` at all.
+  you should see, from the `ls-tree`: exactly the line `.planning/phases/38-scanning-to-zero/38-RUNBOOK.md`. That is the check that the resolved tree actually contains this run-book. Empty output means it does not.
+  you should see, from the name-status listing: exactly four things, the `.planning/phases/38-scanning-to-zero/` directory, `.planning/ROADMAP.md` (which carries Phase 38's plan list and all eight planning corrections), `.planning/HANDOFF.json`, and `.planning/phases/37-distributable-artifact/37-VERIFICATION.md`.
+  if the `ls-tree` prints nothing: HARD STOP. `$PLANSHA` resolves to a tree without this run-book in it, so the carry-over would land plans without the document that narrates them. Commit `38-RUNBOOK.md` on the planning branch and re-run from the gate.
+  if it lists anything more: name that path in the gate above AND in the next block rather than dropping it silently. The gate and the restore read the same list; a path restored outside that list is un-gated. Do not assume the four are the whole set; the listing wins.
 
-  Then carry them over:
+  Then carry them over. Paste the WHOLE fenced block as ONE invocation: the wrapper is what makes the dirty-tree re-check, the branch cut and the restore a single parsed unit, so a failure aborts before anything is overwritten. A bare top-level `throw` cannot stop a command submitted after it across a call boundary.
 
 ```powershell
-rtk git checkout -B phase-38-scanning-to-zero origin/master
-rtk git checkout $PLANSHA -- .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
-rtk git add .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
-rtk git add .planning/phases/38-scanning-to-zero/38-RUNBOOK.md
-rtk git reset .planning/phases/38-scanning-to-zero/.continue-here.md
-rtk git commit -m "docs(38-01): carry phase 38 plans and planning state onto the working branch"
+& {
+  $ErrorActionPreference = 'Stop'
+  $dirty = rtk git status --porcelain -- .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
+  if ($dirty) { throw "ABORT: uncommitted changes in a carry-over path:`n$($dirty -join "`n")`nCommit every phase 38 revision on the planning branch FIRST. Nothing was restored." }
+  if ($PLANSHA -notmatch '^[0-9a-f]{40}$') { throw "ABORT: PLANSHA is not a 40-char sha ('$PLANSHA'). Re-run this step from the top; you closed the terminal between commands." }
+  rtk git checkout -B phase-38-scanning-to-zero origin/master
+  if ($LASTEXITCODE -ne 0) { throw "ABORT: git checkout -B exited $LASTEXITCODE. Still on the source branch; nothing was restored." }
+  $branch = (rtk proxy git rev-parse --abbrev-ref HEAD).Trim()
+  if ($branch -ne "phase-38-scanning-to-zero") { throw "ABORT: expected branch phase-38-scanning-to-zero, on '$branch'. Nothing was restored." }
+  rtk git checkout $PLANSHA -- .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
+  rtk git add .planning/phases/38-scanning-to-zero/ .planning/ROADMAP.md .planning/HANDOFF.json .planning/phases/37-distributable-artifact/37-VERIFICATION.md
+  rtk git add .planning/phases/38-scanning-to-zero/38-RUNBOOK.md
+  rtk git reset .planning/phases/38-scanning-to-zero/.continue-here.md
+  rtk git commit -m "docs(38-01): carry phase 38 plans and planning state onto the working branch"
+}
 ```
 
   you should see: the checkout reports the new branch, the reset unstages `.continue-here.md` and nothing else, and the commit succeeds.
+  The `$LASTEXITCODE` throw after `checkout -B` is not decoration. Without it a failed branch cut leaves you on the SOURCE branch and the very next line restores `$PLANSHA` over the source branch's own working tree. The branch-value assertion after it covers the second variant: `checkout -B` can report success and still leave HEAD somewhere unexpected, and the restore is only safe on the new branch. Both assert on VALUES read back in this same invocation.
+  if pwsh shows a `>>` continuation prompt after the first line: that is correct behaviour, not a hang. Keep pasting until the closing brace.
   The second `rtk git add` names `38-RUNBOOK.md` explicitly rather than relying on the directory add to sweep it in. This file is this phase's operator run-book and belongs on master alongside the plans it narrates; naming it makes that intent legible and survives the case where it is still untracked in the phase directory. `38-01-PLAN.md` Task 1 carries the same explicit line.
   The `rtk git reset` line is required, not tidying. `.continue-here.md` is git-tracked inside the phase directory and carries `status: paused` / `task: 0` from the interrupted run that created these plans. Staging the directory wholesale would commit that stale handoff, and Block 4's merge would carry it onto master. Unstaging leaves the file in the working tree for local use while keeping it out of every commit on this branch; Block 6 step 27 then removes it from the tree before the docs PR.
-  IRREVERSIBLE (local only): `git checkout -B` force-resets any existing local branch named `phase-38-scanning-to-zero` to `origin/master` and moves HEAD off `chore/v4.0-milestone-close`. It destroys that local branch pointer only, not any commit. Recover with `rtk proxy git reflog`. Your tree is clean per the environment check, so nothing is at risk, but do not run this with uncommitted work.
-  if it fails: if `$PLANSHA` is empty, you closed the terminal between commands. Re-run the whole block from the top.
+  IRREVERSIBLE (local only): `git checkout -B` force-resets any existing local branch named `phase-38-scanning-to-zero` to `origin/master` and moves HEAD off `chore/v4.0-milestone-close`. It destroys that local branch pointer only, not any commit. Recover with `rtk proxy git reflog`. A clean tree across the four carry-over paths is a PRECONDITION of this step, not a standing fact about your box: it is what the gate above and the re-check inside the block establish, each time, before anything is overwritten. Do not run this with uncommitted work in any of those paths. The tree was measurably dirty at the time this run-book was last revised.
+  if it fails: any `ABORT:` line leaves the tree untouched, which is the designed outcome. Fix what it names and re-run the whole block from the gate. Do not unwrap the block and do not run its lines individually.
 
 - [ ] Step 3. Prove nothing on master is missing from the working branch.
 
@@ -163,7 +197,7 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_pa
 
   you should see: one line per open alert, roughly 31 lines, grouped by rule id. The LIVE count is what gets recorded, not the expectation.
   (POSIX original in appendix)
-  if it fails: a 403 means the token lacks security-events read. Fix auth, do not proceed on a partial inventory.
+  if it fails: HALT. Do not proceed on a partial inventory and do not diagnose the failure before reading the status line. A 401, or a 403 whose body names a missing scope, is the AUTH case. A bare 403 from this endpoint on this repository is the ENABLEMENT case: code scanning is not available for the repository's current plan and visibility, and no credential change clears it. Re-run the read as `rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | Select-Object -First 1` to capture the status line verbatim, record it, and stop the phase; this is the wave-0 gate failing a second time, and the next move is the operator's posture decision, not another `gh auth login`. An empty or partial list under a non-200 is UNKNOWN, never a zero.
 
 - [ ] Step 7. Inventory every open Dependabot alert.
 
@@ -357,9 +391,10 @@ Select-String -Path main.py,logger.py,models.py,utils.py,config.py -Pattern "fro
 
 - [ ] Step 27. `[DECIDE]` `[SAY TO CLAUDE]`
 
-  > Write a `## VERDICT-SCAN-01` heading into `38-SCAN-BASELINE.md` recording IN THIS ORDER: the current pin; the vulnerable range; the first patched version and whether it exists on PyPI with distribution files; the complete list of cryptography APIs this project imports with file:line; whether any PKCS#7 or EnvelopedData symbol appears anywhere plus the search result; then exactly one of three dispositions. `VERDICT-SCAN-01: UPGRADE to <version>` when a patched release exists and installs on requires-python >=3.11. `VERDICT-SCAN-01: DISMISS` when no patched release exists AND the vulnerable API is provably absent (state the exact `dismissed_reason` enum value to use). `VERDICT-SCAN-01: ACCEPT` when no patched release exists AND the vulnerable API is reachable (state the compensating control).
+  > Write a `## VERDICT-SCAN-01` heading into `38-SCAN-BASELINE.md`. The line IMMEDIATELY following that heading is the machine-readable verdict and nothing else: one line, no leading whitespace, no trailing prose, matching `^VERDICT-SCAN-01: (UPGRADE to [0-9][0-9.]*|DISMISS|ACCEPT)$`, and the only line in the file that matches it. Write it exactly the way `VERDICT-SCAN-06` is written. Pick exactly one of three dispositions: `VERDICT-SCAN-01: UPGRADE to <version>` when a patched release exists and installs on requires-python >=3.11; `VERDICT-SCAN-01: DISMISS` when no patched release exists AND the vulnerable API is provably absent (state the exact `dismissed_reason` enum value to use); `VERDICT-SCAN-01: ACCEPT` when no patched release exists AND the vulnerable API is reachable (state the compensating control). BELOW that line, record the supporting evidence IN THIS ORDER: the current pin; the vulnerable range; the first patched version and whether it exists on PyPI with distribution files; the complete list of cryptography APIs this project imports with file:line, which must name both `core/credentials.py` and `core/session_store.py`; whether any PKCS#7 or EnvelopedData symbol appears anywhere plus the search result.
 
-  you should see: exactly one of the three disposition strings under the heading. Planning-time expectation is `UPGRADE to 50.0.0`, with unreachability recorded as the reason there was never live exposure, NOT as a reason to skip the upgrade.
+  you should see: the line immediately after the heading reads one of the three disposition strings and nothing else, with the evidence beneath it. Planning-time expectation is `UPGRADE to 50.0.0`, with unreachability recorded as the reason there was never live exposure, NOT as a reason to skip the upgrade.
+  The heading alone is not evidence. 38-02 step 21, Block 4 steps 28 and 35, and `38-01-PLAN.md` Task 3's acceptance criterion all branch on the LINE. A heading with an empty section must fail step 31's check rather than pass it.
   YOUR CALL: DISMISS is only permitted when no patched release exists AND the PKCS#7 API is provably absent.
 
 - [ ] Step 28. `[SAY TO CLAUDE]`
@@ -384,18 +419,21 @@ rtk git commit -m "docs(38-01): record scanner baseline, SCAN-06 trap verdict, c
 
 ```powershell
 (Select-String -Path .planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md -Pattern "^## VERDICT-SCAN-01$").Count
+(Select-String -Path .planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md -Pattern "^VERDICT-SCAN-01: (UPGRADE to [0-9][0-9.]*|DISMISS|ACCEPT)$").Count
 rtk proxy git log -1 --format=%s
 ```
 
-  you should see: `1`, then a subject starting `docs(38-01):`.
+  you should see: `1`, then `1`, then a subject starting `docs(38-01):`.
+  if the second count is not exactly `1`: the heading is present but the machine-readable verdict line is missing, malformed, or duplicated. The heading alone passes nothing: 38-02, Block 4 and `38-01-PLAN.md` Task 3's automated verify all key on the anchored line. Fix the line before continuing; this is the same shape as step 21's `VERDICT-SCAN-06` check and it is deliberately no longer satisfied by the heading.
 
-- [ ] Step 32. Working tree clean.
+- [ ] Step 32. Working tree clean apart from the deliberately untracked checkpoint file.
 
 ```powershell
 rtk git status --porcelain
 ```
 
-  you should see: empty output.
+  you should see: no output other than a single `?? .planning/phases/38-scanning-to-zero/.continue-here.md` line. That one line is EXPECTED from step 2 onward and is not dirt: step 2's `rtk git reset` deliberately left the file in the working tree, untracked and unignored, so it stays available locally while being kept out of every commit on this branch. Anything else in this output is a real uncommitted change.
+  It must never be committed. Do NOT resolve this line by `rtk git add`-ing the phase directory: that stages the stale `status: paused` handoff and Block 4's merge would carry it onto master. Block 6 step 27 is the only step that removes it, and it removes it from the tree rather than committing it.
 
 - [ ] Step 33. `[DECIDE]` Prove zero GitHub state was changed. Search this block's session transcript for `-X PATCH`, `-X POST`, `-X DELETE`, `-X PUT`. There must be none.
 
@@ -455,7 +493,7 @@ rtk proxy git rev-parse --abbrev-ref HEAD
 
 - [ ] Step 6. `[DECIDE]` `[SAY TO CLAUDE]`
 
-  > Read `main.py` lines 40-60, `core/cli/run.py` lines 1-50, `core/registry.py` lines 114-155 (the existing hostname-matching convention at :121, :137, :150), and the `## Alert Inventory` section of `38-SCAN-BASELINE.md`. Confirm alerts #3, #4, #5 are still open and still at `main.py:50-53` and `core/cli/run.py:30-37`. If they moved, stop and tell me.
+  > Read `main.py` lines 40-60, `core/cli/run.py` lines 1-50, `core/registry.py` lines 114-155 (the existing hostname-matching convention at :121, :137, :150), and the `## Alert Inventory` section of `38-SCAN-BASELINE.md`. Confirm alerts #3, #4, #5 are still open and still at `main.py:49-52` and `core/cli/run.py:29-36`. If they moved, stop and tell me.
 
   you should see: all three alerts confirmed at those locations.
 
@@ -769,7 +807,7 @@ Select-String -Path requirements.txt,pyproject.toml -Pattern "cryptography=="
 rtk git status --porcelain
 ```
 
-  you should see: empty output.
+  you should see: no output other than the single `?? .planning/phases/38-scanning-to-zero/.continue-here.md` line carried over from Block 1 step 2. That line is expected and is not uncommitted work; every other line is. It must never be committed, and `rtk git add` on the phase directory is not the way to clear it.
 
 - [ ] Step 51. `[SAY TO CLAUDE]`
 
@@ -853,13 +891,19 @@ Select-String -Path .github\workflows\ci.yml -Pattern "^on:|^permissions:|^jobs:
 
 ```powershell
 & {
-  $v = (Select-String -Path .planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md -Pattern "^VERDICT-SCAN-06: (SAFE-TO-DELETE|DEFER)$" | ForEach-Object { $_.Matches[0].Groups[1].Value })
-  if ($v -ne "SAFE-TO-DELETE") { throw "VERDICT-SCAN-06 = '$v' - DO NOT DELETE. Skip to step 13." }
+  $b = ".planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md"
+  $h = @(Select-String -Path $b -Pattern "^## VERDICT-SCAN-06$").Count
+  $v = @(Select-String -Path $b -Pattern "^VERDICT-SCAN-06: (SAFE-TO-DELETE|DEFER)$" | ForEach-Object { $_.Matches[0].Groups[1].Value })
+  "VERDICT read: [$($v -join ',')] headings=$h"
+  if ($h -ne 1 -or $v.Count -ne 1) { throw "GATE FAIL: VERDICT-SCAN-06 missing or malformed, nothing deleted" }
+  if ($v[0] -eq "DEFER") { throw "VERDICT-SCAN-06 = 'DEFER' - DO NOT DELETE. Skip to step 13." }
+  if ($v[0] -ne "SAFE-TO-DELETE") { throw "GATE FAIL: VERDICT-SCAN-06 missing or malformed, nothing deleted" }
   rtk git rm .github/workflows/codeql-analysis.yml
 }
 ```
 
-  you should see: no `throw` output, then the removal is reported.
+  you should see: a `VERDICT read: [SAFE-TO-DELETE] headings=1` line, no `throw` output, then the removal is reported.
+  The gate asserts on the verdict VALUE, never on an exit code, and it fails CLOSED on three separate shapes: a missing or unreadable baseline, a heading count other than one, and a verdict line that is missing, malformed or duplicated. Those all emit the literal `GATE FAIL: VERDICT-SCAN-06 missing or malformed, nothing deleted`, which is the same token `38-03-PLAN.md` Task 1's gate emits and its acceptance criteria check for. A recorded `DEFER` is a different, expected outcome and gets its own message.
   if pwsh shows a `>>` continuation prompt after the first line: that is correct behaviour, not a hang. Keep pasting. It is the shell holding the block until the closing brace arrives, which is exactly the atomicity this wrapper buys. A caller that submits the lines independently gets a hard parse error on the opening brace instead of a partial execution. That protects a caller that STOPS at the parse error. One that logs it and keeps submitting the remaining lines still reaches the mutation, because lines 2 through N are individually valid. An automated driver must abort the whole sequence on the opening-brace parse error.
   if it fails: a `throw` here leaves the file intact. That is the designed outcome, not an error to work around. Do not unwrap the block, and do not edit the guard to fall through; go to step 13.
   IRREVERSIBLE: this deletes a workflow file, and `CodeQL` is currently a REQUIRED status check on master. If that context is produced by this workflow rather than by default setup, deleting it creates a required check that can never report and permanently blocks every future merge, including this phase's own PR. It destroys the working-tree copy of the file. Recovery: `rtk git checkout HEAD -- .github/workflows/codeql-analysis.yml` before the commit, or `rtk proxy git revert <sha>` after; the file content itself is never lost from git history.
@@ -901,10 +945,11 @@ Get-ChildItem .github\workflows -Filter *.yml | Select-String -Pattern "uses:"
 - [ ] Step 17. `[DECIDE]` SCAN-11 step 2: resolve each distinct `owner/repo@tag` to a commit SHA and prove that commit exists. The loop covers every distinct reference in one run; on the DEFER branch add step 19's three `codeql-analysis.yml` references to the same list.
 
 ```powershell
-foreach ($r in "actions/checkout@v7","actions/setup-python@v7","actions/checkout@v6","actions/setup-python@v6","gitleaks/gitleaks-action@v3","googleapis/release-please-action@v5") { $repo,$tag = $r -split "@"; $ref = rtk proxy gh api "repos/$repo/git/ref/tags/$tag" | ConvertFrom-Json; $sha = if ($ref.object.type -eq "tag") { (rtk proxy gh api $ref.object.url | ConvertFrom-Json).object.sha } else { $ref.object.sha }; $proof = (rtk proxy gh api "repos/$repo/commits/$sha" | ConvertFrom-Json).sha; "$r -> $sha proof=$proof match=$($sha -eq $proof)" }
+foreach ($r in "actions/checkout@v7","actions/setup-python@v7","actions/checkout@v6","actions/setup-python@v6","gitleaks/gitleaks-action@v3","googleapis/release-please-action@v5") { $aref,$tag = $r -split "@", 2; $repo = (($aref -split "/")[0..1]) -join "/"; $ref = rtk proxy gh api "repos/$repo/git/ref/tags/$tag" | ConvertFrom-Json; $sha = if ($ref.object.type -eq "tag") { (rtk proxy gh api $ref.object.url | ConvertFrom-Json).object.sha } else { $ref.object.sha }; $proof = (rtk proxy gh api "repos/$repo/commits/$sha" | ConvertFrom-Json).sha; "$r -> $sha proof=$proof match=$($sha -eq $proof)" }
 ```
 
   you should see: every line ends `match=True`.
+  The two-stage parse is NOT optional either. An action reference can carry a SUBPATH: `github/codeql-action/init@v4` names repository `github/codeql-action` and the action inside it at `init`. Splitting only on `@` and using the whole left side as the repository requests `repos/github/codeql-action/init/git/ref/tags/v4`, which 404s, and the run reads as "the tag does not exist" rather than "the reference was parsed wrong". Taking the first TWO path segments as `owner/repo` handles both shapes and matches what step 24 already does when it re-proves the pins. The `-split "@", 2` limit protects the tag half if a reference ever carries a second `@`.
   The annotated-tag branch is NOT optional. Annotated tags return an object of type `tag`; taking `.object.sha` from those yields the tag object's SHA, not the commit's, which fails at run time.
   Cross-check values only, do NOT paste these in, re-resolve them: `actions/checkout@v7 -> 3d3c42e5aac5ba805825da76410c181273ba90b1`; `actions/setup-python@v7 -> 5fda3b95a4ea91299a34e894583c3862153e4b97`; `actions/checkout@v6 -> d23441a48e516b6c34aea4fa41551a30e30af803`; `actions/setup-python@v6 -> ece7cb06caefa5fff74198d8649806c4678c61a1`; `gitleaks/gitleaks-action@v3 -> e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e`; `googleapis/release-please-action@v5 -> 45996ed1f6d02564a971a2fa1b5860e934307cf7`.
   if it fails: a 404 or a different SHA is a STOP. Do not guess and do not fall back to the plan's table.
@@ -915,7 +960,7 @@ foreach ($r in "actions/checkout@v7","actions/setup-python@v7","actions/checkout
 
 - [ ] Step 19. DEFER branch only. `[SAY TO CLAUDE]`
 
-  > Also pin the three references in `codeql-analysis.yml` (`actions/checkout@v7`, `github/codeql-action/init@v4`, `github/codeql-action/analyze@v4`) using the same resolve-then-prove procedure from step 17.
+  > Also pin the three references in `codeql-analysis.yml` (`actions/checkout@v7`, `github/codeql-action/init@v4`, `github/codeql-action/analyze@v4`) using the same resolve-then-prove procedure from step 17. Add them to step 17's list and re-run it; two of the three carry a subpath, so the repository is `github/codeql-action` and the tag is `v4` for both, which is exactly the case step 17's two-stage parse exists to handle. Both resolve to the same tag on the same repository, so expect two identical SHAs from the two lines.
 
 - [ ] Step 20. `[SAY TO CLAUDE]`
 
@@ -985,9 +1030,10 @@ foreach ($u in (Get-ChildItem .github\workflows -Filter *.yml | Select-String -P
 
 - [ ] Step 30.5. `[SAY TO CLAUDE]`
 
-  > Edit `.planning/ROADMAP.md` line 201 to mark the administrator clause of success criterion 2 as deferred, matching the REQUIREMENTS.md wording: append `(admin-enforcement clause DEFERRED to milestone close, see Phase 38 SCAN-08)`. Change nothing else in the Phase 38 block. No em dashes, no horizontal rules.
+  > Edit `.planning/ROADMAP.md` line 201, Phase 38's success criterion 2, the one carrying the clause `and the rule applies to administrators`. Keep the existing sentence byte-identical and append the CANONICAL annotation, one space after its full stop. The text is canonical, not an example, and must be reproduced exactly: `The admin-enforcement clause DEFERRED to milestone close after Phase 50 by operator decision 2026-08-03 (SCAN-08); the apply procedure lives in 38-SCAN-BASELINE.md under "## SCAN-08 DEFERRED".` Do not paraphrase it and do not substitute a shorter parenthetical. Do not renumber the criteria, do not edit criteria 1, 3 or 4, and do not touch the Phase 38 planning-corrections block below them. No em dashes, no horizontal rules.
 
   you should see: criterion 2 no longer asserts a criterion this phase deliberately does not meet. Without this edit the phase closes with its own roadmap claiming admin enforcement it never applied.
+  This is the same literal `38-03-PLAN.md` Task 3 mandates. It deliberately carries all three substrings the phase's checks look for, `admin-enforcement clause DEFERRED`, `SCAN-08` and `DEFERRED`, so step 31's `Select-String` below passes on it unchanged. A reworded annotation breaks that check silently.
 
 - [ ] Step 31. Task 3 verify.
 
@@ -1030,15 +1076,26 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection/enforce_adm
 ```
 
   you should see: `false`.
-  if it fails: anything other than `false` means the protection API was touched. Revert it before continuing.
+  if it fails: there are two different failures here and they have opposite responses. If the read does not SUCCEED, for example a 403 because branch protection is unavailable for the repository's current plan and visibility, or a 404, then the answer is UNKNOWN, not a violation. Record the verbatim status line, stop, and report; the no-mutation proof simply cannot be taken today. If the read succeeds and returns something other than `false`, the protection API was touched by this block, which step 27 forbids: record it and report it. In NEITHER case may you write to the protection API. Do not PATCH `enforce_admins`, do not PATCH `required_pull_request_reviews`, do not "revert" anything: a protection write is exactly what step 27's HARD RULE prohibits, and issuing one to make this acceptance check read the way you expected would be the very mutation this step exists to disprove. SCAN-08's apply commands are stored text, never commands to run here.
 
-- [ ] Step 36. Acceptance: prove branch protection was NOT changed, part 2.
+- [ ] Step 36. Acceptance: prove branch protection was NOT changed, part 2. Paste the WHOLE fenced block as ONE invocation; the guard and the read it judges have to be one parsed unit.
 
 ```powershell
-rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection" | ConvertFrom-Json | ForEach-Object { $_.required_pull_request_reviews ?? "null" }
+& {
+  $out  = (rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection" --jq ".required_pull_request_reviews" 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  $val  = $out.Trim()
+  "required_pull_request_reviews=[$val] exit=$code"
+  if ($code -ne 0) { throw "UNKNOWN, not a PASS: the protection read exited $code. Record this output verbatim. Do NOT write to the protection API." }
+  if ($val -match '"status"\s*:\s*"4[0-9][0-9]"') { throw "UNKNOWN, not a PASS: the response body carries an HTTP error status, so this is a parsed error page and not a protection setting. Record it verbatim. Do NOT write to the protection API." }
+  if ($val -ne "null") { throw "required_pull_request_reviews reads [$val], not null. Stop and report. Do NOT PATCH it back." }
+  "PASS: required_pull_request_reviews is null, read with exit 0"
+}
 ```
 
-  you should see: `null`.
+  you should see: `required_pull_request_reviews=[null] exit=0`, then `PASS: required_pull_request_reviews is null, read with exit 0`.
+  What changed and why: the earlier form of this step piped the whole protection object through `ConvertFrom-Json` and coalesced a MISSING property to the string `null` with `??`. On a 403 that parses the error body, finds no `required_pull_request_reviews` property, prints exactly `null`, and satisfies "you should see: `null`" while `$LASTEXITCODE` is 1 and nobody reads it. That is a false green standing in for the only evidence this block honoured its own no-mutation rule. The read now asserts on the exit code AND on the body AND on the literal value, all inside one invocation.
+  if it fails: a thrown `UNKNOWN` is not a violation and is not a pass. Record the output verbatim and report that the no-mutation proof is unavailable today. Do NOT respond to any outcome of this step with a write to the protection API; step 27 forbids it and a "revert" here would itself be the mutation.
 
 - [ ] Step 37. Stage everything from this block.
 
@@ -1047,7 +1104,7 @@ rtk git add .github/workflows .planning/REQUIREMENTS.md .planning/STATE.md .plan
 rtk git status --porcelain
 ```
 
-  you should see: the workflow edits (plus the codeql deletion on branch A) and the four doc files staged.
+  you should see: the workflow edits (plus the codeql deletion on branch A) and the four doc files staged, alongside the single untracked `?? .planning/phases/38-scanning-to-zero/.continue-here.md` line carried since Block 1 step 2. That line is expected and stays untracked. The `rtk git add` above names its paths explicitly for exactly that reason: never widen it to `.planning/phases/38-scanning-to-zero/` here, which would stage the stale paused-run handoff into this commit and land it on master at Block 4's merge.
 
 - [ ] Step 38. `[DECIDE]` Commit. Approval point: files table, proposed message, explicit yes.
 
@@ -1065,13 +1122,13 @@ rtk git commit -m "docs(38-03): record SCAN-08 deferral to milestone close"
 
   you should see: two commits instead of one, both on the phase branch.
 
-- [ ] Step 40. Acceptance: working tree clean.
+- [ ] Step 40. Acceptance: working tree clean apart from the deliberately untracked checkpoint file.
 
 ```powershell
 rtk git status --porcelain
 ```
 
-  you should see: empty output.
+  you should see: no output other than the single `?? .planning/phases/38-scanning-to-zero/.continue-here.md` line. It is untracked and unignored on purpose since Block 1 step 2 and it must never be committed. `38-03-PLAN.md`'s own acceptance criterion scopes its clean-tree check to this plan's file set (`git status --porcelain -- .github/workflows .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/STATE.md .planning/phases/38-scanning-to-zero/38-SCAN-BASELINE.md`) for the same reason; run that scoped form if you want the criterion verbatim. Do NOT clear this line by `rtk git add`-ing the phase directory.
 
 - [ ] Step 41. Acceptance: the branch carries only 38-02's and 38-03's commits.
 
@@ -1289,6 +1346,37 @@ foreach ($n in 3,4,5,33,34) {
 
   you should see: five lines, each `state=fixed` with a non-null `fixed_at`. Paste all five verbatim into the summary. A `MISSING (404)` line names the alert that 404'd; `gh` writes the error body to stdout, so `ConvertFrom-Json` succeeds and only the status check catches it.
 
+- [ ] Step 23.5. SCAN-05 by observable CONDITION, not by alert number, with every read gated on its HTTP status line. Paste the WHOLE fenced block as ONE invocation: the merged SHA is re-derived inside it and every guard sits beside what it guards. This is the run-book's mirror of `38-04-PLAN.md` Task 2 step 4, and its two output lines are required verbatim by `38-04-SUMMARY.md`.
+
+```powershell
+& {
+  $msha = ((@(rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master" --jq .commit.sha) -join '')).Trim()
+  if ($msha -notmatch '^[0-9a-f]{40}$') { throw "HALT: could not read the merged master SHA, got '$msha'. Record it verbatim and stop." }
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | Out-String)
+  $status = ($resp -split '\r?\n')[0]
+  if ($status -notmatch '^HTTP/\S+\s+200\b') { throw "HALT (re-query integrity): the code-scanning alert list returned '$status'. Record that status line verbatim in the summary. Anything other than 200 is UNKNOWN, not zero: do not record a fixed, closed or resolved disposition for any alert, do not hand anything to Block 5, and do not proceed." }
+  $open = @(($resp -replace '(?s)^.*?\r?\n\r?\n','') | ConvertFrom-Json)
+  "HTTP status: $status"
+  "open alert records: $($open.Count)"
+  $b64 = ((@(rtk proxy gh api "repos/thezoid/ShopPyBot/contents/.github/workflows/ci.yml?ref=$msha" --jq .content) -join '') -replace '\s','')
+  if ($b64 -notmatch '^[A-Za-z0-9+/=]{40,}$') { throw "HALT: could not read ci.yml at $msha from the contents API. Record the raw response and stop; do not claim SCAN-05." }
+  $ci = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))
+  if ($ci -notmatch '(?m)^permissions:') { throw "HALT: ci.yml at $msha carries no workflow-level permissions block. Block 3 did not land; do not claim SCAN-05." }
+  $wp   = @($open | Where-Object { $_.rule.id -eq 'actions/missing-workflow-permissions' -and $_.most_recent_instance.location.path -eq '.github/workflows/ci.yml' })
+  $live = @($wp | Where-Object { $_.most_recent_instance.category -notlike '.github/workflows/codeql-analysis.yml*' })
+  "ci.yml workflow-permissions records still open: $($wp.Count), of which live: $($live.Count)"
+  $wp | ForEach-Object { "  #{0} cat={1} {2}:{3}" -f $_.number, $_.most_recent_instance.category, $_.most_recent_instance.location.path, $_.most_recent_instance.location.start_line }
+  if ($live.Count -ne 0) { throw "HALT: ci.yml still reproduces actions/missing-workflow-permissions under a live analysis category at $msha. The permissions block did not close it. Dismiss nothing; report with the lines above and stop." }
+  "measured against master SHA $msha"
+}
+```
+
+  you should see: an `HTTP status:` line containing ` 200`, then `ci.yml workflow-permissions records still open: 0, of which live: 0`, then `measured against master SHA <40-hex>`. Paste those lines into `38-04-SUMMARY.md` verbatim; the summary contract requires them as written.
+  Any record counted in `$wp` but not in `$live` is a stale record from the retired workflow's category. Hand it to Block 5 step 15 with the staleness recorded; do NOT dismiss it here.
+  if it fails: a thrown `HALT (re-query integrity):` is not a pass and is never recorded as `0`. Record the status line verbatim, treat the result as UNKNOWN, and stop. A `HALT:` on the ci.yml read or on the missing `permissions:` block means Block 3's edit is not on master; fix that before claiming SCAN-05.
+
+<!-- POSTURE-PENDING: step 23's per-number re-query still names #33 and #34 for the ci.yml workflow-permissions findings, which is why this step checks SCAN-05 by condition instead; whether those two numbers are still the right records, and which ci.yml job each maps to, must be re-derived from a live 200 on code-scanning/alerts once the operator settles the repository posture, because re-enabling code scanning may renumber them. The condition check above is posture-independent and does not rely on any alert number. -->
+
 - [ ] Step 24. `[DECIDE]` ONLY IF any of the five is still `state=open` after the merged-SHA analysis exists: fetch its instances.
 
 ```powershell
@@ -1309,12 +1397,11 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_
 - [ ] Step 27. Task 2 verify: count of open non-test url-sanitization and workflow-permissions alerts.
 
 ```powershell
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" |
-  ConvertFrom-Json |
-  Where-Object { $_.rule.id -in @("actions/missing-workflow-permissions","py/incomplete-url-substring-sanitization") -and -not $_.most_recent_instance.location.path.StartsWith("tests/") }).Count
+& { $b = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | Out-String); $s = ($b -split '\r?\n')[0]; if ($s -notmatch '^HTTP/\S+\s+200\b') { throw "HALT (re-query integrity): $s" }; @(($b -replace '(?s)^.*?\r?\n\r?\n','') | ConvertFrom-Json | Where-Object { $_.rule.id -in @('py/incomplete-url-substring-sanitization','actions/missing-workflow-permissions') -and -not ($_.most_recent_instance.location.path -like 'tests/*') }).Count }
 ```
 
   you should see: `0`.
+  This is `38-04-PLAN.md` Task 2's `<automated>` verify verbatim. Keep it byte-identical: the status guard is inside the same invocation as the count on purpose, because an unfiltered list read that 403s parses to an empty array and prints `0`, which is indistinguishable from a genuinely empty queue. A thrown `HALT (re-query integrity):` is not a pass and is never recorded as `0`.
 
 - [ ] Step 28. `[SAY TO CLAUDE]`
 
@@ -1346,13 +1433,24 @@ $a = rtk proxy gh api "repos/thezoid/ShopPyBot/dependabot/alerts/13" | ConvertFr
 
   you should see: `state=fixed`.
 
-- [ ] Step 32. Confirm the Dependabot queue as a whole.
+- [ ] Step 32. Confirm the Dependabot queue as a whole. Read the status line, not just the count: an unreadable endpoint must halt with that status recorded, never be written up as an empty queue. Paste the WHOLE fenced block as ONE invocation.
 
 ```powershell
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/dependabot/alerts?state=open&per_page=100" | ConvertFrom-Json).Count
+& {
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/dependabot/alerts?state=open&per_page=100" | Out-String)
+  $status = ($resp -split '\r?\n')[0]
+  if ($status -notmatch '^HTTP/\S+\s+200\b') {
+    throw "HALT (re-query integrity): the Dependabot alert list returned '$status'. Record that status line verbatim in the summary. Anything other than 200 is UNKNOWN, not an empty queue: do not record zero open Dependabot alerts and do not close SCAN-01."
+  }
+  $open = @(($resp -replace '(?s)^.*?\r?\n\r?\n','') | ConvertFrom-Json)
+  "HTTP status: $status"
+  "open Dependabot alerts: $($open.Count)"
+  $open | ForEach-Object { "  #{0} {1} {2}" -f $_.number, $_.security_advisory.ghsa_id, $_.dependency.package.name }
+}
 ```
 
-  you should see: `0`, or a summary naming every alert still open and why.
+  you should see: `open Dependabot alerts: 0` printed under an `HTTP status:` line containing ` 200`, or every alert still open itemised with its GHSA id and package. Paste the `open Dependabot alerts:` line into the summary exactly as printed; `38-04-PLAN.md` Task 3's acceptance criterion reads that line.
+  if it fails: a thrown `HALT (re-query integrity):` is UNKNOWN, not zero. Record the status line verbatim and do not close SCAN-01 on it.
 
 - [ ] Step 33. `[DECIDE]` ONLY IF alert 13 is still open after 20 minutes AND steps 29/30 proved master carries the patched pin: do NOT dismiss it here as a false positive. That would record a lie in the audit trail. Record in the summary that the fix is on master at `MERGED_MASTER` and the graph has not refreshed, and hand it to Block 6 Task 3's final gate for one more re-query.
 
@@ -1385,6 +1483,21 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/dependabot/alerts/13" --jq ".state"
 Gate: Block 4 complete, and `tests/test_secret_names_not_values.py` is on master and green. On the SAFE-TO-DELETE branch, `.github/workflows/codeql-analysis.yml` was also deleted from master, which is what makes the #25/#26 staleness claim true. On the DEFER branch that second fact does NOT hold; step 0 tells you what changes.
 
 Two things about this block are not stylistic. First, the 19 SCAN-04 alerts are FOUR shapes, not one: each shape gets its own spot check and its own dismissal string, because a reviewer checking a comment against the cited line has to find the comment true at that line, and one string covering all 19 would be false at 16 of them. Seven distinct strings leave this block and Block 6 step 25.5 audits that they are still seven. Second, the two secret-scanning options are enabled in two requests in a fixed order with an enumeration and a wait between them, never bundled.
+
+- [ ] PRECONDITION, fail closed. This is `38-05-PLAN.md` Task 1 step 0 and it runs before step 0's branch check. Nothing in this block runs until the code scanning alert list is readable. Paste the WHOLE fenced block as ONE invocation.
+
+```powershell
+& {
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | Out-String)
+  $status = ($resp -split '\r?\n')[0]
+  "PRECONDITION status line: [$status]"
+  if ($status -notmatch '^HTTP/\S+\s+200\b') { throw "HALT: code scanning alert query did not return 200. Status line: [$status]" }
+  "PRECONDITION ok"
+}
+```
+
+  you should see: a `PRECONDITION status line:` whose bracketed value contains ` 200`, then `PRECONDITION ok`. Paste that status line into `38-05-SUMMARY.md`; `38-05-PLAN.md`'s acceptance criteria require it on record.
+  if it fails: HALT the whole block. Do not run step 0, Task 1, Task 2 or Task 3, and do not record a single alert as closed. A non-200 is not an empty alert set: a 403, a 404, or an empty status line means code scanning is unavailable, not that the queue is clean. Treating an unreadable endpoint as a zero would write 26 permanent dismissals' worth of false evidence without issuing one PATCH.
 
 - [ ] Step 0. `[DECIDE]` Branch check before anything in this block. Read `## VERDICT-SCAN-06` in `38-SCAN-BASELINE.md`.
   - SAFE-TO-DELETE: proceed as written.
@@ -1563,21 +1676,21 @@ $clearText = @(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?st
   ConvertFrom-Json |
   Where-Object { $_.rule.id -in @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data") })
 $clearText | ForEach-Object { "{0} {1} {2}:{3}" -f $_.number, $_.rule.id, $_.most_recent_instance.location.path, $_.most_recent_instance.location.start_line }
-"count = " + $clearText.Count
+"clear-text alert records: " + $clearText.Count
 $groupA = @($clearText | Where-Object { $_.most_recent_instance.location.path -like "core/cli/setup.py" } | ForEach-Object { $_.number })
 $groupB = @($clearText | Where-Object { $_.number -in 31,32 } | ForEach-Object { $_.number })
 $groupC = @($clearText | Where-Object { $_.number -in 25,26 } | ForEach-Object { $_.number })
-"A=$($groupA -join ',')  B=$($groupB -join ',')  C=$($groupC -join ',')"
+"GA=[$($groupA -join ' ')]  GB=[$($groupB -join ' ')]  GC=[$($groupC -join ' ')]"
 ```
 
-  you should see: exactly 7 numbers: 25, 26, 27, 28, 29, 31, 32, and `A=27,28,29  B=31,32  C=25,26`. Alert #30 is absent by design; it is not open at baseline, which is why the phase's inventory of 3 + 19 + 7 + 2 = 31 alerts spans numbers 3 through 34.
+  you should see: exactly 7 numbers: 25, 26, 27, 28, 29, 31, 32, then `clear-text alert records: 7` and `GA=[27 28 29]  GB=[31 32]  GC=[25 26]`. Paste both of those lines into `38-05-SUMMARY.md` exactly as printed; `38-05-PLAN.md` Task 2's acceptance criteria read them by those names. Every value in them is derived from this query, never typed in. Alert #30 is absent by design; it is not open at baseline, which is why the phase's inventory of 3 + 19 + 7 + 2 = 31 alerts spans numbers 3 through 34.
   Seven is a count of open alert RECORDS, not a count of findings the current master analysis still reports. Five of the seven are live on master; #25 and #26 are already `state=fixed` under the default-setup analysis and remain open records only because the retired workflow analysis left open instances behind. Step 18 is what distinguishes the two. Do not skip it.
   if it fails: any deviation must be investigated before dismissing. Do not adjust the loops to match.
 
 - [ ] Step 16. Group A: the three `core/cli/setup.py` alerts, reason `false positive`, with their own comment string.
 
 ```powershell
-$ca = "False positive. CodeQL's taint source is SECRET_KEYS at core/credentials.py:47, a module-level list of 20 credential key NAMES, not values. The flagged expressions print a key name (setup.py:108, :126) or a prefix derived from a key name via key.split('_')[0] (setup.py:122). Secret values are read by getpass and passed straight to store.set(); they never reach a print or a log call. The invariant is pinned by tests/test_secret_names_not_values.py, which fails if any value reaches stdout or the log file."
+$ca = "False positive. CodeQL's taint source is SECRET_KEYS at core/credentials.py:47, a module-level list of 20 credential key NAMES, not values. The flagged expressions print a key name (setup.py:108 in the --migrate branch, :126 in the interactive branch) or a prefix derived from a key name via key.split('_')[0] (setup.py:122, interactive branch). No SECRET_KEYS value reaches a print or a log call on either of the two code paths that write one: interactively via _prompt_secret (setup.py:15-25, called at :123) straight into store.set() at :125, and under --migrate via os.environ.get straight into store.set() at core/credentials.py:406-409. The invariant is pinned by tests/test_secret_names_not_values.py, which fails if any value reaches stdout or the log file."
 foreach ($n in $groupA) {
   $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$ca" | ConvertFrom-Json
   "#{0} -> {1}" -f $r.number, $r.state
@@ -1587,17 +1700,26 @@ foreach ($n in $groupA) {
   you should see: `#27 -> dismissed`, `#28 -> dismissed`, `#29 -> dismissed`.
   IRREVERSIBLE: PATCH-dismisses the Group A alerts. It destroys their open state. Recoverable only by a manual PATCH back to `state=open`; the dismissal event in the audit trail is permanent.
 
-- [ ] Step 17. Group B: the two live `logger.py` alerts, with a DISTINCT comment string. That string carries the fingerprint caveat deliberately, because the caveat is the honest limit of this dismissal and it has to live where a future reader of the alert will see it, not only in a summary file.
+- [ ] Step 17. Group B: the two live `logger.py` alerts, with a DISTINCT comment string. That string carries the shared-sink caveat deliberately, because the caveat is the honest limit of this dismissal and it has to live where a future reader of the alert will see it, not only in a summary file. Paste the WHOLE fenced block as ONE invocation: the caveat claims a measurable property of `logger.py`, so the measurement and the two guards that judge it sit in the same parsed unit as the PATCH loop they gate. `$cb` asserts a LOCATION, not a CodeQL fingerprinting algorithm; the `SINK` and `CALLERS` values printed below are the measurement behind it.
 
 ```powershell
-$cb = "False positive. Same source as the setup.py alerts: SECRET_KEYS at core/credentials.py:47. The flow reaches logger.writeLog through core/credentials.py:414, an f-string that interpolates the key NAME into a WARNING message when a backend read-back fails. No secret value is on this path. Pinned by tests/test_secret_names_not_values.py, which asserts sentinel values reach neither stdout (logger.py:65) nor the log file (logger.py:72), and includes a positive control proving the assertion is not vacuous. Fingerprint caveat, stated deliberately: these two alerts fingerprint on primaryLocationLineHash at logger.py:65 and :72, which is the shared writeLog sink that every caller in the codebase reaches, not a location unique to the credentials flow. A future genuine secret leak arriving at those same lines through a different caller could be auto-matched to this dismissed alert and never surface as a new one. That is exactly why this dismissal is backed by tests/test_secret_names_not_values.py, which fails on regression, rather than by this comment alone."
-foreach ($n in $groupB) {
-  $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$cb" | ConvertFrom-Json
-  "#{0} -> {1}" -f $r.number, $r.state
+& {
+  $lg = Get-Content logger.py
+  $sink = if ($lg[48] -match '^def writeLog' -and $lg[64] -match 'print\(' -and $lg[71] -match 'logFile\.write') { "OK" } else { "MISMATCH" }
+  $callers = @(Get-ChildItem -Path core,plugins,notifications,web,tests,scripts -Recurse -Filter *.py | Select-String -Pattern "writeLog\(").Count + @(Select-String -Path main.py,models.py,utils.py,config.py -Pattern "writeLog\(").Count
+  "SINK=$sink writeLog call sites outside logger.py: $callers"
+  if ($sink -ne "OK") { throw "HALT: logger.py:49/:65/:72 are not the writeLog definition and its two sink lines. CB's shared-sink caveat would be false; do not PATCH." }
+  if ($callers -lt 2) { throw "HALT: only $callers writeLog call sites outside logger.py. CB's shared-sink caveat would be false; do not PATCH." }
+  $cb = "False positive. Same source as the setup.py alerts: SECRET_KEYS at core/credentials.py:47. The flow reaches logger.writeLog through core/credentials.py:414, an f-string that interpolates the key NAME into a WARNING message when a backend read-back fails. No secret value is on this path. Pinned by tests/test_secret_names_not_values.py, which asserts sentinel values reach neither stdout (logger.py:65) nor the log file (logger.py:72), and includes a positive control proving the assertion is not vacuous. Shared-sink caveat, stated deliberately and measured at dismissal time: these two alerts are located at logger.py:65 and :72, the print and logFile.write lines inside writeLog (defined at logger.py:49), which is the sink every logging caller in this repository reaches, not a location unique to the credentials flow. A future genuine secret leak arriving at those same lines through a different caller would therefore present at an already-dismissed location rather than as a new finding. That is exactly why this dismissal is backed by tests/test_secret_names_not_values.py, which fails on regression, rather than by this comment alone."
+  foreach ($n in $groupB) {
+    $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$cb" | ConvertFrom-Json
+    "#{0} -> {1}" -f $r.number, $r.state
+  }
 }
 ```
 
-  you should see: `#31 -> dismissed`, `#32 -> dismissed`.
+  you should see: `SINK=OK writeLog call sites outside logger.py: <n>` with `<n>` at least 2, then `#31 -> dismissed`, `#32 -> dismissed`. Paste the `SINK=` line into `38-05-SUMMARY.md`; it is the evidence behind `$cb`'s shared-sink caveat and `38-05-PLAN.md` Task 2 requires it on record.
+  if a guard throws: nothing is PATCHed, which is the designed outcome. `SINK=MISMATCH` means `logger.py:49`, `:65` and `:72` are no longer the `writeLog` definition and its two sink lines, so the caveat's stated locations would be false; fewer than two external call sites means the sink is not shared and the caveat overstates it. Re-derive the line numbers and rewrite `$cb` before dismissing anything. Do not unwrap the block or delete a guard to get past it.
   IRREVERSIBLE: PATCH-dismisses the Group B alerts. It destroys their open state. Recoverable only by a manual PATCH back to `state=open`; the dismissal event in the audit trail is permanent.
 
 - [ ] Step 18. `[DECIDE]` BEFORE Group C, prove the staleness claim for #25 and #26 with the instances endpoint rather than asserting it. This runs AHEAD of the group C PATCH so the evidence exists before the mutation.
@@ -1620,6 +1742,9 @@ foreach ($n in $groupC) {
 & {
   $v = (Select-String -Path .planning\phases\38-scanning-to-zero\38-SCAN-BASELINE.md -Pattern "^VERDICT-SCAN-06: (SAFE-TO-DELETE|DEFER)$" | ForEach-Object { $_.Matches[0].Groups[1].Value })
   if ($v -ne "SAFE-TO-DELETE") { throw "VERDICT-SCAN-06 = '$v' - the staleness comment asserts a deletion that did not happen. DO NOT DISMISS. Go to step 20." }
+  $liveInst = @($groupC | ForEach-Object { $n = $_; rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n/instances?per_page=10" | ConvertFrom-Json | Where-Object { $_.state -eq "open" -and $_.category -notlike ".github/workflows/codeql-analysis.yml*" } }).Count
+  "open instances NOT from the retired codeql-analysis.yml workflow: $liveInst"
+  if ($liveInst -ne 0) { throw "HALT: $liveInst open instance(s) on group C come from a live analysis. They are not stale and the staleness comment would be false; do not PATCH." }
   $cc = "False positive, and stale. Same underlying SECRET_KEYS finding as #31 and #32, recorded at pre-Phase-37 line numbers (logger.py:50 and :43, now :72 and :65 after the FC-01 ContextVar block was inserted). The default-setup instance at master 36f75c76 is already state=fixed; the remaining open instances all carry category .github/workflows/codeql-analysis.yml:analyze, at master 4123059b and at refs/pull/12/merge and refs/pull/13/merge. That workflow was disabled_manually and was deleted in Phase 38 (SCAN-06), so nothing can ever refresh those instances and the alert cannot close by itself."
   foreach ($n in $groupC) {
     $r = rtk proxy gh api -X PATCH "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" -f state=dismissed -f "dismissed_reason=false positive" -f "dismissed_comment=$cc" | ConvertFrom-Json
@@ -1628,7 +1753,7 @@ foreach ($n in $groupC) {
 }
 ```
 
-  you should see: `#25 -> dismissed`, `#26 -> dismissed`. That is SEVEN distinct strings written across steps 5, 5.1, 5.2, 5.3, 16, 17 and 19.
+  you should see: `open instances NOT from the retired codeql-analysis.yml workflow: 0`, then `#25 -> dismissed`, `#26 -> dismissed`. That is SEVEN distinct strings written across steps 5, 5.1, 5.2, 5.3, 16, 17 and 19. Paste the `open instances NOT from...` line into the summary; it is the machine-checkable form of step 18's staleness proof and it is measured inside the same invocation as the PATCH it authorises, so it cannot be skipped by a call boundary.
   The `& { ... }` wrapper is load-bearing for the same reason it is at Block 3 step 11 and Block 6 step 15: this is the phase's third branch-conditional irreversible mutation, and prose alone (step 0, step 18's DEFER note, the IRREVERSIBLE line below) cannot stop a paste. The guard reads the recorded SCAN-06 verdict and throws on DEFER, and the wrapper makes that throw abort the PATCH loop rather than merely printing ahead of it. If pwsh shows a `>>` continuation prompt, that is the shell holding the block, not a hang. A caller that submits the lines independently gets a parse error on the opening brace; a caller that logs that error and keeps going still reaches the PATCH, so an automated driver must abort the whole sequence on it.
   IRREVERSIBLE: PATCH-dismisses the Group C alerts. It destroys their open state and writes `$cc` permanently into the repository audit trail, where it cannot be edited. Must not run before the step 18 staleness proof, and must not run at all on the DEFER branch, because `$cc` asserts a deletion that did not happen.
 
@@ -1655,9 +1780,9 @@ foreach ($n in ($clearText | ForEach-Object { $_.number })) {
 
 - [ ] Step 22. `[SAY TO CLAUDE]`
 
-  > Record the SCAN-02 correction in the summary explicitly: the requirement says "the two" clear-text alerts in `logger.py`, but there are seven, and three of them are in `core/cli/setup.py` which SCAN-02 never mentions. All seven accounted for, none left open (or, on the DEFER branch, #25 and #26 recorded as blocked with the reason), none silently ignored. Reproduce all three clear-text dismissal strings in full and confirm they are distinct from each other. Also record the #31 and #32 fingerprint caveat in the summary in its own right: those alerts fingerprint on `primaryLocationLineHash` at `logger.py:65` and `:72`, the shared `writeLog` sink, so a future genuine leak reaching those lines through a different caller could be auto-matched to this dismissal instead of surfacing as a new alert, and `tests/test_secret_names_not_values.py` is the mitigation that catches such a regression.
+  > Record the SCAN-02 correction in the summary explicitly: the requirement says "the two" clear-text alerts in `logger.py`, but there are seven, and three of them are in `core/cli/setup.py` which SCAN-02 never mentions. All seven accounted for, none left open (or, on the DEFER branch, #25 and #26 recorded as blocked with the reason), none silently ignored. Reproduce all three clear-text dismissal strings in full and confirm they are distinct from each other. Also record the #31 and #32 shared-sink caveat in the summary in its own right, as a measured LOCATION claim and not as a claim about CodeQL's fingerprinting algorithm: those two alerts are located at `logger.py:65` and `:72`, the `print` and `logFile.write` lines inside `writeLog` (defined at `logger.py:49`), which is the sink every logging caller in this repository reaches rather than a location unique to the credentials flow, so a future genuine leak arriving at those same lines through a different caller would present at an already-dismissed location rather than as a new finding, and `tests/test_secret_names_not_values.py` is the mitigation that catches such a regression. Paste step 17's `SINK=` line as the measurement behind it.
 
-  you should see: a single reused string across all seven does NOT satisfy acceptance, and the fingerprint caveat appears in BOTH the `$cb` dismissal comment and the summary.
+  you should see: a single reused string across all seven does NOT satisfy acceptance, and the shared-sink caveat appears in BOTH the `$cb` dismissal comment and the summary, with step 17's `SINK=` measurement alongside it in the summary.
 
 - [ ] Step 23. `[SAY TO CLAUDE]`
 
@@ -1752,7 +1877,7 @@ $s = (rtk proxy gh api "repos/thezoid/ShopPyBot" | ConvertFrom-Json).security_an
 
 - [ ] Step 31. `[SAY TO CLAUDE]`
 
-  > Write `.planning/phases/38-scanning-to-zero/38-05-SUMMARY.md`, minimum 50 lines, containing: all 26 re-query lines verbatim; all SEVEN dismissal reason strings in full, the four shape strings from steps 5 through 5.3 and the three sub-case strings from steps 16, 17 and 19; the `/instances` evidence for #25 and #26; the #31 and #32 fingerprint caveat; the four spot-checked alerts, one per shape, with their source lines quoted; the SCAN-02 two-vs-seven correction; the before, intermediate and after `security_and_analysis` blocks; and the full poll record from step 28. State which of the 31 alerts left the queue by dismissal and which left by source fix (#3, #4, #5 via `core/urls.host_matches` in SCAN-03; #33 and #34 via workflow permissions in SCAN-05). Do not blur the two routes into a single zero.
+  > Write `.planning/phases/38-scanning-to-zero/38-05-SUMMARY.md`, minimum 50 lines, containing: all 26 re-query lines verbatim; all SEVEN dismissal reason strings in full, the four shape strings from steps 5 through 5.3 and the three sub-case strings from steps 16, 17 and 19; the `/instances` evidence for #25 and #26; the #31 and #32 shared-sink caveat with step 17's `SINK=OK writeLog call sites outside logger.py: <n>` measurement beside it; the PRECONDITION status line; the `clear-text alert records:` and `GA=[...] GB=[...] GC=[...]` lines from step 15; the four spot-checked alerts, one per shape, with their source lines quoted; the SCAN-02 two-vs-seven correction; the before, intermediate and after `security_and_analysis` blocks; and the full poll record from step 28. State which of the 31 alerts left the queue by dismissal and which left by source fix (#3, #4, #5 via `core/urls.host_matches` in SCAN-03; #33 and #34 via workflow permissions in SCAN-05). Do not blur the two routes into a single zero.
 
 - [ ] Step 32. `[DECIDE]` Commit the summary on `phase-38-docs`. Approval point: files table, proposed message, explicit yes.
 
@@ -1836,12 +1961,23 @@ $r.checks | ForEach-Object { "{0} app_id={1}" -f $_.context, $_.app_id }
 - [ ] Step 7. Confirm nothing else moved. SCAN-08 is DEFERRED and this task must not accidentally implement part of it.
 
 ```powershell
+& {
+  $out  = (rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection" --jq ".required_pull_request_reviews" 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  $val  = $out.Trim()
+  "required_pull_request_reviews=[$val] exit=$code"
+  if ($code -ne 0) { throw "UNKNOWN, not a PASS: the protection read exited $code. Record this output verbatim. Do NOT write to the protection API." }
+  if ($val -match '"status"\s*:\s*"4[0-9][0-9]"') { throw "UNKNOWN, not a PASS: the response body carries an HTTP error status, so this is a parsed error page and not a protection setting. Record it verbatim. Do NOT write to the protection API." }
+  if ($val -ne "null") { throw "required_pull_request_reviews reads [$val], not null. SCAN-08 was partially implemented; stop and report. Do NOT PATCH it back." }
+  "PASS: required_pull_request_reviews is null, read with exit 0"
+}
 rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection/enforce_admins" --jq ".enabled"
-rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection" | ConvertFrom-Json | ForEach-Object { $_.required_pull_request_reviews ?? "null" }
 rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection" --jq ".allow_force_pushes.enabled, .allow_deletions.enabled"
 ```
 
-  you should see: `false`, `null`, `false`, `false`. All unchanged.
+  you should see: `required_pull_request_reviews=[null] exit=0` and `PASS: ...`, then `false`, then `false`, `false`. All unchanged.
+  This is the same guarded read as Block 3 step 36 and it is here for the same reason: piping the protection object through `ConvertFrom-Json` and coalescing a MISSING property with `??` prints exactly `null` when the API answers 403, which reads as the expected PASS while the exit code says the read failed and nobody looks at it. Assert the exit code, the body and the literal value, in one invocation.
+  if it fails: a thrown `UNKNOWN` means the protection API could not be read, which is not evidence that SCAN-08 stayed deferred and is also not evidence that it did not. Record the output verbatim and report. Do NOT respond by writing to the protection API in either direction.
 
 - [ ] Step 8. Task 1 verify.
 
@@ -1879,7 +2015,7 @@ rtk git merge-base --is-ancestor $DEVSHA origin/master
 
 - [ ] Step 11. `[DECIDE]` Decision gate on step 10. Write the decision down.
   - (a) `matches_planning_sha=False`: STOP and report. Someone pushed to a branch dormant for 17 months and that needs a human look.
-  - (b) `ancestor_exit` is `0`: the commit is already reachable from master, the archive tag is unnecessary, and the disposition changes. Record it, skip step 12, and delete the branch as a separate, deliberately taken step noting why the tag was skipped. Do NOT edit step 15's guards to fall through.
+  - (b) `ancestor_exit` is `0`: the commit is already reachable from master, so the archive tag is unnecessary and the disposition changes. STOP HERE. Record the reading, skip step 12, and do NOT delete the branch in this run. This run-book has no block for that path and deliberately does not add one: step 15 cannot serve it, because its third guard resolves `archive/dev-final`, the tag branch (b) just skipped creating, so step 15 would throw `TAG MISMATCH` on a branch that is genuinely safe to delete. Deleting a ref outside step 15's guarded invocation is an operator decision taken with a written record, not a run-book step, and no plan in this phase authorises one. SCAN-10 closes as recorded-and-not-executed on this path, which is a permitted outcome. Do NOT edit step 15's guards to fall through and do NOT hand-write an unguarded delete.
   - (c) `ancestor_exit` nonzero: this is the proof the commit is not reachable from master, which is the entire reason the tag is required. Proceed to step 12.
 
 - [ ] Step 12. Create the lightweight tag on the remote. A lightweight tag is sufficient: it is a ref pointing at the commit, which is exactly what keeps the object alive.
@@ -1946,8 +2082,12 @@ rtk proxy git cat-file -t $DEVSHA
 - [ ] Step 16. Re-query both sides. The `refs/heads/dev` criterion is SCOPED to that one refspec on purpose: this phase deletes exactly one ref and an unscoped `ls-remote origin` lists every head on the remote. The last command is deliberately NOT scoped, but it is scoped to tags: `38-06-PLAN.md`'s acceptance asks to see `archive/dev-final` sitting alongside the pre-existing tags, and no scoped-to-one-refspec query can show that.
 
 ```powershell
-rtk proxy gh api "repos/thezoid/ShopPyBot/branches/dev"
-"branch_query_exit=$LASTEXITCODE"
+& {
+  $bs = (((rtk proxy gh api -i "repos/thezoid/ShopPyBot/branches/dev" 2>&1 | Out-String) -split '\r?\n')[0]).Trim()
+  "branch_query_status=[$bs] (404 expected)"
+  if ($bs -match '^HTTP/\S+\s+200\b') { throw "FATAL: branches/dev still resolves after the delete" }
+  if ($bs -notmatch '^HTTP/\S+\s+404\b') { throw "FATAL: branches/dev answered neither 200 nor 404 ([$bs]); the delete is UNVERIFIED, do not record SCAN-10 as done" }
+}
 $POSTSHA = (rtk proxy gh api "repos/thezoid/ShopPyBot/git/ref/tags/archive/dev-final" | ConvertFrom-Json).object.sha
 "post_delete_tag_sha=$POSTSHA matches_DEVSHA=" + ($POSTSHA -eq $DEVSHA)
 rtk git fetch origin --prune
@@ -1959,7 +2099,7 @@ rtk proxy git rev-parse archive/dev-final
 rtk proxy git cat-file -t $DEVSHA
 ```
 
-  you should see: the branch query fails with HTTP 404 and a nonzero `branch_query_exit`; `matches_DEVSHA=True`; `refs/heads/dev lines = 0`; and exactly one line for the scoped tag ref.
+  you should see: `branch_query_status=[HTTP/2.0 404 Not Found] (404 expected)` with no `FATAL:` after it; `matches_DEVSHA=True`; `refs/heads/dev lines = 0`; and exactly one line for the scoped tag ref. Paste the `branch_query_status=` line into the SCAN-10 record: `38-06-PLAN.md` Task 2's acceptance criterion asks for that line showing ` 404`, and states plainly that a bare nonzero exit code does not satisfy it. The earlier form of this step recorded `branch_query_exit=$LASTEXITCODE`, which cannot distinguish a deleted branch from a network failure or an expired token; all three exit nonzero and only one of them means the delete took.
   you should see from the last two commands: `rev-parse` prints `$DEVSHA` and `cat-file` prints `commit`, AFTER the delete. That is what `38-06-PLAN.md`'s criterion asks for: proof the object survived the branch deletion rather than proof it existed before it. The same two commands run at step 13 (c) and (d) and inside step 15's guards, but only before the delete, so they cannot satisfy this criterion on their own.
   you should see from the final command: four distinct tag names, `archive/dev-final`, `pre-v5-mainline`, `v2.0` and `v4.2`, which is the `38-06-PLAN.md` acceptance criterion. Expect SEVEN lines, not four. `pre-v5-mainline`, `v2.0` and `v4.2` are annotated tags, so each prints its tag-object line plus a peeled `^{}` line; `archive/dev-final` is lightweight (step 12 pointed a ref straight at the commit) so it prints one line only, and that line's sha must equal `$DEVSHA`.
   The `--tags` flag MUST come before `origin`. Written the other way round, `rtk proxy git ls-remote origin --tags`, git reads `--tags` as a ref PATTERN, matches nothing, prints nothing and exits `0`. Measured on this box. An empty listing with a clean exit reads as "the tags are gone", which is a confident wrong answer of exactly the kind this run-book keeps flagging.
@@ -1994,12 +2134,21 @@ rtk git status --porcelain .github/workflows/ci.yml .github/workflows/gitleaks.y
 - [ ] Step 21. All three scanners, measured now from the API. Do not copy numbers forward from earlier summaries.
 
 ```powershell
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | ConvertFrom-Json).Count
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/dependabot/alerts?state=open&per_page=100" | ConvertFrom-Json).Count
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/secret-scanning/alerts?state=open&per_page=100" | ConvertFrom-Json).Count
+foreach ($ep in "code-scanning/alerts?state=open&per_page=100","dependabot/alerts?state=open&per_page=100","secret-scanning/alerts?state=open&per_page=100") {
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/$ep" 2>&1 | Out-String)
+  $status = (($resp -split '\r?\n')[0]).Trim()
+  if ($status -match '^HTTP/\S+\s+200\b') {
+    $n = @(($resp -replace '(?s)^.*?\r?\n\r?\n','') | ConvertFrom-Json).Count
+    "SCANNER $ep status=[$status] open=$n"
+  } else {
+    "SCANNER $ep status=[$status] open=UNVERIFIABLE"
+  }
+}
 ```
 
-  you should see: `0`, `0`, `0`. On the DEFER branch the first count is expected to be `2` (#25 and #26, blocked on SCAN-06), which is itemised per step 22 and closes SCAN-02 as NOT MET rather than being dismissed away.
+  you should see: three `SCANNER ... status=[...] open=0` lines, each status containing ` 200`. On the DEFER branch the first count is expected to be `2` (#25 and #26, blocked on SCAN-06), which is itemised per step 22 and closes SCAN-02 as NOT MET rather than being dismissed away.
+  Paste all three lines verbatim into `38-06-SUMMARY.md` and into the FINAL GATE evidence. `38-06-PLAN.md` Task 3 step 1 requires the status line BESIDE every count, in exactly this shape, and its acceptance criteria read it.
+  if any line reads `open=UNVERIFIABLE`: record its status line verbatim and give every FINAL GATE row that depends on that scanner the state `UNVERIFIABLE (HTTP <status>)`. Never write `MET`, and never write an open count of `0`, for a queue that did not answer `200`. From the count alone an unreadable endpoint and an empty queue are the same value, which is precisely what this step exists to prevent: the earlier form of this step piped an unchecked body through `ConvertFrom-Json` and printed `0` for a 403.
 
 - [ ] Step 22. `[DECIDE]` If any count is nonzero, list every remaining alert with its number, rule, and location, and state whether it is a genuine new finding or a leftover. Do NOT dismiss anything here to reach zero. A nonzero count with an honest explanation is a better outcome than a zero reached by dismissal. This phase's main output is dismissals, and a dismissal is indistinguishable from a fix in the alert count, which is exactly why this rule exists.
 
@@ -2076,8 +2225,8 @@ $groups | ForEach-Object { "{0} -> {1}" -f $_.Name, ((($_.Group | ForEach-Object
   | `$c2` | `9` through `15` | 1042 | `[ the plugin class attribute domain_patte]` |
   | `$c3` | `16` through `19` | 1049 | `[ domain_patterns on a plugin instance th]` |
   | `$c4` | `20` through `24` | 981 | `[is _read_security_md() at tests/test_sec]` |
-  | `$ca` | `27`, `28`, `29` | 508 | `[-level list of 20 credential key NAMES, ]` |
-  | `$cb` | `31`, `32` | 1063 | `[7. The flow reaches logger.writeLog thro]` |
+  | `$ca` | `27`, `28`, `29` | 765 | `[-level list of 20 credential key NAMES, ]` |
+  | `$cb` | `31`, `32` | 1143 | `[7. The flow reaches logger.writeLog thro]` |
   | `$cc` | `25`, `26` | 594 | `[at pre-Phase-37 line numbers (logger.py:]` |
 
   The `$c2`, `$c3` and `$ca` windows each begin with one character that is easy to lose when pasting: a leading space for `$c2` and `$c3`, a leading hyphen for `$ca` (it lands mid-word inside `module-level`). Preserve them. All seven `len=` values are distinct on their own, so length alone is currently sufficient to separate the groups; do not rely on that, check the pair.
@@ -2087,16 +2236,41 @@ $groups | ForEach-Object { "{0} -> {1}" -f $_.Name, ((($_.Group | ForEach-Object
   DEFER BRANCH: `#25` and `#26` are not dismissed there, so the expected shape is six comment groups plus a `len=0 mid=TOO-SHORT` pair carrying `state=open` for those two numbers. Record that; do not dismiss them here to reach seven.
   (POSIX original in appendix)
 
+- [ ] Step 25.6. MEASURE pull request #23 now. Its state is NOT dictated by this run-book and must not be copied forward from any earlier document. Paste the WHOLE fenced block as ONE invocation so the status guard sits with the values it guards. This is `38-06-PLAN.md` Task 3 step 3a.
+
+```powershell
+& {
+  $measured = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+  $st = (((rtk proxy gh api -i "repos/thezoid/ShopPyBot/pulls/23" 2>&1 | Out-String) -split '\r?\n')[0]).Trim()
+  "pr23 status=[$st] measured=$measured"
+  if ($st -notmatch '^HTTP/\S+\s+200\b') { throw "pr23 UNVERIFIABLE: pulls/23 did not return 200. Record the status line and make no mergeability claim." }
+  $p = rtk proxy gh api "repos/thezoid/ShopPyBot/pulls/23" | ConvertFrom-Json
+  "pr23 head={0} mergeable={1} mergeable_state={2}" -f $p.head.sha, $p.mergeable, $p.mergeable_state
+  rtk proxy gh api "repos/thezoid/ShopPyBot/commits/$($p.head.sha)/check-runs?per_page=100" |
+    ConvertFrom-Json |
+    Select-Object -ExpandProperty check_runs |
+    ForEach-Object { "pr23 check: {0} app={1} conclusion={2}" -f $_.name, $_.app.slug, $_.conclusion }
+  "pr23 measured=$measured"
+}
+```
+
+  you should see: `pr23 status=[...]` with ` 200`, then `pr23 head=... mergeable=... mergeable_state=...`, then one `pr23 check:` line per check run at that head, then `pr23 measured=<date>`. Paste all of them verbatim into `38-06-SUMMARY.md` and into the FINAL GATE record; step 26 writes the #23 paragraph from THIS output and from nowhere else.
+  `mergeable` is computed asynchronously and a first read can return `null`. A `null` is not `false`: re-run the block once, and if it is still `null` record it as `null` with its date rather than inferring a verdict from it.
+  if it fails: a thrown `pr23 UNVERIFIABLE` means no mergeability claim may be written at all. Record the status line and say so in the FINAL GATE record.
+
 - [ ] Step 26. `[DECIDE]` `[SAY TO CLAUDE]`
 
-  > Append a `## FINAL GATE` section to `38-SCAN-BASELINE.md` with one row per requirement, SCAN-01 through SCAN-11, columns Req, Claim, Evidence, State. Fill State with MET, DEFERRED, or NOT MET plus the reason. Be willing to write NOT MET; this document is what the phase verifier reads. SCAN-04's row must cite the step 25.5 seven-group reason audit, not just the alert states. SCAN-08's row must read DEFERRED and cite the four files that record it: the REQUIREMENTS.md row, the STATE.md section, the ROADMAP.md criterion-2 annotation, and the stored apply commands in this baseline. On the DEFER branch, SCAN-06's row reads DEFERRED and SCAN-02's row reads NOT MET with #25 and #26 named.
-  > Record under the table that pull request #23 (release-please, head branch `release-please--branches--master--components--shoppybot`) is already permanently unmergeable for a PRE-EXISTING reason this phase did not cause. Its branch is pushed by the `github-actions` app using `GITHUB_TOKEN`, so workflow runs are not triggered on it. Measured 2026-08-04, its head `f2b8d96` carries only `CodeQL`, `Analyze (python)` and `Analyze (actions)`, and neither `test (windows-latest)`, `test (ubuntu-latest)` nor `gitleaks` is present. Two of the three required contexts were already unsatisfiable there before this phase started; SCAN-07 adds a fourth unsatisfiable context to the same pull request. Record this so a later reader does not read #23 as damage caused by Phase 38, and so the gitleaks requirement is not reverted on its account. The correct fix for #23 is a release-please token change, out of scope here.
+  > Append a `## FINAL GATE` section to `38-SCAN-BASELINE.md` with one row per requirement, SCAN-01 through SCAN-11, columns Req, Claim, Evidence, State. Fill State with MET, DEFERRED, NOT MET, or `UNVERIFIABLE (HTTP <status>)` plus the reason. Be willing to write NOT MET; this document is what the phase verifier reads. `UNVERIFIABLE (HTTP <status>)` is mandatory, not a courtesy, for any row whose evidence command did not return 200: on a 403 or a 404 the body still parses and a count still comes back, so a failed read and a clean result are indistinguishable from the value alone. No row may read MET on the strength of a non-200, and no non-200 may be written down as an open count of 0. SCAN-04's row must cite the step 25.5 seven-group reason audit, not just the alert states. SCAN-08's row must read DEFERRED and cite the four files that record it: the REQUIREMENTS.md row, the STATE.md section, the ROADMAP.md criterion-2 annotation, and the stored apply commands in this baseline. On the DEFER branch, SCAN-06's row reads DEFERRED and SCAN-02's row reads NOT MET with #25 and #26 named.
+  > Record under the table the state of pull request #23 (release-please, head branch `release-please--branches--master--components--shoppybot`), keeping the durable MECHANISM and the contingent CONSEQUENCE as two separate statements. They have different evidence and different shelf lives, and collapsing them is how a stale conclusion gets merged to master. The MECHANISM: #23's branch is pushed by the `github-actions` app using `GITHUB_TOKEN`, and GitHub does not trigger `pull_request` workflow runs on a head pushed with that token. That is a property of how the branch is pushed, not of this phase, and it does not expire on its own. The CONSEQUENCE: write it from step 25.6's output and from nowhere else, recording verbatim the head sha, the `mergeable` value, the `mergeable_state` value, the `pr23 check:` list, and the UTC date all of them were read. Do NOT write "already permanently unmergeable": measured 2026-09-06, `pulls/23` read `mergeable: true, mergeable_state: clean`, so that phrasing was false at that reading and `38-06-PLAN.md` Task 3 now makes its absence an acceptance criterion. If step 25.6 read `clean`, record `clean` with its date; if it read `blocked`, record `blocked` with its date and name the contexts that blocked it. Record all of this so a later reader does not read #23 as damage caused by Phase 38, and so the gitleaks requirement is not reverted on its account. The correct fix for #23 is a release-please token change, out of scope here.
 
-  you should see: exactly one `## FINAL GATE` heading, a table with a row per SCAN-01 through SCAN-11 each carrying MET, DEFERRED, or NOT MET, and the #23 paragraph beneath it with its head sha and actual check-context list.
+  you should see: exactly one `## FINAL GATE` heading, a table with a row per SCAN-01 through SCAN-11 each carrying MET, DEFERRED, NOT MET, or `UNVERIFIABLE (HTTP <status>)`, and the #23 paragraph beneath it carrying the head sha, the measured mergeability with its date, and the actual check-context list from step 25.6.
+  you should NOT see: the string `already permanently unmergeable` anywhere in the record. `38-06-PLAN.md` Task 3 forbids it by name, so a record containing it fails that plan's own acceptance criterion.
+
+<!-- POSTURE-PENDING: how many of master's required contexts #23 cannot satisfy, and whether SCAN-07 adds a further unsatisfiable context to it, cannot be derived while branch protection reads protected:false and required_status_checks is unreadable; re-derive both the count and any "SCAN-07 adds a further unsatisfiable context" sentence from a live required_status_checks read once the operator settles the repository posture. The mechanism sentence and step 25.6's measured values are the posture-independent halves and stand either way. -->
 
 - [ ] Step 26.5. `[SAY TO CLAUDE]` Author the closing summary NOW, before the stage at step 27, so it lands with the docs PR instead of ending its life as an uncommitted file in a dirty tree.
 
-  > Create `.planning/phases/38-scanning-to-zero/38-06-SUMMARY.md`. It must include the before and after `checks` arrays from steps 4 and 6; the (a) through (e) tag verification outputs from steps 13 and 15 in order, with the step 15 delete command shown after them and the `e:` line immediately above it; the step 25.5 reason-audit output with its seven group memberships; the three closing alert counts from step 21; and the full `## FINAL GATE` table from step 26. Leave a clearly marked `## Post-merge addendum` heading at the end, empty for now; step 36 fills it in.
+  > Create `.planning/phases/38-scanning-to-zero/38-06-SUMMARY.md`. It must include the before and after `checks` arrays from steps 4 and 6; the (a) through (e) tag verification outputs from steps 13 and 15 in order, with the step 15 delete command shown after them and the `e:` line immediately above it; the `branch_query_status=[...] (404 expected)` line from step 16; the step 25.5 reason-audit output with its seven group memberships; the three `SCANNER <endpoint> status=[...] open=<count>` lines from step 21, each count beside its own status line and never separated from it; step 25.6's four `pr23` evidence lines verbatim; and the full `## FINAL GATE` table from step 26. Leave a clearly marked `## Post-merge addendum` heading at the end, empty for now; step 36 fills it in.
 
   you should see: the file exists with every section except the addendum populated.
 
@@ -2171,13 +2345,19 @@ rtk proxy gh pr merge $DOCSPR --repo thezoid/ShopPyBot --merge
   you should see: state MERGED, and its check list including `gitleaks` at conclusion `success`, proving the new requirement is satisfiable. Master's merge path is unlocked from here.
   IRREVERSIBLE: merges to master. Nothing is destroyed; recovery is a revert commit through another PR.
 
-- [ ] Step 34. Task 3 verify: closing code-scanning count.
+- [ ] Step 34. Task 3 verify: closing code-scanning count, with its status line beside it.
 
 ```powershell
-@(rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" | ConvertFrom-Json).Count
+& {
+  $resp   = (rtk proxy gh api -i "repos/thezoid/ShopPyBot/code-scanning/alerts?state=open&per_page=100" 2>&1 | Out-String)
+  $status = (($resp -split '\r?\n')[0]).Trim()
+  if ($status -notmatch '^HTTP/\S+\s+200\b') { "SCANNER code-scanning/alerts status=[$status] open=UNVERIFIABLE"; return }
+  "SCANNER code-scanning/alerts status=[$status] open=$(@(($resp -replace '(?s)^.*?\r?\n\r?\n','') | ConvertFrom-Json).Count)"
+}
 ```
 
-  you should see: `0`, or a nonzero number itemised per step 22.
+  you should see: `SCANNER code-scanning/alerts status=[... 200 ...] open=0`, or a nonzero count itemised per step 22.
+  if it prints `open=UNVERIFIABLE`: record the status line verbatim and carry it into the addendum as UNVERIFIABLE. Do not write `0`; the count and the status line travel together here for the same reason they do at step 21.
 
 - [ ] Step 35. Final post-merge assertion that SCAN-08 stayed deferred through the whole phase.
 
@@ -2193,7 +2373,7 @@ rtk proxy gh api "repos/thezoid/ShopPyBot/branches/master/protection/enforce_adm
 
   you should see: the addendum populated and no other section rewritten.
 
-- [ ] Step 37. Commit and land the closing summary. The phase's own closing record must not end its life uncommitted.
+- [ ] Step 37. Commit the closing summary on the branch and STOP. The phase's own closing record must not end its life uncommitted, and it must not reach master through an unauthorised second pull request.
 
 ```powershell
 rtk git add .planning/phases/38-scanning-to-zero/38-06-SUMMARY.md
@@ -2201,7 +2381,9 @@ rtk git commit -m "docs(38-06): record phase 38 closing summary"
 rtk git push
 ```
 
-  you should see: an empty `rtk git status --porcelain` afterwards. The docs PR has already merged at this point, so this lands as a one-commit follow-up PR rather than being left uncommitted; open it with `rtk proxy gh pr create --repo thezoid/ShopPyBot --base master --head phase-38-docs --title "docs(38-06): phase 38 closing summary addendum" --body "Post-merge addendum to 38-06-SUMMARY.md."` and merge it the same way as step 33.
+  you should see: the commit lands on `phase-38-docs`, the push updates `origin/phase-38-docs`, and `rtk git status --porcelain` afterwards shows no output other than an untracked `.continue-here.md` line if you wrote a new pause handoff. That single line is expected and must never be committed.
+  This step does NOT open a pull request and does NOT merge anything. Step 33 merged the one documentation pull request this phase authorises, and the revert path was declared finished there; no plan in Phase 38 authorises a second merge to master, so opening and merging one here would be an unauthorised change to the default branch taken after the phase's own closing gate. The addendum commit rests on `phase-38-docs`.
+  `[DECIDE]` Landing the addendum on master is an OPERATOR decision, taken separately and recorded before it is taken. If the operator decides to take it, it is a normal follow-up pull request opened outside this run-book, under whatever review the repository requires at that time; it is not a step of Phase 38.
 
 - [ ] Post-block: check the pending-push count. If more than 10 commits are stacked locally, push before you lose them.
 
@@ -2236,9 +2418,9 @@ rtk gh pr view 23 --repo thezoid/ShopPyBot --json state,title,mergeStateStatus
 rtk gh pr view 25 --repo thezoid/ShopPyBot --json state,title,files
 ```
 
-- [ ] `[SAY TO CLAUDE]` STATE.md is stale and should be corrected at some point:
-
-  > `.planning/STATE.md` says master is at `a99b67d` with status completed. Reality at phase start: `origin/master` was `bd70601`, branch `chore/v4.0-milestone-close` was at `910e31d`, 4 commits ahead (planning docs only) and 1 behind master. Correct STATE.md to the current measured values.
+- [ ] RECORD ONLY, do not act on it during this phase: `.planning/STATE.md` says master is at `a99b67d` with status completed. Reality at phase start: `origin/master` was `bd70601`, branch `chore/v4.0-milestone-close` was 4 commits ahead (planning docs only) and 1 behind master. That drift is real and worth fixing, but no plan in Phase 38 authorises a STATE.md rewrite, so it is NOT a background task and specifically NOT an "anytime" one.
+  Why the timing matters: Block 3 step 37 stages `.planning/STATE.md` by name, so any unrelated edit sitting in the working tree when that step runs is swept into the `ci(38-03)` commit and lands on master through Block 4's merge, inside a commit whose message says it scoped ci.yml permissions. The only STATE.md change this phase authorises is 38-03 Task 3's `### Deferred to Milestone Close (v5.0)` section, which Block 3 step 29 makes deliberately and step 34 verifies.
+  If the operator wants the drift corrected, it is a separate change made after Phase 38 closes, on its own branch, in its own commit.
 
 - [ ] Harness note, for whoever drives execution: the auto-mode classifier denies `gsd-executor` dispatch for plans that merge PRs. The workaround proven across 9 merges is to run those steps inline in the main thread. The orchestrator must then update STATE.md itself. That applies to Block 4 steps 5 through 11 and Block 6 steps 30 through 33.
 
@@ -2263,7 +2445,7 @@ Then `[SAY TO CLAUDE]`:
 
 > Write a pause handoff into `.planning/phases/38-scanning-to-zero/.continue-here.md`. Record: the last completed run-book block and step number, the plan-checker verdict and when it was issued, the VERDICT-SCAN-06 and VERDICT-SCAN-01 values, whether the `origin/dev` archive tag has been pushed and verified, whether the branch has been deleted, which alert numbers have already been dismissed and with which of the seven reason strings, which of Block 5's two secret-scanning PATCHes have landed (non-provider patterns only, or both) and whether the step 27 poll reached its stop condition, whether master's required-checks list currently carries the unproven `gitleaks` context (Block 6 steps 5 through 33), and the current three closing alert counts from the commands above. State plainly what the very next step is and what gates it.
 
-Uncommitted work: commit it on the current phase branch before stopping. Do not leave the tree dirty. If the `origin/dev` tag is pushed but the branch is not yet deleted, say so explicitly in the handoff. That is a safe resting state; the reverse never is. If you are stopping between Block 6 step 5 and step 33, say so loudly: master cannot be merged to until step 33 lands or step 32 reverts.
+Uncommitted work: commit it on the current phase branch before stopping. Do not leave the tree dirty, with one deliberate exception: `?? .planning/phases/38-scanning-to-zero/.continue-here.md` is expected from Block 1 step 2 until Block 6 step 27 removes it, and the pause handoff below writes to that same untracked file. It stays untracked and must never be committed; never clear it by `rtk git add`-ing the phase directory, which would land the paused-run handoff on master. If the `origin/dev` tag is pushed but the branch is not yet deleted, say so explicitly in the handoff. That is a safe resting state; the reverse never is. If you are stopping between Block 6 step 5 and step 33, say so loudly: master cannot be merged to until step 33 lands or step 32 reverts.
 
 ### Appendix: POSIX originals, for provenance only, DO NOT RUN
 
