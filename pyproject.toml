@@ -13,7 +13,7 @@ requires-python = ">=3.11"
 # fails on any OS without them. Pins match requirements.txt byte for byte.
 dependencies = [
     "colorama==0.4.6",
-    "cryptography==49.0.0",
+    "cryptography==50.0.0",
     "keyring==25.7.0",
     "nodriver==0.50.3",
     "platformdirs==4.10.0",
