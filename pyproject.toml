@@ -35,7 +35,7 @@ web = [
     "jinja2==3.1.6",
     "python-multipart==0.0.32",
     "starlette>=0.40",
-    "websockets>=10.4",
+    "websockets>=17.1",
 ]
 # pygame stays optional: utils.py degrades gracefully when it is absent, and forcing
 # an audio stack onto a headless server install is the wrong trade (Phase 24).
