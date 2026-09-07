@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shoppybot"
-version = "2.0.0"
+version = "2.1.0"
 requires-python = ">=3.11"
 # Every entry below is imported unconditionally somewhere in the production tree.
 # colorama and pyyaml are imported by logger.py, which nearly everything imports;
