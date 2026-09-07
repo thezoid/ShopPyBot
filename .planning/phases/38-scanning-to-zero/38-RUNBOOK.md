@@ -1795,13 +1795,25 @@ $groupC = @($clearText | Where-Object { $_.most_recent_instance.location.path -e
 - [ ] Step 20. Re-query all 7 clear-text alerts by number.
 
 ```powershell
-foreach ($n in ($clearText | ForEach-Object { $_.number })) {
-  $a = rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" | ConvertFrom-Json
-  "#{0} state={1} reason={2} at={3}" -f $a.number, $a.state, $a.dismissed_reason, $a.dismissed_at
+& {
+  $rules = @("py/clear-text-logging-sensitive-data","py/clear-text-storage-sensitive-data")
+  $ct = @(@("open","dismissed","fixed") | ForEach-Object {
+      rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts?per_page=100&state=$_" | ConvertFrom-Json
+    } | Where-Object { $_.rule.id -in $rules })
+  $nums = @($ct | ForEach-Object { $_.number } | Sort-Object -Unique)
+  $set = ($nums -join ' ')
+  "clear-text alert records across open+dismissed+fixed: $($nums.Count)  [$set]"
+  if ($set -ne "25 26 27 28 29 31 32") { throw "HALT: re-query derived [$set], expected '25 26 27 28 29 31 32'. An empty or short set means a 403, an unreadable body, or a renumbering, NOT that the dismissals landed. Record nothing and do not mark Task 2 verified." }
+  foreach ($n in $nums) {
+    $a = rtk proxy gh api "repos/thezoid/ShopPyBot/code-scanning/alerts/$n" | ConvertFrom-Json
+    "#{0} state={1} reason={2} at={3}" -f $a.number, $a.state, $a.dismissed_reason, $a.dismissed_at
+  }
 }
 ```
 
-  you should see: all 7 showing `state=dismissed` with `reason=false positive`. On the DEFER branch, #25 and #26 will still read `state=open`; that is the recorded blocked-on-SCAN-06 outcome, not a failure. Paste all 7 lines into the summary.
+  you should see: the record line reading `7  [25 26 27 28 29 31 32]`, then all 7 showing `state=dismissed` with `reason=false positive`. On the DEFER branch, #25 and #26 will still read `state=open`; that is the recorded blocked-on-SCAN-06 outcome, not a failure. Paste the record line and all 7 alert lines into the summary.
+  This fence derives its own set rather than consuming `$clearText` from step 15, because shell variables do not survive a call boundary: an empty `$clearText` would make the loop print nothing at all, and silence here reads as "nothing left to verify" when it actually means the verification never ran. It queries `open`, `dismissed` and `fixed` explicitly rather than relying on the list endpoint's default, because by this point the alerts this step exists to check have been dismissed and a bare `state=open` query would correctly return none of them. The set assertion and the loop are in one `& { ... }` so the throw aborts the read rather than printing ahead of it.
+  if it fails: a HALT here does not mean the dismissals failed. It means this verification cannot see them. Re-check that code scanning returns a 200 before concluding anything about Task 2.
 
 - [ ] Step 21. Task 2 verify: no open alert of either clear-text rule remains.
 
