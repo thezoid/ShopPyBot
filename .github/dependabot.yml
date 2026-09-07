@@ -15,6 +15,23 @@ updates:
           - "minor"
           - "patch"
 
+    ignore:
+      # fastapi 0.141.x and its uvicorn pairing unregister /api/events, which kills the
+      # dashboard SSE channel. Proven, not suspected: PR #29 shipped this bump and
+      # tests/test_sse.py::test_lifespan_creates_hub_and_registers_route failed on BOTH
+      # runners (Actions run 31988900943). The same break arrived three times as #21,
+      # #25 and #29, each replacement opening within seconds of the last one closing.
+      # Upgrading needs dedicated work on the SSE lifespan registration, not a bump.
+      # Scoped to minor+patch ONLY so majors and security advisories still surface.
+      - dependency-name: "fastapi"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "uvicorn"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
