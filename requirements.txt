@@ -1,11 +1,11 @@
 # python_requires >= 3.11
 colorama==0.4.6
-cryptography==50.0.0
+cryptography==50.0.1
 httpx==0.28.1
 keyring==25.7.0
 nodriver==0.50.3
-platformdirs==4.11.3
-pydantic==2.13.4
+platformdirs==4.11.7
+pydantic==2.13.5
 pydantic-settings[yaml]==2.15.0
 pygame==2.6.1
 pytest==9.1.1
