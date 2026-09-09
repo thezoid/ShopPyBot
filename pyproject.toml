@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "shoppybot"
 version = "2.1.0"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 # Every entry below is imported unconditionally somewhere in the production tree.
 # colorama and pyyaml are imported by logger.py, which nearly everything imports;
 # they arrive on Windows only by accident (colorama via click's win32 marker,

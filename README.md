@@ -1,7 +1,6 @@
 # ShopPyBot
 
 ![CI](https://github.com/thezoid/ShopPyBot/actions/workflows/ci.yml/badge.svg?branch=master)
-![CodeQL](https://github.com/thezoid/ShopPyBot/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)
 ![Gitleaks](https://github.com/thezoid/ShopPyBot/actions/workflows/gitleaks.yml/badge.svg?branch=master)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
