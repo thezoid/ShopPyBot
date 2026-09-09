@@ -23,7 +23,7 @@ Tag legend: `[WALK AWAY]` start it and leave. `[WATCH]` stay and re-run or obser
 7. Block 6: 38-06, CREATE master's first branch-protection object requiring `gitleaks` and both test legs, archive-then-delete `origin/dev` as one guarded invocation, the seven-group dismissal-reason audit, FINAL GATE table, docs PR. 70 min. Thirteen `[DECIDE]` points (steps 2, 5, 11, 14, 15, 22, 23, 25.5, 26, 31, 32, 33, 37). No `[WATCH]` and no `[WALK AWAY]` anywhere in the block: step 31 is `[DECIDE]` and explicitly says STAY AT THE KEYBOARD. Master's merge path is locked from step 5 until step 33, and step 15 is the phase's only ref deletion.
 8. Background: Actions "create and approve pull requests" setting. 2 min. `[BROWSER]`
 9. Background: PR #23 GitHub App decision (not a PAT, ever). `[DECIDE]`
-10. Background: PR #25 split, requirements.txt half only. `[DECIDE]`
+10. Background: PR #25 split. DONE 2026-09-07, no action remains. `[DECIDE]`
 
 Total hands-on is 6 hours 45 minutes by the block estimates above, plus up to 35 minutes of waiting in Block 4, up to 15 minutes of polling in Block 5, and an unbounded CI wait in Block 6. Do not start this after 6pm. Blocks 4 through 6 contain every irreversible action in the phase; do not begin Block 4 without 3 clear hours.
 
@@ -421,7 +421,7 @@ Select-String -Path main.py,logger.py,models.py,utils.py,config.py -Pattern "fro
 
 - [ ] Step 28. `[SAY TO CLAUDE]`
 
-  > Add the scope note to `38-SCAN-BASELINE.md`: open PR #25 (the Dependabot minor-and-patch group) does NOT touch the cryptography pin, so 38-02's edit will not collide with it; and #25 is explicitly out of scope for this phase because it carries the FastAPI 0.115 to 0.141 jump that unregisters `/api/events`.
+  > Add the scope note to `38-SCAN-BASELINE.md`: PR #25 (the Dependabot minor-and-patch group) is CLOSED UNMERGED as of 2026-08-17T02:43:40Z, and 38-02 no longer edits the cryptography pin at all, so there is no collision to record. Its safe half landed instead through PRs #31, #32 and #36 on 2026-09-07, which also added two `ignore:` rules to `.github/dependabot.yml` holding fastapi and uvicorn at their tested versions and holding starlette below 0.46.0. The FastAPI 0.115 to 0.141 jump that unregisters `/api/events` remains explicitly out of scope for this phase and is now blocked at the Dependabot level rather than by hand.
 
 - [ ] Step 29. Stage the baseline.
 
@@ -727,8 +727,8 @@ rtk proxy git diff --numstat -- requirements.txt pyproject.toml
 
   you should see: empty output. Record the compensating control the verdict names, note that Dependabot alert #13 remains open, and FLAG IN THE SUMMARY that SCAN-01 therefore closes as accepted risk rather than as zero findings. This changes the phase's headline claim and the plan requires it be surfaced to you explicitly.
 
-- [ ] Step 35. `[DECIDE]` Explicit non-action: do NOT merge or rebase open PR #25 in this block. It carries the FastAPI 0.115 to 0.141 jump that unregisters `/api/events` and kills the dashboard SSE channel, proven by its own CI. It does not touch the cryptography line, so there is no collision to resolve.
-  IRREVERSIBLE if violated: merging #25 whole lands the FastAPI bump on master and destroys the dashboard SSE channel there. Recovery is a revert commit through another PR, not an undo.
+- [ ] Step 35. `[DECIDE]` Explicit non-action, now historical: PR #25 is CLOSED UNMERGED (2026-08-17T02:43:40Z) and so is its successor #29. Nothing to merge or rebase here. The hazard it named was real and is now handled structurally rather than by vigilance: the FastAPI 0.115 to 0.141 jump unregisters `/api/events` and kills the dashboard SSE channel, proven by #29's own CI failing `tests/test_sse.py::test_lifespan_creates_hub_and_registers_route` on both runners (Actions run 31988900943). PRs #31 and #36 landed the safe pins and added `ignore:` rules to `.github/dependabot.yml` holding fastapi and uvicorn at minor/patch and holding starlette below 0.46.0, so Dependabot no longer regenerates that bump.
+  STILL IRREVERSIBLE if a future equivalent is merged whole: it lands the FastAPI bump on master and destroys the dashboard SSE channel there. Recovery is a revert commit through another PR, not an undo.
 
 ```powershell
 rtk gh pr view 25 --repo thezoid/ShopPyBot --json state,title
@@ -2600,7 +2600,7 @@ None of these block Phase 38 execution. Do them in any spare moment.
 rtk proxy gh api "repos/thezoid/ShopPyBot/pulls/23" --jq '"state=\(.state) merged=\(.merged) merged_at=\(.merged_at) merge_commit=\(.merge_commit_sha)"'
 ```
 
-- [ ] `[DECIDE]` PR #25 (Dependabot pip group) must be SPLIT, never merged whole. Its `requirements.txt` half is 8 safe upgrades. Its `pyproject.toml` half bumps FastAPI 0.115.8 to 0.141.1, which unregisters `/api/events` and kills the dashboard SSE channel, proven by that PR's own CI failing on both runners. Take the requirements half onto a fresh branch; leave the FastAPI bump for a dedicated phase.
+- [ ] `[DECIDE]` PR #25 split: **DONE 2026-09-07, no action remains.** #25 and its successor #29 are both closed unmerged. The safe half landed as PR #31 (7 pins plus their pyproject mirrors), and PR #36 added the starlette bound. FastAPI stays at 0.115.8 and uvicorn[standard] at 0.30.6, now held by `ignore:` rules in `.github/dependabot.yml` rather than by remembering to split every Monday. The 0.141.1 bump still unregisters `/api/events` and still belongs to a dedicated phase.
 
 ```powershell
 rtk gh pr view 25 --repo thezoid/ShopPyBot --json state,title,files
