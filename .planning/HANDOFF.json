@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-04T23:59:58.331Z",
+  "timestamp": "2026-09-10T23:24:29.644Z",
   "context": "phase",
   "phase": "38",
   "phase_name": "Scanning to Zero",
@@ -9,78 +9,72 @@
   "milestone_name": "Real Release & Plugin Ecosystem",
   "plan": 0,
   "task": 0,
-  "total_tasks": 8,
+  "total_tasks": 9,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Phase 36 Mainline Reconciliation (entire phase, verified passed)", "status": "done", "commit": "c988483"},
-    {"id": 2, "name": "Phase 37 Distributable Artifact (entire phase, verified passed)", "status": "done", "commit": "79bbd49"},
-    {"id": 3, "name": "Phase 38 discuss context with two operator checkpoint decisions", "status": "done", "commit": "ed7349a"},
-    {"id": 4, "name": "Phase 38 plans, 6 plans across 6 waves covering SCAN-01..11", "status": "done", "commit": "4c55e54"},
-    {"id": 5, "name": "Phase 38 execution gate run 1: FAIL, 7 blocking. Refuted dismissal-integrity and dev-branch-delete", "status": "done"},
-    {"id": 6, "name": "Phase 38 execution gate run 2: FAIL, 5 blocking. Refuted dev-branch-delete (non-terminating throw) and dismissal-integrity (false SCAN-03 clause)", "status": "done"},
-    {"id": 7, "name": "Five remediation passes across all six plans plus a new 38-RUNBOOK.md, committed", "status": "done", "commit": "d80a717"},
-    {"id": 8, "name": "Phase 38 execution gate run 3, against the committed tree", "status": "in_progress", "progress": "launched as workflow wf_7e7ec15b-4bb and STOPPED by the operator's pause before returning a verdict. Some of its 6 agents may have completed; resuming the same run replays those from cache."}
+    {"id": 1, "name": "Resume from a one-month gap; found HANDOFF.json's resume pointer dead (session dir for wf_7e7ec15b-4bb gone, script and journal absent, and Workflow resume is same-session-only anyway)", "status": "done", "commit": "400458d"},
+    {"id": 2, "name": "Gate run 4: FAIL, 8 confirmed blocking, 21 advisory. Six findings traced to the repo having gone private on 2026-08-10 via the operator's own security automation", "status": "done", "commit": "400458d"},
+    {"id": 3, "name": "Applied all 7 posture-independent gate-run-4 findings (F1 silent data loss, WF-02 false-green, DI-04 hardcoded alert loops, DI-03 false getpass clause, ML-3 dictated PR #23 claim, ML-5, WF-03/04)", "status": "done", "commit": "2120240"},
+    {"id": 4, "name": "Bound runbook dismissal groups to live data and cleared 4 stale cross-references; the DI-04 fix had landed in 38-05 but NOT in the runbook, which is the document the operator runs", "status": "done", "commit": "9a2101e"},
+    {"id": 5, "name": "Runbook step 20 now derives its own set and halts on an unreadable API; proven against 5 fixtures", "status": "done", "commit": "e33808b"},
+    {"id": 6, "name": "Merged 9 PRs to master (#26 cryptography, #27/#28 action bumps, #31 split pins + first ignore rule, #36 starlette bound, #32/#33/#35, #23 release). Dependabot queue to zero. Release shoppybot-v2.1.0 cut", "status": "done", "commit": "be613ee (master)"},
+    {"id": 7, "name": "Resolved all 18 POSTURE-PENDING markers from live 200s after the operator flipped the repo public on 2026-09-08. Alerts did NOT renumber. SCAN-07 rewritten to CREATE protection (PUT) since none exists", "status": "done", "commit": "9d50150"},
+    {"id": 8, "name": "Merged master into the planning branch; it was 19 behind and 38-02's pin guard was firing against a stale tree", "status": "done", "commit": "eb1f58c"},
+    {"id": 9, "name": "Gate run 5: FAIL, 14 confirmed blocking. Verdict states run 5 failed largely on defects the remediation passes themselves introduced. Collapsed the runbook: 185 PowerShell fences to 0, 2710 lines to 692, duplicated command sites to 0, one POSIX implementation in the plans", "status": "done", "commit": "fd1a9aa"}
   ],
   "remaining_tasks": [
-    {"id": 8, "name": "Finish gate run 3 and get a written PASS or FAIL verdict", "status": "in_progress"},
-    {"id": 9, "name": "38-01 recon: SCAN-06 delete verdict and cryptography verdict (read-only, zero mutations)", "status": "not_started"},
-    {"id": 10, "name": "38-02 source: core/urls.host_matches, cryptography bump, secret-name guard test", "status": "not_started"},
-    {"id": 11, "name": "38-03 workflows: ci.yml permissions block, gated workflow delete, SHA pins, SCAN-08 deferral record in four files", "status": "not_started"},
-    {"id": 12, "name": "38-04 PR A, merge, post-merge alert re-query", "status": "not_started"},
-    {"id": 13, "name": "38-05 26 per-alert dismissals with seven distinct reason strings, two ordered secret-scanning PATCHes", "status": "not_started"},
-    {"id": 14, "name": "38-06 gitleaks required, origin/dev archived then deleted, final gate, docs PR", "status": "not_started"},
-    {"id": 15, "name": "Phases 39 through 50, then milestone lifecycle (audit, complete, cleanup)", "status": "not_started"}
+    {"id": 10, "name": "OPERATOR: repair code-scanning/default-setup (reads state=configured but languages:[] and updated_at:null; last analysis 2026-08-06). Until it analyses be613ee, alerts #3/#4/#5/#33/#34 cannot close even though the tree fixes them", "status": "not_started"},
+    {"id": 11, "name": "OPERATOR: confirm thezoid/ShopPyBot is excluded from the security automation that privatized it on 2026-08-10. The repo has been public since 2026-09-08 without that confirmation", "status": "not_started"},
+    {"id": 12, "name": "Gate run 6 against fd1a9aa. Five runs, five FAILs. No plan may execute without a written PASS", "status": "not_started"},
+    {"id": 13, "name": "38-01 wave 1: read-only recon, produces VERDICT-SCAN-06 and VERDICT-SCAN-01 that three later plans gate on", "status": "not_started"},
+    {"id": 14, "name": "38-02 wave 2: core/urls.host_matches, secret-name guard test. Cryptography work is now a NO-OP (master carries 50.0.1)", "status": "not_started"},
+    {"id": 15, "name": "38-03 wave 3: ci.yml permissions block, gated codeql-analysis.yml delete, SHA pins, SCAN-08 deferral in four files", "status": "not_started"},
+    {"id": 16, "name": "38-04 wave 4: open PR A, merge to master, re-query alerts. IRREVERSIBLE", "status": "not_started"},
+    {"id": 17, "name": "38-05 wave 5: 26 permanent dismissals plus two ordered secret-scanning PATCHes. IRREVERSIBLE, worst in the phase", "status": "not_started"},
+    {"id": 18, "name": "38-06 wave 6: gitleaks required (PUT creates protection), origin/dev archived then deleted, final gate, docs PR. IRREVERSIBLE twice", "status": "not_started"},
+    {"id": 19, "name": "Phases 39 through 50, then milestone lifecycle (audit, complete, cleanup)", "status": "not_started"}
   ],
   "blockers": [
     {
-      "description": "Gate run 3 never returned a verdict. It was launched against the committed tree and stopped by the pause. Phase 38 has failed this gate twice already, so the plans remain formally unverified until a run finishes.",
+      "description": "Code scanning is configured but INERT. code-scanning/default-setup reads state=configured with languages:[] and updated_at:null; the newest analyses are 2026-08-06 at master bd70601, while master is now be613ee. The 31 open alerts (numbers 3-34, no #30) are a frozen snapshot. Alerts #3/#4/#5 (SCAN-03) and #33/#34 (SCAN-05) are fixed in the tree but CANNOT close, so the phase's headline claim degrades to '26 dismissals, and five alerts we cannot verify'. Gate run 5 confirmed no step produces a false pass in this state, but the phase DEADLOCKS at 38-04 Task 2.",
+      "type": "human_action",
+      "workaround": "Operator PATCHes code-scanning/default-setup restoring python and actions languages, then confirms an analysis lands on be613ee and that #3/#4/#5/#33/#34 close on their own. A bare workflow dispatch is insufficient while languages is empty. No plan can do this; it is correctly outside them."
+    },
+    {
+      "description": "Phase 38 is UNVERIFIED. The execution gate has run five times and FAILED five times. The runbook's Checkpoint 0 is a hard gate: nothing runs without a written PASS.",
       "type": "technical",
-      "workaround": "Resume it: Workflow({scriptPath: 'C:\\\\Users\\\\brand\\\\.claude\\\\projects\\\\E--repos-ShopPyBot\\\\ceeb4f42-bf4e-4463-9b98-2848101a8af9\\\\workflows\\\\scripts\\\\phase38-gate-final-wf_7e7ec15b-4bb.js', resumeFromRunId: 'wf_7e7ec15b-4bb'}). Completed agents replay from cache. Check the journal at subagents/workflows/wf_7e7ec15b-4bb/journal.jsonl to see which finished."
+      "workaround": "Run gate run 6 against fd1a9aa. Do NOT reuse the run-4 script at workflows/scripts/phase38-gate-rerun-wf_fcce62d0-c02.js: it hardcodes d80a717. Persist the verdict to 38-GATE-RUN-6-VERDICT.md and COMMIT it; run 3's verdict was lost because it existed only in a workflow journal whose session directory later vanished."
     },
     {
-      "description": "The harness auto-mode classifier denies gsd-executor dispatch for plans that merge PRs into master. It denied Phase 36 wave 3 twice, including after the operator explicitly granted permission.",
+      "description": "The harness auto-mode classifier intermittently denies actions with no stated reason. It denied an Artifact publish outright, and denied `gh pr merge` for PR #31 twice including as a bare command, after allowing the same command for #26/#27/#28 minutes earlier.",
       "type": "external",
-      "workaround": "Run those steps inline in the orchestrator's main thread. Proven across 9 merges. Produces no per-task commits and no per-plan STATE writes, so the orchestrator must update STATE.md itself afterward."
+      "workaround": "Do not retry around it. Hand the operator the exact command. It allowed the merge later in the same session, so it is inconsistent rather than a rule."
     },
     {
-      "description": "PR #23 (chore(master): release shoppybot 2.1.0) cannot merge. GitHub suppresses pull_request-triggered checks on PRs opened by GITHUB_TOKEN, so test (ubuntu-latest) and test (windows-latest) never report and branch protection can never be satisfied.",
-      "type": "external",
-      "workaround": "Needs a GitHub App token. Explicitly NOT a PAT: public repo with enforce_admins false means an owner-identity token bypasses branch protection entirely. SCAN-07 will add a fourth unsatisfiable context to that PR; this is pre-existing, not phase damage, and 38-06 records it."
+      "description": "master has NO required status checks. branches/master/protection returns 404 Branch not protected. branches/master reads .protected: true only because ruleset baseline-protection (id 20218490, created 2026-08-01, unrelated to the privatization) carries deletion and non_fast_forward. Every merge this session landed with nothing required.",
+      "type": "technical",
+      "workaround": "38-06 wave 6 now PUTs a complete protection object rather than PATCHing an array that does not exist. Do NOT create it by hand: the PUT must use the checks array with app_id 15368 and never the legacy bare-string contexts array, and it must EXCLUDE CodeQL because no CodeQL check-run exists."
     }
   ],
+  "async_jobs": [],
   "human_actions_pending": [
-    {
-      "action": "Enable Settings, Actions, General, Workflow permissions, 'Allow GitHub Actions to create and approve pull requests'",
-      "context": "release-please fails at PR creation without it. Deliberately not changed autonomously: it permits Actions to self-approve pull requests, which is the repo owner's call. Not the third-party allowlist, which is confirmed working.",
-      "blocking": false
-    },
-    {
-      "action": "Decide the PR #23 path: create a GitHub App, or leave the release PR blocked",
-      "context": "No PAT, ever, on this repo. A GitHub App is the correct answer if automation is wanted.",
-      "blocking": false
-    },
-    {
-      "action": "PR #25 (Dependabot pip group) must be split, never merged whole",
-      "context": "Its requirements.txt half is 8 safe upgrades. Its pyproject.toml half bumps FastAPI 0.115.8 to 0.141.1, which unregisters /api/events and kills the dashboard SSE channel. Proven by that PR's own CI failing on both runners. Diagnosis is posted as a comment on the PR.",
-      "blocking": false
-    },
-    {
-      "action": "SCAN-08 must be applied at milestone close, after Phase 50",
-      "context": "Operator decision. Now recorded as a deferral in FOUR places: REQUIREMENTS.md row, STATE.md section, ROADMAP.md criterion-2 annotation, and the apply commands. Must not be silently dropped.",
-      "blocking": false
-    }
+    {"action": "Repair code-scanning/default-setup with python and actions languages, then confirm an analysis lands on be613ee", "context": "Blocks the phase from being meaningfully executable. Alerts #3/#4/#5/#33/#34 are fixed in the tree but cannot close while the analyser is inert.", "blocking": true},
+    {"action": "Confirm thezoid/ShopPyBot is excluded from the security automation that privatized it on 2026-08-10", "context": "The operator flipped the repo public on 2026-09-08 WITHOUT doing this first. If the automation fires again it re-privatizes, taking code scanning, secret scanning and any branch protection with it, mid-phase.", "blocking": false},
+    {"action": "Merge or close PR #37 (MIT LICENSE, license metadata, dead CodeQL badge)", "context": "Open and green. The repo is public with no LICENSE, which makes it all-rights-reserved by default and contradicts the CONTRIBUTING.md and CODE_OF_CONDUCT.md already on master. MIT was chosen on the operator's instruction to fix Group C; changing it is a one-file edit.", "blocking": false},
+    {"action": "Decide on SEED-001, the public-repo history scrub", "context": "Flagged in .planning/milestones/v3.0-MILESTONE-AUDIT.md as the highest-priority pre-release item and never run. Verified this session that no real credential was ever committed: config.yml was tracked in exactly two commits (2e8f689, c692580) and both hold placeholder text only.", "blocking": false},
+    {"action": "SCAN-08 applies at milestone close, after Phase 50", "context": "Operator decision. Recorded as a deferral in four files. There is now no protection object at all, so its apply commands CREATE protection rather than PATCH a field.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "SCAN-08 deferral is recorded in four files, not three, adding the .planning/ROADMAP.md criterion-2 annotation", "rationale": "Three source files disagreed on the count and the run-book performed a ROADMAP edit no plan authorized. Criterion 2 otherwise reads as satisfied when it is not, which is the exact silent-drop the operator decision was meant to prevent. 38-03 was amended to authorize the edit.", "phase": "38"},
-    {"decision": "core/registry.py:123, :144 and :152 stay unfixed, recorded as a deliberate non-change with the suffix-confusion caveat", "rationale": "38-02's scope is the CVV gate. The three sites still do plain 'pattern in host', so registry.route() accepts bestbuy.com.attacker.net that the new gate rejects. Recording the residual is honest; silently widening 38-02's scope is not. The four dismissal strings were corrected to stop claiming this was fixed.", "phase": "38"},
-    {"decision": "38-RUNBOOK.md is deliberately carried into the phase commit set", "rationale": "It is the operator follow-along for this phase and belongs with the plans. 38-01's carry-over names it explicitly rather than sweeping it in by directory glob.", "phase": "38"},
-    {"decision": "Every guard-plus-mutation block is wrapped in & { }, and 38-05's Group C dismissal got the same treatment even though it was only advisory-guarded", "rationale": "A bare top-level throw degrades to non-terminating across a submission boundary. Reproduced on this box: guards printed and the mutation ran anyway. 178 blocks were swept; exactly 3 needed it.", "phase": "38"},
-    {"decision": "The 19-alert dismissal reason was split into four shape-specific strings, seven total across the phase", "rationale": "The single string asserted 'the test's own assertion over a URL literal defined in the same file', false for at least 16 of the 19. A dismissal comment cannot be edited after it is PATCHed.", "phase": "38"},
-    {"decision": "Delete origin/dev, but tag it first and gate the delete on a fresh remote-tag-sha equals fresh live-branch-sha comparison inside one parsed unit", "rationale": "The branch is 923 behind master but 1 AHEAD (65ef2b9, 'fix sign in check', 2025-02-23). That commit is unreachable from master. The original guard sequence failed open because shell variables do not persist across harness call boundaries.", "phase": "38"},
-    {"decision": "Branch protection must be PATCHed via checks, not contexts", "rationale": "The current array carries app_id bindings (15368 for the test legs, null for CodeQL). Sending contexts drops every binding and lets any app satisfy a named context. A weakening dressed as a hardening.", "phase": "38"},
-    {"decision": "No PAT was created for this repo, and none should be", "rationale": "On a public repo with enforce_admins false, an acts-as-you token bypasses branch protection entirely. A GitHub App is the right answer when automation is wanted.", "phase": "37"}
+    {"decision": "Collapse 38-RUNBOOK.md from a 185-block PowerShell translation into a 692-line POSIX index; the six plans become the single implementation", "rationale": "Five consecutive gate FAILs. Run 5's verdict states most of its 14 findings were introduced or left half-landed by the remediation passes themselves. Every fix had to land twice in two languages and the gate kept catching the half that did not. The two worst hazards in the phase (a bare throw not terminating across a call boundary; the & { } wrapper requirement) exist ONLY in PowerShell. The operator runs Git Bash regardless.", "phase": "38"},
+    {"decision": "Restore the repo to public rather than staying private or buying GitHub Pro", "rationale": "Operator decision 2026-09-08, taken knowing their own security automation had privatized it. Restored code scanning, secret scanning, PVR and ruleset visibility at zero cost. Alerts did NOT renumber, which was the main feared cost.", "phase": "38"},
+    {"decision": "SCAN-07 requires gitleaks and both test legs, and deliberately EXCLUDES CodeQL", "rationale": "No CodeQL check-run exists on master or on PR #37, and default setup is inert. A required context with no producer permanently blocks every future merge. The gate's merge-lockout dimension reached this independently.", "phase": "38"},
+    {"decision": "38-06's step-4a length table was corrected to 1175/1291/1298/1230 rather than reverting the four strings", "rationale": "Each test-file dismissal string grew by exactly 249 characters gaining a clause that records the analyser was inert when the comment was written. That is honest and prevents a future reader mistaking the dismissal for fresh-analysis-validated. The strings were right; the table was stale.", "phase": "38"},
+    {"decision": "Split PR #29 by reverting only two lines rather than dropping the whole pyproject.toml half", "rationale": "pyproject.toml carries the invariant that its pins mirror requirements.txt byte for byte; dropping it wholesale would have silently reverted 7 legitimate updates. Only fastapi and uvicorn[standard] are unsafe.", "phase": "38"},
+    {"decision": "Added dependabot ignore rules scoped by range, not by update-type", "rationale": "The FastAPI break regenerated three times (#21 to #25 to #29) because the weekly pip group had no ignore block. update-type scoping would not have blocked PR #34 at all, since starlette 0.40 to 1.6.0 is a MAJOR bump; a blanket ignore would suppress security advisories. starlette is held at >=0.46.0 only, the range fastapi 0.115.8 cannot satisfy.", "phase": "38"},
+    {"decision": "websockets was deliberately NOT held", "rationale": "uvicorn[standard] 0.30.6 requires websockets>=10.4 with no upper bound, so PR #35's >=17.1 resolves cleanly. The risk was untested rather than proven, and blocking on speculation is the wrong trade. CI passed on both runners.", "phase": "38"},
+    {"decision": "No PAT for this repo, ever", "rationale": "Public repo; an owner-identity token bypasses everything except the ruleset's deletion and non_fast_forward rules. A GitHub App is the right answer for release-please automation. Deferred alongside SCAN-08, because enforce_admins: true is what makes app-token automation safe to hold.", "phase": "37"}
   ],
   "uncommitted_files": [],
-  "next_action": "Resume gate run 3 via Workflow({scriptPath: '...phase38-gate-final-wf_7e7ec15b-4bb.js', resumeFromRunId: 'wf_7e7ec15b-4bb'}) and read its written verdict. Only a PASS unlocks execution. On PASS, run 38-01 first: it is read-only recon with zero mutations, and it produces the VERDICT-SCAN-06 and cryptography verdicts that three later plans gate on.",
-  "context_notes": "Phase 38 is planned, heavily remediated, and committed, but ZERO plans have executed and NO GitHub state has been mutated by this phase: no alert dismissed, no branch deleted, no protection changed, no workflow removed. The repo is exactly where it was at the start of the session apart from planning documents.\n\nThis session was two full execution-gate runs and five remediation passes, and the gate earned its keep twice. Run 1 refuted the claim that 26 dismissals were per-alert justified: one reason string was pasted over 19 alerts and was factually false for at least 16, verified against four real test files. Run 2 refuted the origin/dev delete twice over: first the safety proof failed open when an empty shell variable made 'git rev-list --count origin/master..$DEVSHA' silently degrade to origin/master..HEAD and exit 0, then the PowerShell translation of the guard turned out to be strictly weaker than its POSIX source because a bare throw does not terminate across a submission boundary. That second one was reproduced with a control experiment: wrapper on, delete unreachable across 27 failure runs; wrapper stripped, same inputs, four guards fire and the delete runs anyway.\n\nThe two highest-stakes claims survived every attack at high confidence. There is no real credential leak hiding in the dismissal set: SARIF codeFlows root every clear-text finding at core/credentials.py:47, which is 20 credential key NAMES, and none root at an env read, a config field, or store.get(). And there is no merge lockout: the required CodeQL context is produced by default setup (app_id 57789, workflow 325304050), not by the codeql-analysis.yml file 38-03 deletes, which is already disabled_manually with zero runs.\n\nThe pattern worth carrying: every defect this session was found by measuring rather than reading. The false dismissal reason was caught by opening the four test files. The failed guard was caught by feeding the block to a real parser line by line. The stale cross-reference was caught by diffing two documents that were edited in parallel. Phase 38's remaining work is where that matters most, because a dismissal is indistinguishable from a fix in the alert count and the record cannot be edited afterward."
+  "next_action": "Do NOT execute any plan. Two operator actions come first and the first one gates real work: repair code-scanning/default-setup so alerts #3/#4/#5/#33/#34 can close, and confirm the security-automation exclusion. Then run gate run 6 against fd1a9aa, write the verdict to .planning/phases/38-scanning-to-zero/38-GATE-RUN-6-VERDICT.md and COMMIT it. Only a written PASS unlocks 38-01.",
+  "context_notes": "Phase 38 is planned, remediated across six passes, collapsed to one POSIX implementation, and committed. ZERO plans have executed and NO GitHub state has been mutated BY THE PHASE: no alert dismissed, no branch deleted, no protection changed, no workflow removed.\n\nMaster DID move a lot this session, but through ordinary PR merges outside the phase: nine PRs landed, the Dependabot queue went to zero, and release shoppybot-v2.1.0 was cut. That work is done and verified; it also made parts of Phase 38 redundant (38-02's cryptography task is now a no-op) and would have made another part actively harmful (38-03 and the runbook instructed preserving a v6/v7 divergence that, after #27/#28 merged, would have pinned the wheel job backwards and reverted two merged PRs).\n\nThe single most useful thing to carry forward is the method, not the state. Every real defect this phase has produced was found by MEASURING and none by reading. Reading missed the DI-04 fix landing in the plan but not the runbook across five passes; a byte-level diff caught it immediately. Reading `default-setup: state=configured` said code scanning was working; `languages: []` and `updated_at: null` said it was dead. Reading `rtk git status --porcelain` looked fine; measuring it showed it prints the 2-byte string `ok` on a clean tree, which made 38-01's dirty-tree gate permanently unsatisfiable. Guards were proven by stubbing the binary with fixture JSON and observing the mutation marker absent, not by inspecting the guard.\n\nThe collapse is the structural bet of this session. It removed the seam that produced runs 1 through 5 rather than fixing the fourteen symptoms one at a time. I would not claim gate run 6 passes; I would claim the specific failure mode no longer has a mechanism. If run 6 fails on NEW seams rather than the same ones, that is information worth having before executing anything irreversible."
 }
